@@ -641,42 +641,6 @@
       margin-top: 12px;
     }
 
-    /* ── VERSION CHECK BANNER ── */
-    .version-banner {
-      display: none;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 14px;
-      border-radius: 10px;
-      font-size: 0.78rem;
-      line-height: 1.4;
-    }
-    .version-banner.show { display: flex; }
-    .version-banner.outdated {
-      background: rgba(245, 158, 11, 0.1);
-      border: 1px solid rgba(245, 158, 11, 0.25);
-      color: var(--amber);
-    }
-    .version-banner.current {
-      background: rgba(34, 197, 94, 0.08);
-      border: 1px solid rgba(34, 197, 94, 0.2);
-      color: var(--success);
-    }
-    .version-banner.error {
-      background: rgba(239, 68, 68, 0.06);
-      border: 1px solid rgba(239, 68, 68, 0.15);
-      color: var(--muted);
-    }
-    .version-banner .v-link {
-      margin-left: auto;
-      color: inherit;
-      text-decoration: none;
-      font-weight: 600;
-      white-space: nowrap;
-      opacity: 0.7;
-    }
-    .version-banner .v-link:hover { opacity: 1; text-decoration: underline; }
-
     /* ── SIDEBAR ── */
     .sidebar {
       background: var(--surface);
@@ -811,6 +775,7 @@
         <svg class="gh-icon" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
         GitHub
       </a>
+      <span class="topbar-link" id="versionDisplay">v2.1.0</span>
       <button class="reset-link" type="button" onclick="resetForm()">Reset</button>
     </div>
   </header>
@@ -821,11 +786,6 @@
       <div class="form-header">
         <h1>Set up your addon</h1>
         <p>Enter your API keys to get started. They're <strong>encoded in the addon URL</strong> — never stored or logged.</p>
-      </div>
-
-      <div class="version-banner" id="versionBanner">
-        <span id="versionMsg"></span>
-        <a class="v-link" id="versionLink" href="https://github.com/leleasley/LeLibrary/releases" target="_blank">View releases →</a>
       </div>
 
       <div class="referral-compact">
@@ -1472,8 +1432,7 @@
     const APP_VERSION = '2.1.0';
 
     async function checkVersion() {
-      const banner = document.getElementById('versionBanner');
-      const msg = document.getElementById('versionMsg');
+      const el = document.getElementById('versionDisplay');
       try {
         const r = await fetch('https://api.github.com/repos/leleasley/LeLibrary/releases/latest', {
           headers: { 'Accept': 'application/vnd.github.v3+json' },
@@ -1484,15 +1443,16 @@
         const latest = (data.tag_name || '').replace(/^v/, '');
         if (!latest) throw new Error('No tag');
         if (latest !== APP_VERSION) {
-          msg.textContent = `📢 v${latest} available (you're on v${APP_VERSION})`;
-          banner.className = 'version-banner show outdated';
+          el.textContent = `📢 v${latest}`;
+          el.style.color = 'var(--amber)';
+          el.title = `v${latest} available — update on GitHub`;
+          el.onclick = () => window.open('https://github.com/leleasley/LeLibrary/releases', '_blank');
+          el.style.cursor = 'pointer';
         } else {
-          msg.textContent = `v${APP_VERSION}`;
-          banner.className = 'version-banner show current';
+          el.textContent = `v${APP_VERSION}`;
         }
       } catch (e) {
-        msg.textContent = `LeLibrary v${APP_VERSION}`;
-        banner.className = 'version-banner show error';
+        el.textContent = `v${APP_VERSION}`;
       }
     }
 

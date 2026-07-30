@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.2.2]
+
+- Stale cache fallback during API outages (serve previous catalog instead of empty)
+- Cache invalidation order fixed: only clear after successful rebuild, not before
+- API errors now throw properly (previously swallowed, causing empty catalog poisoning)
+- Foreground/background hash computation aligned (previously mismatched, triggering unnecessary rebuilds)
+- `tmdbindex` auto-populated from cached catalogs (fixes "catalog shows movie but no streams" after restart)
+- Stream caches invalidated alongside meta caches on catalog rebuild
+- TMDB API calls batched (limit 6 concurrent) to avoid rate-limiting on large libraries
+- TorBox timeout increased 20s → 45s for downloads, 10s → 30s for files/stream links
+
 ## [2.2.0]
 
 - Poster/ratings enhancement section (ERDB, RPDB, Fanart.tv, OMDB)

@@ -37,6 +37,42 @@ setInterval(savePersistentCache, 60_000);
 const omdbCache    = new NodeCache({ stdTTL: 86400, checkperiod: 3600 });
 const tmdbindex = new Map(); // `series:12345` → [{item, season, episode}]
 
+// Limit concurrent TMDB API calls to avoid rate-limiting
+async function pLimit(tasks, limit) {
+  const results = [];
+  let i = 0;
+  async function worker() {
+    while (i < tasks.length) {
+      const idx = i++;
+      try { results[idx] = await tasks[idx](); }
+      catch (err) { results[idx] = { error: err }; }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker));
+  return results;
+}
+
+function populateTmdbIndexFromMetas(metas) {
+  if (!Array.isArray(metas)) return;
+  for (const meta of metas) {
+    if (!meta?.torboxItem || !meta.tmdbId) continue;
+    const indexKey = `${meta.type || 'movie'}:${meta.tmdbId}`;
+    const entry = {
+      item: meta.torboxItem,
+      season: meta.season,
+      episode: meta.episode,
+      episodeEnd: meta.episodeEnd ?? null,
+    };
+    if (!tmdbindex.has(indexKey)) {
+      tmdbindex.set(indexKey, [entry]);
+    } else {
+      const existing = tmdbindex.get(indexKey);
+      const already = existing.some(e => e.item.id === entry.item.id && e.item.source === entry.item.source);
+      if (!already) existing.push(entry);
+    }
+  }
+}
+
 function buildErdbUrl(token, type, id) {
   if (!token || !type || !id) return null;
   return `https://easyratingsdb.com/${token}/${type}/${id}.jpg`;
@@ -183,7 +219,11 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
 
   console.log(`[Catalog] type=${type} | raw=${downloads.length} → filtered=${allRelevant.length}`);
 
-  const results = (await Promise.all(allRelevant.map(({ item }) => matchItem(item, tmdbApiKey, type, lang)))).filter(Boolean);
+  // Batch TMDB searches to avoid rate-limiting (TMDB ~40 req/10s)
+  const BATCH_SIZE = 6;
+  const tasks = allRelevant.map(({ item }) => () => matchItem(item, tmdbApiKey, type, lang));
+  const rawResults = await pLimit(tasks, BATCH_SIZE);
+  const results = rawResults.filter(r => r && !r.error);
 
   const seen = new Map();
   for (const meta of results) {
@@ -457,7 +497,7 @@ async function buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, epis
         return true;
       });
 
-      await Promise.all(candidates.map(async item => {
+      const candidateTasks = candidates.map(item => async () => {
         const name = item.name || item.filename || '';
         const info = guessMediaInfo(name);
         try {
@@ -466,7 +506,8 @@ async function buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, epis
             entries.push({ item, season: info.season, episode: info.episode, episodeEnd: info.episodeEnd ?? null });
           }
         } catch {}
-      }));
+      });
+      await pLimit(candidateTasks, 6);
     }
 
     if (entries.length > 0) {
@@ -799,4 +840,4 @@ function formatStreamDesc(filename = '', size, source) {
   return lines.join('\n');
 }
 
-module.exports = { buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings };
+module.exports = { buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas };

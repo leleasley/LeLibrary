@@ -17,7 +17,7 @@ async function torboxGet(path, apiKey, params = {}) {
     const res = await axios.get(`${TORBOX_BASE}${path}`, { 
       headers, 
       params, 
-      timeout: 20000,
+      timeout: 45000,
       validateStatus: (status) => status < 500
     });
     return { data: res.data, status: res.status };
@@ -37,22 +37,24 @@ async function getTorBoxDownloads(apiKey) {
     torboxGet('/usenet/mylist',   apiKey, params),
   ]);
 
+  if (torrentsResult.error) {
+    const s = torrentsResult.status;
+    const msg = s === 403
+      ? '[TorBox] Torrents: access denied (403). Check that your API key is correct and active.'
+      : s === 401
+      ? '[TorBox] Torrents: API key invalid (401).'
+      : `[TorBox] Torrents: error ${s ?? 'unknown'} — ${torrentsResult.error}`;
+    console.error(msg);
+    throw new Error(msg);
+  }
+
   let items = [];
 
-  if (!torrentsResult.error) {
+  {
     const data = torrentsResult.data?.data;
     const list = Array.isArray(data) ? data : (data ? [data] : []);
     console.log(`[TorBox] Torrents: ${list.length} items`);
     items = items.concat(list.map(t => ({ ...t, source: 'torrent' })));
-  } else {
-    const s = torrentsResult.status;
-    if (s === 403) {
-      console.error('[TorBox] Torrents: access denied (403). Check that your API key is correct and active.');
-    } else if (s === 401) {
-      console.error('[TorBox] Torrents: API key invalid (401).');
-    } else {
-      console.error(`[TorBox] Torrents: error ${s ?? 'unknown'} — ${torrentsResult.error}`);
-    }
   }
 
   if (!usenetResult.error) {
@@ -108,7 +110,7 @@ async function getTorBoxStreamLink(apiKey, source, itemId, fileId) {
     : { token: apiKey, usenet_id: itemId,  file_id: fileId, zip_link: false };
 
   try {
-    const res = await axios.get(endpoint, { headers, params, timeout: 10000 });
+    const res = await axios.get(endpoint, { headers, params, timeout: 30000 });
     return res.data?.data || null;
   } catch (err) {
     const s = err.response?.status;
@@ -127,7 +129,7 @@ async function getTorBoxFiles(apiKey, source, itemId) {
     const res = await axios.get(endpoint, {
       headers,
       params: { id: itemId, bypass_cache: false },
-      timeout: 10000,
+      timeout: 30000,
     });
     const data = res.data?.data;
     const item = Array.isArray(data) ? data[0] : data;

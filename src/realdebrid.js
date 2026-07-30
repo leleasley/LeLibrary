@@ -32,7 +32,14 @@ async function rdGet(path, apiKey, params = {}) {
 async function getRealDebridDownloads(apiKey) {
   // Fetch first page to see if there are more
   const { data: first, error } = await rdGet('/torrents', apiKey, { page: 1, limit: 100 });
-  if (error || !Array.isArray(first) || first.length === 0) return [];
+  if (error) {
+    console.error(`[RD] Torrents error: ${error}`);
+    throw new Error(`[RD] Torrents error: ${error}`);
+  }
+  if (!Array.isArray(first)) {
+    throw new Error('[RD] Unexpected response format from /torrents');
+  }
+  if (first.length === 0) return [];
 
   // If first page is already full, fetch additional pages in parallel (up to 10 pages = 1000 items)
   let allPages = [first];
@@ -94,7 +101,7 @@ async function getRealDebridStreamLink(apiKey, itemId, fileId) {
   const { data: unrestricted } = await axios.post(
     `${RD_BASE}/unrestrict/link`,
     new URLSearchParams({ link }),
-    { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 }
+    { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 30000 }
   ).catch(() => ({ data: null }));
 
   return unrestricted?.download || null;

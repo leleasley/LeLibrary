@@ -1,3 +1,6 @@
+# AI session carry-over
+AGENTS.md
+
 # Sensitive credentials & config
 .env
 *.pem

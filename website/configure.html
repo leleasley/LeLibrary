@@ -1487,9 +1487,8 @@
           msg.textContent = `📢 v${latest} available (you're on v${APP_VERSION})`;
           banner.className = 'version-banner show outdated';
         } else {
-          msg.textContent = `✅ v${APP_VERSION} — up to date`;
+          msg.textContent = `v${APP_VERSION}`;
           banner.className = 'version-banner show current';
-          setTimeout(() => banner.classList.remove('show'), 8000);
         }
       } catch (e) {
         msg.textContent = `LeLibrary v${APP_VERSION}`;

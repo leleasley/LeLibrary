@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.1.0] — 2026-07-30
+## [2.1.0]
 
 - Poster/ratings enhancement (ERDB, RPDB, Fanart.tv, OMDB)
 - Custom stream injection

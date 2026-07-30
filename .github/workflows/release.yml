@@ -20,7 +20,14 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           awk -v ver="$VERSION" '
             /^## \[/ {
-              if (index($0, "[" ver "]")) found=1; else if (found) exit
+              if (index($0, "[" ver "]")) {
+                found=1
+                sub(/ — .*/, "")
+                print
+                next
+              } else if (found) {
+                exit
+              }
             }
             found { print }
           ' CHANGELOG.md > release-notes.md

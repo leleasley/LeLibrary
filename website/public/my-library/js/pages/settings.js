@@ -70,7 +70,7 @@ function renderSettingsView() {
         <h3>Info About</h3>
         <div class="settings-row">
           <div class="settings-row-label">LeLibrary</div>
-          <div class="settings-row-desc" style="color:var(--amber)">v2.1.0</div>
+          <div class="settings-row-desc" style="color:var(--amber)">v2.1.1</div>
         </div>
         <div class="settings-row" id="versionCheckRow" style="display:none">
           <div class="settings-row-label">Update</div>
@@ -168,7 +168,7 @@ function importWatchlist(event) {
   event.target.value = '';
 }
 
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.1.1';
 
 async function checkMylibraryVersion() {
   const row = document.getElementById('versionCheckRow');

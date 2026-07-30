@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.1.1]
+
+- Version display moved to topbar on configure page
+- Version badge now driven dynamically from JS constant
+
 ## [2.1.0]
 
 - Poster/ratings enhancement (ERDB, RPDB, Fanart.tv, OMDB)

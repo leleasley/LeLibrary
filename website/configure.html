@@ -9,7 +9,7 @@
   <link rel="apple-touch-icon" type="image/png" sizes="180x180" href="/apple-touch-icon.png" />
   <link rel="manifest" href="/site.webmanifest" />
   <meta name="theme-color" content="#09090b" />
-  <title>LeLibrary — Configure</title>
+  <title>Configure | LeLibrary</title>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -282,7 +282,7 @@
     .input-row {
       display: flex;
       gap: 8px;
-      align-items: stretch;
+      align-items: center;
     }
 
     .input-row input {
@@ -890,6 +890,31 @@
         </div>
       </div>
 
+      <!-- Catalog Display (collapsible) -->
+      <div class="form-section collapsible">
+        <div class="collapsible-header" onclick="toggleSection(this)">
+          <span class="section-title" style="border:none;padding:0">Catalog Display <span style="color:var(--amber);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></span>
+          <span class="collapse-arrow">▸</span>
+        </div>
+        <div class="collapsible-body">
+          <div class="field">
+            <div class="field-label">Movies catalog name</div>
+            <input type="text" id="catNameMovies" placeholder="🎬 My Movies" />
+          </div>
+          <div class="field">
+            <div class="field-label">Series catalog name</div>
+            <input type="text" id="catNameSeries" placeholder="📺 My Series" />
+          </div>
+          <div class="field" id="catNameAnimeField">
+            <div class="field-label">Anime catalog name</div>
+            <input type="text" id="catNameAnime" placeholder="🍥 LeLibrary Anime" />
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;margin-top:8px">
+            <input type="checkbox" id="hideAnime" onchange="onHideAnimeChange()" /> Hide anime catalog
+          </label>
+        </div>
+      </div>
+
       <!-- Poster Enhancement (collapsible) -->
       <div class="form-section collapsible">
         <div class="collapsible-header" onclick="toggleSection(this)">
@@ -999,6 +1024,9 @@
       </div>
 
       <!-- Actions -->
+      <div id="unsavedBanner" style="display:none;background:rgba(245,158,11,0.12);border:1px solid var(--amber);border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:0.85rem;color:var(--amber);display:none;align-items:center;gap:8px">
+        <span style="font-size:1.1rem">⚠️</span> You have unsaved changes
+      </div>
       <div class="actions">
         <button class="btn-main btn-gen" id="btnGenerate" onclick="generate()">
           <div class="ico">⚡</div>
@@ -1115,6 +1143,34 @@
 
   <div class="toast" id="toast">Copied!</div>
 
+  <!-- Reinstall Modal -->
+  <div id="reinstallModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;display:none;align-items:center;justify-content:center">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:440px;width:90%;text-align:center">
+      <div style="font-size:2rem;margin-bottom:12px">✅</div>
+      <h2 style="font-size:1.1rem;margin:0 0 8px 0;color:var(--text)">Settings Saved</h2>
+      <p style="font-size:0.85rem;color:var(--muted);margin:0 0 20px 0;line-height:1.5">Your config token has changed.<br><strong style="color:var(--text)">Reinstall the addon</strong> in Stremio or Nuvio to apply your new settings.</p>
+      <div style="display:flex;gap:6px;margin-bottom:16px;align-items:stretch">
+        <div style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:0.75rem;word-break:break-all;text-align:left;color:var(--amber);max-height:60px;overflow-y:auto;display:flex;align-items:center;font-family:var(--mono,monospace);line-height:1.4" id="modalManifestUrl"></div>
+        <button onclick="copyModalUrl()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;color:var(--text);cursor:pointer;font-size:0.8rem;white-space:nowrap;flex-shrink:0;transition:all 0.15s;font-family:var(--font)" onmouseover="this.style.borderColor='var(--amber)'" onmouseout="this.style.borderColor=''">Copy</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <a id="modalReinstall" href="#" class="btn-main btn-stremio" style="text-decoration:none;justify-content:center">
+          <div class="ico"><img src="/stremio.svg" alt="Stremio" style="width:20px;height:20px" /></div>
+          <div class="txt"><span>Reinstall on Stremio</span></div>
+          <span class="arr">›</span>
+        </a>
+        <a id="modalReinstallNuvio" href="#" class="btn-main btn-nuvio" target="_blank" rel="noopener" style="text-decoration:none;justify-content:center">
+          <div class="ico"><img src="/nuvio.png" alt="Nuvio" style="width:20px;height:20px" /></div>
+          <div class="txt"><span>Reinstall on Nuvio</span></div>
+          <span class="arr">›</span>
+        </a>
+        <button class="btn-main" onclick="closeReinstallModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);justify-content:center;cursor:pointer;font-family:var(--font);font-size:0.85rem;padding:10px 20px;border-radius:8px">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     function toggleVis(id, btn) {
       const el = document.getElementById(id);
@@ -1124,19 +1180,25 @@
     }
 
     function encodeConfig(cfg) {
-      return btoa(JSON.stringify(cfg))
+      return btoa(unescape(encodeURIComponent(JSON.stringify(cfg))))
         .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
     }
 
     let initialConfig = null;
     let customStreams = [];
+    let hasExistingToken = false;
 
     function toggleSection(header) {
       const body = header.nextElementSibling;
       const arrow = header.querySelector('.collapse-arrow');
-      header.classList.toggle('open');
       if (body) body.classList.toggle('open');
       if (arrow) arrow.classList.toggle('open');
+    }
+
+    function onHideAnimeChange() {
+      const hide = document.getElementById('hideAnime').checked;
+      document.getElementById('catNameAnimeField').style.display = hide ? 'none' : 'flex';
+      checkChanged();
     }
 
     function onPosterChange() {
@@ -1181,6 +1243,10 @@
         enhanceBackground: document.getElementById('enhanceBackground').checked,
         enhanceLogo: document.getElementById('enhanceLogo').checked,
         customStreams: customStreams,
+        catNameMovies: document.getElementById('catNameMovies').value.trim(),
+        catNameSeries: document.getElementById('catNameSeries').value.trim(),
+        catNameAnime: document.getElementById('catNameAnime').value.trim(),
+        hideAnime: document.getElementById('hideAnime').checked,
       };
     }
 
@@ -1199,23 +1265,42 @@
         a.omdbKey === b.omdbKey &&
         a.enhanceBackground === b.enhanceBackground &&
         a.enhanceLogo === b.enhanceLogo &&
-        JSON.stringify(a.customStreams || []) === JSON.stringify(b.customStreams || []);
+        JSON.stringify(a.customStreams || []) === JSON.stringify(b.customStreams || []) &&
+        a.catNameMovies === b.catNameMovies &&
+        a.catNameSeries === b.catNameSeries &&
+        a.catNameAnime === b.catNameAnime &&
+        a.hideAnime === b.hideAnime;
     }
 
     function checkChanged() {
       if (!initialConfig) return;
       const changed = !configsEqual(getCurrentConfig(), initialConfig);
       const btn = document.getElementById('btnGenerate');
-      if (changed && btn.style.display === 'none') {
-        btn.style.display = '';
-      } else if (!changed && btn.style.display !== 'none') {
-        btn.style.display = 'none';
-        document.getElementById('btnDesktop').classList.remove('show');
-        document.getElementById('btnWeb').classList.remove('show');
-        document.getElementById('btnNuvio').classList.remove('show');
-        document.getElementById('urlRow').classList.remove('show');
-        document.getElementById('manifestUrl').textContent = '';
+      const banner = document.getElementById('unsavedBanner');
+      banner.style.display = changed ? 'flex' : 'none';
+      if (hasExistingToken) {
+        btn.style.display = changed ? '' : 'none';
+      } else {
+        if (changed && btn.style.display === 'none') {
+          btn.style.display = '';
+        } else if (!changed && btn.style.display !== 'none') {
+          btn.style.display = 'none';
+          document.getElementById('btnDesktop').classList.remove('show');
+          document.getElementById('btnWeb').classList.remove('show');
+          document.getElementById('btnNuvio').classList.remove('show');
+          document.getElementById('urlRow').classList.remove('show');
+          document.getElementById('manifestUrl').textContent = '';
+        }
       }
+    }
+
+    function closeReinstallModal() {
+      document.getElementById('reinstallModal').style.display = 'none';
+    }
+
+    function copyModalUrl() {
+      const url = document.getElementById('modalManifestUrl').textContent;
+      navigator.clipboard.writeText(url).then(() => showToast('URL copied!'));
     }
 
     function showToast(msg) {
@@ -1312,6 +1397,10 @@
       const omdbKey      = document.getElementById('omdbKey').value.trim();
       const enhanceBackground = document.getElementById('enhanceBackground').checked;
       const enhanceLogo  = document.getElementById('enhanceLogo').checked;
+      const catNameMovies = document.getElementById('catNameMovies').value.trim();
+      const catNameSeries = document.getElementById('catNameSeries').value.trim();
+      const catNameAnime  = document.getElementById('catNameAnime').value.trim();
+      const hideAnime     = document.getElementById('hideAnime').checked;
 
       let valid = true;
       if (provider === 'torbox' || provider === 'both') {
@@ -1336,8 +1425,6 @@
 
       const btn = document.getElementById('btnGenerate');
       const originalLabel = document.getElementById('genBtnTitle').textContent;
-      btn.disabled = true;
-      document.getElementById('genBtnTitle').textContent = 'Generating...';
 
       const cfg = { provider, tmdbApiKey, sortBy, lang };
       if (provider === 'torbox' || provider === 'both') cfg.torboxApiKey = torboxApiKey;
@@ -1357,6 +1444,10 @@
       }
       if (omdbKey) cfg.omdbKey = omdbKey;
       if (customStreams.length > 0) cfg.customStreams = customStreams;
+      if (catNameMovies) cfg.catNameMovies = catNameMovies;
+      if (catNameSeries) cfg.catNameSeries = catNameSeries;
+      if (catNameAnime) cfg.catNameAnime = catNameAnime;
+      if (hideAnime) cfg.hideAnime = true;
 
       const encoded     = encodeConfig(cfg);
       const origin      = window.location.origin;
@@ -1365,19 +1456,42 @@
       const stremioWeb  = `https://web.stremio.com/#/addons?addon=${encodeURIComponent(manifestUrl)}`;
       const nuvioDeep   = manifestUrl.replace(/^https?:\/\//, 'nuvio://');
 
-      setTimeout(() => {
-        document.getElementById('manifestUrl').textContent = manifestUrl;
-        document.getElementById('btnDesktop').href = stremioDeep;
-        document.getElementById('btnWeb').href = stremioWeb;
-        document.getElementById('btnNuvio').href = nuvioDeep;
-        document.getElementById('btnDesktop').classList.add('show');
-        document.getElementById('btnWeb').classList.add('show');
-        document.getElementById('btnNuvio').classList.add('show');
-        document.getElementById('urlRow').classList.add('show');
+      // Show the install links regardless (for both new and existing users)
+      document.getElementById('manifestUrl').textContent = manifestUrl;
+      document.getElementById('btnDesktop').href = stremioDeep;
+      document.getElementById('btnWeb').href = stremioWeb;
+      document.getElementById('btnNuvio').href = nuvioDeep;
+      document.getElementById('btnDesktop').classList.add('show');
+      document.getElementById('btnWeb').classList.add('show');
+      document.getElementById('btnNuvio').classList.add('show');
+      document.getElementById('urlRow').classList.add('show');
+
+      if (hasExistingToken) {
+        if (initialConfig && configsEqual(getCurrentConfig(), initialConfig)) {
+          // No changes — just show links, no flashing, no modal
+          document.getElementById('modalReinstall').href = stremioDeep;
+          document.getElementById('modalReinstallNuvio').href = nuvioDeep;
+          document.getElementById('modalManifestUrl').textContent = manifestUrl;
+          btn.disabled = false;
+          document.getElementById('genBtnTitle').textContent = 'Save';
+          return;
+        }
+        // Changes detected — show modal
+        document.getElementById('modalReinstall').href = stremioDeep;
+        document.getElementById('modalReinstallNuvio').href = nuvioDeep;
+        document.getElementById('modalManifestUrl').textContent = manifestUrl;
+        initialConfig = getCurrentConfig();
+        document.getElementById('unsavedBanner').style.display = 'none';
+        document.getElementById('btnGenerate').style.display = 'none';
         btn.disabled = false;
-        document.getElementById('genBtnTitle').textContent = originalLabel;
-        document.getElementById('btnDesktop').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }, 250);
+        document.getElementById('genBtnTitle').textContent = 'Save';
+        document.getElementById('reinstallModal').style.display = 'flex';
+        return;
+      }
+      // New user — scroll to links
+      btn.disabled = false;
+      document.getElementById('genBtnTitle').textContent = originalLabel;
+      document.getElementById('btnDesktop').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     function copyUrl(btn) {
@@ -1424,12 +1538,16 @@
       document.getElementById('btnNuvio').classList.remove('show');
       document.getElementById('urlRow').classList.remove('show');
       document.getElementById('manifestUrl').textContent = '';
+      hasExistingToken = false;
+      document.getElementById('genBtnTitle').textContent = 'Generate install links';
+      document.querySelector('#btnGenerate small').textContent = 'Create links with your keys';
       document.getElementById('btnGenerate').style.display = '';
+      document.getElementById('unsavedBanner').style.display = 'none';
       initialConfig = null;
       onProviderChange();
     }
 
-    const APP_VERSION = '2.1.1';
+    const APP_VERSION = '2.2.0';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');
@@ -1461,8 +1579,11 @@
       checkVersion();
       const token = window.location.pathname.split('/')[1];
       const hasToken = token && token !== 'configure';
+      hasExistingToken = hasToken;
       if (hasToken) {
         document.getElementById('btnRefresh').style.display = '';
+        document.getElementById('genBtnTitle').textContent = 'Save';
+        document.querySelector('#btnGenerate small').textContent = 'Save your config changes';
       }
 
       const cfg = window.__INITIAL_CONFIG__;
@@ -1493,13 +1614,20 @@
           customStreams = cfg.customStreams;
           renderCustomStreams();
         }
+        if (cfg.catNameMovies) document.getElementById('catNameMovies').value = cfg.catNameMovies;
+        if (cfg.catNameSeries) document.getElementById('catNameSeries').value = cfg.catNameSeries;
+        if (cfg.catNameAnime) document.getElementById('catNameAnime').value = cfg.catNameAnime;
+        if (cfg.hideAnime) {
+          document.getElementById('hideAnime').checked = true;
+          document.getElementById('catNameAnimeField').style.display = 'none';
+        }
         setTimeout(() => generate(), 100);
         initialConfig = getCurrentConfig();
         if (hasToken) document.getElementById('btnGenerate').style.display = 'none';
       }
 
       // Watch for changes on all config fields
-      const watchIds = ['provider', 'torboxApiKey', 'rdApiKey', 'tmdbApiKey', 'rdCatalog', 'sortBy', 'lang', 'posterProvider', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey'];
+      const watchIds = ['provider', 'torboxApiKey', 'rdApiKey', 'tmdbApiKey', 'rdCatalog', 'sortBy', 'lang', 'posterProvider', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'catNameMovies', 'catNameSeries', 'catNameAnime'];
       watchIds.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
@@ -1507,7 +1635,7 @@
           el.addEventListener(ev, checkChanged);
         }
       });
-      ['enhanceBackground', 'enhanceLogo'].forEach(id => {
+      ['enhanceBackground', 'enhanceLogo', 'hideAnime'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('change', checkChanged);
       });

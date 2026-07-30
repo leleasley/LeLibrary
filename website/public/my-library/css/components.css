@@ -45,7 +45,7 @@
 .input-wrap label a { color: var(--amber); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; }
 .input-wrap input, .input-wrap select {
   width: 100%; background: var(--bg); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); padding: 8px 12px;
+  border-radius: var(--radius-sm); padding: 8px 36px 8px 12px;
   color: var(--text); font-size: 13px; outline: none;
   font-family: var(--mono); transition: border-color var(--transition), box-shadow var(--transition);
 }

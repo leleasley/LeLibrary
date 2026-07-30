@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.2.0]
+
+- Poster/ratings enhancement section (ERDB, RPDB, Fanart.tv, OMDB)
+- Custom streams (add your own stream URLs)
+- Collapsible config sections (Poster, Catalog Display, Custom Streams)
+- Catalog display customization (rename catalogs, hide anime)
+- Unsaved changes indicator + Save button for existing token users
+- Reinstall modal on config save
+- Verify buttons for API keys
+- Stream preview with selectable presets
+- Emoji support in catalog names
+- Page titles updated to "Page | LeLibrary" format
+
 ## [2.1.1]
 
 - Version display moved to topbar on configure page

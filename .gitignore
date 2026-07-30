@@ -1,0 +1,38 @@
+# Sensitive credentials & config
+.env
+*.pem
+*.key
+*.crt
+
+# Local compose (server-specific config)
+# Use compose.example.yml as template
+compose.yml
+
+# Dependencies
+node_modules/
+package-lock.json
+
+# Disk-persisted cache
+/tmp/torbox-tmdb-cache.json
+
+# Logs
+*.log
+logs/
+
+# Redis data
+redis_data/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Private website files (not in public repo)
+website/landing.html
+website/index.js
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

@@ -145,7 +145,7 @@ function getLogoUrl(baseUrl) {
 function getBaseManifest(baseUrl) {
   return {
     id: 'community.torbox.catalog',
-    version: '2.1.1',
+    version: '2.2.0',
     name: 'LeLibrary',
     description: 'Your personal TorBox catalog with TMDB metadata.',
     logo: getLogoUrl(baseUrl),
@@ -159,45 +159,59 @@ function getBaseManifest(baseUrl) {
 }
 
 function getConfiguredManifest(baseUrl, config = {}) {
-  const { rdApiKey, rdCatalog = 'merge', provider = 'both' } = config;
+  const { rdApiKey, rdCatalog = 'merge', provider = 'both', catNameMovies, catNameSeries, catNameAnime, hideAnime } = config;
   const hasRD = !!rdApiKey && (provider === 'both' || provider === 'realdebrid');
   const hasTB = provider === 'both' || provider === 'torbox';
+
+  function catName(def, custom) { return custom || def; }
 
   const catalogs = [];
 
   if (provider === 'realdebrid') {
     catalogs.push(
-      { id: 'rd-movies',     type: 'movie',  name: '🔴 My Movies', extra: [{ name: 'skip' }, { name: 'search' }] },
-      { id: 'rd-series',     type: 'series', name: '🔴 My Series',  extra: [{ name: 'skip' }, { name: 'search' }] },
-      { id: 'rd-anime',      type: 'series', name: '🔴 LeLibrary Anime',  extra: [{ name: 'skip' }, { name: 'search' }] },
+      { id: 'rd-movies', type: 'movie',  name: catName('🔴 My Movies', catNameMovies), extra: [{ name: 'skip' }, { name: 'search' }] },
+      { id: 'rd-series', type: 'series', name: catName('🔴 My Series',  catNameSeries), extra: [{ name: 'skip' }, { name: 'search' }] },
+    );
+    if (!hideAnime) catalogs.push(
+      { id: 'rd-anime',  type: 'series', name: catName('🔴 LeLibrary Anime',  catNameAnime), extra: [{ name: 'skip' }, { name: 'search' }] },
     );
   } else if (provider === 'torbox') {
     catalogs.push(
-      { id: 'torbox-movies', type: 'movie',  name: '🎬 My Movies', extra: [{ name: 'skip' }, { name: 'search' }] },
-      { id: 'torbox-series', type: 'series', name: '📺 My Series',  extra: [{ name: 'skip' }, { name: 'search' }] },
-      { id: 'torbox-anime',  type: 'series', name: '🍥 LeLibrary Anime',  extra: [{ name: 'skip' }, { name: 'search' }] },
+      { id: 'torbox-movies', type: 'movie',  name: catName('🎬 My Movies', catNameMovies), extra: [{ name: 'skip' }, { name: 'search' }] },
+      { id: 'torbox-series', type: 'series', name: catName('📺 My Series',  catNameSeries), extra: [{ name: 'skip' }, { name: 'search' }] },
+    );
+    if (!hideAnime) catalogs.push(
+      { id: 'torbox-anime',  type: 'series', name: catName('🍥 LeLibrary Anime',  catNameAnime), extra: [{ name: 'skip' }, { name: 'search' }] },
     );
   } else if (!hasRD || rdCatalog === 'merge') {
     catalogs.push(
-      { id: 'torbox-movies', type: 'movie',  name: '🎬 My Movies', extra: [{ name: 'skip' }, { name: 'search' }] },
-      { id: 'torbox-series', type: 'series', name: '📺 My Series',  extra: [{ name: 'skip' }, { name: 'search' }] },
-      { id: 'torbox-anime',  type: 'series', name: '🍥 LeLibrary Anime',  extra: [{ name: 'skip' }, { name: 'search' }] },
+      { id: 'torbox-movies', type: 'movie',  name: catName('🎬 My Movies', catNameMovies), extra: [{ name: 'skip' }, { name: 'search' }] },
+      { id: 'torbox-series', type: 'series', name: catName('📺 My Series',  catNameSeries), extra: [{ name: 'skip' }, { name: 'search' }] },
+    );
+    if (!hideAnime) catalogs.push(
+      { id: 'torbox-anime',  type: 'series', name: catName('🍥 LeLibrary Anime',  catNameAnime), extra: [{ name: 'skip' }, { name: 'search' }] },
     );
   } else {
     // separate
     catalogs.push(
-      { id: 'torbox-movies', type: 'movie',  name: '🎬 TorBox Films', extra: [{ name: 'skip' }, { name: 'search' }] },
-      { id: 'torbox-series', type: 'series', name: '📺 TorBox Series',  extra: [{ name: 'skip' }, { name: 'search' }] },
-      { id: 'torbox-anime',  type: 'series', name: '🍥 TorBox Animes',  extra: [{ name: 'skip' }, { name: 'search' }] },
-      { id: 'rd-movies',     type: 'movie',  name: '🔴 Real-Debrid Films', extra: [{ name: 'skip' }, { name: 'search' }] },
-      { id: 'rd-series',     type: 'series', name: '🔴 Real-Debrid Series',  extra: [{ name: 'skip' }, { name: 'search' }] },
-      { id: 'rd-anime',      type: 'series', name: '🔴 Real-Debrid Animes',  extra: [{ name: 'skip' }, { name: 'search' }] },
+      { id: 'torbox-movies', type: 'movie',  name: catName('🎬 TorBox Films', catNameMovies), extra: [{ name: 'skip' }, { name: 'search' }] },
+      { id: 'torbox-series', type: 'series', name: catName('📺 TorBox Series',  catNameSeries), extra: [{ name: 'skip' }, { name: 'search' }] },
+    );
+    if (!hideAnime) catalogs.push(
+      { id: 'torbox-anime',  type: 'series', name: catName('🍥 TorBox Animes',  catNameAnime), extra: [{ name: 'skip' }, { name: 'search' }] },
+    );
+    catalogs.push(
+      { id: 'rd-movies',     type: 'movie',  name: catName('🔴 Real-Debrid Films', catNameMovies), extra: [{ name: 'skip' }, { name: 'search' }] },
+      { id: 'rd-series',     type: 'series', name: catName('🔴 Real-Debrid Series',  catNameSeries), extra: [{ name: 'skip' }, { name: 'search' }] },
+    );
+    if (!hideAnime) catalogs.push(
+      { id: 'rd-anime',      type: 'series', name: catName('🔴 Real-Debrid Animes',  catNameAnime), extra: [{ name: 'skip' }, { name: 'search' }] },
     );
   }
 
   return {
     id: 'community.torbox.catalog',
-    version: '2.1.1',
+    version: '2.2.0',
     name: 'LeLibrary',
     description: 'Your personal library with TMDB metadata.',
     logo: getLogoUrl(baseUrl),
@@ -219,7 +233,7 @@ app.get('/health', async (req, res) => {
   res.json({
     status: 'ok',
     cache: stats,
-    version: '2.1.1',
+    version: '2.2.0',
   });
 });
 

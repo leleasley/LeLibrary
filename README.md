@@ -145,18 +145,11 @@ docker compose down             # stop
 docker compose up -d --build    # rebuild after changes
 ```
 
-### 3. Vercel (free)
+### 3. Vercel (free) — Retiring soon
 
 [![Deploy with Vercel](https://camo.githubusercontent.com/7015516519ae874ab75537283bc75f86b3d46386ed994093a3790a1180913164/68747470733a2f2f76657263656c2e636f6d2f627574746f6e)](https://vercel.com/new/clone?repository-url=https://github.com/leleasley/LeLibrary)
 
 No configuration needed. Optional: set `REDIS_URL` for persistent cache (e.g. from [Upstash](https://upstash.com)).
-
-### 4. Render (free)
-
-1. Fork this repo
-2. Go to [render.com](https://render.com) → **New Web Service**
-3. Connect your fork
-4. It auto-detects the Dockerfile — hit **Deploy**
 
 ---
 

@@ -736,6 +736,11 @@
       .sidebar { display: none; }
       .form-area { padding: 24px 20px; overflow: visible; }
       .topbar-right .topbar-link { display: none; }
+      .sidebar-poster-preview { display: none; }
+    }
+
+    @media (min-width: 861px) {
+      .mobile-poster-preview { display: none; }
     }
 
     @media (max-width: 480px) {
@@ -988,6 +993,14 @@
               <p class="field-hint">Adds IMDb, Rotten Tomatoes &amp; Metacritic scores to detail pages (not rendered on poster images). Get a free key at <a href="https://www.omdbapi.com/apikey.aspx" target="_blank">omdbapi.com</a> — 1,000 req/day.</p>
             </div>
           </div>
+
+          <!-- Poster Preview (mobile) -->
+          <div class="mobile-poster-preview" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);text-align:center">
+            <div class="field-label" style="margin-bottom:8px;justify-content:center">Poster Preview</div>
+            <div id="mobilePosterPreview" style="min-height:100px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--border2);font-size:0.78rem">
+              <span>Select a poster service above<br>to see a live preview</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1138,6 +1151,16 @@
           </ul>
         </div>
       </div>
+
+      <!-- Poster Preview (desktop) -->
+      <div class="sidebar-section sidebar-poster-preview">
+        <h3>Poster Preview</h3>
+        <div class="info-card" style="text-align:center">
+          <div id="sidebarPosterPreview" style="min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--border2);font-size:0.78rem">
+            <span>Select a poster service above<br>to see a live preview</span>
+          </div>
+        </div>
+      </div>
     </aside>
   </div>
 
@@ -1207,7 +1230,32 @@
       document.getElementById('rpdbField').style.display = val === 'rpdb' ? 'flex' : 'none';
       document.getElementById('fanartField').style.display = val === 'fanart' ? 'flex' : 'none';
       document.getElementById('posterToggles').style.display = val && val !== 'fanart' ? 'flex' : 'none';
+      updatePosterPreview();
       checkChanged();
+    }
+
+    function updatePosterPreview() {
+      const provider = document.getElementById('posterProvider').value;
+      const samples = { erdb: { url: () => {
+        const t = document.getElementById('erdbToken').value.trim();
+        return t ? `https://easyratingsdb.com/${t}/poster/tt0133093.jpg` : null;
+      }, label: 'ERDB' }, rpdb: { url: () => {
+        const k = document.getElementById('rpdbKey').value.trim();
+        return k ? `https://api.ratingposterdb.com/${k}/imdb/poster-default/tt0133093.jpg?fallback=true` : null;
+      }, label: 'RPDB' }, fanart: { url: () => null, label: 'Fanart.tv' } };
+      const s = samples[provider];
+      let html;
+      if (!provider) {
+        html = '<span>Select a poster service above<br>to see a live preview</span>';
+      } else if (provider === 'fanart') {
+        html = '<span style="font-size:0.78rem;color:var(--muted)">Fanart.tv doesn\'t embed ratings on posters —<br>configure a service above to preview</span>';
+      } else if (!s || !s.url()) {
+        html = `<span>Enter your ${s.label} key above<br>to see a live preview</span>`;
+      } else {
+        html = `<img src="${s.url()}" alt="Poster preview" style="max-width:150px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3)" onerror="this.parentElement.innerHTML='<span style=color:var(--error);font-size:0.78rem>Preview failed — invalid key?</span>'" />`;
+      }
+      document.getElementById('sidebarPosterPreview').innerHTML = html;
+      document.getElementById('mobilePosterPreview').innerHTML = html;
     }
 
     function onProviderChange() {
@@ -1547,7 +1595,7 @@
       onProviderChange();
     }
 
-    const APP_VERSION = '2.2.1';
+    const APP_VERSION = '2.2.2';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');
@@ -1604,8 +1652,8 @@
           document.getElementById('posterProvider').value = cfg.posterProvider;
           onPosterChange();
         }
-        if (cfg.erdbToken) document.getElementById('erdbToken').value = cfg.erdbToken;
-        if (cfg.rpdbKey) document.getElementById('rpdbKey').value = cfg.rpdbKey;
+        if (cfg.erdbToken) { document.getElementById('erdbToken').value = cfg.erdbToken; updatePosterPreview(); }
+        if (cfg.rpdbKey) { document.getElementById('rpdbKey').value = cfg.rpdbKey; updatePosterPreview(); }
         if (cfg.fanartKey) document.getElementById('fanartKey').value = cfg.fanartKey;
         if (cfg.omdbKey) document.getElementById('omdbKey').value = cfg.omdbKey;
         if (cfg.enhanceBackground != null) document.getElementById('enhanceBackground').checked = cfg.enhanceBackground;
@@ -1638,6 +1686,10 @@
       ['enhanceBackground', 'enhanceLogo', 'hideAnime'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('change', checkChanged);
+      });
+      ['erdbToken', 'rpdbKey'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', updatePosterPreview);
       });
     });
 

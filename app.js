@@ -3,7 +3,7 @@ const path    = require('path');
 const cache   = require('./src/cache');
 const { getTorBoxDownloads } = require('./src/torbox');
 const { getRealDebridDownloads } = require('./src/realdebrid');
-const { buildCatalog, buildMeta, buildStreams } = require('./src/builder');
+const { buildCatalog, buildMeta, buildStreams, populateTmdbIndexFromMetas } = require('./src/builder');
 const createWebRoutes = require('./website');
 
 const ROOT_DIR = path.resolve(__dirname);
@@ -107,7 +107,6 @@ async function buildAndCacheForConfig(token, config) {
       console.log(`[Cache] Downloads unchanged, skip rebuild`);
       return;
     }
-    await cache.set(hashKey, newHash, 7200);
 
     const merged   = [...tbDownloads, ...rdDownloads];
     const sources  = rdCatalog === 'separate'
@@ -117,15 +116,18 @@ async function buildAndCacheForConfig(token, config) {
     await Promise.all(sources.flatMap(({ key, downloads }) =>
       TYPES.map(async type => {
         const metas    = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip: 0, search: '' }, lang, { erdbToken, rpdbKey });
-        const cacheKey = cache.makeKey('cat', key, type, sortBy, '', '0', (torboxApiKey || rdApiKey).slice(-6), lang);
+        const userKey  = (torboxApiKey || rdApiKey).slice(-6);
+        const cacheKey = cache.makeKey('cat', key, type, sortBy, '', '0', userKey, lang);
         await cache.set(cacheKey, { metas }, TTL_CATALOG);
         console.log(`[Cache] ${key}:${type} → ${metas.length} items`);
       })
     ));
 
-    // Invalidate stale meta cache so new series get fresh episode data
+    // Only update hash and invalidate caches after ALL catalogs built successfully
+    await cache.set(hashKey, newHash, 7200);
     await cache.delPattern('meta:*');
-    console.log('[Cache] Meta cache invalidated after catalog rebuild');
+    await cache.delPattern('stream:*');
+    console.log('[Cache] Meta + stream caches invalidated after catalog rebuild');
   } catch (err) {
     console.error('[Cache] Error:', err.message);
   }
@@ -145,7 +147,7 @@ function getLogoUrl(baseUrl) {
 function getBaseManifest(baseUrl) {
   return {
     id: 'community.torbox.catalog',
-    version: '2.2.1',
+    version: '2.2.2',
     name: 'LeLibrary',
     description: 'Your personal TorBox catalog with TMDB metadata.',
     logo: getLogoUrl(baseUrl),
@@ -211,7 +213,7 @@ function getConfiguredManifest(baseUrl, config = {}) {
 
   return {
     id: 'community.torbox.catalog',
-    version: '2.2.1',
+    version: '2.2.2',
     name: 'LeLibrary',
     description: 'Your personal library with TMDB metadata.',
     logo: getLogoUrl(baseUrl),
@@ -233,7 +235,7 @@ app.get('/health', async (req, res) => {
   res.json({
     status: 'ok',
     cache: stats,
-    version: '2.2.1',
+    version: '2.2.2',
   });
 });
 
@@ -313,6 +315,7 @@ async function handleCatalog(req, res) {
 
   if (cached) {
     console.log(`[Catalog] Cache hit → ${cached.metas.length} items`);
+    populateTmdbIndexFromMetas(cached.metas);
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
     return res.json(cached);
   }
@@ -325,16 +328,21 @@ async function handleCatalog(req, res) {
 
     const downloads = [...tbDownloads, ...rdDownloads];
 
-    const newHash = hashDownloads(downloads);
+    // Compute hash the same way as background refresh (buildAndCacheForConfig)
+    const tbHash  = hashDownloads(tbDownloads);
+    const rdHash  = hashDownloads(rdDownloads);
+    const newHash = tbHash + '|' + rdHash;
     const hashKey = cache.makeKey('dlhash', userKey);
     const oldHash = await cache.get(hashKey);
-    if (oldHash !== newHash) {
-      await cache.set(hashKey, newHash, 7200);
-      await cache.delPattern(`cat:*${userKey}*`);
-    }
+    const hashChanged = oldHash !== newHash;
 
     const metas  = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey });
     console.log(`[Catalog] Built → ${metas.length} metas`);
+
+    if (hashChanged) {
+      await cache.set(hashKey, newHash, 7200);
+      await cache.delPattern(`cat:*${userKey}*`);
+    }
 
     const result = { metas };
     await cache.set(cacheKey, result, TTL_CATALOG);
@@ -343,6 +351,14 @@ async function handleCatalog(req, res) {
     res.json(result);
   } catch (err) {
     console.error('[Catalog] Error:', err.message);
+    // If we had a cached result, serve it as fallback instead of empty
+    const stale = await cache.get(cacheKey).catch(() => null);
+    if (stale) {
+      console.log('[Catalog] Serving stale cache as fallback');
+      // Re-set with a longer TTL so it survives extended outages
+      await cache.set(cacheKey, stale, 1800).catch(() => {});
+      return res.json(stale);
+    }
     res.json({ metas: [] });
   }
 }

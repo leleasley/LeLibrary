@@ -9,10 +9,7 @@ const NodeCache = require('node-cache');
 const CACHE_FILE = '/tmp/torbox-tmdb-cache.json';
 const matchCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
-const IS_SERVERLESS = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
-
 function loadPersistentCache() {
-  if (IS_SERVERLESS) return; // Skip in serverless environments
   try {
     if (fs.existsSync(CACHE_FILE)) {
       const data = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
@@ -24,7 +21,6 @@ function loadPersistentCache() {
 }
 
 function savePersistentCache() {
-  if (IS_SERVERLESS) return; // Skip in serverless environments
   try {
     const data = {};
     for (const k of matchCache.keys()) {
@@ -36,9 +32,7 @@ function savePersistentCache() {
 }
 
 loadPersistentCache();
-if (!IS_SERVERLESS) {
-  setInterval(savePersistentCache, 60_000);
-}
+setInterval(savePersistentCache, 60_000);
 
 const omdbCache    = new NodeCache({ stdTTL: 86400, checkperiod: 3600 });
 const tmdbindex = new Map(); // `series:12345` → [{item, season, episode}]

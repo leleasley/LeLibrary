@@ -8,12 +8,10 @@ const createWebRoutes = require('./website');
 
 const ROOT_DIR = path.resolve(__dirname);
 
-const IS_SERVERLESS = !!process.env.VERCEL;
-
 const TTL_CATALOG = parseInt(process.env.CACHE_TTL_CATALOG) || 60;    // default 1min
 const TTL_STREAM  = parseInt(process.env.CACHE_TTL_STREAM)  || 600;  // default 10min
 
-const knownConfigs = IS_SERVERLESS ? null : new Map();
+const knownConfigs = new Map();
 
 const app = express();
 
@@ -133,14 +131,12 @@ async function buildAndCacheForConfig(token, config) {
   }
 }
 
-if (!IS_SERVERLESS) {
-  setInterval(async () => {
+setInterval(async () => {
     for (const [token, config] of knownConfigs.entries()) {
       await buildAndCacheForConfig(token, config).catch(() => {});
       await new Promise(r => setTimeout(r, 2000));
     }
   }, REFRESH);
-}
 
 function getLogoUrl(baseUrl) {
   return `${baseUrl}/LeLibrary.png`;
@@ -223,7 +219,6 @@ app.get('/health', async (req, res) => {
   res.json({
     status: 'ok',
     cache: stats,
-    environment: IS_SERVERLESS ? 'serverless' : 'self-hosted',
     version: '2.1.1',
   });
 });
@@ -292,7 +287,7 @@ async function handleCatalog(req, res) {
   console.log(`[Catalog] catalog=${catalogId} type=${type} skip=${skip} lang=${lang}`);
 
   const token = req.params.token;
-  if (!IS_SERVERLESS && !knownConfigs.has(token)) {
+  if (!knownConfigs.has(token)) {
     knownConfigs.set(token, config);
     buildAndCacheForConfig(token, config).catch(() => {});
   }

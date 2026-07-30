@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "headers": [
+    {
+      "source": "/LeLibrary.png",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=604800, stale-while-revalidate=2592000" },
+        { "key": "Content-Type",  "value": "image/png" }
+      ]
+    },
+    {
+      "source": "/(.*\\.png|.*\\.ico|.*\\.webp|.*\\.jpg)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=604800, stale-while-revalidate=2592000" }
+      ]
+    }
+  ],
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/server" }
+  ],
+  "functions": {
+    "api/server.js": {
+      "maxDuration": 60
+    }
+  }
+}

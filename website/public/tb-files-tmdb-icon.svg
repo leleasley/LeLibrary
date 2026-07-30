@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0f19" />
+      <stop offset="100%" stop-color="#1e1332" />
+    </linearGradient>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a78bfa" />
+      <stop offset="100%" stop-color="#6d28d9" />
+    </linearGradient>
+    <linearGradient id="grad2" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f472b6" />
+      <stop offset="100%" stop-color="#9333ea" />
+    </linearGradient>
+    <filter id="neon" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <rect width="256" height="256" rx="52" fill="url(#bg)" />
+  
+  <g filter="url(#neon)">
+    <!-- Hexagon representing TorBox -->
+    <path d="M128 36 L208 82 L208 174 L128 220 L48 174 L48 82 Z" fill="none" stroke="url(#grad1)" stroke-width="12" stroke-linejoin="round" />
+    
+    <!-- Inner lines mimicking an isometric box -->
+    <path d="M48 82 L128 128 L208 82" fill="none" stroke="url(#grad1)" stroke-width="8" stroke-linejoin="round" />
+    <path d="M128 128 L128 220" stroke="url(#grad1)" stroke-width="8" stroke-linecap="round" />
+    
+    <!-- Play button overlay -->
+    <circle cx="128" cy="116" r="38" fill="url(#grad2)" />
+    <path d="M118 96 L148 116 L118 136 Z" fill="#ffffff" />
+  </g>
+</svg>

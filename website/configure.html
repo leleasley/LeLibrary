@@ -1,0 +1,1697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png" />
+  <link rel="apple-touch-icon" type="image/png" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <meta name="theme-color" content="#09090b" />
+  <title>LeLibrary — Configure</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090b;
+      --surface: #111114;
+      --surface2: #161619;
+      --border: #1e1e22;
+      --border2: #27272a;
+      --amber: #f59e0b;
+      --amber-dim: #b45309;
+      --amber-glow: rgba(245, 158, 11, 0.12);
+      --white: #fafafa;
+      --text: #d4d4d8;
+      --muted: #71717a;
+      --success: #22c55e;
+      --error: #ef4444;
+      --font: 'Space Grotesk', -apple-system, sans-serif;
+      --mono: 'DM Mono', 'Menlo', monospace;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* ── TOP BAR ── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 clamp(16px, 4vw, 40px);
+      height: 56px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--white);
+    }
+
+    .brand img {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+    }
+
+    .brand-name {
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .topbar-link {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .topbar-link:hover { color: var(--text); }
+
+    .reset-link {
+      font-size: 0.72rem;
+      color: var(--muted);
+      background: none;
+      border: 1px solid var(--border);
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: var(--font);
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .reset-link:hover { border-color: var(--error); color: var(--error); }
+
+    /* ── MAIN LAYOUT ── */
+    .main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      overflow: hidden;
+    }
+
+    @media (max-width: 860px) {
+      .main { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+    }
+
+    /* ── LEFT: FORM ── */
+    .form-area {
+      padding: clamp(24px, 4vw, 48px);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    .form-header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+
+    .form-header p {
+      font-size: 0.88rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .form-header p strong { color: var(--text); font-weight: 600; }
+
+    /* Referral compact */
+    .referral-compact {
+      background: var(--amber-glow);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.78rem;
+      color: var(--text);
+      flex-wrap: wrap;
+    }
+    .referral-compact strong {
+      color: var(--amber);
+      font-family: var(--mono);
+      font-size: 0.7rem;
+    }
+    .referral-compact .btn-copy-sm { flex-shrink: 0; }
+
+    .url-warning {
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.78rem;
+      color: var(--text);
+      line-height: 1.5;
+      text-align: center;
+    }
+
+    .btn-copy-sm {
+      background: var(--amber);
+      border: none;
+      color: var(--bg);
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font);
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .btn-copy-sm:hover { opacity: 0.85; }
+    .btn-copy-sm.copied { background: var(--success); }
+
+    /* Sections */
+    .form-section {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .section-title {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .collapsible-header {
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 0;
+      transition: border-color 0.2s;
+    }
+    .collapsible-header:hover {
+      border-color: var(--border2);
+    }
+    .collapsible-header.open {
+      border-color: var(--amber);
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+    .collapse-arrow {
+      font-size: 1rem;
+      transition: transform 0.2s, color 0.2s;
+      color: var(--muted);
+      line-height: 1;
+    }
+    .collapse-arrow.open { transform: rotate(90deg); color: var(--amber); }
+    .collapsible-body {
+      display: none;
+      padding: 16px 0 0 0;
+    }
+    .collapsible-body.open { display: block; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+
+    input[type="text"], input[type="password"], input[type="number"], input[type="email"], input[type="url"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-size: 0.85rem;
+      font-family: var(--font);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    input[type="text"]:focus, input[type="password"]:focus, input[type="number"]:focus, input[type="email"]:focus, input[type="url"]:focus {
+      border-color: var(--amber);
+      box-shadow: 0 0 0 3px var(--amber-glow);
+    }
+    input::placeholder { color: var(--border2); }
+
+    .field-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .field-label .req { color: var(--amber); font-size: 0.8rem; }
+
+    .field-label a {
+      margin-left: auto;
+      font-size: 0.68rem;
+      color: var(--amber);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .field-label a:hover { text-decoration: underline; }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    .input-row input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-size: 0.85rem;
+      font-family: var(--mono);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .input-row input:focus {
+      border-color: var(--amber);
+      box-shadow: 0 0 0 3px var(--amber-glow);
+    }
+
+    .input-row input.invalid {
+      border-color: var(--error);
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+    }
+
+    .input-row input::placeholder { color: var(--border2); }
+
+    .btn-verify {
+      width: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: var(--text);
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .btn-verify:hover { border-color: var(--amber); color: var(--amber); }
+    .btn-verify:disabled { opacity: 0.4; cursor: wait; }
+    .btn-verify.verified { background: rgba(52, 211, 153, 0.15); border-color: #34d399; color: #34d399; }
+    .btn-verify.failed { background: rgba(239, 68, 68, 0.15); border-color: #ef4444; color: #ef4444; }
+
+    .btn-icon {
+      width: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.9rem;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .btn-icon:hover { color: var(--text); border-color: var(--border2); }
+
+    .field-hint {
+      font-size: 0.7rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .field-hint a {
+      color: var(--amber);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .field-hint a:hover { text-decoration: underline; }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    select {
+      width: 100%;
+      background: var(--bg);
+      border: 2px solid var(--border2);
+      border-radius: 8px;
+      padding: 10px 36px 10px 14px;
+      color: var(--text);
+      font-size: 0.85rem;
+      font-family: var(--font);
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 14px;
+    }
+    select:focus { border-color: var(--amber); }
+    select option { background: var(--surface2); }
+
+    /* RD Section */
+    .rd-section {
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      opacity: 0.6;
+      transition: all 0.25s;
+    }
+    .rd-section:focus-within,
+    .rd-section:hover { opacity: 1; border-style: solid; }
+
+    /* Actions */
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-top: 8px;
+    }
+
+    .btn-main {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      border: none;
+      width: 100%;
+      transition: all 0.2s;
+      font-family: var(--font);
+      text-decoration: none;
+    }
+
+    .btn-main:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-main .ico {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+
+    .btn-main .txt { flex: 1; text-align: left; }
+    .btn-main .txt small { display: block; font-size: 0.68rem; font-weight: 400; opacity: 0.7; margin-top: 2px; }
+    .btn-main .arr { opacity: 0.5; font-size: 1.1rem; }
+
+    .btn-gen {
+      background: var(--amber);
+      color: var(--bg);
+    }
+    .btn-gen:hover:not(:disabled) {
+      background: var(--amber-dim);
+      box-shadow: 0 4px 24px rgba(245, 158, 11, 0.3);
+      transform: translateY(-1px);
+    }
+    .btn-gen .ico { background: rgba(0, 0, 0, 0.15); }
+
+    .btn-stremio {
+      background: linear-gradient(135deg, #f59e0b, #b45309);
+      color: var(--bg);
+      display: none;
+    }
+    .btn-stremio.show { display: flex; }
+    .btn-stremio:hover { box-shadow: 0 4px 24px rgba(245, 158, 11, 0.3); transform: translateY(-1px); }
+    .btn-stremio .ico { background: rgba(0, 0, 0, 0.12); }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      display: none;
+    }
+    .btn-outline.show { display: flex; }
+    .btn-outline:hover { border-color: var(--amber); background: var(--amber-glow); transform: translateY(-1px); }
+    .btn-outline .ico { background: var(--amber-glow); }
+
+    .btn-nuvio {
+      background: linear-gradient(135deg, #7c3aed, #4f46e5);
+      color: #fff;
+      display: none;
+    }
+    .btn-nuvio.show { display: flex; }
+    .btn-nuvio:hover { box-shadow: 0 4px 24px rgba(124, 58, 237, 0.35); transform: translateY(-1px); }
+    .btn-nuvio .ico { background: rgba(255,255,255,0.12); }
+
+    .url-box {
+      display: none;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      align-items: center;
+      gap: 10px;
+    }
+    .url-box.show { display: flex; }
+
+    .url-box span {
+      flex: 1;
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--amber);
+      word-break: break-all;
+    }
+
+    .btn-copy-url {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 5px 12px;
+      font-size: 0.72rem;
+      font-family: var(--font);
+      font-weight: 600;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .btn-copy-url:hover { border-color: var(--amber); color: var(--amber); }
+    .btn-copy-url.copied { border-color: var(--success); color: var(--success); }
+
+    /* Preview */
+    .preview-wrap {
+      margin-top: 8px;
+    }
+
+    .preview-btn {
+      width: 100%;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: var(--font);
+      transition: all 0.2s;
+    }
+    .preview-btn:hover { border-color: var(--amber); color: var(--text); }
+    .preview-btn .arr { transition: transform 0.25s; }
+    .preview-btn.open .arr { transform: rotate(90deg); }
+
+    .preview-panel {
+      display: none;
+      margin-top: 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .preview-panel.open { display: block; }
+
+    .preview-head {
+      padding: 8px 14px;
+      background: var(--amber-glow);
+      border-bottom: 1px solid var(--border);
+      font-size: 0.65rem;
+      color: var(--muted);
+    }
+
+    .stream-row {
+      display: flex;
+      gap: 12px;
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    .stream-row:last-child { border-bottom: none; }
+
+    .stream-label {
+      min-width: 100px;
+      max-width: 100px;
+      font-size: 0.65rem;
+      line-height: 1.5;
+      white-space: pre-line;
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .stream-detail {
+      flex: 1;
+      font-size: 0.62rem;
+      line-height: 1.6;
+      white-space: pre-line;
+      color: var(--muted);
+    }
+
+    .preview-footer {
+      padding: 6px 14px;
+      font-size: 0.6rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      text-align: center;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    /* Footer */
+    .form-footer {
+      margin-top: auto;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+
+    .form-footer p {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .form-footer a { color: var(--amber); text-decoration: none; font-weight: 600; }
+    .form-footer a:hover { text-decoration: underline; }
+
+    .gh-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--white);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-decoration: none;
+      font-family: var(--font);
+      transition: all 0.2s;
+    }
+    .gh-btn:hover { border-color: var(--amber); }
+
+    .gh-icon {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    .gh-star {
+      color: var(--amber);
+      font-size: 0.85rem;
+    }
+
+    .copyright {
+      font-size: 0.68rem;
+      color: var(--muted);
+      margin-top: 12px;
+    }
+
+    /* ── VERSION CHECK BANNER ── */
+    .version-banner {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 0.78rem;
+      line-height: 1.4;
+    }
+    .version-banner.show { display: flex; }
+    .version-banner.outdated {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      color: var(--amber);
+    }
+    .version-banner.current {
+      background: rgba(34, 197, 94, 0.08);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+      color: var(--success);
+    }
+    .version-banner.error {
+      background: rgba(239, 68, 68, 0.06);
+      border: 1px solid rgba(239, 68, 68, 0.15);
+      color: var(--muted);
+    }
+    .version-banner .v-link {
+      margin-left: auto;
+      color: inherit;
+      text-decoration: none;
+      font-weight: 600;
+      white-space: nowrap;
+      opacity: 0.7;
+    }
+    .version-banner .v-link:hover { opacity: 1; text-decoration: underline; }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      padding: 32px 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .sidebar-section h3 {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .info-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+    }
+
+    .info-card h4 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 8px;
+    }
+
+    .info-card p {
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .info-card p a { color: var(--amber); text-decoration: none; font-weight: 500; }
+
+    .info-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .info-list li {
+      font-size: 0.75rem;
+      color: var(--muted);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.4;
+    }
+
+    .info-list li::before {
+      content: '';
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--amber);
+      margin-top: 6px;
+      flex-shrink: 0;
+    }
+
+    /* ── PASSWORD PROTECTION ── */
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--surface2);
+      border: 1px solid var(--success);
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 0.82rem;
+      color: var(--success);
+      opacity: 0;
+      transform: translateY(8px);
+      transition: all 0.25s;
+      pointer-events: none;
+      z-index: 100;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 860px) {
+      .main { grid-template-columns: 1fr; overflow: visible; }
+      .sidebar { display: none; }
+      .form-area { padding: 24px 20px; overflow: visible; }
+      .topbar-right .topbar-link { display: none; }
+    }
+
+    @media (max-width: 480px) {
+      .topbar { padding: 0 16px; height: 50px; }
+      body { padding: 0; }
+      .main { overflow: visible; }
+      .form-area {
+        padding: 20px 16px;
+        gap: 20px;
+        overflow: visible;
+        min-height: calc(100vh - 50px);
+      }
+      .form-header h1 { font-size: 1.3rem; }
+      .form-header p { font-size: 0.82rem; }
+      .field-row { grid-template-columns: 1fr; }
+      .referral-compact { flex-direction: column; align-items: stretch; }
+      .referral-compact .btn-copy-sm { align-self: flex-end; }
+      .btn-main { padding: 14px 16px; font-size: 0.85rem; }
+      .btn-main .ico { width: 34px; height: 34px; }
+      .input-row input { font-size: 0.82rem; padding: 10px 12px; }
+      .url-box { flex-wrap: wrap; }
+      .url-box span { min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">
+      <img src="/LeLibrary.png" alt="LeLibrary" onerror="this.style.display='none'" />
+      <span class="brand-name">LeLibrary</span>
+    </a>
+    <div class="topbar-right">
+      <a href="/" class="topbar-link">Home</a>
+      <a href="/my-library" class="topbar-link">My Library</a>
+      <a href="https://github.com/leleasley/LeLibrary" target="_blank" class="topbar-link" style="display:flex;align-items:center;gap:6px;">
+        <svg class="gh-icon" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+      <button class="reset-link" type="button" onclick="resetForm()">Reset</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <!-- LEFT: FORM -->
+    <div class="form-area">
+      <div class="form-header">
+        <h1>Set up your addon</h1>
+        <p>Enter your API keys to get started. They're <strong>encoded in the addon URL</strong> — never stored or logged.</p>
+      </div>
+
+      <div class="version-banner" id="versionBanner">
+        <span id="versionMsg"></span>
+        <a class="v-link" id="versionLink" href="https://github.com/leleasley/LeLibrary/releases" target="_blank">View releases →</a>
+      </div>
+
+      <div class="referral-compact">
+        <span>Need a TorBox account? Use referral code <strong id="refCode">fba69dd3-9611-4e43-a505-87190b4db7fb</strong></span>
+        <button class="btn-copy-sm" onclick="copyRef(this)">Copy</button>
+      </div>
+
+      <div class="referral-compact" style="margin-top:8px;">
+        <span>Need a Real-Debrid account? Use referral <a href="http://real-debrid.com/?id=14493200" target="_blank" style="color:var(--amber);text-decoration:none;font-weight:600">real-debrid.com/?id=14493200</a></span>
+        <button class="btn-copy-sm" onclick="copyRefText('http://real-debrid.com/?id=14493200')">Copy</button>
+      </div>
+
+      <div class="url-warning">Protect this page — anyone with the URL can access your configuration.</div>
+
+      <!-- Debrid Provider -->
+      <div class="form-section">
+        <div class="section-title">Debrid Provider</div>
+        <div class="field">
+          <select id="provider" onchange="onProviderChange()">
+            <option value="torbox">TorBox</option>
+            <option value="realdebrid">Real-Debrid</option>
+            <option value="both" selected>Both (TorBox + Real-Debrid)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- API Keys -->
+      <div class="form-section" id="apiKeysSection">
+        <div class="section-title">API Keys</div>
+
+        <div class="field" id="tbKeyField">
+          <div class="field-label">
+            TorBox API Key <span class="req" id="tbReq">*</span>
+            <a href="https://torbox.app/settings" target="_blank">Get key →</a>
+          </div>
+          <div class="input-row">
+            <input type="password" id="torboxApiKey" placeholder="tb-xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+            <button class="btn-icon" type="button" onclick="toggleVis('torboxApiKey',this)" aria-label="Show/hide">👁</button>
+          </div>
+        </div>
+
+        <div class="field" id="rdKeyField">
+          <div class="field-label">
+            Real-Debrid API Key <span class="req" id="rdReq">*</span>
+            <a href="http://real-debrid.com/?id=14493200" target="_blank">Get key →</a>
+          </div>
+          <div class="input-row">
+            <input type="password" id="rdApiKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+            <button class="btn-icon" type="button" onclick="toggleVis('rdApiKey',this)" aria-label="Show/hide">👁</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">
+            TMDB API Key <span class="req">*</span>
+            <a href="https://www.themoviedb.org/settings/api" target="_blank">Get key →</a>
+          </div>
+          <div class="input-row">
+            <input type="password" id="tmdbApiKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+            <button class="btn-icon" type="button" onclick="toggleVis('tmdbApiKey',this)" aria-label="Show/hide">👁</button>
+          </div>
+          <p class="field-hint">Copy <strong style="color:var(--text)">API Key (v3)</strong> from your TMDB account settings.</p>
+        </div>
+      </div>
+
+      <!-- Preferences -->
+      <div class="form-section">
+        <div class="section-title">Preferences</div>
+        <div class="field-row">
+          <div class="field">
+            <div class="field-label">Language</div>
+            <select id="lang">
+              <option value="en-US" selected>English</option>
+              <option value="pt-BR">PT-BR</option>
+              <option value="pt-PT">PT-PT</option>
+              <option value="es-ES">Espanol</option>
+              <option value="fr-FR">Francais</option>
+              <option value="de-DE">Deutsch</option>
+              <option value="it-IT">Italiano</option>
+              <option value="ja-JP">Japanese</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="field-label">Sort by</div>
+            <select id="sortBy">
+              <option value="data_adicao">Date added</option>
+              <option value="data_lancamento">Release date</option>
+              <option value="titulo">Title (A-Z)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Catalog mode (only when both) -->
+      <div class="form-section" id="catalogModeSection" style="display:block;">
+        <div class="section-title">Catalog Mode</div>
+        <div class="field">
+          <select id="rdCatalog">
+            <option value="merge">Merge TorBox & Real-Debrid</option>
+            <option value="separate">Separate catalogs per provider</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Poster Enhancement (collapsible) -->
+      <div class="form-section collapsible">
+        <div class="collapsible-header" onclick="toggleSection(this)">
+          <span class="section-title" style="border:none;padding:0">Poster &amp; Ratings Enhancement <span style="color:var(--amber);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></span>
+          <span class="collapse-arrow">▸</span>
+        </div>
+        <div class="collapsible-body">
+          <div class="field">
+            <div class="field-label">Poster Service</div>
+            <select id="posterProvider" onchange="onPosterChange()">
+              <option value="">None (TMDB default)</option>
+              <option value="erdb">ERDB — EasyRatingsDB (ratings on posters)</option>
+              <option value="rpdb">RPDB — Rating Poster DB (ratings on posters)</option>
+              <option value="fanart">Fanart.tv (high-res alternative art)</option>
+            </select>
+          </div>
+
+          <div class="field" id="erdbField" style="display:none">
+            <div class="field-label">
+              ERDB Token <a href="https://easyratingsdb.com/configurator" target="_blank">Get token →</a>
+            </div>
+            <div class="input-row">
+              <input type="password" id="erdbToken" placeholder="Tk-xxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+              <button class="btn-icon" type="button" onclick="toggleVis('erdbToken',this)" aria-label="Show/hide">👁</button>
+              <button class="btn-verify" type="button" onclick="verifyKey('erdb')" id="verifyErdb" title="Verify token">✓</button>
+            </div>
+            <p class="field-hint">Create a token at <a href="https://easyratingsdb.com/configurator" target="_blank">easyratingsdb.com/configurator</a></p>
+          </div>
+
+          <div class="field" id="rpdbField" style="display:none">
+            <div class="field-label">
+              RPDB API Key <a href="https://ratingposterdb.com/" target="_blank">Get key →</a>
+            </div>
+            <div class="input-row">
+              <input type="password" id="rpdbKey" placeholder="t1-xxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+              <button class="btn-icon" type="button" onclick="toggleVis('rpdbKey',this)" aria-label="Show/hide">👁</button>
+              <button class="btn-verify" type="button" onclick="verifyKey('rpdb')" id="verifyRpdb" title="Verify key">✓</button>
+            </div>
+            <p class="field-hint">Available via <a href="https://www.patreon.com/rpdb" target="_blank">Patreon</a>. Supports IMDb, RT & Metacritic ratings on posters.</p>
+          </div>
+
+          <div class="field" id="fanartField" style="display:none">
+            <div class="field-label">
+              Fanart.tv API Key <a href="https://fanart.tv/" target="_blank">Get key →</a>
+            </div>
+            <div class="input-row">
+              <input type="password" id="fanartKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+              <button class="btn-icon" type="button" onclick="toggleVis('fanartKey',this)" aria-label="Show/hide">👁</button>
+              <button class="btn-verify" type="button" onclick="verifyKey('fanart')" id="verifyFanart" title="Verify key">✓</button>
+            </div>
+          </div>
+
+          <div class="field-row" id="posterToggles" style="display:none">
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer">
+              <input type="checkbox" id="enhanceBackground" checked /> Enhance backgrounds
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer">
+              <input type="checkbox" id="enhanceLogo" /> Enhance logos
+            </label>
+          </div>
+
+          <!-- OMDB inside Poster section -->
+          <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+            <div class="field-label" style="margin-bottom:6px">Supplemental Ratings</div>
+            <div class="field">
+              <div class="input-row">
+                <input type="password" id="omdbKey" placeholder="OMDB API key" autocomplete="off" />
+                <button class="btn-icon" type="button" onclick="toggleVis('omdbKey',this)" aria-label="Show/hide">👁</button>
+                <button class="btn-verify" type="button" onclick="verifyKey('omdb')" id="verifyOmdb" title="Verify key">✓</button>
+              </div>
+              <p class="field-hint">Adds IMDb, Rotten Tomatoes &amp; Metacritic scores to detail pages (not rendered on poster images). Get a free key at <a href="https://www.omdbapi.com/apikey.aspx" target="_blank">omdbapi.com</a> — 1,000 req/day.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Custom Streams (collapsible) -->
+      <div class="form-section collapsible">
+        <div class="collapsible-header" onclick="toggleSection(this)">
+          <span class="section-title" style="border:none;padding:0">Custom Streams <span style="color:var(--amber);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></span>
+          <span class="collapse-arrow">▸</span>
+        </div>
+        <div class="collapsible-body">
+          <p class="field-hint" style="margin:0 0 12px 0">Inject your own direct stream URLs alongside debrid streams in Stremio.</p>
+          <div id="customStreamsList"></div>
+          <div class="field-row" style="grid-template-columns:2fr 3fr 1fr auto;align-items:end">
+            <div class="field" style="gap:2px">
+              <div class="field-label" style="font-size:0.75rem">Name</div>
+              <input type="text" id="csName" placeholder="My Plex" />
+            </div>
+            <div class="field" style="gap:2px">
+              <div class="field-label" style="font-size:0.75rem">URL</div>
+              <input type="text" id="csUrl" placeholder="https://..." />
+            </div>
+            <div class="field" style="gap:2px">
+              <div class="field-label" style="font-size:0.75rem">Type</div>
+              <select id="csType">
+                <option value="*">All</option>
+                <option value="movie">Movies</option>
+                <option value="series">Series</option>
+              </select>
+            </div>
+            <button class="btn-main" type="button" onclick="addCustomStream()" style="padding:8px 16px;font-size:0.82rem;white-space:nowrap">+ Add</button>
+          </div>
+          <div id="csEmpty" style="text-align:center;padding:16px;color:var(--border2);font-size:0.85rem">No custom streams added yet.</div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="actions">
+        <button class="btn-main btn-gen" id="btnGenerate" onclick="generate()">
+          <div class="ico">⚡</div>
+          <div class="txt">
+            <span id="genBtnTitle">Generate install links</span>
+            <small>Create links with your keys</small>
+          </div>
+          <span class="arr">›</span>
+        </button>
+
+        <a class="btn-main btn-stremio" id="btnDesktop" href="#">
+          <div class="ico"><img src="/stremio.svg" alt="Stremio" style="width:20px;height:20px" /></div>
+          <div class="txt">
+            <span>Install on Stremio (Desktop / Mobile)</span>
+            <small>Opens the app and installs the addon</small>
+          </div>
+          <span class="arr">›</span>
+        </a>
+
+        <a class="btn-main btn-nuvio" id="btnNuvio" href="#" target="_blank" rel="noopener">
+          <div class="ico"><img src="/nuvio.png" alt="Nuvio" style="width:20px;height:20px" /></div>
+          <div class="txt">
+            <span>Install on Nuvio</span>
+            <small>Opens Nuvio app and installs the addon</small>
+          </div>
+          <span class="arr">›</span>
+        </a>
+
+        <a class="btn-main btn-outline" id="btnWeb" href="#" target="_blank" rel="noopener">
+          <div class="ico"><img src="/stremio.svg" alt="Stremio" style="width:20px;height:20px" /></div>
+          <div class="txt">
+            <span>Install via Stremio Web</span>
+            <small>Use at web.stremio.com in the browser</small>
+          </div>
+          <span class="arr">›</span>
+        </a>
+
+        <button class="btn-main btn-gen" id="btnRefresh" onclick="clearCache()" style="display:none;background:var(--surface2);color:var(--text);border:1px solid var(--border)">
+          <div class="ico">🔄</div>
+          <div class="txt">
+            <span>Refresh catalog</span>
+            <small>Clears server cache — then refresh in Stremio or Nuvio</small>
+          </div>
+          <span class="arr">›</span>
+        </button>
+
+        <div class="url-box" id="urlRow">
+          <span id="manifestUrl"></span>
+          <button class="btn-copy-url" onclick="copyUrl(this)">Copy</button>
+        </div>
+
+      </div>
+
+      <!-- Preview -->
+      <div class="preview-wrap">
+        <button class="preview-btn" id="previewToggle" onclick="togglePreview()">
+          <span>Streams Preview</span>
+          <span class="arr">›</span>
+        </button>
+        <div class="preview-panel" id="previewBody">
+          <div class="preview-head">Example of how streams appear in Stremio</div>
+          <div id="previewCards"></div>
+          <div class="preview-footer">Actual streams depend on the files in your TorBox / Real-Debrid account</div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="form-footer">
+        <p>Want maximum speed and privacy? <a href="https://github.com/leleasley/LeLibrary" target="_blank">Self-host this addon</a></p>
+        <a href="https://github.com/leleasley/LeLibrary" target="_blank" class="gh-btn"><span class="gh-star">★</span> Star on GitHub</a>
+        <div class="copyright">LeLibrary &middot; Stremio + TorBox + TMDB</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <h3>How it works</h3>
+        <div class="info-card">
+          <h4>What LeLibrary does</h4>
+          <p>Reads your TorBox and Real-Debrid downloads, groups episodes into series, fetches TMDB metadata, and serves it all as a Stremio/Nuvio addon.</p>
+          <ul class="info-list">
+            <li>Movies, Series, and Anime — three separate catalogs</li>
+            <li>Supports TorBox + Real-Debrid (merged or separate)</li>
+            <li>Rich stream info: quality, codec, HDR, audio, size</li>
+            <li>Direct playback from the CDN</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Privacy</h3>
+        <div class="info-card">
+          <ul class="info-list">
+            <li>API keys are encoded in the addon URL — sent to the server only when Stremio fetches your library</li>
+            <li>Keys are never stored in a database or logged</li>
+            <li>No tracking, analytics, or third-party requests</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Requirements</h3>
+        <div class="info-card">
+          <ul class="info-list">
+          <li>A TorBox and/or Real-Debrid account with downloads</li>
+          <li>A free TMDB API key</li>
+          <li style="color:var(--border2);font-size:0.78rem">Poster/Ratings/Stream enhancements are all optional</li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="toast" id="toast">Copied!</div>
+
+  <script>
+    function toggleVis(id, btn) {
+      const el = document.getElementById(id);
+      const isPass = el.type === 'password';
+      el.type = isPass ? 'text' : 'password';
+      btn.textContent = isPass ? '🙈' : '👁';
+    }
+
+    function encodeConfig(cfg) {
+      return btoa(JSON.stringify(cfg))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    }
+
+    let initialConfig = null;
+    let customStreams = [];
+
+    function toggleSection(header) {
+      const body = header.nextElementSibling;
+      const arrow = header.querySelector('.collapse-arrow');
+      header.classList.toggle('open');
+      if (body) body.classList.toggle('open');
+      if (arrow) arrow.classList.toggle('open');
+    }
+
+    function onPosterChange() {
+      const val = document.getElementById('posterProvider').value;
+      document.getElementById('erdbField').style.display = val === 'erdb' ? 'flex' : 'none';
+      document.getElementById('rpdbField').style.display = val === 'rpdb' ? 'flex' : 'none';
+      document.getElementById('fanartField').style.display = val === 'fanart' ? 'flex' : 'none';
+      document.getElementById('posterToggles').style.display = val && val !== 'fanart' ? 'flex' : 'none';
+      checkChanged();
+    }
+
+    function onProviderChange() {
+      const provider = document.getElementById('provider').value;
+      const tbField = document.getElementById('tbKeyField');
+      const rdField = document.getElementById('rdKeyField');
+      const tbReq = document.getElementById('tbReq');
+      const rdReq = document.getElementById('rdReq');
+      const catalogMode = document.getElementById('catalogModeSection');
+
+      tbField.style.display = provider === 'realdebrid' ? 'none' : 'block';
+      rdField.style.display = provider === 'torbox' ? 'none' : 'block';
+      catalogMode.style.display = provider === 'both' ? 'block' : 'none';
+      tbReq.textContent = provider === 'torbox' || provider === 'both' ? '*' : '';
+      rdReq.textContent = provider === 'realdebrid' || provider === 'both' ? '*' : '';
+      checkChanged();
+    }
+
+    function getCurrentConfig() {
+      return {
+        provider: document.getElementById('provider').value,
+        torboxApiKey: document.getElementById('torboxApiKey').value.trim(),
+        rdApiKey: document.getElementById('rdApiKey').value.trim(),
+        tmdbApiKey: document.getElementById('tmdbApiKey').value.trim(),
+        rdCatalog: document.getElementById('rdCatalog').value,
+        sortBy: document.getElementById('sortBy').value,
+        lang: document.getElementById('lang').value,
+        posterProvider: document.getElementById('posterProvider').value,
+        erdbToken: document.getElementById('erdbToken').value.trim(),
+        rpdbKey: document.getElementById('rpdbKey').value.trim(),
+        fanartKey: document.getElementById('fanartKey').value.trim(),
+        omdbKey: document.getElementById('omdbKey').value.trim(),
+        enhanceBackground: document.getElementById('enhanceBackground').checked,
+        enhanceLogo: document.getElementById('enhanceLogo').checked,
+        customStreams: customStreams,
+      };
+    }
+
+    function configsEqual(a, b) {
+      return a.provider === b.provider &&
+        a.torboxApiKey === b.torboxApiKey &&
+        a.rdApiKey === b.rdApiKey &&
+        a.tmdbApiKey === b.tmdbApiKey &&
+        a.rdCatalog === b.rdCatalog &&
+        a.sortBy === b.sortBy &&
+        a.lang === b.lang &&
+        a.posterProvider === b.posterProvider &&
+        a.erdbToken === b.erdbToken &&
+        a.rpdbKey === b.rpdbKey &&
+        a.fanartKey === b.fanartKey &&
+        a.omdbKey === b.omdbKey &&
+        a.enhanceBackground === b.enhanceBackground &&
+        a.enhanceLogo === b.enhanceLogo &&
+        JSON.stringify(a.customStreams || []) === JSON.stringify(b.customStreams || []);
+    }
+
+    function checkChanged() {
+      if (!initialConfig) return;
+      const changed = !configsEqual(getCurrentConfig(), initialConfig);
+      const btn = document.getElementById('btnGenerate');
+      if (changed && btn.style.display === 'none') {
+        btn.style.display = '';
+      } else if (!changed && btn.style.display !== 'none') {
+        btn.style.display = 'none';
+        document.getElementById('btnDesktop').classList.remove('show');
+        document.getElementById('btnWeb').classList.remove('show');
+        document.getElementById('btnNuvio').classList.remove('show');
+        document.getElementById('urlRow').classList.remove('show');
+        document.getElementById('manifestUrl').textContent = '';
+      }
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2200);
+    }
+
+    function addCustomStream() {
+      const name = document.getElementById('csName').value.trim();
+      const url  = document.getElementById('csUrl').value.trim();
+      const type = document.getElementById('csType').value;
+      if (!name || !url) { showToast('Enter a name and URL'); return; }
+      customStreams.push({ name, url, type });
+      document.getElementById('csName').value = '';
+      document.getElementById('csUrl').value = '';
+      renderCustomStreams();
+      checkChanged();
+    }
+
+    function removeCustomStream(i) {
+      customStreams.splice(i, 1);
+      renderCustomStreams();
+      checkChanged();
+    }
+
+    function renderCustomStreams() {
+      const container = document.getElementById('customStreamsList');
+      const empty = document.getElementById('csEmpty');
+      if (customStreams.length === 0) {
+        container.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+      empty.style.display = 'none';
+      container.innerHTML = customStreams.map((cs, i) =>
+        `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:0.82rem">
+          <span style="flex:1">${escHtml(cs.name)} <span style="color:var(--border2)">— ${escHtml(cs.url)}</span></span>
+          <span style="font-size:0.7rem;padding:2px 8px;background:var(--surface);border-radius:4px;color:var(--border2)">${cs.type === '*' ? 'All' : cs.type}</span>
+          <button class="btn-icon" type="button" onclick="removeCustomStream(${i})" style="width:30px;color:var(--error)" title="Remove">✕</button>
+        </div>`
+      ).join('');
+    }
+
+    function escHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    async function verifyKey(service) {
+      const inputMap = { erdb: 'erdbToken', rpdb: 'rpdbKey', omdb: 'omdbKey', fanart: 'fanartKey' };
+      const id = inputMap[service];
+      const el = document.getElementById(id);
+      const btn = document.getElementById('verify' + service.charAt(0).toUpperCase() + service.slice(1));
+      const val = el.value.trim();
+      if (!val) { showToast('Enter a key first'); return; }
+      btn.disabled = true;
+      btn.textContent = '⏳';
+      btn.className = 'btn-verify';
+      try {
+        const r = await fetch('/api/verify/' + service + '?key=' + encodeURIComponent(val));
+        const d = await r.json();
+        if (d.valid) {
+          btn.className = 'btn-verify verified';
+          btn.textContent = '✓';
+          showToast(service.toUpperCase() + ' key is valid!');
+        } else {
+          btn.className = 'btn-verify failed';
+          btn.textContent = '✕';
+          showToast(d.error || 'Invalid key');
+        }
+      } catch (e) {
+        btn.className = 'btn-verify failed';
+        btn.textContent = '✕';
+        showToast('Verification failed');
+      }
+      btn.disabled = false;
+    }
+
+    function generate() {
+      const provider     = document.getElementById('provider').value;
+      const torboxApiKey = document.getElementById('torboxApiKey').value.trim();
+      const tmdbApiKey   = document.getElementById('tmdbApiKey').value.trim();
+      const rdApiKey     = document.getElementById('rdApiKey').value.trim();
+      const rdCatalog    = document.getElementById('rdCatalog').value;
+      const sortBy       = document.getElementById('sortBy').value;
+      const lang         = document.getElementById('lang').value;
+      const posterProvider = document.getElementById('posterProvider').value;
+      const erdbToken    = document.getElementById('erdbToken').value.trim();
+      const rpdbKey      = document.getElementById('rpdbKey').value.trim();
+      const fanartKey    = document.getElementById('fanartKey').value.trim();
+      const omdbKey      = document.getElementById('omdbKey').value.trim();
+      const enhanceBackground = document.getElementById('enhanceBackground').checked;
+      const enhanceLogo  = document.getElementById('enhanceLogo').checked;
+
+      let valid = true;
+      if (provider === 'torbox' || provider === 'both') {
+        const el = document.getElementById('torboxApiKey');
+        if (!torboxApiKey) { el.classList.add('invalid'); valid = false; }
+        else el.classList.remove('invalid');
+      }
+      if (provider === 'realdebrid' || provider === 'both') {
+        const el = document.getElementById('rdApiKey');
+        if (!rdApiKey) { el.classList.add('invalid'); valid = false; }
+        else el.classList.remove('invalid');
+      }
+      [['tmdbApiKey', tmdbApiKey]].forEach(([id, val]) => {
+        const el = document.getElementById(id);
+        if (!val) { el.classList.add('invalid'); valid = false; }
+        else el.classList.remove('invalid');
+      });
+      if (!valid) {
+        showToast('Fill in the required fields');
+        return;
+      }
+
+      const btn = document.getElementById('btnGenerate');
+      const originalLabel = document.getElementById('genBtnTitle').textContent;
+      btn.disabled = true;
+      document.getElementById('genBtnTitle').textContent = 'Generating...';
+
+      const cfg = { provider, tmdbApiKey, sortBy, lang };
+      if (provider === 'torbox' || provider === 'both') cfg.torboxApiKey = torboxApiKey;
+      if (provider === 'realdebrid' || provider === 'both') {
+        cfg.rdApiKey = rdApiKey;
+        cfg.rdCatalog = rdCatalog;
+      }
+      if (posterProvider) {
+        cfg.posterProvider = posterProvider;
+        if (posterProvider === 'erdb' && erdbToken) cfg.erdbToken = erdbToken;
+        else if (posterProvider === 'rpdb' && rpdbKey) cfg.rpdbKey = rpdbKey;
+        else if (posterProvider === 'fanart' && fanartKey) cfg.fanartKey = fanartKey;
+        if (posterProvider !== 'fanart') {
+          cfg.enhanceBackground = enhanceBackground;
+          cfg.enhanceLogo = enhanceLogo;
+        }
+      }
+      if (omdbKey) cfg.omdbKey = omdbKey;
+      if (customStreams.length > 0) cfg.customStreams = customStreams;
+
+      const encoded     = encodeConfig(cfg);
+      const origin      = window.location.origin;
+      const manifestUrl = `${origin}/${encoded}/manifest.json`;
+      const stremioDeep = manifestUrl.replace(/^https?:\/\//, 'stremio://');
+      const stremioWeb  = `https://web.stremio.com/#/addons?addon=${encodeURIComponent(manifestUrl)}`;
+      const nuvioDeep   = manifestUrl.replace(/^https?:\/\//, 'nuvio://');
+
+      setTimeout(() => {
+        document.getElementById('manifestUrl').textContent = manifestUrl;
+        document.getElementById('btnDesktop').href = stremioDeep;
+        document.getElementById('btnWeb').href = stremioWeb;
+        document.getElementById('btnNuvio').href = nuvioDeep;
+        document.getElementById('btnDesktop').classList.add('show');
+        document.getElementById('btnWeb').classList.add('show');
+        document.getElementById('btnNuvio').classList.add('show');
+        document.getElementById('urlRow').classList.add('show');
+        btn.disabled = false;
+        document.getElementById('genBtnTitle').textContent = originalLabel;
+        document.getElementById('btnDesktop').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 250);
+    }
+
+    function copyUrl(btn) {
+      const url = document.getElementById('manifestUrl').textContent;
+      navigator.clipboard.writeText(url).then(() => {
+        showToast('URL copied!');
+        flashCopied(btn);
+      });
+    }
+
+    function copyRef(btn) {
+      const code = document.getElementById('refCode').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        showToast('Code copied!');
+        flashCopied(btn);
+      });
+    }
+
+    function copyRefText(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('Link copied!');
+      });
+    }
+
+    function flashCopied(btn) {
+      const original = btn.textContent;
+      btn.textContent = 'Copied';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1600);
+    }
+
+    function resetForm() {
+      ['torboxApiKey', 'tmdbApiKey', 'rdApiKey'].forEach(id => {
+        const el = document.getElementById(id);
+        el.value = '';
+        el.classList.remove('invalid');
+      });
+      document.getElementById('provider').value = 'both';
+      document.getElementById('lang').value = 'en-US';
+      document.getElementById('sortBy').value = 'data_adicao';
+      document.getElementById('catalogModeSection').style.display = 'block';
+      document.getElementById('btnDesktop').classList.remove('show');
+      document.getElementById('btnWeb').classList.remove('show');
+      document.getElementById('btnNuvio').classList.remove('show');
+      document.getElementById('urlRow').classList.remove('show');
+      document.getElementById('manifestUrl').textContent = '';
+      document.getElementById('btnGenerate').style.display = '';
+      initialConfig = null;
+      onProviderChange();
+    }
+
+    const APP_VERSION = '2.1.0';
+
+    async function checkVersion() {
+      const banner = document.getElementById('versionBanner');
+      const msg = document.getElementById('versionMsg');
+      try {
+        const r = await fetch('https://api.github.com/repos/leleasley/LeLibrary/releases/latest', {
+          headers: { 'Accept': 'application/vnd.github.v3+json' },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+        const latest = (data.tag_name || '').replace(/^v/, '');
+        if (!latest) throw new Error('No tag');
+        if (latest !== APP_VERSION) {
+          msg.textContent = `📢 v${latest} available (you're on v${APP_VERSION})`;
+          banner.className = 'version-banner show outdated';
+        } else {
+          msg.textContent = `✅ v${APP_VERSION} — up to date`;
+          banner.className = 'version-banner show current';
+          setTimeout(() => banner.classList.remove('show'), 8000);
+        }
+      } catch (e) {
+        msg.textContent = `LeLibrary v${APP_VERSION}`;
+        banner.className = 'version-banner show error';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      checkVersion();
+      const token = window.location.pathname.split('/')[1];
+      const hasToken = token && token !== 'configure';
+      if (hasToken) {
+        document.getElementById('btnRefresh').style.display = '';
+      }
+
+      const cfg = window.__INITIAL_CONFIG__;
+      if (cfg) {
+        if (cfg.provider) {
+          document.getElementById('provider').value = cfg.provider;
+          onProviderChange();
+        }
+        if (cfg.torboxApiKey) document.getElementById('torboxApiKey').value = cfg.torboxApiKey;
+        if (cfg.tmdbApiKey) document.getElementById('tmdbApiKey').value = cfg.tmdbApiKey;
+        if (cfg.rdApiKey) {
+          document.getElementById('rdApiKey').value = cfg.rdApiKey;
+        }
+        if (cfg.rdCatalog) document.getElementById('rdCatalog').value = cfg.rdCatalog;
+        if (cfg.sortBy) document.getElementById('sortBy').value = cfg.sortBy;
+        if (cfg.lang) document.getElementById('lang').value = cfg.lang;
+        if (cfg.posterProvider) {
+          document.getElementById('posterProvider').value = cfg.posterProvider;
+          onPosterChange();
+        }
+        if (cfg.erdbToken) document.getElementById('erdbToken').value = cfg.erdbToken;
+        if (cfg.rpdbKey) document.getElementById('rpdbKey').value = cfg.rpdbKey;
+        if (cfg.fanartKey) document.getElementById('fanartKey').value = cfg.fanartKey;
+        if (cfg.omdbKey) document.getElementById('omdbKey').value = cfg.omdbKey;
+        if (cfg.enhanceBackground != null) document.getElementById('enhanceBackground').checked = cfg.enhanceBackground;
+        if (cfg.enhanceLogo != null) document.getElementById('enhanceLogo').checked = cfg.enhanceLogo;
+        if (cfg.customStreams && Array.isArray(cfg.customStreams)) {
+          customStreams = cfg.customStreams;
+          renderCustomStreams();
+        }
+        setTimeout(() => generate(), 100);
+        initialConfig = getCurrentConfig();
+        if (hasToken) document.getElementById('btnGenerate').style.display = 'none';
+      }
+
+      // Watch for changes on all config fields
+      const watchIds = ['provider', 'torboxApiKey', 'rdApiKey', 'tmdbApiKey', 'rdCatalog', 'sortBy', 'lang', 'posterProvider', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey'];
+      watchIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          const ev = el.tagName === 'SELECT' ? 'change' : 'input';
+          el.addEventListener(ev, checkChanged);
+        }
+      });
+      ['enhanceBackground', 'enhanceLogo'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', checkChanged);
+      });
+    });
+
+    document.addEventListener('keydown', e => { if (e.key === 'Enter') generate(); });
+
+    async function clearCache() {
+      const btn = document.getElementById('btnRefresh');
+      const token = window.location.pathname.split('/')[1];
+      if (!token || token === 'configure') { btn.textContent = '❌ Install the addon first'; btn.style.opacity = '0.5'; setTimeout(() => { btn.style.opacity = '1'; btn.innerHTML = '🔄 Refresh catalog<small>Clears server cache</small>'; }, 2000); return; }
+      btn.disabled = true;
+      btn.innerHTML = '<div class="ico">⏳</div><div class="txt"><span>Clearing cache...</span></div>';
+      try {
+        const r = await fetch('/api/clear-cache/' + token);
+        const d = await r.json();
+        if (d.success) {
+          btn.innerHTML = '<div class="ico">✅</div><div class="txt"><span>Cache cleared!</span><small>Now refresh your app</small></div>';
+          setTimeout(() => { btn.disabled = false; btn.innerHTML = '<div class="ico">🔄</div><div class="txt"><span>Refresh catalog</span><small>Clears server cache — then refresh in Stremio or Nuvio</small></div><span class="arr">›</span>'; }, 3000);
+        } else {
+          btn.innerHTML = '<div class="ico">❌</div><div class="txt"><span>Error: ' + d.error + '</span></div>';
+          setTimeout(() => { btn.disabled = false; btn.innerHTML = '<div class="ico">🔄</div><div class="txt"><span>Refresh catalog</span><small>Clears server cache — then refresh in Stremio or Nuvio</small></div><span class="arr">›</span>'; }, 3000);
+        }
+      } catch (e) {
+        btn.innerHTML = '<div class="ico">❌</div><div class="txt"><span>Failed: ' + e.message + '</span></div>';
+        setTimeout(() => { btn.disabled = false; btn.innerHTML = '<div class="ico">🔄</div><div class="txt"><span>Refresh catalog</span><small>Clears server cache — then refresh in Stremio or Nuvio</small></div><span class="arr">›</span>'; }, 3000);
+      }
+    }
+
+    // ── Stream Preview ──
+    const SMALL_CAPS_MAP = {
+      a:'ᴀ',b:'ʙ',c:'ᴄ',d:'ᴅ',e:'ᴇ',f:'ғ',g:'ɢ',h:'ʜ',i:'ɪ',j:'ᴊ',k:'ᴋ',
+      l:'ʟ',m:'ᴍ',n:'ɴ',o:'ᴏ',p:'ᴘ',r:'ʀ',s:'s',t:'ᴛ',u:'ᴜ',v:'ᴠ',w:'ᴡ',y:'ʏ',z:'ᴢ',
+    };
+    const toSC = s => s.toLowerCase().split('').map(c => SMALL_CAPS_MAP[c]||c).join('');
+    const BR_GROUPS = /^(bioma|c76|franceira|sigla|sf|tossato|sh4down|7sprit7|pia|riper|tomtom|andrehsa|fly|cza)$/i;
+
+    function pvQuality(n) {
+      const u = n.toUpperCase();
+      if (u.match(/\b(2160P|4K|UHD)\b/)) return '4K';
+      if (u.match(/\b1080P\b/))           return '1080p';
+      if (u.match(/\b720P\b/))            return '720p';
+      if (u.match(/\b480P\b/))            return '480p';
+      return '';
+    }
+    function pvVisualTags(n) {
+      const u = n.toUpperCase(), t = [];
+      if (u.match(/DOLBY.?VISION|\bDV\b/)) t.push('DV');
+      if (u.match(/HDR10(\+|PLUS)/))        t.push('HDR10+');
+      else if (u.match(/\bHDR10\b/))        t.push('HDR10');
+      else if (u.match(/\bHDR\b/))          t.push('HDR');
+      if (u.match(/\b10.?BIT\b/))           t.push('10-bit');
+      return t.join(' · ');
+    }
+    function pvCodec(n) {
+      const u = n.toUpperCase();
+      if (u.match(/\bH\.?265\b|\bHEVC\b|\bX265\b/)) return 'HEVC';
+      if (u.match(/\bH\.?264\b|\bAVC\b|\bX264\b/))  return 'AVC';
+      if (u.match(/\bAV1\b/))                         return 'AV1';
+      return '';
+    }
+    function pvSource(n) {
+      const u = n.toUpperCase();
+      if (u.match(/\bBLURAY\b|\bBLU.RAY\b|\bBDRIP\b/)) return 'BluRay';
+      if (u.match(/\bWEB.DL\b|\bWEBDL\b/))              return 'WEB-DL';
+      if (u.match(/\bWEBRIP\b/))                         return 'WEBRip';
+      return '';
+    }
+    function pvAudio(n) {
+      const u = n.toUpperCase(), p = [];
+      if      (u.match(/\bDUAL\b|\bDUBLADO\b/))      p.push('Dubbed');
+      else if (u.match(/\bNACIONAL\b|\bPT.?BR\b/))    p.push('PT-BR');
+      else if (u.match(/\bLEGENDADO\b/))              p.push('Subbed');
+      else if (u.match(/\bENG(LISH)?\b/))             p.push('EN');
+      if (u.match(/\bTRUEHD\b/))                       p.push('TrueHD');
+      if (u.match(/\bATMOS\b/))                        p.push('Atmos');
+      else if (!u.match(/\bTRUEHD\b/)) {
+        if      (u.match(/\bDTS.?HD\b/))              p.push('DTS-HD');
+        else if (u.match(/\bDTS\b/))                  p.push('DTS');
+        else if (u.match(/\bDDP?5\.?1\b|\bDD5\.?1\b/)) p.push('DD5.1');
+        else if (u.match(/\bAAC\b/))                  p.push('AAC');
+      }
+      return p.join(' · ');
+    }
+    function pvGroup(n) {
+      const base = n.replace(/\.(mkv|mp4|avi|mov|ts|wmv|m4v|webm)$/i,'');
+      const m = base.match(/-([A-Za-z0-9]{2,12})$/);
+      return m ? m[1] : '';
+    }
+    function pvBytes(b) {
+      if (!b) return '';
+      const gb = b/1024/1024/1024;
+      return gb>=1 ? `${gb.toFixed(2)} GB` : `${(b/1024/1024).toFixed(0)} MB`;
+    }
+    function buildStreamName(filename, source) {
+      const provider = source === 'realdebrid' ? '🔴 RD' : '⚡ TorBox';
+      const q = pvQuality(filename);
+      const resLabel = {'4K':'🟣 4K','1080p':'🔵 FHD','720p':'🟢 HD','480p':'⚫ SD'}[q]||'';
+      const src = pvSource(filename);
+      const line2 = [resLabel, src].filter(Boolean).join(' · ');
+      const tags = pvVisualTags(filename);
+      return [provider+' ⚡', line2, tags].filter(Boolean).join('\n');
+    }
+    function buildStreamDesc(filename, size, source) {
+      const display = filename.replace(/\.(mkv|mp4|avi|mov|ts|wmv|m4v|webm)$/i,'');
+      const sz = pvBytes(size);
+      const codec = pvCodec(filename);
+      const audio = pvAudio(filename);
+      const group = pvGroup(filename);
+      const isBR  = group && BR_GROUPS.test(group);
+      const lines = [];
+      const infoRow = [sz ? `💾 ${sz}` : '', codec ? `⚙️ ${codec}` : ''].filter(Boolean).join('   ');
+      if (infoRow) lines.push(infoRow);
+      if (audio) lines.push(`🔊 ${audio}`);
+      if (group) lines.push(`${isBR ? '🇧🇷 ' : ''}🫟 ${toSC(group)}`);
+      if (display) lines.push(`✔️ ${toSC(display)}`);
+      return lines.join('\n');
+    }
+
+    const SAMPLES = [
+      { filename: 'Sonic.the.Hedgehog.3.2024.1080p.WEB-DL.H265.Dual.Audio.PT-BR.DD5.1-BIOMA.mkv', size: 9126805504, source: 'torbox' },
+      { filename: 'Dune.Part.Two.2024.2160p.BluRay.HEVC.HDR10Plus.TrueHD.Atmos-GROUP.mkv', size: 45097156608, source: 'torbox' },
+      { filename: 'Game.of.Thrones.S01E01.720p.WEBRip.x264-FoV.mkv', size: 1258291200, source: 'realdebrid' },
+    ];
+
+    function renderPreview() {
+      const container = document.getElementById('previewCards');
+      container.innerHTML = SAMPLES.map(s => {
+        const name = buildStreamName(s.filename, s.source);
+        const desc = buildStreamDesc(s.filename, s.size, s.source);
+        return `<div class="stream-row">
+          <div class="stream-label">${name}</div>
+          <div class="stream-detail">${desc}</div>
+        </div>`;
+      }).join('');
+    }
+
+    function togglePreview() {
+      const btn  = document.getElementById('previewToggle');
+      const body = document.getElementById('previewBody');
+      const isOpen = body.classList.toggle('open');
+      btn.classList.toggle('open', isOpen);
+      if (isOpen) renderPreview();
+    }
+  </script>
+</body>
+</html>

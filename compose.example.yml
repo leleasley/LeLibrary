@@ -1,0 +1,33 @@
+services:
+  lelibrary:
+    build: .
+    container_name: lelibrary
+    restart: unless-stopped
+    ports:
+      - "7860:7860"
+    env_file:
+      - ./.env
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7860/health"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: lelibrary-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  redis_data:

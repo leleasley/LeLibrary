@@ -189,7 +189,7 @@ function getLogoUrl(baseUrl) {
 function getBaseManifest(baseUrl) {
   return {
     id: 'community.torbox.catalog',
-    version: '3.0.2',
+    version: '3.0.3',
     name: 'LeLibrary',
     description: 'Your personal TorBox catalog with TMDB metadata.',
     logo: getLogoUrl(baseUrl),
@@ -261,7 +261,7 @@ function getConfiguredManifest(baseUrl, config = {}) {
 
   return {
     id: 'community.torbox.catalog',
-    version: '3.0.2',
+    version: '3.0.3',
     name: 'LeLibrary',
     description: 'Your personal library with TMDB metadata.',
     logo: getLogoUrl(baseUrl),
@@ -283,7 +283,7 @@ app.get('/health', async (req, res) => {
   res.json({
     status: 'ok',
     cache: stats,
-    version: '3.0.2',
+    version: '3.0.3',
   });
 });
 

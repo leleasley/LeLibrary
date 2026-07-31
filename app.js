@@ -1,10 +1,20 @@
 const express = require('express');
+const fs      = require('fs');
 const path    = require('path');
 const cache   = require('./src/cache');
 const { getTorBoxDownloads } = require('./src/torbox');
 const { getRealDebridDownloads } = require('./src/realdebrid');
 const { buildCatalog, buildMeta, buildStreams, populateTmdbIndexFromMetas } = require('./src/builder');
-const createWebRoutes = require('./website');
+
+let createWebRoutes = null;
+try {
+  const webEntry = fs.existsSync(path.join(__dirname, 'website', 'index.js'))
+    ? path.join(__dirname, 'website', 'index.js')
+    : path.join(__dirname, 'website', 'index.example.js');
+  createWebRoutes = require(webEntry);
+} catch (err) {
+  console.warn(`[website] Web routes unavailable (${err.message}) — addon routes only`);
+}
 
 const ROOT_DIR = path.resolve(__dirname);
 
@@ -49,7 +59,7 @@ app.use((req, res, next) => {
 });
 
 // ── Website routes (landing, configure, library, discover, proxies) ──
-app.use(createWebRoutes(decodeConfig));
+if (createWebRoutes) app.use(createWebRoutes(decodeConfig));
 
 // ── Addon core routes ───────────────────────────────────────────────
 

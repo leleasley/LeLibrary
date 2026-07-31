@@ -18,6 +18,18 @@ function withCacheHints(obj, { cacheMaxAge = 60, staleRevalidate = 60, staleErro
   return { ...obj, cacheMaxAge, staleRevalidate, staleError };
 }
 
+function hashShort(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
+// Fingerprint of poster/rating config so caches are keyed per config, not shared
+function posterFp(config) {
+  const { erdbToken = '', rpdbKey = '', fanartKey = '', omdbKey = '', posterProvider = '', enhanceBackground = false, enhanceLogo = false } = config;
+  return hashShort([posterProvider, erdbToken, rpdbKey, fanartKey, omdbKey, enhanceBackground ? 1 : 0, enhanceLogo ? 1 : 0].join('|'));
+}
+
 const app = express();
 
 app.set('trust proxy', 1);
@@ -131,7 +143,7 @@ async function buildAndCacheForConfig(token, config) {
       TYPES.map(async type => {
         const metas    = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip: 0, search: '' }, lang, { erdbToken, rpdbKey });
         const userKey  = (torboxApiKey || rdApiKey).slice(-6);
-        const cacheKey = cache.makeKey('cat', key, type, sortBy, '', '0', userKey, lang);
+        const cacheKey = cache.makeKey('cat', key, type, sortBy, '', '0', userKey, lang, posterFp(config));
         await cache.set(cacheKey, { metas }, TTL_CATALOG);
         console.log(`[Cache] ${key}:${type} → ${metas.length} items`);
       })
@@ -161,7 +173,7 @@ function getLogoUrl(baseUrl) {
 function getBaseManifest(baseUrl) {
   return {
     id: 'community.torbox.catalog',
-    version: '3.0.0',
+    version: '3.0.1',
     name: 'LeLibrary',
     description: 'Your personal TorBox catalog with TMDB metadata.',
     logo: getLogoUrl(baseUrl),
@@ -227,7 +239,7 @@ function getConfiguredManifest(baseUrl, config = {}) {
 
   return {
     id: 'community.torbox.catalog',
-    version: '3.0.0',
+    version: '3.0.1',
     name: 'LeLibrary',
     description: 'Your personal library with TMDB metadata.',
     logo: getLogoUrl(baseUrl),
@@ -249,7 +261,7 @@ app.get('/health', async (req, res) => {
   res.json({
     status: 'ok',
     cache: stats,
-    version: '3.0.0',
+    version: '3.0.1',
   });
 });
 
@@ -324,7 +336,7 @@ async function handleCatalog(req, res) {
 
   const userKey  = (torboxApiKey || rdApiKey).slice(-6);
   const catKey   = rdCatalog === 'separate' ? (isRDCatalog ? 'rd' : 'tb') : 'merged';
-  const cacheKey = cache.makeKey('cat', catKey, type, sortBy, search, skip.toString(), userKey, lang);
+  const cacheKey = cache.makeKey('cat', catKey, type, sortBy, search, skip.toString(), userKey, lang, posterFp(config));
   const cached   = await cache.get(cacheKey);
 
   if (cached) {
@@ -430,7 +442,8 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
     return res.json({ meta: null });
   }
 
-  const cacheKey = cache.makeKey('meta', 'v2', `torbox:${type}:${tmdbId}`, lang);
+  const userKey = (torboxApiKey || rdApiKey || '').slice(-6);
+  const cacheKey = cache.makeKey('meta', 'v2', `torbox:${type}:${tmdbId}`, lang, userKey, posterFp(config));
   const cached   = await cache.get(cacheKey);
 
   if (cached) {
@@ -441,8 +454,6 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
 
   console.log(`[Meta] Building: ${id} (tmdbId=${tmdbId})`);
   try {
-    const userKey = (torboxApiKey || rdApiKey || '').slice(-6);
-
     // For movies: prefetch stream in parallel with buildMeta
     const streamCacheKey = cache.makeKey('stream', type, tmdbId, '', '', userKey);
     const streamPrefetch = type === 'movie'

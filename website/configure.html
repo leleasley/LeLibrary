@@ -1531,8 +1531,8 @@
         checks.push({ service: 'tmdb', key: tmdbApiKey, el: tmdbEl });
 
         btn.disabled = true;
-        document.getElementById('genBtnTitle').textContent = 'Verifying keys…';
-        document.querySelector('#btnGenerate small').textContent = 'Checking your API keys';
+        document.getElementById('genBtnTitle').textContent = 'Generating…';
+        document.querySelector('#btnGenerate small').textContent = 'Validating your API keys';
 
         const results = await Promise.all(checks.map(c =>
           fetch('/api/verify/' + c.service + '?key=' + encodeURIComponent(c.key))
@@ -1560,6 +1560,9 @@
           }
         }
         if (!allValid) return;
+
+        // All keys good — confirm before producing the links
+        showToast('Keys validated ✓');
       }
 
       const cfg = { provider, tmdbApiKey, sortBy, lang };
@@ -1684,7 +1687,7 @@
       onProviderChange();
     }
 
-    const APP_VERSION = '3.0.2';
+    const APP_VERSION = '3.0.3';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');

@@ -168,7 +168,7 @@ function importWatchlist(event) {
   event.target.value = '';
 }
 
-const APP_VERSION = '3.0.2';
+const APP_VERSION = '3.0.3';
 async function checkMylibraryVersion() {
   const row = document.getElementById('versionCheckRow');
   const msg = document.getElementById('versionCheckMsg');

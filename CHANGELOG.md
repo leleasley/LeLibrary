@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.0.3]
+
+### Website / Configure
+
+- **Keys validated before install links are generated**: clicking "Generate install links" now shows "Generating…", validates your TorBox, Real-Debrid and TMDB keys, then flashes "Keys validated ✓" before showing the links — if a key is invalid, the offending field is flagged and no links are produced
+
 ## [3.0.2]
 
 ### Addon / Core

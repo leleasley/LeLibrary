@@ -42,7 +42,9 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
-  console.log(`[REQ] ${req.method} ${req.url}`);
+  const url = req.url;
+  const isAsset = /\.(css|js|png|jpg|jpeg|svg|webp|ico|webmanifest|woff2?|ttf|map)(\?|$)/i.test(url) || url.startsWith('/img/');
+  if (!isAsset) console.log(`[REQ] ${req.method} ${url}`);
   next();
 });
 
@@ -109,26 +111,31 @@ function hashDownloads(downloads) {
 }
 
 async function buildAndCacheForConfig(token, config) {
-  const { torboxApiKey, rdApiKey, tmdbApiKey, sortBy = 'data_adicao', lang = 'pt-BR', rdCatalog = 'merge', provider = 'both', erdbToken, rpdbKey } = config;
+  const { torboxApiKey, rdApiKey, tmdbApiKey, sortBy = 'data_adicao', lang = 'pt-BR', rdCatalog = 'merge', provider = 'both', erdbToken, rpdbKey, hideAnime } = config;
   if (!tmdbApiKey) return;
 
   console.log(`[Cache] Refresh for ...${token.slice(-8)} (${lang})`);
   try {
+    // One provider failing must not prevent the other from being catalogued
+    const safeDownloads = (p, label) => (p || Promise.resolve([])).catch(err => {
+      console.error(`[Cache] ${label} downloads failed (continuing): ${err.message}`);
+      return [];
+    });
     const [tbDownloads, rdDownloads] = await Promise.all([
-      torboxApiKey ? getTorBoxDownloads(torboxApiKey) : Promise.resolve([]),
-      rdApiKey     ? getRealDebridDownloads(rdApiKey) : Promise.resolve([]),
+      safeDownloads(torboxApiKey ? getTorBoxDownloads(torboxApiKey) : null, 'TorBox'),
+      safeDownloads(rdApiKey     ? getRealDebridDownloads(rdApiKey)  : null, 'RealDebrid'),
     ]);
 
     const tbHash  = hashDownloads(tbDownloads);
     const rdHash  = hashDownloads(rdDownloads);
     const newHash = tbHash + '|' + rdHash;
-    const hashKey = cache.makeKey('dlhash', (torboxApiKey || rdApiKey).slice(-6));
+    const userKey = (torboxApiKey || rdApiKey).slice(-6);
+    const hashKey = cache.makeKey('dlhash', userKey);
     const oldHash = await cache.get(hashKey);
 
     if (oldHash === newHash) {
       console.log(`[Cache] Downloads unchanged, skip rebuild`);
       // Keep long-TTL catalog cache warm so it doesn't expire and force a slow rebuild
-      const userKey  = (torboxApiKey || rdApiKey).slice(-6);
       await cache.touchPattern(`cat:*${userKey}*`, TTL_CATALOG);
       await cache.expire(hashKey, 7200);
       return;
@@ -141,8 +148,7 @@ async function buildAndCacheForConfig(token, config) {
 
     await Promise.all(sources.flatMap(({ key, downloads }) =>
       TYPES.map(async type => {
-        const metas    = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip: 0, search: '' }, lang, { erdbToken, rpdbKey });
-        const userKey  = (torboxApiKey || rdApiKey).slice(-6);
+        const metas    = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip: 0, search: '' }, lang, { erdbToken, rpdbKey }, { userKey, hideAnime });
         const cacheKey = cache.makeKey('cat', key, type, sortBy, '', '0', userKey, lang, posterFp(config));
         await cache.set(cacheKey, { metas }, TTL_CATALOG);
         console.log(`[Cache] ${key}:${type} → ${metas.length} items`);
@@ -173,7 +179,7 @@ function getLogoUrl(baseUrl) {
 function getBaseManifest(baseUrl) {
   return {
     id: 'community.torbox.catalog',
-    version: '3.0.1',
+    version: '3.0.2',
     name: 'LeLibrary',
     description: 'Your personal TorBox catalog with TMDB metadata.',
     logo: getLogoUrl(baseUrl),
@@ -192,6 +198,12 @@ function getConfiguredManifest(baseUrl, config = {}) {
   const hasTB = provider === 'both' || provider === 'torbox';
 
   function catName(def, custom) { return custom || def; }
+  // In separate mode the same custom name would be applied to both the TorBox
+  // and Real-Debrid catalogs, creating indistinguishable duplicate rows.
+  // Disambiguate the Real-Debrid side when a custom name is set.
+  function rdCatName(def, custom) {
+    return custom ? `${custom} (Real-Debrid)` : def;
+  }
 
   const catalogs = [];
 
@@ -229,17 +241,17 @@ function getConfiguredManifest(baseUrl, config = {}) {
       { id: 'torbox-anime',  type: 'series', name: catName('🍥 TorBox Animes',  catNameAnime), extra: [{ name: 'skip' }, { name: 'search' }] },
     );
     catalogs.push(
-      { id: 'rd-movies',     type: 'movie',  name: catName('🔴 Real-Debrid Films', catNameMovies), extra: [{ name: 'skip' }, { name: 'search' }] },
-      { id: 'rd-series',     type: 'series', name: catName('🔴 Real-Debrid Series',  catNameSeries), extra: [{ name: 'skip' }, { name: 'search' }] },
+      { id: 'rd-movies',     type: 'movie',  name: rdCatName('🔴 Real-Debrid Films', catNameMovies), extra: [{ name: 'skip' }, { name: 'search' }] },
+      { id: 'rd-series',     type: 'series', name: rdCatName('🔴 Real-Debrid Series',  catNameSeries), extra: [{ name: 'skip' }, { name: 'search' }] },
     );
     if (!hideAnime) catalogs.push(
-      { id: 'rd-anime',      type: 'series', name: catName('🔴 Real-Debrid Animes',  catNameAnime), extra: [{ name: 'skip' }, { name: 'search' }] },
+      { id: 'rd-anime',      type: 'series', name: rdCatName('🔴 Real-Debrid Animes',  catNameAnime), extra: [{ name: 'skip' }, { name: 'search' }] },
     );
   }
 
   return {
     id: 'community.torbox.catalog',
-    version: '3.0.1',
+    version: '3.0.2',
     name: 'LeLibrary',
     description: 'Your personal library with TMDB metadata.',
     logo: getLogoUrl(baseUrl),
@@ -261,7 +273,7 @@ app.get('/health', async (req, res) => {
   res.json({
     status: 'ok',
     cache: stats,
-    version: '3.0.1',
+    version: '3.0.2',
   });
 });
 
@@ -311,7 +323,7 @@ async function handleCatalog(req, res) {
   const config = decodeConfig(req.params.token);
   if (!config) return res.json({ metas: [] });
 
-  const { torboxApiKey, rdApiKey, tmdbApiKey, sortBy = 'data_adicao', lang = 'pt-BR', rdCatalog = 'merge', provider = 'both', erdbToken, rpdbKey } = config;
+  const { torboxApiKey, rdApiKey, tmdbApiKey, sortBy = 'data_adicao', lang = 'pt-BR', rdCatalog = 'merge', provider = 'both', erdbToken, rpdbKey, hideAnime } = config;
   if (!tmdbApiKey || (!torboxApiKey && !rdApiKey)) return res.json({ metas: [] });
 
   const catalogId = req.params.catalogId;
@@ -341,15 +353,19 @@ async function handleCatalog(req, res) {
 
   if (cached) {
     console.log(`[Catalog] Cache hit → ${cached.metas.length} items`);
-    populateTmdbIndexFromMetas(cached.metas);
+    populateTmdbIndexFromMetas(cached.metas, userKey);
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
     return res.json(withCacheHints(cached, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
   }
 
   try {
+    const safeDownloads = (p, label) => (p || Promise.resolve([])).catch(err => {
+      console.error(`[Catalog] ${label} downloads failed (continuing): ${err.message}`);
+      return [];
+    });
     const [tbDownloads, rdDownloads] = await Promise.all([
-      torboxApiKey && (!isRDCatalog || rdCatalog === 'merge') ? getTorBoxDownloads(torboxApiKey) : Promise.resolve([]),
-      rdApiKey     && (isRDCatalog  || rdCatalog === 'merge') ? getRealDebridDownloads(rdApiKey)  : Promise.resolve([]),
+      safeDownloads(torboxApiKey && (!isRDCatalog || rdCatalog === 'merge') ? getTorBoxDownloads(torboxApiKey) : null, 'TorBox'),
+      safeDownloads(rdApiKey     && (isRDCatalog  || rdCatalog === 'merge') ? getRealDebridDownloads(rdApiKey)  : null, 'RealDebrid'),
     ]);
 
     const downloads = [...tbDownloads, ...rdDownloads];
@@ -363,7 +379,7 @@ async function handleCatalog(req, res) {
     const hashChanged = oldHash !== newHash;
 
     // Progressive: return already-known items immediately, complete the rest in the background
-    const built = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey }, { progressive: true });
+    const built = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey }, { progressive: true, userKey, hideAnime });
     const isPartial = !!built.completion;
     const metas     = built.metas || built;
 
@@ -376,7 +392,7 @@ async function handleCatalog(req, res) {
       // Finish matching + rebuild full catalog in the background
       built.completion.then(async () => {
         try {
-          const full = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey });
+          const full = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey }, { userKey, hideAnime });
           const result = { metas: full };
           if (hashChanged) {
             await cache.set(hashKey, newHash, 7200);
@@ -458,13 +474,13 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
     const streamCacheKey = cache.makeKey('stream', type, tmdbId, '', '', userKey);
     const streamPrefetch = type === 'movie'
       ? cache.get(streamCacheKey).then(hit => {
-          if (!hit) buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, undefined, undefined, lang, rdApiKey, customStreams)
+          if (!hit) buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, undefined, undefined, lang, rdApiKey, customStreams, userKey)
             .then(streams => cache.set(streamCacheKey, { streams }, TTL_STREAM))
             .catch(() => {});
         })
       : Promise.resolve();
 
-    const meta   = await buildMeta(tmdbId, type, tmdbApiKey, lang, torboxApiKey, rdApiKey, { erdbToken, rpdbKey, omdbKey, fanartKey, enhanceBackground, enhanceLogo });
+    const meta   = await buildMeta(tmdbId, type, tmdbApiKey, lang, torboxApiKey, rdApiKey, { erdbToken, rpdbKey, omdbKey, fanartKey, enhanceBackground, enhanceLogo }, userKey);
     const result = { meta };
 
     await Promise.all([
@@ -480,7 +496,7 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
       const firstEp = meta.videos[0];
       const epKey   = cache.makeKey('stream', type, tmdbId, String(firstEp.season), String(firstEp.episode), userKey);
       cache.get(epKey).then(hit => {
-        if (!hit) buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, String(firstEp.season), String(firstEp.episode), lang, rdApiKey, customStreams)
+        if (!hit) buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, String(firstEp.season), String(firstEp.episode), lang, rdApiKey, customStreams, userKey)
           .then(streams => cache.set(epKey, { streams }, TTL_STREAM))
           .catch(() => {});
       }).catch(() => {});
@@ -542,7 +558,7 @@ app.get('/:token/stream/:type/:id.json', async (req, res) => {
       return res.json(withCacheHints(cachedStreams, { cacheMaxAge: TTL_STREAM, staleRevalidate: TTL_STREAM, staleError: 604800 }));
     }
 
-    const streams = await buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, episode, lang, rdApiKey, customStreams);
+    const streams = await buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, episode, lang, rdApiKey, customStreams, userKey);
     const result  = { streams };
     await cache.set(streamCacheKey, result, TTL_STREAM);
 

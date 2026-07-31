@@ -829,6 +829,7 @@
           <div class="input-row">
             <input type="password" id="torboxApiKey" placeholder="tb-xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
             <button class="btn-icon" type="button" onclick="toggleVis('torboxApiKey',this)" aria-label="Show/hide">👁</button>
+            <button class="btn-verify" type="button" onclick="verifyKey('torbox')" id="verifyTorbox" title="Verify key">✓</button>
           </div>
         </div>
 
@@ -840,6 +841,7 @@
           <div class="input-row">
             <input type="password" id="rdApiKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
             <button class="btn-icon" type="button" onclick="toggleVis('rdApiKey',this)" aria-label="Show/hide">👁</button>
+            <button class="btn-verify" type="button" onclick="verifyKey('realdebrid')" id="verifyRealdebrid" title="Verify key">✓</button>
           </div>
         </div>
 
@@ -851,8 +853,14 @@
           <div class="input-row">
             <input type="password" id="tmdbApiKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
             <button class="btn-icon" type="button" onclick="toggleVis('tmdbApiKey',this)" aria-label="Show/hide">👁</button>
+            <button class="btn-verify" type="button" onclick="verifyKey('tmdb')" id="verifyTmdb" title="Verify key">✓</button>
           </div>
-          <p class="field-hint">Copy <strong style="color:var(--text)">API Key (v3)</strong> from your TMDB account settings.</p>
+          <p class="field-hint">Copy <strong style="color:var(--text)">API Key (v3)</strong> from your TMDB account settings — a 32-character string.</p>
+          <div class="url-warning" id="tmdbV4Warning" style="display:none">
+            ⚠️ That looks like a TMDB <strong>v4 Read Access Token</strong>, not the v3 API key.
+            v4 tokens expire, which makes the addon stop working. Use your <strong>v3 API key</strong> instead
+            (TMDB → Account Settings → API → API Key (v3)).
+          </div>
         </div>
       </div>
 
@@ -1401,7 +1409,8 @@
     }
 
     async function verifyKey(service) {
-      const inputMap = { erdb: 'erdbToken', rpdb: 'rpdbKey', omdb: 'omdbKey', fanart: 'fanartKey' };
+      const inputMap = { tmdb: 'tmdbApiKey', torbox: 'torboxApiKey', realdebrid: 'rdApiKey', erdb: 'erdbToken', rpdb: 'rpdbKey', omdb: 'omdbKey', fanart: 'fanartKey' };
+      const labels   = { tmdb: 'TMDB', torbox: 'TorBox', realdebrid: 'Real-Debrid', erdb: 'ERDB', rpdb: 'RPDB', omdb: 'OMDB', fanart: 'Fanart' };
       const id = inputMap[service];
       const el = document.getElementById(id);
       const btn = document.getElementById('verify' + service.charAt(0).toUpperCase() + service.slice(1));
@@ -1416,11 +1425,18 @@
         if (d.valid) {
           btn.className = 'btn-verify verified';
           btn.textContent = '✓';
-          showToast(service.toUpperCase() + ' key is valid!');
+          el.classList.remove('invalid');
+          showToast(labels[service] + ' key is valid!');
         } else {
           btn.className = 'btn-verify failed';
           btn.textContent = '✕';
-          showToast(d.error || 'Invalid key');
+          el.classList.add('invalid');
+          if (d.code === 'V4_ACCESS_TOKEN') {
+            showV4Warning(true);
+            showToast('TMDB v4 token detected — use your v3 API key');
+          } else {
+            showToast(d.error || 'Invalid key');
+          }
         }
       } catch (e) {
         btn.className = 'btn-verify failed';
@@ -1430,7 +1446,26 @@
       btn.disabled = false;
     }
 
-    function generate() {
+    // TMDB v4 Read Access Tokens are JWTs (eyJ….<segment>.<segment>).
+    // v3 API keys are 32-char hex strings.
+    function looksLikeV4Token(key) {
+      return /^eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}$/.test(key || '');
+    }
+
+    function showV4Warning(show) {
+      document.getElementById('tmdbV4Warning').style.display = show ? 'block' : 'none';
+    }
+
+    function checkTmdbKey() {
+      const el = document.getElementById('tmdbApiKey');
+      const isV4 = looksLikeV4Token(el.value.trim());
+      showV4Warning(isV4);
+      if (isV4) el.classList.add('invalid');
+      else el.classList.remove('invalid');
+    }
+
+    async function generate(opts = {}) {
+      const { skipVerify = false } = opts;
       const provider     = document.getElementById('provider').value;
       const torboxApiKey = document.getElementById('torboxApiKey').value.trim();
       const tmdbApiKey   = document.getElementById('tmdbApiKey').value.trim();
@@ -1461,18 +1496,71 @@
         if (!rdApiKey) { el.classList.add('invalid'); valid = false; }
         else el.classList.remove('invalid');
       }
-      [['tmdbApiKey', tmdbApiKey]].forEach(([id, val]) => {
-        const el = document.getElementById(id);
-        if (!val) { el.classList.add('invalid'); valid = false; }
-        else el.classList.remove('invalid');
-      });
+      const tmdbEl = document.getElementById('tmdbApiKey');
+      if (!tmdbApiKey) {
+        tmdbEl.classList.add('invalid');
+        valid = false;
+      } else if (looksLikeV4Token(tmdbApiKey)) {
+        // v4 Read Access Tokens expire — force users onto the v3 API key
+        tmdbEl.classList.add('invalid');
+        showV4Warning(true);
+        valid = false;
+      } else {
+        tmdbEl.classList.remove('invalid');
+        showV4Warning(false);
+      }
       if (!valid) {
-        showToast('Fill in the required fields');
+        if (!tmdbApiKey) showToast('Fill in the required fields');
+        else if (looksLikeV4Token(tmdbApiKey)) showToast('TMDB v4 token detected — use your v3 API key');
+        else showToast('Fill in the required fields');
         return;
       }
 
       const btn = document.getElementById('btnGenerate');
       const originalLabel = document.getElementById('genBtnTitle').textContent;
+      const originalSmall = document.querySelector('#btnGenerate small').textContent;
+
+      // Verify the required API keys before producing install links.
+      // If a provider can't be reached (network), proceed anyway rather than
+      // blocking a valid user on our own verification hiccup.
+      if (!skipVerify) {
+        const labels = { tmdb: 'TMDB', torbox: 'TorBox', realdebrid: 'Real-Debrid' };
+        const checks = [];
+        if (provider === 'torbox' || provider === 'both') checks.push({ service: 'torbox', key: torboxApiKey, el: document.getElementById('torboxApiKey') });
+        if (provider === 'realdebrid' || provider === 'both') checks.push({ service: 'realdebrid', key: rdApiKey, el: document.getElementById('rdApiKey') });
+        checks.push({ service: 'tmdb', key: tmdbApiKey, el: tmdbEl });
+
+        btn.disabled = true;
+        document.getElementById('genBtnTitle').textContent = 'Verifying keys…';
+        document.querySelector('#btnGenerate small').textContent = 'Checking your API keys';
+
+        const results = await Promise.all(checks.map(c =>
+          fetch('/api/verify/' + c.service + '?key=' + encodeURIComponent(c.key))
+            .then(r => r.json().catch(() => ({ networkError: true })))
+            .then(d => ({ ...c, d }))
+            .catch(() => ({ ...c, d: { networkError: true } }))
+        ));
+
+        btn.disabled = false;
+        document.getElementById('genBtnTitle').textContent = originalLabel;
+        document.querySelector('#btnGenerate small').textContent = originalSmall;
+
+        let allValid = true;
+        for (const { el, d, service } of results) {
+          if (d.valid) {
+            el.classList.remove('invalid');
+          } else if (d.networkError) {
+            // Can't confirm — don't block
+          } else {
+            el.classList.add('invalid');
+            allValid = false;
+            if (d.code === 'V4_ACCESS_TOKEN') showV4Warning(true);
+            showToast(labels[service] + ': ' + (d.error || 'invalid key'));
+            break;
+          }
+        }
+        if (!allValid) return;
+      }
 
       const cfg = { provider, tmdbApiKey, sortBy, lang };
       if (provider === 'torbox' || provider === 'both') cfg.torboxApiKey = torboxApiKey;
@@ -1577,6 +1665,7 @@
         el.value = '';
         el.classList.remove('invalid');
       });
+      showV4Warning(false);
       document.getElementById('provider').value = 'both';
       document.getElementById('lang').value = 'en-US';
       document.getElementById('sortBy').value = 'data_adicao';
@@ -1595,7 +1684,7 @@
       onProviderChange();
     }
 
-    const APP_VERSION = '3.0.1';
+    const APP_VERSION = '3.0.2';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');
@@ -1669,7 +1758,7 @@
           document.getElementById('hideAnime').checked = true;
           document.getElementById('catNameAnimeField').style.display = 'none';
         }
-        setTimeout(() => generate(), 100);
+        setTimeout(() => generate({ skipVerify: true }), 100);
         initialConfig = getCurrentConfig();
         if (hasToken) document.getElementById('btnGenerate').style.display = 'none';
       }
@@ -1691,6 +1780,15 @@
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', updatePosterPreview);
       });
+      // Reject TMDB v4 Read Access Tokens in real time
+      const tmdbInput = document.getElementById('tmdbApiKey');
+      if (tmdbInput) {
+        tmdbInput.addEventListener('input', () => {
+          checkTmdbKey();
+          checkChanged();
+        });
+        checkTmdbKey();
+      }
     });
 
     document.addEventListener('keydown', e => { if (e.key === 'Enter') generate(); });

@@ -43,13 +43,12 @@ async function get(key) {
   const client = getRedisClient();
   if (!client) {
     const val = memCache.get(key);
-    if (val !== undefined) { console.log(`[Cache] MEM HIT → ${key}`); return val; }
+    if (val !== undefined) return val;
     return null;
   }
   try {
     const data = await client.get(key);
     if (!data) return null;
-    console.log(`[Cache] HIT → ${key}`);
     return JSON.parse(data);
   } catch (err) {
     console.error(`[Cache] Error fetching ${key}:`, err.message);
@@ -66,7 +65,6 @@ async function set(key, value, ttl = 3600) {
   }
   try {
     await client.setex(key, ttl, JSON.stringify(value));
-    console.log(`[Cache] SET → ${key} (TTL: ${ttl}s)`);
     memCache.set(key, value, ttl); // mirror in memory for fast reads
     return true;
   } catch (err) {

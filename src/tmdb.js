@@ -132,35 +132,41 @@ async function searchCandidates(apiKey, query, type, year, lang = 'pt-BR') {
 }
 
 async function fetchSeasonVideos(auth, tmdbId, season, lang, fallbackPoster) {
-  try {
-    const res = await axios.get(`${TMDB_BASE}/tv/${tmdbId}/season/${season.season_number}`, {
-      headers: auth.headers,
-      params: { ...auth.params, language: lang },
-      timeout: 8000,
-    });
-    const eps = res.data?.episodes || [];
-    return eps.map(ep => ({
-      id:        `torbox:series:${tmdbId}:${season.season_number}:${ep.episode_number}`,
-      title:     ep.name || `Episódio ${ep.episode_number}`,
-      season:    season.season_number,
-      episode:   ep.episode_number,
-      overview:  ep.overview || '',
-      thumbnail: ep.still_path
-        ? `${TMDB_IMAGE}/w300${ep.still_path}`
-        : (season.poster_path ? `${TMDB_IMAGE}/w300${season.poster_path}` : fallbackPoster),
-      released:  ep.air_date ? new Date(ep.air_date).toISOString() : undefined,
-      rating:    ep.vote_average?.toFixed(1),
-    }));
-  } catch {
-    return [{
-      id:      `torbox:series:${tmdbId}:${season.season_number}:1`,
-      title:   season.name || `Temporada ${season.season_number}`,
-      season:  season.season_number,
-      episode: 1,
-      poster:  season.poster_path ? `${TMDB_IMAGE}/w500${season.poster_path}` : fallbackPoster,
-      released: season.air_date ? new Date(season.air_date).toISOString() : undefined,
-    }];
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await axios.get(`${TMDB_BASE}/tv/${tmdbId}/season/${season.season_number}`, {
+        headers: auth.headers,
+        params: { ...auth.params, language: lang },
+        timeout: 8000,
+      });
+      const eps = res.data?.episodes || [];
+      return eps.map(ep => {
+        const rawName = ep.name || '';
+        let title;
+        if (rawName && !new RegExp(`^episode\\s+${ep.episode_number}\\b`, 'i').test(rawName)) {
+          title = `Episode ${ep.episode_number}: ${rawName}`;
+        } else {
+          title = rawName || `Episode ${ep.episode_number}`;
+        }
+        return {
+          id:        `torbox:series:${tmdbId}:${season.season_number}:${ep.episode_number}`,
+          title,
+          season:    season.season_number,
+          episode:   ep.episode_number,
+          overview:  ep.overview || '',
+          thumbnail: ep.still_path
+            ? `${TMDB_IMAGE}/w300${ep.still_path}`
+            : (season.poster_path ? `${TMDB_IMAGE}/w300${season.poster_path}` : fallbackPoster),
+          released:  ep.air_date ? new Date(ep.air_date).toISOString() : undefined,
+          rating:    ep.vote_average?.toFixed(1),
+        };
+      });
+    } catch (err) {
+      if (attempt === 0) await new Promise(r => setTimeout(r, 600));
+    }
   }
+  console.error(`[TMDB] Season ${season.season_number} fetch failed for ${tmdbId} — omitting episodes`);
+  return [];
 }
 
 async function getMetadata(apiKey, tmdbId, type, lang = 'pt-BR') {

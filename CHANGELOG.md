@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.0.1]
+
+### Addon / Core
+
+- **Poster ratings fixed**: your chosen poster service now applies correctly to catalog posters, and changing your poster settings takes effect immediately instead of showing stale images
+- **Episode titles fixed**: episodes now show clear "Episode X" numbering alongside their real titles, so you always know which episode you're on
+- **Full library on first open**: the home rows no longer show a single lonely item on first load, the full library appears straight away
+- **Accurate streams**: episodes that aren't actually in a download no longer return the wrong files
+- **More date formats**: shows with European date formats in the filename (day.month.year) are now matched to the right episode too
+
 ## [3.0.0]
 
 ### Addon / Core

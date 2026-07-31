@@ -35,7 +35,10 @@ loadPersistentCache();
 setInterval(savePersistentCache, 60_000);
 
 const omdbCache    = new NodeCache({ stdTTL: 86400, checkperiod: 3600 });
-const tmdbindex = new Map(); // `series:12345` → [{item, season, episode}]
+// Per-user index: `${userKey}:series:12345` → [{item, season, episode}].
+// Keyed by user so one user's downloads never leak into another user's
+// seasons/episodes/streams.
+const tmdbindex = new Map();
 
 // Limit concurrent TMDB API calls to avoid rate-limiting
 async function pLimit(tasks, limit) {
@@ -52,11 +55,11 @@ async function pLimit(tasks, limit) {
   return results;
 }
 
-function populateTmdbIndexFromMetas(metas) {
+function populateTmdbIndexFromMetas(metas, userKey = '') {
   if (!Array.isArray(metas)) return;
   for (const meta of metas) {
     if (!meta?.torboxItem || !meta.tmdbId) continue;
-    const indexKey = `${meta.type || 'movie'}:${meta.tmdbId}`;
+    const indexKey = `${userKey}:${meta.type || 'movie'}:${meta.tmdbId}`;
     const entry = {
       item: meta.torboxItem,
       season: meta.season,
@@ -137,13 +140,38 @@ function isTmdbAnime(result) {
   return result && (result.isJapaneseAnimation === true);
 }
 
+// Parser-level anime detection for a filename (release groups, CJK, anime ep format)
+function infoAnime(_meta, name) {
+  try {
+    return !!(name && guessMediaInfo(name)?.isAnime);
+  } catch {
+    return false;
+  }
+}
+
 async function matchItem(item, tmdbApiKey, type, lang) {
   const name     = item.name || item.filename || '';
   const tmdbType = type === 'movie' ? 'movie' : 'series';
   const cacheKey = `match:${type}:${lang}:${name}`;
 
   const cached = matchCache.get(cacheKey);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) {
+    if (!cached) return null;
+    // Re-validate the anime guard on reuse: cached entries may predate the
+    // anime filter (disk-persisted across versions) and could otherwise leak
+    // anime into the series catalog.
+    const cachedAnime = isTmdbAnime(cached);
+    if (type === 'series' && (cachedAnime || infoAnime(cached, name))) {
+      matchCache.set(cacheKey, null);
+      return null;
+    }
+    if (type === 'anime' && !cachedAnime && !infoAnime(cached, name)) {
+      matchCache.set(cacheKey, null);
+      return null;
+    }
+    // Never reuse another user's torrent item — attach the caller's item.
+    return { ...cached, torboxItem: item };
+  }
 
   const info = guessMediaInfo(name);
   if (!info) { matchCache.set(cacheKey, null); return null; }
@@ -186,7 +214,7 @@ async function matchItem(item, tmdbApiKey, type, lang) {
 
     const isAnime = isTmdbAnime(result);
 
-    if (type === 'series' && isAnime) {
+    if (type === 'series' && (isAnime || info.isAnime)) {
       console.log(`[TMDB] "${info.title}" is anime — excluded from series`);
       matchCache.set(cacheKey, null);
       return null;
@@ -231,6 +259,8 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
   const search    = extra?.search?.toLowerCase();
   const PAGE_SIZE = 50;
   const { progressive = false } = opts;
+  const userKey   = opts.userKey || '';
+  const hideAnime = !!opts.hideAnime;
 
   const allRelevant = [];
   for (const item of downloads) {
@@ -240,10 +270,13 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
     if (type === 'movie'  && (info.isSeries || info.isAnime))  continue;
     if (type === 'series' && (!info.isSeries || info.isAnime)) continue;
     if (type === 'anime'  && !info.isSeries)                   continue; // anime uses SxxExx or custom format
+    // "Hide anime" must strip anime from the movie/series catalogs too,
+    // not just remove the anime catalog from the manifest.
+    if (hideAnime && type !== 'anime' && info.isAnime) continue;
     allRelevant.push({ item, info });
   }
 
-  console.log(`[Catalog] type=${type} | raw=${downloads.length} → filtered=${allRelevant.length}`);
+  console.log(`[Catalog] type=${type} | raw=${downloads.length} → filtered=${allRelevant.length}${hideAnime ? ' (hideAnime)' : ''}`);
 
   // Progressive mode: split into already-matched (instant) vs new (background).
   // New items are still matched — just after responding, not blocking it.
@@ -279,11 +312,17 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
   }
 
   const rawResults = await pLimit(tasks, BATCH_SIZE);
-  const results = rawResults.filter(r => r && !r.error);
+  let results = rawResults.filter(r => r && !r.error);
+
+  // When anime is hidden, drop TMDB-flagged anime from movie/series catalogs
+  // (parser-level anime was already excluded above / in matchItem).
+  if (hideAnime && type !== 'anime') {
+    results = results.filter(r => !r.isJapaneseAnimation);
+  }
 
   const seen = new Map();
   for (const meta of results) {
-    const indexKey = `${meta.type}:${meta.tmdbId}`;
+    const indexKey = `${userKey}:${meta.type}:${meta.tmdbId}`;
     const entry    = { item: meta.torboxItem, season: meta.season, episode: meta.episode, episodeEnd: meta.episodeEnd ?? null };
 
     if (!tmdbindex.has(indexKey)) {
@@ -334,20 +373,25 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
   return output;
 }
 
-async function buildMeta(tmdbId, type, tmdbApiKey, lang, torboxApiKey, rdApiKey, enhance = {}) {
+async function buildMeta(tmdbId, type, tmdbApiKey, lang, torboxApiKey, rdApiKey, enhance = {}, userKey = '') {
   const tmdbType = type === 'series' || type === 'anime' ? 'series' : 'movie';
 
-  // Check if tmdbindex already has entries before fetching downloads
-  const indexKey = `${type}:${tmdbId}`;
+  // Check if tmdbindex already has entries (per-user) before fetching downloads
+  const indexKey = `${userKey}:${type}:${tmdbId}`;
   const existingEntries = tmdbindex.get(indexKey)
-    || tmdbindex.get(`series:${tmdbId}`)
-    || tmdbindex.get(`anime:${tmdbId}`);
+    || tmdbindex.get(`${userKey}:series:${tmdbId}`)
+    || tmdbindex.get(`${userKey}:anime:${tmdbId}`);
 
-  // Fetch TMDB metadata; downloads only if needed
+  // Fetch TMDB metadata; downloads only if needed.
+  // One provider failing (expired key, API hiccup) must not empty the result.
+  const safeDownloads = (p, label) => (p || Promise.resolve([])).catch(err => {
+    console.error(`[Meta] ${label} downloads failed (continuing): ${err.message}`);
+    return [];
+  });
   const [meta, tbDownloads, rdDownloads] = await Promise.all([
     getMetadata(tmdbApiKey, tmdbId, tmdbType, lang),
-    (!existingEntries?.length && torboxApiKey) ? getTorBoxDownloads(torboxApiKey) : Promise.resolve([]),
-    (!existingEntries?.length && rdApiKey)     ? getRealDebridDownloads(rdApiKey)  : Promise.resolve([]),
+    safeDownloads(!existingEntries?.length && torboxApiKey ? getTorBoxDownloads(torboxApiKey) : null, 'TorBox'),
+    safeDownloads(!existingEntries?.length && rdApiKey     ? getRealDebridDownloads(rdApiKey)  : null, 'RealDebrid'),
   ]);
 
   if (!meta || tmdbType === 'movie') return meta;
@@ -510,12 +554,12 @@ async function buildMeta(tmdbId, type, tmdbApiKey, lang, torboxApiKey, rdApiKey,
   return meta;
 }
 
-async function buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, episode, lang, rdApiKey, customStreams) {
+async function buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, episode, lang, rdApiKey, customStreams, userKey = '') {
   // Try both indexes (series and anime) since ID is always torbox:series:X
   const possibleKeys = [
-    `${type === 'anime' ? 'series' : type}:${tmdbId}`,
-    `series:${tmdbId}`,
-    `anime:${tmdbId}`
+    `${userKey}:${type === 'anime' ? 'series' : type}:${tmdbId}`,
+    `${userKey}:series:${tmdbId}`,
+    `${userKey}:anime:${tmdbId}`
   ];
   
   let entries = null;
@@ -536,9 +580,13 @@ async function buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, epis
   if (!entries || entries.length === 0) {
     console.log(`[Stream] Rebuilding index...`);
     entries = [];
+    const safeDownloads = (p, label) => (p || Promise.resolve([])).catch(err => {
+      console.error(`[Stream] ${label} downloads failed (continuing): ${err.message}`);
+      return [];
+    });
     const [tbDownloads, rdDownloads] = await Promise.all([
-      torboxApiKey ? getTorBoxDownloads(torboxApiKey) : Promise.resolve([]),
-      rdApiKey     ? getRealDebridDownloads(rdApiKey)  : Promise.resolve([]),
+      safeDownloads(torboxApiKey ? getTorBoxDownloads(torboxApiKey) : null, 'TorBox'),
+      safeDownloads(rdApiKey     ? getRealDebridDownloads(rdApiKey)  : null, 'RealDebrid'),
     ]);
     const downloads = [...tbDownloads, ...rdDownloads];
 
@@ -599,7 +647,7 @@ async function buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, epis
     }
 
     if (entries.length > 0) {
-      const saveKey = `${type === 'movie' ? 'movie' : 'series'}:${tmdbId}`;
+      const saveKey = `${userKey}:${type === 'movie' ? 'movie' : 'series'}:${tmdbId}`;
       tmdbindex.set(saveKey, entries);
       console.log(`[Stream] Index saved: ${saveKey} → ${entries.length} items`);
     }
@@ -610,10 +658,7 @@ async function buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, epis
     return [];
   }
 
-  console.log(`[Stream] Filtering ${entries.length} items (first 3):`);
-  entries.slice(0, 3).forEach((e, i) => {
-    console.log(`  [${i}] s=${e.season} e=${e.episode}${e.episodeEnd ? `-${e.episodeEnd}` : ''} | ${e.item.name?.substring(0, 50)}`);
-  });
+  console.log(`[Stream] Filtering ${entries.length} items`);
 
   let filtered;
   if (type === 'series' || type === 'anime') {
@@ -652,13 +697,12 @@ async function buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, epis
         filtered = epOnly;
         console.log(`[Stream] Fallback ep-only: ${filtered.length} entries`);
       } else {
-        const { guessMediaInfo } = require('./parser');
-        const isAnimeContent = entries.some(e => {
-          const name = e.item?.name || e.item?.filename || '';
-          return guessMediaInfo(name)?.isAnime;
-        });
-        filtered = isAnimeContent ? entries : [];
-        console.log(`[Stream] Fallback anime: ${filtered.length} entries`);
+        // Last resort: match by season only (never return every entry across
+        // all seasons — that was serving the wrong seasons/episodes).
+        filtered = season != null && season !== ''
+          ? entries.filter(({ season: s }) => s != null && String(s) === String(season))
+          : [];
+        console.log(`[Stream] Fallback season-only: ${filtered.length} entries`);
       }
     }
   } else {
@@ -696,7 +740,6 @@ async function buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, epis
       });
       if (byEp.length > 0) {
         targetFiles = byEp;
-        console.log(`[Stream] Pack filtered: ${byEp.length}/${videoFiles.length} files for s=${season} e=${episode}`);
       } else {
         targetFiles = [];
         console.log(`[Stream] No file matches s=${season} e=${episode} → no streams`);
@@ -714,11 +757,16 @@ async function buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, epis
           rawStreams.push({ url, fname, size: file.size || 0, source: item.source, bingeKey });
         } catch {}
       }
-    } else {
+    } else if (videoFiles.length <= 1) {
+      // Single-file torrent (or unparseable filenames) — serve the whole item.
+      // When the requested episode didn't match inside a multi-file torrent,
+      // return nothing instead of playing the wrong file.
       try {
         const url = await getLink(0);
         if (url) rawStreams.push({ url, fname: item.name || '', size: item.size || 0, source: item.source, bingeKey });
       } catch {}
+    } else {
+      console.log(`[Stream] No matching file for s=${season} e=${episode} — skipping`);
     }
   }));
 

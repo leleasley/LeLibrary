@@ -11,7 +11,6 @@ async function torboxGet(path, apiKey, params = {}) {
   }
   
   const headers = { Authorization: `Bearer ${apiKey}` };
-  console.log(`[TorBox] Request: ${path} | Key: ...${apiKey.slice(-8)}`);
   
   try {
     const res = await axios.get(`${TORBOX_BASE}${path}`, { 
@@ -53,14 +52,12 @@ async function getTorBoxDownloads(apiKey) {
   {
     const data = torrentsResult.data?.data;
     const list = Array.isArray(data) ? data : (data ? [data] : []);
-    console.log(`[TorBox] Torrents: ${list.length} items`);
     items = items.concat(list.map(t => ({ ...t, source: 'torrent' })));
   }
 
   if (!usenetResult.error) {
     const data = usenetResult.data?.data;
     const list = Array.isArray(data) ? data : (data ? [data] : []);
-    console.log(`[TorBox] Usenet: ${list.length} items`);
     items = items.concat(list.map(u => ({ ...u, source: 'usenet' })));
   } else {
     const s = usenetResult.status;
@@ -74,11 +71,6 @@ async function getTorBoxDownloads(apiKey) {
     }
   }
 
-  console.log(`[TorBox] Total before filter: ${items.length}`);
-
-  const states = [...new Set(items.map(i => i.download_state))];
-  if (states.length > 0) console.log(`[TorBox] States found:`, states);
-
   const completed = items.filter(i => {
     const state = (i.download_state || '').toLowerCase();
     return (
@@ -91,10 +83,7 @@ async function getTorBoxDownloads(apiKey) {
     );
   });
 
-  console.log(`[TorBox] Completed items: ${completed.length}`);
-  if (completed.length > 0) {
-    console.log(`[TorBox] Amostra:`, completed[0].name || completed[0].filename);
-  }
+  console.log(`[TorBox] Downloads: ${items.length} fetched → ${completed.length} available`);
 
   return completed;
 }

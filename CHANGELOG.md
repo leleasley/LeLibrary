@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.0.2]
+
+### Addon / Core
+
+- **Fixed wrong seasons & episodes**: seasons/episodes are now tracked per user, so one person's downloads can no longer leak into another user's detail page or streams (previously you could see "season 5" when you only had seasons 1–2, and episodes appeared in a random order)
+- **Streams match the episode you clicked**: a requested episode that isn't in a download no longer falls back to playing the wrong file or a random episode
+- **"Hide anime" now actually hides anime**: anime is stripped from the Movies/Series catalogs too, not just from the dedicated anime catalog, and stale anime matches are re-checked
+- **Broken provider keys no longer empty your library**: if one debrid provider's key is invalid or expired (e.g. Real-Debrid), the other provider's content still shows instead of an empty catalog
+- **TMDB v4 token warning**: the configurator now detects a TMDB v4 "Read Access Token" (JWTs expire and silently break the addon) and tells you to use the v3 API key instead
+- **Key verification before install**: clicking "Generate install links" now validates your TorBox, Real-Debrid and TMDB keys up-front, with per-field verify buttons
+- **Separate-catalog mode**: custom catalog names no longer produce duplicate identical rows for TorBox and Real-Debrid
+
 ## [3.0.1]
 
 ### Addon / Core

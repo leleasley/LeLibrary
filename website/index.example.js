@@ -11,8 +11,7 @@ function createWebRoutes(decodeConfig) {
   router.use(express.urlencoded({ extended: true }));
 
   router.get('/', (req, res) => {
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.sendFile(path.join(WEBSITE_DIR, 'landing.example.html'));
+    res.redirect('/configure');
   });
 
   router.get('/configure', (req, res) => {

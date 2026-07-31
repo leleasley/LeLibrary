@@ -132,6 +132,7 @@ Go to **[lelibrary.uk/configure](https://lelibrary.uk/configure)**, enter your k
 git clone https://github.com/leleasley/LeLibrary.git
 cd LeLibrary
 cp .env.example .env
+cp compose.example.yml compose.yml
 docker compose up -d --build
 ```
 

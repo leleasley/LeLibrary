@@ -1,8 +1,8 @@
 const fs   = require('fs');
 const axios = require('axios');
-const { getTorBoxDownloads, getTorBoxStreamLink, getTorBoxFiles, isVideoFile } = require('./torbox');
+const { getTorBoxDownloads, getTorBoxStreamLink, getTorBoxFiles, isVideoFile, isJunkVideo } = require('./torbox');
 const { getRealDebridDownloads, getRealDebridFiles, getRealDebridStreamLink } = require('./realdebrid');
-const { searchMetadata, getMetadata } = require('./tmdb');
+const { searchMetadata, searchCandidates, getMetadata, findEpisodeByAirDate } = require('./tmdb');
 const { guessMediaInfo } = require('./parser');
 const NodeCache = require('node-cache');
 
@@ -154,19 +154,41 @@ async function matchItem(item, tmdbApiKey, type, lang) {
   if (type === 'anime' && !info.isSeries) { matchCache.set(cacheKey, null); return null; }
 
   try {
-    const result = await searchMetadata(tmdbApiKey, info.title, tmdbType, info.year, lang);
+    let season     = info.season;
+    let episode    = info.episode;
+    let episodeEnd = info.episodeEnd ?? null;
+
+    let result;
+    if (info.airDate) {
+      const candidates = await searchCandidates(tmdbApiKey, info.title, 'tv', undefined, lang);
+      const verified = [];
+      for (const c of candidates) {
+        const resolved = await findEpisodeByAirDate(tmdbApiKey, c.id, info.airDate, lang);
+        if (resolved) verified.push({ result: c, resolved });
+      }
+      if (verified.length > 0) {
+        verified.sort((a, b) => (b.result.vote_count || 0) - (a.result.vote_count || 0));
+        const pick = verified[0];
+        result = pick.result;
+        season = pick.resolved.season;
+        episode = pick.resolved.episode;
+        episodeEnd = null;
+      } else {
+        result = candidates[0] || null;
+      }
+    } else {
+      result = await searchMetadata(tmdbApiKey, info.title, tmdbType, info.year, lang);
+    }
     if (!result) { matchCache.set(cacheKey, null); return null; }
 
     const isAnime = isTmdbAnime(result);
-    
-    // Reject anime in series catalog
+
     if (type === 'series' && isAnime) {
       console.log(`[TMDB] "${info.title}" is anime — excluded from series`);
       matchCache.set(cacheKey, null);
       return null;
     }
-    
-    // Accept anime in anime catalog even without parser detection
+
     if (type === 'anime' && !isAnime && !info.isAnime) {
       matchCache.set(cacheKey, null);
       return null;
@@ -187,9 +209,9 @@ async function matchItem(item, tmdbApiKey, type, lang) {
       catalogType:          type,
       isJapaneseAnimation:  isAnime,
       torboxItem:           item,
-      season:               info.season,
-      episode:              info.episode,
-      episodeEnd:           info.episodeEnd ?? null,
+      season,
+      episode,
+      episodeEnd,
     };
 
     matchCache.set(cacheKey, meta);
@@ -201,10 +223,11 @@ async function matchItem(item, tmdbApiKey, type, lang) {
   }
 }
 
-async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = 'pt-BR', enhance = {}) {
+async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = 'pt-BR', enhance = {}, opts = {}) {
   const skip      = parseInt(extra?.skip) || 0;
   const search    = extra?.search?.toLowerCase();
   const PAGE_SIZE = 50;
+  const { progressive = false } = opts;
 
   const allRelevant = [];
   for (const item of downloads) {
@@ -219,9 +242,39 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
 
   console.log(`[Catalog] type=${type} | raw=${downloads.length} → filtered=${allRelevant.length}`);
 
-  // Batch TMDB searches to avoid rate-limiting (TMDB ~40 req/10s)
+  // Progressive mode: split into already-matched (instant) vs new (background).
+  // New items are still matched — just after responding, not blocking it.
   const BATCH_SIZE = 6;
-  const tasks = allRelevant.map(({ item }) => () => matchItem(item, tmdbApiKey, type, lang));
+  let tasks;
+  let completion = null;
+
+  let freshCount = 0;
+  if (progressive) {
+    const cached = [];
+    const fresh  = [];
+    for (const { item, info } of allRelevant) {
+      const name   = item.name || item.filename || '';
+      const ck     = `match:${type}:${lang}:${name}`;
+      if (matchCache.has(ck)) cached.push({ item, info });
+      else fresh.push({ item, info });
+    }
+    freshCount = fresh.length;
+    console.log(`[Catalog] Progressive: ${cached.length} cached, ${fresh.length} to match in background`);
+    // Only do a fast partial return if we have something useful to show.
+    // A fully-cold cache (0 cached) would return an empty page — worse than
+    // blocking for the full build, so fall back to the full build in that case.
+    if (cached.length === 0) {
+      tasks = fresh.map(({ item }) => () => matchItem(item, tmdbApiKey, type, lang));
+    } else {
+      tasks = cached.map(({ item }) => () => matchItem(item, tmdbApiKey, type, lang));
+      if (fresh.length > 0) {
+        completion = pLimit(fresh.map(({ item }) => () => matchItem(item, tmdbApiKey, type, lang)), BATCH_SIZE);
+      }
+    }
+  } else {
+    tasks = allRelevant.map(({ item }) => () => matchItem(item, tmdbApiKey, type, lang));
+  }
+
   const rawResults = await pLimit(tasks, BATCH_SIZE);
   const results = rawResults.filter(r => r && !r.error);
 
@@ -270,9 +323,12 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
     }
   }
 
-  return paginated
+  const output = paginated
     .map(({ torboxItem, torboxItems, tmdbId, released, catalogType, isJapaneseAnimation, season, episode, ...rest }) => rest)
     .filter(m => m.poster);
+
+  if (completion) return { metas: output, completion, _fresh: freshCount };
+  return output;
 }
 
 async function buildMeta(tmdbId, type, tmdbApiKey, lang, torboxApiKey, rdApiKey, enhance = {}) {
@@ -337,7 +393,7 @@ async function buildMeta(tmdbId, type, tmdbApiKey, lang, torboxApiKey, rdApiKey,
         }
 
         if (!matched) {
-          const tk = info.title + '|' + (info.year || '');
+          const tk = info.airDate ? info.title : (info.title + '|' + (info.year || ''));
           toSearch.push({ item, info, tk, cachedMeta: null });
         } else {
           toSearch.push({ item, info, tk: null, cachedMeta });
@@ -350,18 +406,30 @@ async function buildMeta(tmdbId, type, tmdbApiKey, lang, torboxApiKey, rdApiKey,
         if (titleCache.has(tk)) return;
         const [title, year] = tk.split('|');
         try {
-          const r = await searchMetadata(tmdbApiKey, title, 'tv', year || undefined, lang);
-          titleCache.set(tk, r ? String(r.id) : null);
+          if (year === undefined) {
+            const cands = await searchCandidates(tmdbApiKey, title, 'tv', undefined, lang);
+            titleCache.set(tk, cands.map(c => String(c.id)));
+          } else {
+            const r = await searchMetadata(tmdbApiKey, title, 'tv', year || undefined, lang);
+            titleCache.set(tk, r ? String(r.id) : null);
+          }
         } catch { titleCache.set(tk, null); }
       }));
 
       for (const { item, info, tk, cachedMeta } of toSearch) {
-        const matched = cachedMeta != null || (tk && titleCache.get(tk) === String(tmdbId));
+        const matched = cachedMeta != null
+          || (info.airDate
+            ? (titleCache.get(tk) || []).some(id => String(id) === String(tmdbId))
+            : (tk && titleCache.get(tk) === String(tmdbId)));
         if (!matched) continue;
 
-        const season     = cachedMeta?.season     ?? info.season;
-        const episode    = cachedMeta?.episode    ?? info.episode;
-        const episodeEnd = cachedMeta?.episodeEnd ?? info.episodeEnd;
+        let season     = cachedMeta?.season     ?? info.season;
+        let episode    = cachedMeta?.episode    ?? info.episode;
+        let episodeEnd = cachedMeta?.episodeEnd ?? info.episodeEnd;
+        if (info.airDate && episode == null) {
+          const resolved = await findEpisodeByAirDate(tmdbApiKey, tmdbId, info.airDate, lang);
+          if (resolved) { season = resolved.season; episode = resolved.episode; episodeEnd = null; }
+        }
 
         indexEntries.push({ item, season, episode, episodeEnd });
 
@@ -501,6 +569,15 @@ async function buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, epis
         const name = item.name || item.filename || '';
         const info = guessMediaInfo(name);
         try {
+          if (info.airDate) {
+            const cands = await searchCandidates(tmdbApiKey, info.title, 'tv', undefined, lang);
+            const hit = cands.find(c => String(c.id) === String(tmdbId));
+            if (hit) {
+              const resolved = await findEpisodeByAirDate(tmdbApiKey, hit.id, info.airDate, lang);
+              entries.push({ item, season: resolved?.season ?? null, episode: resolved?.episode ?? null, episodeEnd: null });
+            }
+            return;
+          }
           const result = await searchMetadata(tmdbApiKey, info.title, tmdbType, info.year, lang);
           if (result && String(result.id) === String(tmdbId)) {
             entries.push({ item, season: info.season, episode: info.episode, episodeEnd: info.episodeEnd ?? null });
@@ -590,7 +667,10 @@ async function buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, epis
       : (fileId) => getTorBoxStreamLink(torboxApiKey, item.source, item.id, fileId);
 
     const files      = await getFiles();
-    const videoFiles = files.filter(f => isVideoFile(f.name || f.short_name));
+    let videoFiles = files.filter(f => isVideoFile(f.name || f.short_name));
+    // Drop sample/trailer/featurette files, but only if real files remain
+    const realFiles = videoFiles.filter(f => !isJunkVideo(f.name || f.short_name));
+    if (realFiles.length > 0) videoFiles = realFiles;
 
     let targetFiles = videoFiles;
     if ((type === 'series' || type === 'anime') && episode != null && episode !== '' && videoFiles.length > 1) {
@@ -609,19 +689,21 @@ async function buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, epis
       }
     }
 
+    const bingeKey = item.source + ':' + item.id;
+
     if (targetFiles.length > 0) {
       for (const file of targetFiles) {
         try {
           const url = await getLink(file.id);
           if (!url) continue;
           const fname = file.name || file.short_name || item.name || '';
-          rawStreams.push({ url, fname, size: file.size || 0, source: item.source });
+          rawStreams.push({ url, fname, size: file.size || 0, source: item.source, bingeKey });
         } catch {}
       }
     } else {
       try {
         const url = await getLink(0);
-        if (url) rawStreams.push({ url, fname: item.name || '', size: item.size || 0, source: item.source });
+        if (url) rawStreams.push({ url, fname: item.name || '', size: item.size || 0, source: item.source, bingeKey });
       } catch {}
     }
   }));
@@ -635,12 +717,19 @@ async function buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, epis
     return b.size - a.size;
   });
 
-  const result = rawStreams.map(({ url, fname, size, source }) => ({
-    url,
-    name:          formatStreamName(fname, source),
-    description:   formatStreamDesc(fname, size, source),
-    behaviorHints: { notWebReady: false },
-  }));
+  const result = rawStreams.map(({ url, fname, size, source, bingeKey }) => {
+    const behaviorHints = { notWebReady: false };
+    // Subtitle addons hash-match on the bare filename, not the folder path
+    const baseName = (fname || '').split('/').pop();
+    if (baseName) behaviorHints.filename = baseName;
+    if (bingeKey) behaviorHints.bingeGroup = bingeKey;
+    return {
+      url,
+      name:        formatStreamName(fname, source),
+      description: formatStreamDesc(fname, size, source),
+      behaviorHints,
+    };
+  });
 
   if (customStreams && Array.isArray(customStreams)) {
     for (const cs of customStreams) {

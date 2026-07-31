@@ -30,7 +30,7 @@ function hideError() {
 // ── View management ───────────────────────────────────────────
 function hideAllViews() {
   ['dashboard', 'libraryView', 'browseView', 'genreView', 'recentView',
-   'profileView', 'watchlistView', 'queueView', 'settingsView'].forEach(id => {
+   'profileView', 'watchlistView', 'queueView', 'settingsView', 'downloadView'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -52,7 +52,7 @@ function addBackBtn(container) {
   document.querySelectorAll('.back-btn').forEach(b => b.remove());
   const btn = document.createElement('button');
   btn.className = 'back-btn';
-  btn.innerHTML = '&#8592; Back to Dashboard';
+  btn.innerHTML = icon('back', 14) + ' Back to Dashboard';
   btn.onclick = () => navigateTo('dashboard');
   if (container) {
     container.insertBefore(btn, container.firstChild);
@@ -61,12 +61,11 @@ function addBackBtn(container) {
 }
 
 // ── Keyboard shortcuts ────────────────────────────────────────
-let shortcutsEnabled = true;
-
 function initKeyboardShortcuts() {
   document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
     if (modalOpen()) return;
+    if (getSetting('shortcutsEnabled', true) === false) return;
 
     // / or Ctrl+K — focus search
     if (e.key === '/' || (e.ctrlKey && e.key === 'k')) {
@@ -80,6 +79,18 @@ function initKeyboardShortcuts() {
     if (e.key === '?') {
       e.preventDefault();
       showShortcutsModal();
+      return;
+    }
+
+    // Number keys — quick navigation
+    const pageMap = {
+      '1': 'dashboard', '2': 'browse-movies', '3': 'browse-series',
+      '4': 'library', '5': 'watchlist', '6': 'queue',
+      '7': 'profile', '8': 'settings', '9': 'download',
+    };
+    if (pageMap[e.key]) {
+      e.preventDefault();
+      navigateTo(pageMap[e.key]);
       return;
     }
 
@@ -116,6 +127,7 @@ function showShortcutsModal() {
       <div class="shortcut-row"><span class="shortcut-label">Queue</span><div class="shortcut-keys"><span class="kbd">6</span></div></div>
       <div class="shortcut-row"><span class="shortcut-label">Profile</span><div class="shortcut-keys"><span class="kbd">7</span></div></div>
       <div class="shortcut-row"><span class="shortcut-label">Settings</span><div class="shortcut-keys"><span class="kbd">8</span></div></div>
+      <div class="shortcut-row"><span class="shortcut-label">Add Download</span><div class="shortcut-keys"><span class="kbd">9</span></div></div>
       <button class="btn btn-secondary" style="width:100%;margin-top:12px" onclick="this.closest('.shortcuts-overlay').remove()">Close</button>
     </div>
   `;

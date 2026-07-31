@@ -12,11 +12,11 @@
   <title>My Library | LeLibrary</title>
   <base href="/my-library/" />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/variables.css?v=3" />
-  <link rel="stylesheet" href="css/base.css?v=3" />
-  <link rel="stylesheet" href="css/components.css?v=3" />
-  <link rel="stylesheet" href="css/pages.css?v=3" />
-  <link rel="stylesheet" href="css/mobile.css?v=3" />
+  <link rel="stylesheet" href="css/variables.css?v=16" />
+  <link rel="stylesheet" href="css/base.css?v=16" />
+  <link rel="stylesheet" href="css/components.css?v=16" />
+  <link rel="stylesheet" href="css/pages.css?v=16" />
+  <link rel="stylesheet" href="css/mobile.css?v=16" />
 </head>
 <body>
 <div class="container">
@@ -30,8 +30,8 @@
       <a href="/">Home</a>
       <span id="authNav" style="display:none">
         <a href="#" onclick="loadLibrary();return false" style="color:var(--amber)" title="Refresh library from providers">Refresh</a>
-        <a href="#" onclick="navigateTo('settings');return false" title="Settings">&#9881;</a>
-        <a href="#" onclick="logout();return false" style="color:var(--error)" title="Log out">&#10140;</a>
+        <a href="#" onclick="navigateTo('settings');return false" title="Settings"><span data-icon="settings"></span></a>
+        <a href="#" onclick="logout();return false" class="topbar-link topbar-logout" title="Log out"><span data-icon="logout"></span></a>
       </span>
     </nav>
     <button class="hamburger" id="hamburger" onclick="toggleMenu()" aria-label="Menu">
@@ -53,45 +53,57 @@
     <p id="loginDesc">Browse your downloads from TorBox and/or Real-Debrid. All requests go directly from your browser.</p>
 
     <div id="newUserForm">
-      <div class="input-wrap">
+      <div class="input-group">
         <label>Provider</label>
-        <select id="providerSelect" onchange="onProviderChange()">
-          <option value="torbox">TorBox</option>
-          <option value="realdebrid">Real-Debrid</option>
-          <option value="both">Both (TorBox + Real-Debrid)</option>
-        </select>
+        <div class="input-wrap">
+          <select id="providerSelect" onchange="onProviderChange()">
+            <option value="torbox">TorBox</option>
+            <option value="realdebrid">Real-Debrid</option>
+            <option value="both">Both (TorBox + Real-Debrid)</option>
+          </select>
+        </div>
       </div>
 
-      <div class="input-wrap" id="tbKeyWrap">
+      <div class="input-group" id="tbKeyWrap">
         <label>TorBox API Key <span style="color:var(--amber)">*</span> <a href="https://torbox.app/settings" target="_blank">Get key &#8599;</a></label>
-        <input type="password" id="apiKey" placeholder="tb-xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" data-lpignore="true" data-1pignore="true" />
+        <div class="input-wrap">
+          <input type="password" id="apiKey" placeholder="tb-xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" data-lpignore="true" data-1pignore="true" />
+        </div>
         <p class="hint" style="margin-top:4px"><a href="https://torbox.app/subscription?referral=fba69dd3-9611-4e43-a505-87190b4db7fb" target="_blank">Create a TorBox account &#8599;</a></p>
       </div>
 
-      <div class="input-wrap" id="rdKeyWrap">
+      <div class="input-group" id="rdKeyWrap">
         <label>Real-Debrid API Key <span style="color:var(--amber)">*</span> <a href="http://real-debrid.com/?id=14493200" target="_blank">Get key &#8599;</a></label>
-        <input type="password" id="rdApiKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" data-lpignore="true" data-1pignore="true" />
+        <div class="input-wrap">
+          <input type="password" id="rdApiKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" data-lpignore="true" data-1pignore="true" />
+        </div>
         <p class="hint" style="margin-top:4px"><a href="http://real-debrid.com/?id=14493200" target="_blank">Create a Real-Debrid account &#8599;</a></p>
       </div>
 
-      <div class="input-wrap">
+      <div class="input-group">
         <label>TMDB API Key <span style="color:var(--amber)">*</span> <a href="https://www.themoviedb.org/settings/api" target="_blank">Get yours here</a></label>
-        <input type="password" id="tmdbKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" data-lpignore="true" data-1pignore="true" />
-        <button class="toggle-btn" type="button" onclick="toggleVis('tmdbKey',this)">&#128065;</button>
+        <div class="input-wrap">
+          <input type="password" id="tmdbKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" data-lpignore="true" data-1pignore="true" />
+          <button class="toggle-btn" type="button" onclick="toggleVis('tmdbKey',this)"><span data-icon="eye"></span></button>
+        </div>
       </div>
-      <div class="input-wrap">
+      <div class="input-group">
         <label>Encryption Password <span style="color:var(--amber);font-weight:600">(required)</span></label>
-        <input type="password" id="encPassword" placeholder="Choose a password to protect your keys" autocomplete="off" />
-        <button class="toggle-btn" type="button" onclick="toggleVis('encPassword',this)">&#128065;</button>
+        <div class="input-wrap">
+          <input type="password" id="encPassword" placeholder="Choose a password to protect your keys" autocomplete="off" />
+          <button class="toggle-btn" type="button" onclick="toggleVis('encPassword',this)"><span data-icon="eye"></span></button>
+        </div>
       </div>
       <p class="hint">Your API keys are encrypted with this password before saving to your browser. We never see your keys or password.</p>
     </div>
 
     <div id="returnUserForm" style="display:none">
-      <div class="input-wrap">
+      <div class="input-group">
         <label>Encryption Password</label>
-        <input type="password" id="decPassword" placeholder="Enter your password to unlock" autocomplete="off" />
-        <button class="toggle-btn" type="button" onclick="toggleVis('decPassword',this)">&#128065;</button>
+        <div class="input-wrap">
+          <input type="password" id="decPassword" placeholder="Enter your password to unlock" autocomplete="off" />
+          <button class="toggle-btn" type="button" onclick="toggleVis('decPassword',this)"><span data-icon="eye"></span></button>
+        </div>
       </div>
       <p class="hint" style="margin-bottom:12px">Enter the password you used when saving your keys.</p>
     </div>
@@ -100,7 +112,7 @@
   </div>
 
   <div class="error-box" id="errorBox">
-    <span class="icon">&#9888;&#65039;</span>
+    <span class="icon"><span data-icon="alert"></span></span>
     <span class="msg" id="errorMsg"></span>
     <button class="retry" onclick="loadLibrary()">Retry</button>
   </div>
@@ -110,7 +122,7 @@
     <!-- Search Bar (always visible at top) -->
     <div id="searchBarWrap" style="display:none">
       <div class="search-bar" id="tmdbSearchBar">
-        <input type="text" id="tmdbSearchInput" placeholder="&#128269; Search movies &amp; series..." autocomplete="off" />
+        <input type="text" id="tmdbSearchInput" placeholder="Search movies &amp; series..." autocomplete="off" />
         <div class="ac-dropdown" id="acDropdown"></div>
       </div>
     </div>
@@ -139,6 +151,9 @@
     <!-- Queue View -->
     <div id="queueView" style="display:none"></div>
 
+    <!-- Download Manager View -->
+    <div id="downloadView" style="display:none"></div>
+
     <!-- Settings View -->
     <div id="settingsView" style="display:none"></div>
 
@@ -146,23 +161,27 @@
     <nav class="bottom-nav" id="bottomNav">
       <div class="bottom-nav-inner">
         <a class="bottom-nav-item active" data-page="dashboard" onclick="navigateTo('dashboard')">
-          <span class="nav-icon">&#127968;</span>
+          <span class="nav-icon" data-icon="home"></span>
           <span class="nav-label">Home</span>
         </a>
         <a class="bottom-nav-item" data-page="browse-movies" onclick="navigateTo('browse-movies')">
-          <span class="nav-icon">&#127916;</span>
+          <span class="nav-icon" data-icon="movie"></span>
           <span class="nav-label">Movies</span>
         </a>
         <a class="bottom-nav-item" data-page="library" onclick="navigateTo('library')">
-          <span class="nav-icon">&#128194;</span>
+          <span class="nav-icon" data-icon="folder"></span>
           <span class="nav-label">Library</span>
         </a>
+        <a class="bottom-nav-item" data-page="download" onclick="navigateTo('download')">
+          <span class="nav-icon" data-icon="download"></span>
+          <span class="nav-label">Add</span>
+        </a>
         <a class="bottom-nav-item" data-page="watchlist" onclick="navigateTo('watchlist')">
-          <span class="nav-icon">&#11088;</span>
+          <span class="nav-icon" data-icon="star"></span>
           <span class="nav-label">Saved</span>
         </a>
         <a class="bottom-nav-item" data-page="profile" onclick="navigateTo('profile')">
-          <span class="nav-icon">&#128100;</span>
+          <span class="nav-icon" data-icon="user"></span>
           <span class="nav-label">Profile</span>
         </a>
       </div>
@@ -170,7 +189,7 @@
   </div>
 
   <div class="empty" id="emptyState" style="display:none">
-    <div class="icon">&#128194;</div>
+    <div class="icon"><span data-icon="folder"></span></div>
     <h3>No downloads found</h3>
     <p>Add some content to your TorBox account to see it here.</p>
   </div>
@@ -185,20 +204,23 @@
 <div class="toast" id="toast"></div>
 
 <!-- Scripts -->
-<script src="js/utils.js?v=3"></script>
-<script src="js/api.js?v=3"></script>
-<script src="js/components.js?v=3"></script>
-<script src="js/pages/dashboard.js?v=3"></script>
-<script src="js/pages/browse.js?v=3"></script>
-<script src="js/pages/library.js?v=3"></script>
-<script src="js/pages/genres.js?v=3"></script>
-<script src="js/pages/recent.js?v=3"></script>
-<script src="js/pages/profile.js?v=3"></script>
-<script src="js/pages/detail.js?v=3"></script>
-<script src="js/pages/watchlist.js?v=3"></script>
-<script src="js/pages/queue.js?v=3"></script>
-<script src="js/pages/settings.js?v=3"></script>
-<script src="js/app.js?v=3"></script>
+<script src="js/utils.js?v=16"></script>
+<script src="js/api.js?v=16"></script>
+<script src="js/icons.js?v=16"></script>
+<script src="js/components.js?v=16"></script>
+<script src="js/pages/dashboard.js?v=16"></script>
+<script src="js/pages/browse.js?v=16"></script>
+<script src="js/pages/library.js?v=16"></script>
+<script src="js/pages/genres.js?v=16"></script>
+<script src="js/pages/recent.js?v=16"></script>
+<script src="js/pages/profile.js?v=16"></script>
+<script src="js/pages/detail.js?v=16"></script>
+<script src="js/pages/watchlist.js?v=16"></script>
+<script src="js/pages/queue.js?v=16"></script>
+<script src="js/pages/download.js?v=16"></script>
+<script src="js/pages/addtorrent.js?v=16"></script>
+<script src="js/pages/settings.js?v=16"></script>
+<script src="js/app.js?v=16"></script>
 
 <!-- TMDB Search (autocomplete + full search) -->
 <script>
@@ -292,7 +314,8 @@
     const q = searchInput.value.trim();
     if (!q) return;
     closeAc();
-    navigateTo('browse-movies');
+    window.location.hash = '#/search/' + encodeURIComponent(q);
+    renderSearchView(q);
   }
 })();
 </script>

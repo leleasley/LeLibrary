@@ -41,8 +41,8 @@ function renderGenreView() {
   genreView.style.display = 'block';
 
   const toggleHtml = `<div class="genre-type-toggle" id="genreTypeToggle">
-    <button class="genre-type-btn active" data-type="movie" onclick="switchGenreType('movie')">&#127916; Movies</button>
-    <button class="genre-type-btn" data-type="tv" onclick="switchGenreType('tv')">&#128250; Series</button>
+    <button class="genre-type-btn active" data-type="movie" onclick="switchGenreType('movie')">${icon('movie', 14)} Movies</button>
+    <button class="genre-type-btn" data-type="tv" onclick="switchGenreType('tv')">${icon('tv', 14)} Series</button>
   </div>`;
 
   const genres = getGenreList('movie');
@@ -51,7 +51,7 @@ function renderGenreView() {
     '</div>';
 
   genreView.innerHTML = `
-    <div class="browse-header"><h2>&#127917; Browse by Genre</h2></div>
+    <div class="browse-header"><h2>${icon('film', 18)} Browse by Genre</h2></div>
     ${toggleHtml}${chipsHtml}
     <div id="genreResultsHeader" style="display:none;margin-top:1rem"></div>
     <div class="browse-grid" id="genreGrid"></div>

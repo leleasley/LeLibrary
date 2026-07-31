@@ -44,22 +44,22 @@ function renderDashboard() {
 
     <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-icon">&#128230;</div>
+        <div class="stat-icon">${icon('box', 20)}</div>
         <div class="stat-value">${items.length}</div>
         <div class="stat-label">Total Items</div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon">&#127916;</div>
+        <div class="stat-icon">${icon('movie', 20)}</div>
         <div class="stat-value">${movieCount}</div>
         <div class="stat-label">Movies</div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon">&#128250;</div>
+        <div class="stat-icon">${icon('tv', 20)}</div>
         <div class="stat-value">${seriesCount}</div>
         <div class="stat-label">Series</div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon">&#128190;</div>
+        <div class="stat-icon">${icon('disk', 20)}</div>
         <div class="stat-value">${formatBytes(totalSize)}</div>
         <div class="stat-label">Total Size</div>
       </div>
@@ -67,37 +67,37 @@ function renderDashboard() {
 
     <div class="quick-actions">
       <a class="action-card" onclick="navigateTo('browse-movies')">
-        <div class="action-icon">&#127916;</div>
+        <div class="action-icon">${icon('movie', 20)}</div>
         <div class="action-label">Movies</div>
       </a>
       <a class="action-card" onclick="navigateTo('browse-series')">
-        <div class="action-icon">&#128250;</div>
+        <div class="action-icon">${icon('tv', 20)}</div>
         <div class="action-label">Series</div>
       </a>
-      <a class="action-card" onclick="navigateTo('library')">
-        <div class="action-icon">&#128194;</div>
-        <div class="action-label">My Library</div>
-        <div class="action-count">${items.length} items</div>
-      </a>
-      <a class="action-card" onclick="navigateTo('watchlist')">
-        <div class="action-icon">&#11088;</div>
-        <div class="action-label">Watchlist</div>
-        <div class="action-count">${watchlist.length} saved</div>
-      </a>
       <a class="action-card" onclick="navigateTo('genres')">
-        <div class="action-icon">&#127917;</div>
+        <div class="action-icon">${icon('film', 20)}</div>
         <div class="action-label">Genres</div>
       </a>
-      <a class="action-card" onclick="navigateTo('recent')">
-        <div class="action-icon">&#128197;</div>
-        <div class="action-label">Recent</div>
+      <a class="action-card" onclick="navigateTo('library')">
+        <div class="action-icon">${icon('folder', 20)}</div>
+        <div class="action-label">Library</div>
+        <div class="action-count">${items.length}</div>
+      </a>
+      <a class="action-card" onclick="navigateTo('watchlist')">
+        <div class="action-icon">${icon('star', 20)}</div>
+        <div class="action-label">Watchlist</div>
+        <div class="action-count">${watchlist.length}</div>
       </a>
       <a class="action-card" onclick="navigateTo('queue')">
-        <div class="action-icon">&#128229;</div>
+        <div class="action-icon">${icon('queue', 20)}</div>
         <div class="action-label">Queue</div>
       </a>
+      <a class="action-card" onclick="navigateTo('download')">
+        <div class="action-icon">${icon('download', 20)}</div>
+        <div class="action-label">Add</div>
+      </a>
       <a class="action-card" onclick="navigateTo('profile')">
-        <div class="action-icon">&#128100;</div>
+        <div class="action-icon">${icon('user', 20)}</div>
         <div class="action-label">Profile</div>
       </a>
     </div>
@@ -105,19 +105,10 @@ function renderDashboard() {
     ${recent.length > 0 ? `
     <div class="dash-section">
       <div class="dash-section-header">
-        <div class="dash-section-title">&#128197; Recently Added</div>
-        <button class="dash-section-link" onclick="navigateTo('recent')">View all &#8250;</button>
+        <div class="dash-section-title">${icon('calendar', 16)} Recently Added</div>
+        <button class="dash-section-link" onclick="navigateTo('recent')">View all ${icon('chevronRight', 14)}</button>
       </div>
       <div class="scroll-row" id="recentRow"></div>
-    </div>
-    ` : ''}
-
-    ${activity.length > 0 ? `
-    <div class="dash-section">
-      <div class="dash-section-header">
-        <div class="dash-section-title">&#9889; Recent Activity</div>
-      </div>
-      <div class="activity-list" id="activityList"></div>
     </div>
     ` : ''}
   `;
@@ -130,7 +121,18 @@ function renderDashboard() {
       const state = (item.download_state || '').toLowerCase();
       const card = document.createElement('div');
       card.className = 'card';
-      card.onclick = () => navigateTo('detail', { itemName: item.name || item.filename });
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('aria-label', 'Open in library: ' + (parsed.cleanName || item.name || item.filename));
+      card.onclick = () => {
+        // Open the library view pre-filtered to this item's name
+        navigateTo('library');
+        setTimeout(() => {
+          const input = document.getElementById('libSearchInput');
+          if (input) { input.value = parsed.cleanName || item.name || item.filename || ''; handleLibrarySearch(); }
+        }, 50);
+      };
+      card.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); card.onclick(); } };
       card.innerHTML = `
         <div class="card-info">
           <div class="card-title" title="${escHtml(parsed.cleanName)}">${escHtml(parsed.cleanName)}</div>
@@ -148,7 +150,9 @@ function renderDashboard() {
     activity.forEach(item => {
       const parsed = parseTitle(item.name || item.filename || '');
       const state = (item.download_state || '').toLowerCase();
-      const stateIcon = state === 'completed' ? '&#9989;' : state === 'seeding' ? '&#128257;' : '&#128196;';
+      const stateIcon = state === 'completed' ? icon('check', 14)
+        : state === 'seeding' ? icon('refresh', 14)
+        : icon('folder', 14);
       const el = document.createElement('div');
       el.className = 'activity-item';
       el.innerHTML = `

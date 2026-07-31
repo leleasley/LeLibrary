@@ -33,28 +33,24 @@
   .bottom-nav { display: block; }
   body { padding-bottom: 70px; }
 
-  .container { padding: 0 12px; }
+  .container { padding: 0 10px; }
 
   .list-item { gap: 8px; padding: 8px 4px; }
   .btn-delete { opacity: 1; }
   .content-header { flex-direction: column; align-items: flex-start; }
   .header-actions { width: 100%; }
 
-  .detail-hero { height: 180px; }
-  .detail-info { margin-top: -50px; }
-  .detail-poster { width: 90px; }
+  /* detail overrides moved to pages.css */
 
-  .stats-grid { gap: 8px; }
-  .stat-card { padding: 10px; }
-  .stat-card .stat-value { font-size: 1.1rem; }
+  .stats-grid { gap: 6px; }
+  .stat-card { padding: 8px; }
+  .stat-card .stat-value { font-size: 1rem; }
 
-  .quick-actions { gap: 8px; }
-  .action-card { padding: 12px 8px; }
+  .quick-actions { gap: 6px; }
+  .action-card { padding: 10px 6px; }
   .action-card .action-icon { font-size: 1.2rem; }
 
   .browse-grid { gap: 8px; }
-
-  .torrent-grid { grid-template-columns: 1fr; padding: 8px; }
 
   .shortcuts-overlay { display: none; }
 }
@@ -80,8 +76,8 @@
 }
 .mobile-menu.open { display: flex; }
 .mobile-menu a {
-  color: var(--muted); text-decoration: none; font-size: 15px;
-  font-weight: 500; padding: 12px 0; border-bottom: 1px solid var(--border);
+  color: var(--muted); text-decoration: none; font-size: 14px;
+  font-weight: 500; padding: 10px 0; border-bottom: 1px solid var(--border);
 }
 .mobile-menu a:last-child { border-bottom: none; }
 .mobile-menu a:hover { color: var(--white); }

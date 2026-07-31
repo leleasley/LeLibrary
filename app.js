@@ -8,10 +8,15 @@ const createWebRoutes = require('./website');
 
 const ROOT_DIR = path.resolve(__dirname);
 
-const TTL_CATALOG = parseInt(process.env.CACHE_TTL_CATALOG) || 60;    // default 1min
+const TTL_CATALOG = parseInt(process.env.CACHE_TTL_CATALOG) || 3600;  // default 1h
 const TTL_STREAM  = parseInt(process.env.CACHE_TTL_STREAM)  || 600;  // default 10min
 
 const knownConfigs = new Map();
+
+// Add Stremio protocol cache hints (seconds) so clients reuse data while revalidating
+function withCacheHints(obj, { cacheMaxAge = 60, staleRevalidate = 60, staleError = 1800 } = {}) {
+  return { ...obj, cacheMaxAge, staleRevalidate, staleError };
+}
 
 const app = express();
 
@@ -82,8 +87,13 @@ function parseExtra(str) {
 const TYPES   = ['movie', 'series', 'anime'];
 const REFRESH = 2 * 60 * 1000;
 
+// Fingerprint of a user's library. Includes updated_at so in-place edits
+// (renames, file changes) also trigger a rebuild, not just add/remove.
 function hashDownloads(downloads) {
-  return downloads.map(d => d.id).sort().join(',');
+  return downloads
+    .map(d => `${d.id}:${d.updated_at || d.created_at || ''}`)
+    .sort()
+    .join(',');
 }
 
 async function buildAndCacheForConfig(token, config) {
@@ -105,6 +115,10 @@ async function buildAndCacheForConfig(token, config) {
 
     if (oldHash === newHash) {
       console.log(`[Cache] Downloads unchanged, skip rebuild`);
+      // Keep long-TTL catalog cache warm so it doesn't expire and force a slow rebuild
+      const userKey  = (torboxApiKey || rdApiKey).slice(-6);
+      await cache.touchPattern(`cat:*${userKey}*`, TTL_CATALOG);
+      await cache.expire(hashKey, 7200);
       return;
     }
 
@@ -147,7 +161,7 @@ function getLogoUrl(baseUrl) {
 function getBaseManifest(baseUrl) {
   return {
     id: 'community.torbox.catalog',
-    version: '2.2.2',
+    version: '3.0.0',
     name: 'LeLibrary',
     description: 'Your personal TorBox catalog with TMDB metadata.',
     logo: getLogoUrl(baseUrl),
@@ -213,7 +227,7 @@ function getConfiguredManifest(baseUrl, config = {}) {
 
   return {
     id: 'community.torbox.catalog',
-    version: '2.2.2',
+    version: '3.0.0',
     name: 'LeLibrary',
     description: 'Your personal library with TMDB metadata.',
     logo: getLogoUrl(baseUrl),
@@ -235,7 +249,7 @@ app.get('/health', async (req, res) => {
   res.json({
     status: 'ok',
     cache: stats,
-    version: '2.2.2',
+    version: '3.0.0',
   });
 });
 
@@ -317,7 +331,7 @@ async function handleCatalog(req, res) {
     console.log(`[Catalog] Cache hit → ${cached.metas.length} items`);
     populateTmdbIndexFromMetas(cached.metas);
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
-    return res.json(cached);
+    return res.json(withCacheHints(cached, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
   }
 
   try {
@@ -336,7 +350,35 @@ async function handleCatalog(req, res) {
     const oldHash = await cache.get(hashKey);
     const hashChanged = oldHash !== newHash;
 
-    const metas  = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey });
+    // Progressive: return already-known items immediately, complete the rest in the background
+    const built = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey }, { progressive: true });
+    const isPartial = !!built.completion;
+    const metas     = built.metas || built;
+
+    if (isPartial) {
+      console.log(`[Catalog] Fast-returning ${metas.length} metas, completing ${built._fresh || 0} in background`);
+      // Serve partial immediately (short cache so the client re-fetches once complete)
+      await cache.set(cacheKey, { metas }, 10);
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+      res.json(withCacheHints({ metas }, { cacheMaxAge: 10, staleRevalidate: 10, staleError: 1800 }));
+      // Finish matching + rebuild full catalog in the background
+      built.completion.then(async () => {
+        try {
+          const full = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey });
+          const result = { metas: full };
+          if (hashChanged) {
+            await cache.set(hashKey, newHash, 7200);
+            await cache.delPattern(`cat:*${userKey}*`);
+          }
+          await cache.set(cacheKey, result, TTL_CATALOG);
+          console.log(`[Catalog] Progressive completion → ${full.length} metas cached`);
+        } catch (err) {
+          console.error('[Catalog] Progressive completion error:', err.message);
+        }
+      }).catch(() => {});
+      return;
+    }
+
     console.log(`[Catalog] Built → ${metas.length} metas`);
 
     if (hashChanged) {
@@ -348,7 +390,7 @@ async function handleCatalog(req, res) {
     await cache.set(cacheKey, result, TTL_CATALOG);
 
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
-    res.json(result);
+    res.json(withCacheHints(result, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
   } catch (err) {
     console.error('[Catalog] Error:', err.message);
     // If we had a cached result, serve it as fallback instead of empty
@@ -357,7 +399,7 @@ async function handleCatalog(req, res) {
       console.log('[Catalog] Serving stale cache as fallback');
       // Re-set with a longer TTL so it survives extended outages
       await cache.set(cacheKey, stale, 1800).catch(() => {});
-      return res.json(stale);
+      return res.json(withCacheHints(stale, { cacheMaxAge: 60, staleRevalidate: 60, staleError: 1800 }));
     }
     res.json({ metas: [] });
   }
@@ -394,7 +436,7 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
   if (cached) {
     console.log(`[Meta] Cache hit: ${id} → ${cached.meta?.videos?.length || 0} eps`);
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
-    return res.json(cached);
+    return res.json(withCacheHints(cached, { cacheMaxAge: 86400, staleRevalidate: 86400, staleError: 604800 }));
   }
 
   console.log(`[Meta] Building: ${id} (tmdbId=${tmdbId})`);
@@ -420,7 +462,7 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
     ]);
 
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
-    res.json(result);
+    res.json(withCacheHints(result, { cacheMaxAge: 86400, staleRevalidate: 86400, staleError: 604800 }));
 
     // For series: prefetch first episode streams in background after responding
     if (type === 'series' && meta?.videos?.length > 0) {
@@ -486,7 +528,7 @@ app.get('/:token/stream/:type/:id.json', async (req, res) => {
     const cachedStreams  = await cache.get(streamCacheKey);
     if (cachedStreams) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
-      return res.json(cachedStreams);
+      return res.json(withCacheHints(cachedStreams, { cacheMaxAge: TTL_STREAM, staleRevalidate: TTL_STREAM, staleError: 604800 }));
     }
 
     const streams = await buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, episode, lang, rdApiKey, customStreams);
@@ -494,7 +536,7 @@ app.get('/:token/stream/:type/:id.json', async (req, res) => {
     await cache.set(streamCacheKey, result, TTL_STREAM);
 
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
-    res.json(result);
+    res.json(withCacheHints(result, { cacheMaxAge: TTL_STREAM, staleRevalidate: TTL_STREAM, staleError: 604800 }));
   } catch (err) {
     console.error('[Stream] Error:', err.message);
     res.json({ streams: [] });

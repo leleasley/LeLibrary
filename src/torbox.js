@@ -147,4 +147,15 @@ function isVideoFile(name = '') {
   return VIDEO_EXTENSIONS.some(ext => name.toLowerCase().endsWith(ext));
 }
 
-module.exports = { getTorBoxDownloads, getTorBoxStreamLink, getTorBoxFiles, isVideoFile };
+// Junk files commonly bundled in torrents (samples, trailers, featurettes).
+// Matches "sample"/"trailer" as a tag token, optionally with a digit suffix
+// (sample2, samples), e.g. "Movie.2024.SAMPLE.mkv". The caller only drops these
+// when real files remain, so a legit movie literally titled "The.Sample.Movie"
+// still plays if it's the only video file.
+const JUNK_VIDEO_RE = /(?:^|[\s._\-/\[\(])(?:sample|trailer|featurette|behindthescenes|behind.the.scenes)s?\d*(?:[\s._\-/\[\]\)]|$)/i;
+
+function isJunkVideo(name = '') {
+  return JUNK_VIDEO_RE.test(name.toLowerCase());
+}
+
+module.exports = { getTorBoxDownloads, getTorBoxStreamLink, getTorBoxFiles, isVideoFile, isJunkVideo };

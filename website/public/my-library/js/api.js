@@ -23,24 +23,36 @@ async function torboxGet(path, apiKey) {
   return data.data || [];
 }
 
-async function torboxDelete(path, apiKey) {
+async function torboxPost(path, body, apiKey) {
   const res = await fetch(API.TORBOX + path, {
-    method: 'DELETE',
-    headers: { 'Authorization': 'Bearer ' + apiKey }
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(body).toString(),
   });
-  if (!res.ok) throw new Error('Delete failed: ' + res.status);
-  return true;
+  const data = await res.json();
+  if (!data.success) throw new Error(data.detail || data.error || 'TorBox request failed');
+  return data;
 }
 
-async function torboxPost(path, body, apiKey) {
+async function torboxPostJson(path, body, apiKey) {
   const res = await fetch(API.TORBOX + path, {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   const data = await res.json();
-  if (!data.success) throw new Error(data.detail || 'TorBox request failed');
+  if (!data.success) throw new Error(data.detail || data.error || 'TorBox request failed');
   return data;
+}
+
+async function torboxDelete(path, apiKey) {
+  // TorBox uses POST /torrents/controltorrent (or /usenet/controlusenetdownload) to delete
+  const isUsenet = path.startsWith('/usenet/');
+  const id = parseInt(path.split('/').pop(), 10);
+  const endpoint = isUsenet ? '/usenet/controlusenetdownload' : '/torrents/controltorrent';
+  const body = isUsenet ? { operation: 'delete', usenet_id: id } : { operation: 'delete', torrent_id: id };
+  await torboxPostJson(endpoint, body, apiKey);
+  return true;
 }
 
 // ── Real-Debrid ───────────────────────────────────────────────
@@ -63,6 +75,58 @@ async function rdDelete(path, apiKey) {
   });
   if (!res.ok) throw new Error('Delete failed: ' + res.status);
   return true;
+}
+
+async function rdPost(path, body, apiKey) {
+  const res = await fetch(API.RD + path, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(body).toString(),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Real-Debrid request failed: ' + res.status);
+  return data;
+}
+
+// ── Adding downloads ──────────────────────────────────────────
+// Add a magnet/link to TorBox
+async function addTorboxMagnet(magnet, apiKey) {
+  const data = await torboxPost('/torrents/createtorrent', { magnet }, apiKey);
+  return data;
+}
+
+// Add a magnet to Real-Debrid, then auto-select all files
+async function addRdMagnet(magnet, apiKey) {
+  const added = await rdPost('/torrents/addMagnet', { magnet }, apiKey);
+  if (!added.id) throw new Error('No torrent id returned');
+  await rdPost('/torrents/selectFiles/' + added.id, { files: 'all' }, apiKey);
+  return added;
+}
+
+// Upload a .torrent file to TorBox with upload progress callback
+function uploadTorrentFile(file, apiKey, onProgress) {
+  return new Promise((resolve, reject) => {
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', API.TORBOX + '/torrents/createtorrent');
+    xhr.setRequestHeader('Authorization', 'Bearer ' + apiKey);
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+    });
+    xhr.onload = () => {
+      let data;
+      try { data = JSON.parse(xhr.responseText); } catch { data = {}; }
+      if (xhr.status >= 400 || !data.success) {
+        reject(new Error(data.detail || data.error || 'Upload failed: ' + xhr.status));
+        return;
+      }
+      if (onProgress) onProgress(100);
+      resolve(data);
+    };
+    xhr.onerror = () => reject(new Error('Upload failed — network error'));
+    xhr.send(fd);
+  });
 }
 
 // ── TMDB ──────────────────────────────────────────────────────

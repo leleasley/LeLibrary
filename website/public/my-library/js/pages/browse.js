@@ -1,3 +1,105 @@
+// ── Search View (TMDB) ────────────────────────────────────────
+async function renderSearchView(query) {
+  browseState.type = 'movies';
+  browseState.searchQuery = query;
+  browseState.items = [];
+  browseState.page = 1;
+  browseState.hasMore = false;
+  browseState.isLoading = false;
+  disconnectBrowseScroll();
+
+  const tmdbKey = App.keys.tmdbKey;
+  if (!tmdbKey) { showToast('TMDB API key required', 'error'); navigateTo('dashboard'); return; }
+
+  hideAllViews();
+  const browseView = document.getElementById('browseView');
+  browseView.style.display = 'block';
+
+  browseView.innerHTML = `
+    <div class="browse-header">
+      <h2>${icon('search', 18)} Results for &ldquo;${escHtml(query)}&rdquo;</h2>
+    </div>
+    <div class="browse-grid" id="browseContent"></div>
+    <div id="browseLoadMore" style="text-align:center;padding:1rem;display:none"><div class="spinner"></div></div>
+    <button id="backToTop" class="back-to-top" title="Back to top" aria-label="Back to top">${icon('back', 14)}</button>
+  `;
+
+  addBackBtn(browseView);
+
+  const browseEl = document.getElementById('browseView');
+  const bttBtn = document.getElementById('backToTop');
+  if (browseEl && bttBtn) {
+    window.addEventListener('scroll', function _bttScroll() {
+      if (!document.getElementById('backToTop')) { window.removeEventListener('scroll', _bttScroll); return; }
+      bttBtn.classList.toggle('visible', window.scrollY > 400);
+    });
+    bttBtn.onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  const content = document.getElementById('browseContent');
+  content.innerHTML = '<div style="text-align:center;padding:2rem"><div class="spinner"></div></div>';
+  loadSearchPage(query, 1, true);
+}
+
+async function loadSearchPage(query, page, replace) {
+  if (browseState.isLoading) return;
+  browseState.isLoading = true;
+  const content = document.getElementById('browseContent');
+  const loadMore = document.getElementById('browseLoadMore');
+  if (!content) return;
+
+  try {
+    const data = await tmdbGet('/search/multi?query=' + encodeURIComponent(query) + '&language=en-US&page=' + page);
+    const items = (data.results || []).filter(i => i.poster_path && (i.media_type === 'movie' || i.media_type === 'tv'));
+
+    if (replace) content.innerHTML = '';
+
+    if (items.length === 0 && page === 1) {
+      content.innerHTML = '<div class="watchlist-empty"><div class="icon">' + icon('search', 32) + '</div><h3>No results</h3><p>Try a different title.</p></div>';
+      if (loadMore) loadMore.style.display = 'none';
+      browseState.isLoading = false;
+      return;
+    }
+
+    items.forEach(item => {
+      const title = item.title || item.name || '';
+      const year = (item.release_date || item.first_air_date || '').split('-')[0];
+      const rating = item.vote_average ? item.vote_average.toFixed(1) : '';
+      const mt = item.media_type === 'tv' ? 'tv' : 'movie';
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('aria-label', 'Open details: ' + title + (year ? ' (' + year + ')' : ''));
+      card.onclick = () => openTMDBDetail({ id: item.id, mt, title, year, poster: item.poster_path, backdrop: item.backdrop_path, overview: item.overview || '', rating: item.vote_average || 0 });
+      card.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); card.onclick(); } };
+      card.innerHTML =
+        `<img class="card-poster" src="https://image.tmdb.org/t/p/w342${item.poster_path}" alt="${escHtml(title)}" loading="lazy" />` +
+        `<div class="card-info"><div class="card-title" title="${escHtml(title)}">${escHtml(title)}</div>` +
+        `<div class="card-year">${year}${mt === 'tv' ? ' \u00B7 Series' : ''}</div>` +
+        (rating ? `<div class="card-rating">\u2605 ${rating}</div>` : '') +
+        '</div>';
+      content.appendChild(card);
+    });
+
+    browseState.page = page;
+    browseState.hasMore = page < (data.total_pages || 1);
+    const existingIds = new Set(browseState.items.map(i => i.id));
+    const newItems = items.filter(i => !existingIds.has(i.id));
+    browseState.items = browseState.items.concat(newItems);
+
+    if (loadMore) loadMore.style.display = 'none';
+    if (browseState.hasMore) connectBrowseScroll();
+  } catch (err) {
+    if (loadMore) {
+      loadMore.innerHTML = '<p style="color:var(--error);font-size:12px">Error loading results</p>';
+      loadMore.style.display = 'block';
+    }
+  } finally {
+    browseState.isLoading = false;
+  }
+}
+
 // ── Browse View (Movies + Series) ─────────────────────────────
 
 let browseState = {
@@ -9,10 +111,12 @@ let browseState = {
   items: [],
   scrollObserver: null,
   viewMode: 'grid', // 'grid' or 'list'
+  searchQuery: '',
 };
 
 function renderBrowseView(type) {
   browseState.type = type;
+  browseState.searchQuery = '';
   browseState.items = [];
   browseState.page = 1;
   browseState.hasMore = false;
@@ -27,23 +131,23 @@ function renderBrowseView(type) {
   browseView.style.display = 'block';
 
   const sections = type === 'movies' ? [
-    { key: 'trending', title: '&#128293; Trending', endpoint: '/trending/movie/week' },
-    { key: 'now_playing', title: '&#127916; Now Playing', endpoint: '/movie/now_playing' },
-    { key: 'upcoming', title: '&#128197; Upcoming', endpoint: '/movie/upcoming' },
-    { key: 'top_rated', title: '&#11088; Top Rated', endpoint: '/movie/top_rated' },
-    { key: 'popular', title: '&#128525; Popular', endpoint: '/movie/popular' },
+    { key: 'trending', title: `${icon('flame', 14)} Trending`, endpoint: '/trending/movie/week' },
+    { key: 'now_playing', title: `${icon('play', 14)} Now Playing`, endpoint: '/movie/now_playing' },
+    { key: 'upcoming', title: `${icon('calendar', 14)} Upcoming`, endpoint: '/movie/upcoming' },
+    { key: 'top_rated', title: `${icon('star', 14)} Top Rated`, endpoint: '/movie/top_rated' },
+    { key: 'popular', title: `${icon('heart', 14)} Popular`, endpoint: '/movie/popular' },
   ] : [
-    { key: 'trending', title: '&#128293; Trending', endpoint: '/trending/tv/week' },
-    { key: 'airing_today', title: '&#127775; Airing Today', endpoint: '/tv/airing_today' },
-    { key: 'on_the_air', title: '&#128225; On The Air', endpoint: '/tv/on_the_air' },
-    { key: 'top_rated', title: '&#11088; Top Rated', endpoint: '/tv/top_rated' },
-    { key: 'popular', title: '&#128525; Popular', endpoint: '/tv/popular' },
+    { key: 'trending', title: `${icon('flame', 14)} Trending`, endpoint: '/trending/tv/week' },
+    { key: 'airing_today', title: `${icon('sun', 14)} Airing Today`, endpoint: '/tv/airing_today' },
+    { key: 'on_the_air', title: `${icon('tv', 14)} On The Air`, endpoint: '/tv/on_the_air' },
+    { key: 'top_rated', title: `${icon('star', 14)} Top Rated`, endpoint: '/tv/top_rated' },
+    { key: 'popular', title: `${icon('heart', 14)} Popular`, endpoint: '/tv/popular' },
   ];
 
   const viewToggle = `
     <div class="view-toggle">
-      <button class="${browseState.viewMode === 'grid' ? 'active' : ''}" onclick="setBrowseViewMode('grid')" title="Grid view">&#9638;</button>
-      <button class="${browseState.viewMode === 'list' ? 'active' : ''}" onclick="setBrowseViewMode('list')" title="List view">&#9776;</button>
+      <button class="${browseState.viewMode === 'grid' ? 'active' : ''}" onclick="setBrowseViewMode('grid')" title="Grid view">${icon('grid', 14)}</button>
+      <button class="${browseState.viewMode === 'list' ? 'active' : ''}" onclick="setBrowseViewMode('list')" title="List view">${icon('list', 14)}</button>
     </div>
   `;
 
@@ -54,15 +158,28 @@ function renderBrowseView(type) {
 
   browseView.innerHTML = `
     <div class="browse-header">
-      <h2>${type === 'movies' ? '&#128214; Movies' : '&#128250; Series'}</h2>
+      <h2>${type === 'movies' ? icon('movie', 18) + ' Movies' : icon('tv', 18) + ' Series'}</h2>
       ${viewToggle}
     </div>
     ${tabsHtml}
     <div class="${browseState.viewMode === 'grid' ? 'browse-grid' : 'list'}" id="browseContent"></div>
     <div id="browseLoadMore" style="text-align:center;padding:1rem;display:none"><div class="spinner"></div></div>
+    <button id="backToTop" class="back-to-top" title="Back to top">${icon('back', 14)}</button>
   `;
 
   addBackBtn(browseView);
+
+  // Show/hide back-to-top on scroll
+  const browseEl = document.getElementById('browseView');
+  const bttBtn = document.getElementById('backToTop');
+  if (browseEl && bttBtn) {
+    const scrollTarget = browseEl.closest('#content') || browseEl;
+    window.addEventListener('scroll', function _bttScroll() {
+      if (!document.getElementById('backToTop')) { window.removeEventListener('scroll', _bttScroll); return; }
+      bttBtn.classList.toggle('visible', window.scrollY > 400);
+    });
+    bttBtn.onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   browseState.section = sections[0].key;
   loadBrowseSection(sections[0].endpoint, 1, true);
@@ -113,7 +230,11 @@ async function loadBrowseSection(endpoint, page, replace) {
         const mt = item.media_type || (browseState.type === 'movies' ? 'movie' : 'tv');
         const card = document.createElement('div');
         card.className = 'card';
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', '0');
+        card.setAttribute('aria-label', 'Open details: ' + title + (year ? ' (' + year + ')' : ''));
         card.onclick = () => openTMDBDetail({ id: item.id, mt, title, year, poster: item.poster_path, backdrop: item.backdrop_path, overview: item.overview || '', rating: item.vote_average || 0 });
+        card.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); card.onclick(); } };
         card.innerHTML =
           (inLib ? '<div class="card-badge">In Library</div>' : '') +
           `<img class="card-poster" src="https://image.tmdb.org/t/p/w342${item.poster_path}" alt="${escHtml(title)}" loading="lazy" />` +
@@ -124,7 +245,6 @@ async function loadBrowseSection(endpoint, page, replace) {
         content.appendChild(card);
       });
     } else {
-      // List view
       items.forEach(item => {
         const title = item.title || item.name || '';
         const year = (item.release_date || item.first_air_date || '').split('-')[0];
@@ -173,7 +293,11 @@ function connectBrowseScroll(endpoint) {
   sentinel.innerHTML = '<div class="spinner"></div>';
   browseState.scrollObserver = new IntersectionObserver(entries => {
     if (entries[0].isIntersecting && browseState.hasMore && !browseState.isLoading) {
-      loadBrowseSection(endpoint, browseState.page + 1, false);
+      if (browseState.searchQuery) {
+        loadSearchPage(browseState.searchQuery, browseState.page + 1, false);
+      } else if (endpoint) {
+        loadBrowseSection(endpoint, browseState.page + 1, false);
+      }
     }
   }, { rootMargin: '300px' });
   browseState.scrollObserver.observe(sentinel);

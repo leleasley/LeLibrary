@@ -23,6 +23,8 @@ const ANIME_EP2_RE = /^(.+?)\s+(\d{2,3})(?:v\d+)?\s*[\[(]/;
 
 const SEASON_ORD_EN_RE = /\b(\d+)(?:st|nd|rd|th)\s+season\b/i;
 
+const DATE_RE = /\b(19[5-9]\d|20[0-3]\d)[\s.\-](0?[1-9]|1[0-2])[\s.\-](0?[1-9]|[12]\d|3[01])\b/;
+
 const CJK_RE = /[\u3040-\u30FF\u4E00-\u9FFF]/;
 
 const TECH = [
@@ -55,7 +57,7 @@ function guessMediaInfo(raw) {
 
   const norm = normalize(name);
 
-  let isSeries = false, season = null, episode = null, episodeEnd = null;
+  let isSeries = false, season = null, episode = null, episodeEnd = null, airDate = null;
   let serieCut = norm.length;
 
   const epMatch = norm.match(EP_RE);
@@ -86,6 +88,15 @@ function guessMediaInfo(raw) {
       isSeries = true;
       season   = parseInt(tw[1], 10);
       serieCut = tw.index;
+    }
+  }
+
+  if (!isSeries) {
+    const dm = norm.match(DATE_RE);
+    if (dm) {
+      isSeries = true;
+      airDate  = `${dm[1]}-${dm[2].padStart(2, '0')}-${dm[3].padStart(2, '0')}`;
+      serieCut = dm.index;
     }
   }
 
@@ -131,7 +142,7 @@ function guessMediaInfo(raw) {
     .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(' ');
 
-  return { title, year, isSeries, isAnime, season, episode: episode ?? animeEp, episodeEnd };
+  return { title, year, isSeries, isAnime, season, episode: episode ?? animeEp, episodeEnd, airDate };
 }
 
 module.exports = { guessMediaInfo };

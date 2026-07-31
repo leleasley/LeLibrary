@@ -9,7 +9,7 @@ async function renderProfileView() {
   const rdKey = App.keys.rdKey;
 
   profileView.innerHTML = `
-    <div class="browse-header"><h2>&#128100; Profile</h2></div>
+    <div class="browse-header"><h2>${icon('user', 18)} Profile</h2></div>
     <div class="profile-section" id="profileContent">
       <div class="loading-area"><div class="spinner"></div><p>Loading account info...</p></div>
     </div>
@@ -22,7 +22,7 @@ async function renderProfileView() {
 
   // TorBox card placeholder
   if (tbKey) {
-    html += `<div class="profile-card"><h3>&#128230; TorBox Account</h3><div id="tbProfileInfo">
+    html += `<div class="profile-card"><h3>${icon('cloud', 16)} TorBox Account</h3><div id="tbProfileInfo">
       <div class="skelly-row" style="margin-bottom:8px"></div>
       <div class="skelly-row" style="margin-bottom:8px"></div>
       <div class="skelly-row" style="width:60%"></div>
@@ -31,14 +31,14 @@ async function renderProfileView() {
 
   // RD card placeholder
   if (rdKey) {
-    html += `<div class="profile-card"><h3>&#128308; Real-Debrid Account</h3><div id="rdProfileInfo">
+    html += `<div class="profile-card"><h3>${icon('cloud', 16)} Real-Debrid Account</h3><div id="rdProfileInfo">
       <div class="skelly-row" style="margin-bottom:8px"></div>
       <div class="skelly-row" style="margin-bottom:8px"></div>
       <div class="skelly-row" style="width:60%"></div>
     </div></div>`;
   }
 
-  html += '<div class="profile-note">&#128274; All account data is fetched client-side only. Your API keys are never sent to our server — they are encrypted and stored in your browser\'s localStorage.</div>';
+  html += `<div class="profile-note">${icon('shield', 14)} All account data is fetched client-side only. Your API keys are never sent to our server — they are encrypted and stored in your browser's localStorage.</div>`;
   container.innerHTML = html;
 
   // Fetch TorBox profile

@@ -9,11 +9,11 @@ function renderSettingsView() {
   const accentColor = settings.accentColor || 'amber';
 
   settingsView.innerHTML = `
-    <div class="browse-header"><h2>&#9881; Settings</h2></div>
+    <div class="browse-header"><h2>${icon('settings', 18)} Settings</h2></div>
     <div class="settings-section">
 
       <div class="settings-card">
-        <h3>&#127912; Appearance</h3>
+        <h3>${icon('palette', 15)} Appearance</h3>
         <div class="settings-row">
           <div>
             <div class="settings-row-label">Accent Color</div>
@@ -30,7 +30,7 @@ function renderSettingsView() {
       </div>
 
       <div class="settings-card">
-        <h3>&#128190; Data</h3>
+        <h3>${icon('disk', 15)} Data</h3>
         <div class="settings-row">
           <div>
             <div class="settings-row-label">Clear All Data</div>
@@ -56,7 +56,7 @@ function renderSettingsView() {
       </div>
 
       <div class="settings-card">
-        <h3>&#9000; Keyboard Shortcuts</h3>
+        <h3>${icon('keyboard', 15)} Keyboard Shortcuts</h3>
         <div class="settings-row">
           <div>
             <div class="settings-row-label">Enable Keyboard Shortcuts</div>
@@ -70,7 +70,7 @@ function renderSettingsView() {
         <h3>Info About</h3>
         <div class="settings-row">
           <div class="settings-row-label">LeLibrary</div>
-          <div class="settings-row-desc" style="color:var(--amber)">v2.1.1</div>
+          <div class="settings-row-desc" style="color:var(--amber)">v${APP_VERSION}</div>
         </div>
         <div class="settings-row" id="versionCheckRow" style="display:none">
           <div class="settings-row-label">Update</div>
@@ -168,8 +168,7 @@ function importWatchlist(event) {
   event.target.value = '';
 }
 
-const APP_VERSION = '2.2.2';
-
+const APP_VERSION = '3.0.0';
 async function checkMylibraryVersion() {
   const row = document.getElementById('versionCheckRow');
   const msg = document.getElementById('versionCheckMsg');
@@ -184,7 +183,7 @@ async function checkMylibraryVersion() {
     const latest = (data.tag_name || '').replace(/^v/, '');
     if (!latest) throw new Error('No tag');
     if (latest !== APP_VERSION) {
-      msg.innerHTML = `v${latest} available &#8599;`;
+      msg.innerHTML = `v${latest} available ${icon('external', 12)}`;
       msg.style.color = 'var(--amber)';
       row.style.display = 'flex';
       row.querySelector('.settings-row-desc').onclick = () => window.open('https://github.com/leleasley/LeLibrary/releases', '_blank');

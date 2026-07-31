@@ -24,6 +24,9 @@ function navigateTo(page, data) {
     case 'browse-series':
       renderBrowseView('series');
       break;
+    case 'search':
+      renderSearchView(data?.query || '');
+      break;
     case 'library':
       renderLibraryView();
       break;
@@ -42,6 +45,9 @@ function navigateTo(page, data) {
     case 'queue':
       renderQueueView();
       break;
+    case 'download':
+      renderDownloadView();
+      break;
     case 'settings':
       renderSettingsView();
       break;
@@ -54,6 +60,42 @@ function navigateHash() {
   const hash = window.location.hash.slice(1);
   if (!hash || hash === 'dashboard') {
     if (App.allItems.length > 0) navigateTo('dashboard');
+    return;
+  }
+  // Handle deep links: /movie/123 or /series/123
+  const parts = hash.split('/').filter(Boolean);
+  if (parts.length === 2 && (parts[0] === 'movie' || parts[0] === 'series')) {
+    const mt = parts[0] === 'series' ? 'tv' : 'movie';
+    const tmdbId = parseInt(parts[1], 10);
+    if (tmdbId && App.allItems.length > 0) {
+      // Render dashboard first so there's something behind the detail overlay
+      navigateTo('dashboard');
+      // Fetch TMDB data then open detail on top
+      const endpoint = mt === 'tv' ? '/tv/' + tmdbId : '/movie/' + tmdbId;
+      tmdbGet(endpoint).then(data => {
+        openTMDBDetail({
+          id: tmdbId, mt,
+          title: data.title || data.name || '',
+          poster: data.poster_path || '',
+          backdrop: data.backdrop_path || '',
+          overview: data.overview || '',
+          rating: data.vote_average || 0,
+          year: (data.release_date || data.first_air_date || '').split('-')[0]
+        });
+      }).catch(() => {
+        openTMDBDetail({ id: tmdbId, mt, title: '', poster: '', backdrop: '', overview: '', rating: 0, year: '' });
+      });
+      return;
+    }
+  }
+  // Handle deep links: /search/:query
+  if (parts[0] === 'search' && parts[1]) {
+    const q = decodeURIComponent(parts.slice(1).join('/'));
+    if (App.allItems.length > 0) {
+      renderSearchView(q);
+    } else {
+      navigateTo('dashboard');
+    }
     return;
   }
   if (App.allItems.length > 0) navigateTo(hash);
@@ -77,7 +119,7 @@ function toggleVis(id, btn) {
   const el = document.getElementById(id);
   const isPass = el.type === 'password';
   el.type = isPass ? 'text' : 'password';
-  btn.textContent = isPass ? '\uD83D\uDE48' : '\uD83D\uDC41';
+  btn.innerHTML = icon(isPass ? 'eyeOff' : 'eye', 20);
 }
 
 async function handleLoad() {
@@ -229,6 +271,11 @@ function logout() {
 
 // ── Init ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  // Inject SVG icons into any element with data-icon attribute
+  document.querySelectorAll('[data-icon]').forEach(el => {
+    el.innerHTML = icon(el.dataset.icon, 20);
+  });
+
   onProviderChange();
   initKeyboardShortcuts();
 

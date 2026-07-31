@@ -8,7 +8,7 @@ function renderQueueView() {
   queueView.style.display = 'block';
 
   queueView.innerHTML = `
-    <div class="browse-header"><h2>&#128229; Download Queue</h2><button class="btn btn-secondary btn-sm" onclick="refreshQueue()">Refresh</button></div>
+    <div class="browse-header"><h2>${icon('queue', 18)} Download Queue</h2><button class="btn btn-secondary btn-sm" onclick="refreshQueue()">${icon('refresh', 13)} Refresh</button></div>
     <div id="queueContent">
       <div class="loading-area"><div class="spinner"></div><p>Loading downloads...</p></div>
     </div>
@@ -29,7 +29,7 @@ async function refreshQueue() {
   const rdKey = App.keys.rdKey;
 
   if (!torboxKey && !rdKey) {
-    container.innerHTML = '<div class="empty"><div class="icon">&#128229;</div><h3>No provider connected</h3><p>Connect TorBox or Real-Debrid to see your download queue.</p></div>';
+    container.innerHTML = `<div class="empty"><div class="icon">${icon('queue', 32)}</div><h3>No provider connected</h3><p>Connect TorBox or Real-Debrid to see your download queue.</p></div>`;
     return;
   }
 
@@ -55,15 +55,25 @@ async function refreshQueue() {
 
     const all = [...torrents, ...usenet, ...rdTorrents];
 
-    // Categorize
+    // Categorize — TorBox reports progress on a 0-1 scale (1 = done),
+    // Real-Debrid on a 0-100 scale. Treat both correctly.
+    const isDone = i => {
+      if (i.download_finished === true) return true;
+      const state = (i.download_state || '').toLowerCase();
+      if (state === 'completed' || state === 'seeding' || state === 'cached' || state === 'finalized') return true;
+      const p = i.progress;
+      if (p != null) return i.source === 'realdebrid' ? p >= 100 : p >= 1;
+      return false;
+    };
     const active = all.filter(i => {
+      if (isDone(i)) return false;
       const state = (i.download_state || '').toLowerCase();
-      return state === 'downloading' || state === 'checking' || state === 'fetching_metadata' || (i.progress && i.progress < 100);
+      if (state === 'downloading' || state === 'checking' || state === 'fetching_metadata') return true;
+      const p = i.progress;
+      if (p != null) return i.source === 'realdebrid' ? p < 100 : p < 1;
+      return false;
     });
-    const completed = all.filter(i => {
-      const state = (i.download_state || '').toLowerCase();
-      return state === 'completed' || state === 'seeding' || state === 'cached' || state === 'finalized' || i.download_finished === true;
-    });
+    const completed = all.filter(isDone);
     const failed = all.filter(i => {
       const state = (i.download_state || '').toLowerCase();
       return state === 'error' || state === 'failed';
@@ -72,27 +82,27 @@ async function refreshQueue() {
     let html = '';
 
     if (active.length > 0) {
-      html += '<div class="queue-section"><div class="queue-section-title">&#9889; Active Downloads</div>';
+      html += `<div class="queue-section"><div class="queue-section-title">${icon('zap', 14)} Active Downloads</div>`;
       active.forEach(item => {
         const parsed = parseTitle(item.name || item.filename || '');
         const state = (item.download_state || '').toLowerCase();
         const size = item.size ? formatBytes(item.size) : '';
-        const progress = item.progress || 0;
+        const pct = item.source === 'realdebrid' ? (item.progress || 0) : Math.round((item.progress || 0) * 100);
         html += `<div class="queue-item">
           <div class="queue-item-info">
             <div class="queue-item-title">${escHtml(parsed.cleanName)}</div>
             <div class="queue-item-meta">${item.provider} \u00B7 ${size} \u00B7 ${state}</div>
-            <div class="progress-bar"><div class="progress-bar-fill" style="width:${progress}%"></div></div>
+            <div class="progress-bar"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
           </div>
-          <span class="badge badge-downloading">${Math.round(progress)}%</span>
+          <span class="badge badge-downloading">${pct}%</span>
         </div>`;
       });
       html += '</div>';
     }
 
     if (completed.length > 0) {
-      html += '<div class="queue-section"><div class="queue-section-title">&#9989; Completed</div>';
-      completed.slice(0, 10).forEach(item => {
+      html += `<div class="queue-section"><div class="queue-section-title">${icon('check', 14)} Completed</div>`;
+      completed.forEach(item => {
         const parsed = parseTitle(item.name || item.filename || '');
         const state = (item.download_state || '').toLowerCase();
         const size = item.size ? formatBytes(item.size) : '';
@@ -108,7 +118,7 @@ async function refreshQueue() {
     }
 
     if (failed.length > 0) {
-      html += '<div class="queue-section"><div class="queue-section-title">&#10060; Failed</div>';
+      html += `<div class="queue-section"><div class="queue-section-title">${icon('alert', 14)} Failed</div>`;
       failed.forEach(item => {
         const parsed = parseTitle(item.name || item.filename || '');
         html += `<div class="queue-item">
@@ -123,12 +133,12 @@ async function refreshQueue() {
     }
 
     if (!html) {
-      html = '<div class="empty"><div class="icon">&#128229;</div><h3>No active downloads</h3><p>Your download queue is empty.</p></div>';
+      html = `<div class="empty"><div class="icon">${icon('queue', 32)}</div><h3>No active downloads</h3><p>Your download queue is empty.</p></div>`;
     }
 
     container.innerHTML = html;
   } catch (err) {
-    container.innerHTML = `<div class="empty"><div class="icon">&#9888;&#65039;</div><h3>Error loading queue</h3><p>${escHtml(err.message)}</p></div>`;
+    container.innerHTML = `<div class="empty"><div class="icon">${icon('alert', 32)}</div><h3>Error loading queue</h3><p>${escHtml(err.message)}</p></div>`;
   }
 }
 

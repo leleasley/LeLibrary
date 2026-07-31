@@ -6,6 +6,9 @@ const TMDB_IMAGE = 'https://image.tmdb.org/t/p';
 
 const tmdbCache = new NodeCache({ stdTTL: 86400, checkperiod: 3600, useClones: false });
 
+const tvDetailCache = new NodeCache({ stdTTL: 86400, checkperiod: 3600, useClones: false });
+const seasonCache   = new NodeCache({ stdTTL: 86400, checkperiod: 3600, useClones: false });
+
 function tmdbAuth(apiKey) {
   if (!apiKey) return { headers: {}, params: {} };
   // TMDB agora aceita apenas Bearer token ou api_key v3
@@ -32,6 +35,42 @@ async function imdbToTmdb(apiKey, imdbId) {
   } catch { return null; }
 }
 
+function titleScore(query, result) {
+  const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const qn = norm(query);
+  if (!qn) return 0;
+  const names = [result.name, result.original_name, result.title, result.original_title].filter(Boolean);
+  let best = 0;
+  for (const raw of names) {
+    const nn = norm(raw);
+    if (!nn) continue;
+    let s;
+    if (nn === qn) s = 100;
+    else if (nn.startsWith(qn)) s = 85;
+    else if (qn.startsWith(nn)) s = 75;
+    else if (nn.includes(qn)) s = 65;
+    else if (qn.includes(nn)) s = 55;
+    else {
+      const qt = String(query).toLowerCase().split(/\W+/).filter(Boolean);
+      const nt = String(raw).toLowerCase().split(/\W+/).filter(Boolean);
+      const overlap = qt.filter(t => nt.includes(t)).length;
+      s = overlap ? 30 * (overlap / qt.length) : 0;
+    }
+    if (s > best) best = s;
+  }
+  return best;
+}
+
+function pickBestResult(query, results) {
+  let best = results[0];
+  let bestScore = -1;
+  for (const r of results) {
+    const score = titleScore(query, r);
+    if (score > bestScore) { bestScore = score; best = r; }
+  }
+  return best;
+}
+
 async function searchMetadata(apiKey, query, type, year, lang = 'pt-BR') {
   const cacheKey = `search:${type}:${lang}:${query}:${year || ''}`;
   const cached = tmdbCache.get(cacheKey);
@@ -44,7 +83,19 @@ async function searchMetadata(apiKey, query, type, year, lang = 'pt-BR') {
   if (year) params.year = year;
 
   const res = await axios.get(`${TMDB_BASE}${endpoint}`, { headers: auth.headers, params });
-  const result = res.data?.results?.[0];
+  const results = res.data?.results || [];
+  let result = results.length > 0 ? pickBestResult(query, results) : null;
+
+  if (result && titleScore(query, result) < 90 && lang.split('-')[0] !== 'en') {
+    const enParams = { ...auth.params, query, language: 'en-US', page: 1 };
+    if (year) enParams.year = year;
+    try {
+      const enRes = await axios.get(`${TMDB_BASE}${endpoint}`, { headers: auth.headers, params: enParams });
+      const enBest = (enRes.data?.results || []).length > 0 ? pickBestResult(query, enRes.data.results) : null;
+      if (enBest && titleScore(query, enBest) > titleScore(query, result)) result = enBest;
+    } catch {}
+  }
+
   if (!result) { tmdbCache.set(cacheKey, null); return null; }
 
   result.isJapaneseAnimation =
@@ -53,6 +104,31 @@ async function searchMetadata(apiKey, query, type, year, lang = 'pt-BR') {
 
   tmdbCache.set(cacheKey, result);
   return result;
+}
+
+async function searchCandidates(apiKey, query, type, year, lang = 'pt-BR') {
+  const cacheKey = `cand:${type}:${lang}:${query}:${year || ''}`;
+  const cached = tmdbCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  const endpoint = type === 'movie' ? '/search/movie' : '/search/tv';
+  const auth   = tmdbAuth(apiKey);
+  const region = lang.split('-')[1] || 'BR';
+  const params = { ...auth.params, query, language: lang, region, page: 1 };
+  if (year) params.year = year;
+
+  const res = await axios.get(`${TMDB_BASE}${endpoint}`, { headers: auth.headers, params });
+  const results = res.data?.results || [];
+  for (const r of results) {
+    r.isJapaneseAnimation = r.original_language === 'ja' && (r.genre_ids || []).includes(16);
+  }
+  const ranked = results
+    .map(r => ({ r, score: titleScore(query, r) }))
+    .sort((a, b) => b.score - a.score || (b.r.vote_count || 0) - (a.r.vote_count || 0))
+    .slice(0, 5)
+    .map(x => x.r);
+  tmdbCache.set(cacheKey, ranked);
+  return ranked;
 }
 
 async function fetchSeasonVideos(auth, tmdbId, season, lang, fallbackPoster) {
@@ -191,4 +267,67 @@ async function getMetadata(apiKey, tmdbId, type, lang = 'pt-BR') {
   }
 }
 
-module.exports = { searchMetadata, getMetadata, imdbToTmdb };
+// Resolves { season, episode } for a date-based episode (weekly shows like WWE Raw)
+async function findEpisodeByAirDate(apiKey, tmdbId, airDate, lang = 'pt-BR') {
+  const cacheKey = `epdate:${tmdbId}:${airDate}:${lang}`;
+  const cached = tmdbCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  try {
+    const auth = tmdbAuth(apiKey);
+    let seasons = tvDetailCache.get(`tv:${tmdbId}:${lang}`);
+    if (!seasons) {
+      const res = await axios.get(`${TMDB_BASE}/tv/${tmdbId}`, {
+        headers: auth.headers,
+        params: { ...auth.params, language: lang },
+        timeout: 8000,
+      });
+      seasons = (res.data?.seasons || []).filter(s => s.season_number > 0);
+      tvDetailCache.set(`tv:${tmdbId}:${lang}`, seasons);
+    }
+    if (seasons.length === 0) { tmdbCache.set(cacheKey, null); return null; }
+
+    const target = Date.parse(airDate + 'T00:00:00Z');
+    const dated = seasons.filter(s => s.air_date).sort((a, b) => b.air_date.localeCompare(a.air_date));
+    const candidates = [];
+    const past = dated.filter(s => Date.parse(s.air_date + 'T00:00:00Z') <= target);
+    if (past.length > 0) candidates.push(past[0]);
+    else if (dated.length > 0) candidates.push(dated[dated.length - 1]);
+    const next = [...dated].reverse().find(s => Date.parse(s.air_date + 'T00:00:00Z') > target);
+    if (next) candidates.push(next);
+    for (const s of seasons.filter(x => !x.air_date)) {
+      if (candidates.length >= 3) break;
+      candidates.push(s);
+    }
+
+    const seen = new Set();
+    for (const s of candidates) {
+      if (seen.has(s.season_number)) continue;
+      seen.add(s.season_number);
+      let eps = seasonCache.get(`eps:${tmdbId}:${s.season_number}:${lang}`);
+      if (!eps) {
+        const res = await axios.get(`${TMDB_BASE}/tv/${tmdbId}/season/${s.season_number}`, {
+          headers: auth.headers,
+          params: { ...auth.params, language: lang },
+          timeout: 8000,
+        });
+        eps = res.data?.episodes || [];
+        seasonCache.set(`eps:${tmdbId}:${s.season_number}:${lang}`, eps);
+      }
+      const ep = eps.find(e => e.air_date === airDate);
+      if (ep) {
+        const result = { season: ep.season_number, episode: ep.episode_number };
+        tmdbCache.set(cacheKey, result);
+        return result;
+      }
+    }
+
+    tmdbCache.set(cacheKey, null);
+    return null;
+  } catch {
+    tmdbCache.set(cacheKey, null);
+    return null;
+  }
+}
+
+module.exports = { searchMetadata, searchCandidates, getMetadata, imdbToTmdb, findEpisodeByAirDate };

@@ -108,6 +108,37 @@ async function delPattern(pattern) {
   }
 }
 
+// Extend TTL on all keys matching a glob pattern (does not touch values).
+// Used to keep long-TTL caches warm on unchanged-data refreshes.
+async function touchPattern(pattern, ttl) {
+  const client = getRedisClient();
+  if (!client) {
+    // memCache: bump the TTL on matching in-memory keys
+    const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+    for (const k of memCache.keys()) {
+      if (regex.test(k)) { const v = memCache.get(k); if (v !== undefined) memCache.set(k, v, ttl); }
+    }
+    return 0;
+  }
+  try {
+    const keys = await client.keys(pattern);
+    if (keys.length === 0) return 0;
+    const pipe = client.pipeline();
+    for (const k of keys) pipe.expire(k, ttl);
+    await pipe.exec();
+    // Mirror in memCache
+    const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+    for (const k of memCache.keys()) {
+      if (regex.test(k)) { const v = memCache.get(k); if (v !== undefined) memCache.set(k, v, ttl); }
+    }
+    console.log(`[Cache] TOUCH → ${pattern} (${keys.length} keys, TTL ${ttl}s)`);
+    return keys.length;
+  } catch (err) {
+    console.error(`[Cache] Error touching pattern ${pattern}:`, err.message);
+    return 0;
+  }
+}
+
 async function exists(key) {
   const client = getRedisClient();
   if (!client) return false;
@@ -166,6 +197,7 @@ module.exports = {
   set,
   del,
   delPattern,
+  touchPattern,
   exists,
   expire,
   getStats,

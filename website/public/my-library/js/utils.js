@@ -164,6 +164,49 @@ function isInWatchlist(tmdbId, type) {
   return getWatchlist().some(w => w.tmdbId === tmdbId && w.type === type);
 }
 
+// ── Watched tracking (localStorage) ──────────────────────────
+function getWatchedMap() {
+  try { return JSON.parse(localStorage.getItem('lelibrary_watched') || '{}'); }
+  catch { return {}; }
+}
+
+function saveWatchedMap(map) {
+  localStorage.setItem('lelibrary_watched', JSON.stringify(map));
+}
+
+// Watched key: provider|id → true. Uses item source + id so it survives renames.
+function watchedKey(item) {
+  return (item.source || 'tb') + '|' + item.id;
+}
+
+function isWatched(item) {
+  return !!getWatchedMap()[watchedKey(item)];
+}
+
+function markWatched(item) {
+  const map = getWatchedMap();
+  map[watchedKey(item)] = Date.now();
+  saveWatchedMap(map);
+}
+
+function unmarkWatched(item) {
+  const map = getWatchedMap();
+  delete map[watchedKey(item)];
+  saveWatchedMap(map);
+}
+
+function toggleWatched(item) {
+  if (isWatched(item)) unmarkWatched(item);
+  else markWatched(item);
+  return isWatched(item);
+}
+
+function markManyWatched(items) {
+  const map = getWatchedMap();
+  for (const item of items) map[watchedKey(item)] = Date.now();
+  saveWatchedMap(map);
+}
+
 // ── Settings (localStorage) ────────────────────────────────
 function getSettings() {
   try { return JSON.parse(localStorage.getItem('lelibrary_settings') || '{}'); }

@@ -1,19 +1,22 @@
 /* ── Topbar ────────────────────────────────────────────────── */
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 0; margin-bottom: 0;
+  padding: 12px 0; margin-bottom: 0;
   border-bottom: 1px solid var(--border);
 }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
 .brand-logo { width: 26px; height: 26px; border-radius: 6px; }
 .brand-name { font-size: 1rem; font-weight: 700; color: var(--amber); }
-.topbar-links { display: flex; align-items: center; gap: 24px; }
+.topbar-links { display: flex; align-items: center; gap: 6px; }
 .topbar-links a {
-  color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500;
-  transition: color var(--transition);
+  color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 500;
+  padding: 5px 10px; border-radius: 6px;
+  transition: all var(--transition); display: inline-flex; align-items: center; gap: 4px;
 }
-.topbar-links a:hover { color: var(--text); text-decoration: none; }
+.topbar-links a:hover { color: var(--text); background: var(--surface); text-decoration: none; }
 .topbar-links a.active { color: var(--amber); }
+.topbar-logout { color: var(--error) !important; }
+.topbar-logout:hover { background: rgba(248,81,73,0.1) !important; color: var(--error) !important; }
 
 /* ── Buttons ────────────────────────────────────────────────── */
 .btn {
@@ -37,12 +40,14 @@
 .btn .icon { font-size: 1em; line-height: 1; }
 
 /* ── Inputs ────────────────────────────────────────────────── */
-.input-wrap { position: relative; margin-bottom: 12px; }
-.input-wrap label {
-  font-size: 12px; color: var(--muted); margin-bottom: 4px; display: flex;
-  align-items: center; gap: 6px; font-weight: 500;
+.input-group { margin-bottom: 12px; }
+.input-group label {
+  font-size: 12px; color: var(--muted); margin-bottom: 4px; display: block;
+  font-weight: 500;
 }
-.input-wrap label a { color: var(--amber); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.input-group label a { color: var(--amber); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.input-group label span { display: inline-flex; align-items: center; gap: 6px; }
+.input-wrap { position: relative; }
 .input-wrap input, .input-wrap select {
   width: 100%; background: var(--bg); border: 1px solid var(--border);
   border-radius: var(--radius-sm); padding: 8px 36px 8px 12px;
@@ -53,10 +58,13 @@
 .input-wrap input::placeholder { color: var(--border2); }
 .input-wrap select { cursor: pointer; font-family: var(--font); }
 .toggle-btn {
-  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-  background: none; border: none; cursor: pointer; color: var(--muted); font-size: 1rem;
+  position: absolute; right: 8px; top: 0; bottom: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer; color: var(--muted);
+  padding: 0 4px;
 }
 .toggle-btn:hover { color: var(--text); }
+.toggle-btn svg { display: block; width: 20px; height: 20px; }
 
 /* ── Tabs ──────────────────────────────────────────────────── */
 .tabs {

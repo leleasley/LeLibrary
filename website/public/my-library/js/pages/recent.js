@@ -11,7 +11,7 @@ function renderRecentView() {
     .slice(0, 20);
 
   recentView.innerHTML = `
-    <div class="browse-header"><h2>&#128197; Recently Added</h2><span class="count">Last ${items.length} items</span></div>
+    <div class="browse-header"><h2>${icon('calendar', 18)} Recently Added</h2><span class="count">Last ${items.length} items</span></div>
     <div id="recentContent"></div>
   `;
 
@@ -20,7 +20,7 @@ function renderRecentView() {
   const container = document.getElementById('recentContent');
 
   if (items.length === 0) {
-    container.innerHTML = '<div class="empty"><div class="icon">&#128197;</div><h3>No recent items</h3><p>Items you add will appear here.</p></div>';
+    container.innerHTML = `<div class="empty"><div class="icon">${icon('calendar', 32)}</div><h3>No recent items</h3><p>Items you add will appear here.</p></div>`;
     return;
   }
 

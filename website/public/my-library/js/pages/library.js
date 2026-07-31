@@ -7,6 +7,9 @@ let libraryState = {
   filteredItems: [],
   duplicateMode: false,
   duplicateGroups: {},
+  sortBy: 'newest',
+  sizeFilter: 'all',
+  yearFilter: '',
 };
 
 function renderLibraryView() {
@@ -31,8 +34,8 @@ function renderLibraryView() {
 
   const viewToggle = `
     <div class="view-toggle">
-      <button class="${libraryState.viewMode === 'list' ? 'active' : ''}" onclick="setLibraryViewMode('list')" title="List view">&#9776;</button>
-      <button class="${libraryState.viewMode === 'card' ? 'active' : ''}" onclick="setLibraryViewMode('card')" title="Card view">&#9638;</button>
+      <button class="${libraryState.viewMode === 'list' ? 'active' : ''}" onclick="setLibraryViewMode('list')" title="List view">${icon('list', 14)}</button>
+      <button class="${libraryState.viewMode === 'card' ? 'active' : ''}" onclick="setLibraryViewMode('card')" title="Card view">${icon('grid', 14)}</button>
     </div>
   `;
 
@@ -41,10 +44,11 @@ function renderLibraryView() {
       <div class="meta"><strong>${items.length}</strong> items &middot; <strong>${formatBytes(totalSize)}</strong></div>
       <div class="header-actions">
         ${viewToggle}
-        <button class="btn btn-secondary btn-sm" id="btnFindDupes" onclick="toggleDuplicateMode()">&#128269; Find Duplicates</button>
+        <button class="btn btn-primary btn-sm" onclick="openAddTorrentModal()">${icon('plus', 14)} Add Torrent</button>
+        <button class="btn btn-secondary btn-sm" id="btnFindDupes" onclick="toggleDuplicateMode()">${icon('search', 13)} Find Duplicates</button>
         <button class="btn btn-secondary btn-sm" onclick="selectAllToggle()">Select All</button>
         <button class="btn btn-danger btn-sm" id="btnDeleteSelected" style="display:none" onclick="deleteSelected()">Delete Selected</button>
-        <button class="btn btn-primary btn-sm" onclick="loadLibrary()">Refresh</button>
+        <button class="btn btn-secondary btn-sm" onclick="loadLibrary()">${icon('refresh', 13)} Refresh</button>
       </div>
     </div>
 
@@ -56,6 +60,7 @@ function renderLibraryView() {
 
     <div class="batch-bar" id="batchBar">
       <span><span class="count" id="batchCount">0</span> selected</span>
+      <button class="btn btn-secondary btn-sm" onclick="markSelectedWatched()">${icon('check', 13)} Mark Watched</button>
       <button class="btn btn-danger btn-sm" onclick="deleteSelected()">Delete Selected</button>
       <button class="btn btn-secondary btn-sm" onclick="clearSelection()">Clear</button>
     </div>
@@ -68,6 +73,24 @@ function renderLibraryView() {
 
     <div class="search-bar">
       <input type="text" id="libSearchInput" placeholder="Filter by title or filename..." oninput="handleLibrarySearch()" />
+    </div>
+
+    <div class="lib-toolbar">
+      <select id="libSort" onchange="setLibrarySort(this.value)" title="Sort">
+        <option value="newest">Newest</option>
+        <option value="name">A\u2192Z Name</option>
+        <option value="nameDesc">Z\u2192A Name</option>
+        <option value="sizeDesc">Size \u2193</option>
+        <option value="sizeAsc">Size \u2191</option>
+      </select>
+      <select id="libSizeFilter" onchange="setLibrarySizeFilter(this.value)" title="Size filter">
+        <option value="all">All sizes</option>
+        <option value="small">&lt; 2 GB</option>
+        <option value="medium">2&#8211;10 GB</option>
+        <option value="large">&gt; 10 GB</option>
+      </select>
+      <input type="text" id="libYearFilter" placeholder="Year" inputmode="numeric" maxlength="4" oninput="setLibraryYearFilter(this.value)" />
+      <button class="btn btn-secondary btn-sm" onclick="markSelectedWatched()" title="Mark selected as watched">${icon('check', 13)} Watched</button>
     </div>
 
     <div class="list" id="libraryContent"></div>
@@ -89,10 +112,11 @@ function renderLibraryList() {
 
   const items = libraryState.filteredItems;
   container.innerHTML = '';
+  container.className = libraryState.viewMode === 'card' ? 'browse-grid' : 'list';
 
   const fragment = document.createDocumentFragment();
   for (let i = 0; i < items.length; i++) {
-    fragment.appendChild(createLibraryListItem(items[i], i));
+    fragment.appendChild(libraryState.viewMode === 'card' ? createLibraryCard(items[i], i) : createLibraryListItem(items[i], i));
   }
   container.appendChild(fragment);
 
@@ -118,8 +142,6 @@ function switchLibraryTab(tab, el) {
   document.getElementById('libSearchInput').value = '';
   libraryState.filteredItems = getFilteredLibraryItems();
 
-  // Reset scroll
-  const container = document.getElementById('libScrollContainer');
   renderLibraryList();
 }
 
@@ -130,19 +152,85 @@ function getFilteredLibraryItems() {
 
   const q = (document.getElementById('libSearchInput')?.value || '').trim().toLowerCase();
   if (q) {
+    // Normalize punctuation so "Monsters University" matches "Monsters.University.2013..."
+    const qNorm = q.replace(/[^a-z0-9]/g, '');
     items = items.filter(i => {
       const name = (i.name || i.filename || '').toLowerCase();
-      return name.includes(q);
+      return name.includes(q) || name.replace(/[^a-z0-9]/g, '').includes(qNorm);
     });
   }
+
+  // Size filter
+  const sizeF = libraryState.sizeFilter;
+  if (sizeF === 'small') items = items.filter(i => (i.size || 0) < 2 * 1024 * 1024 * 1024);
+  else if (sizeF === 'medium') items = items.filter(i => {
+    const s = i.size || 0;
+    return s >= 2 * 1024 * 1024 * 1024 && s <= 10 * 1024 * 1024 * 1024;
+  });
+  else if (sizeF === 'large') items = items.filter(i => (i.size || 0) > 10 * 1024 * 1024 * 1024);
+
+  // Year filter
+  if (libraryState.yearFilter) {
+    const y = libraryState.yearFilter;
+    items = items.filter(i => {
+      const m = (i.name || i.filename || '').match(/[.\s\-\[\(](\d{4})[.\s\-\[\)]/);
+      return m && m[1] === y;
+    });
+  }
+
+  // Sort
+  const sorter = libraryState.sortBy;
+  items = items.slice().sort((a, b) => {
+    const nameA = (a.name || a.filename || '').toLowerCase();
+    const nameB = (b.name || b.filename || '').toLowerCase();
+    if (sorter === 'name') return nameA.localeCompare(nameB);
+    if (sorter === 'nameDesc') return nameB.localeCompare(nameA);
+    if (sorter === 'sizeDesc') return (b.size || 0) - (a.size || 0);
+    if (sorter === 'sizeAsc') return (a.size || 0) - (b.size || 0);
+    return (b.created_at || '').localeCompare(a.created_at || '');
+  });
+
   return items;
+}
+
+function setLibrarySort(val) {
+  libraryState.sortBy = val;
+  libraryState.selectedIds.clear();
+  updateBatchBar();
+  libraryState.filteredItems = getFilteredLibraryItems();
+  renderLibraryList();
+}
+
+function setLibrarySizeFilter(val) {
+  libraryState.sizeFilter = val;
+  libraryState.selectedIds.clear();
+  updateBatchBar();
+  libraryState.filteredItems = getFilteredLibraryItems();
+  renderLibraryList();
+}
+
+function setLibraryYearFilter(val) {
+  libraryState.yearFilter = (val || '').replace(/\D/g, '').slice(0, 4);
+  libraryState.selectedIds.clear();
+  updateBatchBar();
+  libraryState.filteredItems = getFilteredLibraryItems();
+  renderLibraryList();
+}
+
+function markSelectedWatched() {
+  if (libraryState.selectedIds.size === 0) return;
+  const items = App.allItems.filter(i => libraryState.selectedIds.has(i.id));
+  markManyWatched(items);
+  libraryState.selectedIds.clear();
+  updateBatchBar();
+  renderLibraryList();
+  showToast('Marked ' + items.length + ' as watched');
 }
 
 function handleLibrarySearch() {
   libraryState.selectedIds.clear();
   updateBatchBar();
   libraryState.filteredItems = getFilteredLibraryItems();
-  const container = document.getElementById('libScrollContainer');
   renderLibraryList();
 }
 
@@ -159,15 +247,17 @@ function createLibraryListItem(item, idx) {
   const isSelected = libraryState.selectedIds.has(item.id);
   const isDupe = isDuplicateExtra(item);
   const dupeBadge = isDupe ? ' <span class="badge badge-dupe">DUPE</span>' : '';
+  const watched = isWatched(item);
+  const watchedBadge = watched ? ` <span class="badge badge-watched" title="Watched">${icon('check', 10)}</span>` : '';
 
   const el = document.createElement('div');
-  el.className = 'list-item' + (isSelected ? ' selected' : '');
+  el.className = 'list-item' + (isSelected ? ' selected' : '') + (watched ? ' watched' : '');
   el.setAttribute('data-item-id', item.id);
 
   el.innerHTML = `
     <div class="cb"><input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleLibrarySelect(${item.id}, this.checked)" /></div>
     <div class="list-info">
-      <div class="list-title">${escHtml(parsed.cleanName)}${parsed.year ? `<span class="year">(${escHtml(parsed.year)})</span>` : ''}${dupeBadge}</div>
+      <div class="list-title">${escHtml(parsed.cleanName)}${parsed.year ? `<span class="year">(${escHtml(parsed.year)})</span>` : ''}${dupeBadge}${watchedBadge}</div>
       <div class="list-filename" title="${escHtml(name)}">${escHtml(name)}</div>
       <div class="list-meta">
         <span>${size}</span>
@@ -177,16 +267,69 @@ function createLibraryListItem(item, idx) {
         <span class="badge badge-${state}">${stateLabel}</span>
       </div>
     </div>
-    <button class="btn-delete" onclick='deleteLibraryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})' title="Delete">&#128465;&#65039;</button>
+    <button class="btn-watch" onclick="toggleWatchedItem(${item.id})" title="${watched ? 'Mark as not watched' : 'Mark as watched'}">${watched ? icon('x', 14) : icon('check', 14)}</button>
+    <button class="btn-delete" onclick='deleteLibraryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})' title="Delete">${icon('trash', 14)}</button>
   `;
 
   return el;
 }
 
+function createLibraryCard(item, idx) {
+  const name = item.name || item.filename || 'Unknown';
+  const parsed = parseTitle(name);
+  const state = (item.download_state || '').toLowerCase();
+  const stateLabel = state.charAt(0).toUpperCase() + state.slice(1);
+  const size = item.size ? formatBytes(item.size) : '';
+  let sourceLabel, sourceClass;
+  if (item.source === 'realdebrid') { sourceLabel = 'RD'; sourceClass = 'rd'; }
+  else if (item.source === 'usenet') { sourceLabel = 'Usenet'; sourceClass = 'usenet'; }
+  else { sourceLabel = 'Torrent'; sourceClass = 'torrent'; }
+  const isSelected = libraryState.selectedIds.has(item.id);
+  const isDupe = isDuplicateExtra(item);
+  const watched = isWatched(item);
+
+  const el = document.createElement('div');
+  el.className = 'card' + (isSelected ? ' selected' : '') + (watched ? ' watched' : '');
+  el.setAttribute('data-item-id', item.id);
+  el.style.cursor = 'pointer';
+
+  el.innerHTML = `
+    <div class="cb lib-card-cb"><input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleLibrarySelect(${item.id}, this.checked)" title="Select" /></div>
+    ${isDupe ? '<div class="card-badge" style="background:var(--error)">DUPE</div>' : ''}
+    ${watched ? '<div class="card-badge" style="right:38px;background:var(--success)">✓</div>' : ''}
+    <div class="card-info">
+      <div class="card-title" title="${escHtml(name)}">${escHtml(parsed.cleanName)}${parsed.year ? ` <span style="color:var(--muted);font-weight:400">(${escHtml(parsed.year)})</span>` : ''}</div>
+      <div class="list-filename" title="${escHtml(name)}">${escHtml(name)}</div>
+      <div class="list-meta">
+        ${size ? `<span>${size}</span>` : ''}
+        <span class="sep">&middot;</span>
+        <span class="badge badge-${sourceClass}">${sourceLabel}</span>
+        <span class="badge badge-${state}">${stateLabel}</span>
+      </div>
+    </div>
+    <div class="torrent-card-actions" style="padding:8px">
+      <button class="btn-action btn-download" onclick="toggleWatchedItem(${item.id})" title="${watched ? 'Mark as not watched' : 'Mark as watched'}" aria-label="${watched ? 'Mark as not watched' : 'Mark as watched'}: ${escHtml(parsed.cleanName)}">${watched ? icon('x', 10) + ' Unwatch' : icon('check', 10) + ' Watched'}</button>
+      <button class="btn-action btn-report" onclick='deleteLibraryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})' title="Delete" aria-label="Delete: ${escHtml(parsed.cleanName)}">${icon('trash', 10)} Delete</button>
+    </div>
+  `;
+  el.onclick = (e) => {
+    if (e.target.closest('button') || e.target.closest('input')) return;
+    toggleLibrarySelect(item.id, !isSelected);
+  };
+  return el;
+}
+
+function toggleWatchedItem(id) {
+  const item = App.allItems.find(i => i.id === id);
+  if (!item) return;
+  toggleWatched(item);
+  renderLibraryList();
+}
+
 function toggleLibrarySelect(id, checked) {
   if (checked) libraryState.selectedIds.add(id); else libraryState.selectedIds.delete(id);
   // Update all visible items
-  document.querySelectorAll('#libraryContent .list-item').forEach(el => {
+  document.querySelectorAll('#libraryContent [data-item-id]').forEach(el => {
     const itemId = parseInt(el.getAttribute('data-item-id'));
     if (itemId === id) {
       el.classList.toggle('selected', checked);
@@ -206,7 +349,7 @@ function selectAllToggle() {
     filtered.forEach(i => libraryState.selectedIds.add(i.id));
   }
   // Update visible checkboxes
-  document.querySelectorAll('#libraryContent .list-item').forEach(el => {
+  document.querySelectorAll('#libraryContent [data-item-id]').forEach(el => {
     const id = parseInt(el.getAttribute('data-item-id'));
     const cb = el.querySelector('input[type="checkbox"]');
     if (cb) cb.checked = libraryState.selectedIds.has(id);
@@ -217,7 +360,7 @@ function selectAllToggle() {
 
 function clearSelection() {
   libraryState.selectedIds.clear();
-  document.querySelectorAll('#libraryContent .list-item').forEach(el => {
+  document.querySelectorAll('#libraryContent [data-item-id]').forEach(el => {
     el.classList.remove('selected');
     const cb = el.querySelector('input[type="checkbox"]');
     if (cb) cb.checked = false;
@@ -252,7 +395,6 @@ async function deleteLibraryItem(item) {
     App.allItems = App.allItems.filter(i => i.id !== item.id);
     libraryState.selectedIds.delete(item.id);
     libraryState.filteredItems = getFilteredLibraryItems();
-    const container = document.getElementById('libScrollContainer');
     renderLibraryList();
     showToast('Deleted "' + name + '"');
   } catch (err) {
@@ -285,7 +427,6 @@ async function deleteSelected(skipConfirm) {
   App.allItems = App.allItems.filter(i => !libraryState.selectedIds.has(i.id));
   libraryState.selectedIds.clear();
   libraryState.filteredItems = getFilteredLibraryItems();
-  const container = document.getElementById('libScrollContainer');
   updateBatchBar();
   renderLibraryList();
   showToast('Deleted ' + deleted + ' item(s)');
@@ -345,11 +486,10 @@ function findDuplicates() {
   const btnDupes = document.getElementById('btnFindDupes');
   if (bar) bar.style.display = 'flex';
   if (summary) summary.innerHTML = `<strong style="color:var(--warning)">${Object.keys(dupeGroups).length}</strong> duplicate groups &middot; <strong style="color:var(--error)">${dupeCount}</strong> extra copies selected`;
-  if (btnDupes) { btnDupes.innerHTML = '&#10005; Clear'; btnDupes.classList.add('active-dupe'); }
+  if (btnDupes) { btnDupes.innerHTML = `${icon('x', 13)} Clear`; btnDupes.classList.add('active-dupe'); }
 
   // Re-render with highlights
   libraryState.filteredItems = getFilteredLibraryItems();
-  const container = document.getElementById('libScrollContainer');
   renderLibraryList();
   updateBatchBar();
 }
@@ -361,9 +501,8 @@ function clearDuplicateMode() {
   const bar = document.getElementById('duplicateBar');
   const btnDupes = document.getElementById('btnFindDupes');
   if (bar) bar.style.display = 'none';
-  if (btnDupes) { btnDupes.innerHTML = '&#128269; Find Duplicates'; btnDupes.classList.remove('active-dupe'); }
+  if (btnDupes) { btnDupes.innerHTML = `${icon('search', 13)} Find Duplicates`; btnDupes.classList.remove('active-dupe'); }
   libraryState.filteredItems = getFilteredLibraryItems();
-  const container = document.getElementById('libScrollContainer');
   renderLibraryList();
   updateBatchBar();
 }

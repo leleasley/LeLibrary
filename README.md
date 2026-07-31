@@ -58,13 +58,13 @@ Movies, Series, and Anime appear as separate Stremio catalogs. Torrents, Usenet,
 
 | Data | TTL | Notes |
 |---|---|---|
-| Catalog | 1 min | Rebuilt on download hash change |
+| Catalog | 1 h | Rebuilt on download hash change; kept warm by background touch |
 | Streams | 10 min | |
 | Metadata | 24 h | |
 | TMDB matches (disk) | 5 min | Failed matches retry soon |
-| Background refresh | 2 min | Checks for new downloads |
+| Background refresh | 2 min | Checks for new downloads, touches catalog TTL when unchanged |
 
-Auto-invalidation compares a hash of your downloads — new files trigger an immediate catalog rebuild.
+Auto-invalidation compares a fingerprint of your downloads (`id:updated_at` per item) — new files **and** in-place edits (renames, file changes) trigger a catalog rebuild. When nothing changed, the background refresh simply extends the catalog cache TTL so it never expires and forces a slow rebuild.
 
 ### Clear cache
 
@@ -152,8 +152,8 @@ All optional — the addon works with defaults.
 | Variable | Default | Description |
 |---|---|---|
 | `PORT` | `7860` | Server port |
-| `CACHE_TTL_CATALOG` | `300` | Catalog cache TTL (seconds) |
-| `CACHE_TTL_STREAM` | `1800` | Stream cache TTL (seconds) |
+| `CACHE_TTL_CATALOG` | `3600` | Catalog cache TTL (seconds) |
+| `CACHE_TTL_STREAM` | `600` | Stream cache TTL (seconds) |
 | `REDIS_HOST` | — | Redis host (`redis` for Docker Compose) |
 | `REDIS_PORT` | `6379` | Redis port |
 | `REDIS_PASSWORD` | — | Redis password |

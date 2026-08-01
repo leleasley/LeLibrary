@@ -18,6 +18,12 @@ try {
 
 const ROOT_DIR = path.resolve(__dirname);
 
+// Private addon identity (gitignored). When absent — self-hosted builds — the
+// addon serves a generic manifest so self-hosters never expose the official
+// id or the signed Stremio registry config.
+let REGISTRY = null;
+try { REGISTRY = require('./src/registry'); } catch (e) { /* self-hosted build */ }
+
 const http  = require('http');
 const https = require('https');
 // Reuse TCP/TLS connections to provider APIs (TorBox, Real-Debrid, TMDB).
@@ -209,11 +215,11 @@ function getLogoUrl(baseUrl) {
 }
 
 function getBaseManifest(baseUrl) {
-  return {
-    id: 'community.torbox.catalog',
+  const manifest = {
+    id: (REGISTRY && REGISTRY.addonId) || 'community.torbox.catalog.selfhosted',
     version: '3.1.0',
-    name: 'LeLibrary',
-    description: 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
+    name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
+    description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
     resources: ['catalog', 'meta', 'stream'],
     types: ['movie', 'series', 'anime'],
@@ -221,11 +227,11 @@ function getBaseManifest(baseUrl) {
     catalogs: [],
     behaviorHints: { configurable: true, configurationRequired: true },
     configureUrl: `${baseUrl}/configure`,
-    stremioAddonsConfig: {
-      issuer: 'https://stremio-addons.net',
-      signature: 'REDACTED',
-    },
   };
+  if (REGISTRY && REGISTRY.stremioAddonsConfig) {
+    manifest.stremioAddonsConfig = REGISTRY.stremioAddonsConfig;
+  }
+  return manifest;
 }
 
 function getConfiguredManifest(baseUrl, config = {}) {
@@ -286,10 +292,10 @@ function getConfiguredManifest(baseUrl, config = {}) {
   }
 
   return {
-    id: 'community.torbox.catalog',
+    id: (REGISTRY && REGISTRY.addonId) || 'community.torbox.catalog.selfhosted',
     version: '3.1.0',
-    name: 'LeLibrary',
-    description: 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
+    name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
+    description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
     resources: [
       'catalog',

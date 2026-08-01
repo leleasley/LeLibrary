@@ -183,7 +183,7 @@ setInterval(async () => {
   }, REFRESH);
 
 function getLogoUrl(baseUrl) {
-  return `${baseUrl}/LeLibrary.png`;
+  return `${baseUrl}/LeLibrary.png?v=2`;
 }
 
 function getBaseManifest(baseUrl) {

@@ -213,7 +213,7 @@ function getBaseManifest(baseUrl) {
     id: 'community.torbox.catalog',
     version: '3.1.0',
     name: 'LeLibrary',
-    description: 'Your personal TorBox catalog with TMDB metadata.',
+    description: 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
     resources: ['catalog', 'meta', 'stream'],
     types: ['movie', 'series', 'anime'],
@@ -221,6 +221,10 @@ function getBaseManifest(baseUrl) {
     catalogs: [],
     behaviorHints: { configurable: true, configurationRequired: true },
     configureUrl: `${baseUrl}/configure`,
+    stremioAddonsConfig: {
+      issuer: 'https://stremio-addons.net',
+      signature: 'REDACTED',
+    },
   };
 }
 
@@ -285,7 +289,7 @@ function getConfiguredManifest(baseUrl, config = {}) {
     id: 'community.torbox.catalog',
     version: '3.1.0',
     name: 'LeLibrary',
-    description: 'Your personal library with TMDB metadata.',
+    description: 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
     resources: [
       'catalog',

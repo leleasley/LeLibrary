@@ -67,7 +67,7 @@ function navigateHash() {
   if (parts.length === 2 && (parts[0] === 'movie' || parts[0] === 'series')) {
     const mt = parts[0] === 'series' ? 'tv' : 'movie';
     const tmdbId = parseInt(parts[1], 10);
-    if (tmdbId && App.allItems.length > 0) {
+    if (tmdbId && App.keys.tmdbKey) {
       // Render dashboard first so there's something behind the detail overlay
       navigateTo('dashboard');
       // Fetch TMDB data then open detail on top
@@ -91,7 +91,7 @@ function navigateHash() {
   // Handle deep links: /search/:query
   if (parts[0] === 'search' && parts[1]) {
     const q = decodeURIComponent(parts.slice(1).join('/'));
-    if (App.allItems.length > 0) {
+    if (App.keys.tmdbKey) {
       renderSearchView(q);
     } else {
       navigateTo('dashboard');
@@ -132,6 +132,7 @@ async function handleLoad() {
     try {
       const encObj = JSON.parse(hasEncrypted);
       const keys = await decryptData(encObj, password);
+      if (looksLikeV4Token(keys.tmdbKey || '')) { showError(tmdbKeyError()); return; }
       document.getElementById('apiKey').value = keys.torboxKey || '';
       document.getElementById('rdApiKey').value = keys.rdKey || '';
       document.getElementById('tmdbKey').value = keys.tmdbKey || '';
@@ -151,6 +152,7 @@ async function handleLoad() {
     if ((provider === 'torbox' || provider === 'both') && !apiKey) { showError('Please enter your TorBox API key'); return; }
     if ((provider === 'realdebrid' || provider === 'both') && !rdApiKey) { showError('Please enter your Real-Debrid API key'); return; }
     if (!tmdbKey) { showError('Please enter your TMDB API key'); return; }
+    if (looksLikeV4Token(tmdbKey)) { showError(tmdbKeyError()); return; }
     if (!password) { showError('Please choose an encryption password'); return; }
     if (password.length < 4) { showError('Password must be at least 4 characters'); return; }
     try {
@@ -206,7 +208,17 @@ async function loadLibrary() {
 
     if (completed.length === 0) {
       document.getElementById('loadingScreen').style.display = 'none';
-      document.getElementById('emptyState').style.display = 'block';
+      const empty = document.getElementById('emptyState');
+      if (empty) {
+        const rdOnly = rdApiKey && !apiKey;
+        const tbOnly = apiKey && !rdApiKey;
+        empty.querySelector('p').textContent = rdOnly
+          ? 'No completed downloads found on Real-Debrid. Add some content to see it here.'
+          : tbOnly
+            ? 'No completed downloads found on TorBox. Add some content to see it here.'
+            : 'No completed downloads found on TorBox or Real-Debrid. Add some content to see it here.';
+        empty.style.display = 'block';
+      }
       return;
     }
 
@@ -225,6 +237,8 @@ async function loadLibrary() {
     showToast('Loaded ' + completed.length + ' items');
     navigateHash();
   } catch (err) {
+    // Make sure the full-screen loading overlay is gone so the error is visible
+    document.getElementById('loadingScreen').style.display = 'none';
     showError(err.message);
   } finally {
     document.getElementById('btnLoad')?.classList.remove('loading');
@@ -238,6 +252,9 @@ async function refreshInBackground() {
     App.allItems = completed;
     buildLibraryIndex();
     cacheLibrary(completed);
+    // Re-render the dashboard so the user isn't left staring at stale counts.
+    // (Library/recent views are stateful, so leave them to the user's next visit.)
+    if (App.currentPage === 'dashboard') renderDashboard();
   } catch (e) {
     // Silent fail — cached data is still shown
   }
@@ -251,6 +268,7 @@ function logout() {
   _libNameSet = null;
   _libStats = null;
   stopQueuePolling();
+  sessionStorage.removeItem('lelibrary_password');
   document.getElementById('content').style.display = 'none';
   document.getElementById('authNav').style.display = 'none';
   document.getElementById('authNavMobile').style.display = 'none';
@@ -269,6 +287,18 @@ function logout() {
   }
 }
 
+// Switch to a different account: drop the saved (encrypted) keys, the session
+// password, and the IndexedDB cache, then show the new-user form.
+async function useDifferentKeys() {
+  if (!confirm('Replace your saved API keys? You\'ll enter the new ones next. Your watchlist is kept.')) return;
+  localStorage.removeItem('lelibrary_encrypted');
+  sessionStorage.removeItem('lelibrary_password');
+  await clearLibraryCache();
+  document.getElementById('returnUserForm').style.display = 'none';
+  document.getElementById('newUserForm').style.display = 'block';
+  document.getElementById('loginDesc').textContent = 'Browse your downloads from TorBox and/or Real-Debrid.';
+}
+
 // ── Init ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   // Inject SVG icons into any element with data-icon attribute
@@ -279,6 +309,15 @@ document.addEventListener('DOMContentLoaded', () => {
   onProviderChange();
   initKeyboardShortcuts();
 
+  // Live TMDB v4 warning as the user types their key
+  const tmdbInput = document.getElementById('tmdbKey');
+  if (tmdbInput) {
+    tmdbInput.addEventListener('input', () => {
+      const hint = document.getElementById('tmdbV4Hint');
+      if (hint) hint.style.display = looksLikeV4Token(tmdbInput.value.trim()) ? 'block' : 'none';
+    });
+  }
+
   // Auto-load using stored password
   const savedPw = sessionStorage.getItem('lelibrary_password');
   const hasEncrypted = localStorage.getItem('lelibrary_encrypted');
@@ -287,6 +326,13 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const encObj = JSON.parse(hasEncrypted);
       decryptData(encObj, savedPw).then(keys => {
+        if (looksLikeV4Token(keys.tmdbKey || '')) {
+          document.getElementById('newUserForm').style.display = 'none';
+          document.getElementById('returnUserForm').style.display = 'block';
+          document.getElementById('loginDesc').textContent = 'Enter your password to unlock your saved library.';
+          showError(tmdbKeyError());
+          return;
+        }
         document.getElementById('apiKey').value = keys.torboxKey || '';
         document.getElementById('rdApiKey').value = keys.rdKey || '';
         document.getElementById('tmdbKey').value = keys.tmdbKey || '';

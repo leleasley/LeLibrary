@@ -16,7 +16,7 @@ function renderDownloadView() {
     </div>
 
     <div class="download-card">
-      <div class="download-desc">Paste one or more magnet links (or direct TorBox/RD add URLs) below. Lines starting with <code>http</code> are treated as <em>watch folders</em> on your chosen provider.</div>
+      <div class="download-desc">Paste one or more magnet links below to add them to your chosen provider. (HTTP page/watch-folder links can't be added via the TorBox or Real-Debrid add APIs — copy the magnet link from the site instead.)</div>
 
       <div class="input-wrap">
         <label>Magnets / Links <span style="color:var(--amber)">*</span></label>
@@ -72,6 +72,10 @@ async function submitDownloads() {
     const parts = _dlLineParts(line);
     if (!parts) {
       results.push({ line: line.slice(0, 60), ok: false, msg: 'Not a magnet or link' });
+      continue;
+    }
+    if (parts.kind === 'url') {
+      results.push({ line: parts.value.slice(0, 60), ok: false, msg: 'HTTP links aren\'t supported — paste the magnet link instead' });
       continue;
     }
 

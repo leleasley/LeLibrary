@@ -40,6 +40,17 @@ async function refreshQueue() {
       rdKey ? rdGet('/torrents', rdKey) : Promise.resolve([]),
     ]);
 
+    // A rejected call must not silently masquerade as an empty queue — surface
+    // auth failures so the user knows their key is wrong.
+    const isAuthErr = e => e && e.status && (e.status === 401 || e.status === 403);
+    if (torboxKey) {
+      const authErr = [results[0], results[1]].find(r => r.status === 'rejected' && isAuthErr(r.reason))?.reason;
+      if (authErr) throw authErr;
+    }
+    if (rdKey && results[2].status === 'rejected' && isAuthErr(results[2].reason)) {
+      throw results[2].reason;
+    }
+
     const torrents = (results[0].status === 'fulfilled' ? results[0].value : [])
       .map(i => ({ ...i, source: 'torrent', provider: 'TorBox' }));
     const usenet = (results[1].status === 'fulfilled' ? results[1].value : [])
@@ -68,10 +79,11 @@ async function refreshQueue() {
     const active = all.filter(i => {
       if (isDone(i)) return false;
       const state = (i.download_state || '').toLowerCase();
-      if (state === 'downloading' || state === 'checking' || state === 'fetching_metadata') return true;
-      const p = i.progress;
-      if (p != null) return i.source === 'realdebrid' ? p < 100 : p < 1;
-      return false;
+      // Anything that isn't explicitly done or failed counts as in progress —
+      // queued / waiting_files_selection / compressing / dead states etc. must
+      // stay visible rather than silently vanishing from the queue.
+      if (state === 'error' || state === 'failed') return false;
+      return true;
     });
     const completed = all.filter(isDone);
     const failed = all.filter(i => {

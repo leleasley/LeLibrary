@@ -6,6 +6,7 @@ async function renderSearchView(query) {
   browseState.page = 1;
   browseState.hasMore = false;
   browseState.isLoading = false;
+  browseState.reqToken++;
   disconnectBrowseScroll();
 
   const tmdbKey = App.keys.tmdbKey;
@@ -44,12 +45,14 @@ async function renderSearchView(query) {
 async function loadSearchPage(query, page, replace) {
   if (browseState.isLoading) return;
   browseState.isLoading = true;
+  const myToken = browseState.reqToken;
   const content = document.getElementById('browseContent');
   const loadMore = document.getElementById('browseLoadMore');
   if (!content) return;
 
   try {
     const data = await tmdbGet('/search/multi?query=' + encodeURIComponent(query) + '&language=en-US&page=' + page);
+    if (myToken !== browseState.reqToken) return;
     const items = (data.results || []).filter(i => i.poster_path && (i.media_type === 'movie' || i.media_type === 'tv'));
 
     if (replace) content.innerHTML = '';
@@ -92,7 +95,7 @@ async function loadSearchPage(query, page, replace) {
     if (browseState.hasMore) connectBrowseScroll();
   } catch (err) {
     if (loadMore) {
-      loadMore.innerHTML = '<p style="color:var(--error);font-size:12px">Error loading results</p>';
+      loadMore.innerHTML = `<p style="color:var(--error);font-size:12px">${escHtml(friendlyError(err, 'Could not load results — check your TMDB key and connection.'))}</p>`;
       loadMore.style.display = 'block';
     }
   } finally {
@@ -112,6 +115,7 @@ let browseState = {
   scrollObserver: null,
   viewMode: 'grid', // 'grid' or 'list'
   searchQuery: '',
+  reqToken: 0,
 };
 
 function renderBrowseView(type) {
@@ -121,6 +125,7 @@ function renderBrowseView(type) {
   browseState.page = 1;
   browseState.hasMore = false;
   browseState.isLoading = false;
+  browseState.reqToken++;
   disconnectBrowseScroll();
 
   const tmdbKey = App.keys.tmdbKey;
@@ -198,6 +203,7 @@ function switchBrowseTab(el) {
   browseState.page = 1;
   browseState.items = [];
   browseState.hasMore = false;
+  browseState.reqToken++;
   disconnectBrowseScroll();
   loadBrowseSection(el.dataset.endpoint, 1, true);
 }
@@ -205,6 +211,7 @@ function switchBrowseTab(el) {
 async function loadBrowseSection(endpoint, page, replace) {
   if (browseState.isLoading) return;
   browseState.isLoading = true;
+  const myToken = browseState.reqToken;
   const content = document.getElementById('browseContent');
   const loadMore = document.getElementById('browseLoadMore');
 
@@ -216,6 +223,7 @@ async function loadBrowseSection(endpoint, page, replace) {
   try {
     const sep = endpoint.includes('?') ? '&' : '?';
     const data = await tmdbGet(endpoint + sep + 'page=' + page);
+    if (myToken !== browseState.reqToken) return;
     const items = (data.results || []).filter(i => i.poster_path);
 
     if (replace) content.innerHTML = '';
@@ -278,7 +286,7 @@ async function loadBrowseSection(endpoint, page, replace) {
 
     if (browseState.hasMore) connectBrowseScroll(endpoint);
   } catch (err) {
-    loadMore.innerHTML = '<p style="color:var(--error);font-size:12px">Error loading content</p>';
+    loadMore.innerHTML = `<p style="color:var(--error);font-size:12px">${escHtml(friendlyError(err, 'Could not load content — check your TMDB key and connection.'))}</p>`;
     loadMore.style.display = 'block';
   } finally {
     browseState.isLoading = false;

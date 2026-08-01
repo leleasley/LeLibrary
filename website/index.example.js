@@ -24,9 +24,14 @@ function createWebRoutes(decodeConfig) {
     if (!config) return res.status(400).send('Invalid token');
 
     const html = fs.readFileSync(path.join(WEBSITE_DIR, 'configure.html'), 'utf8');
+    const safeJson = JSON.stringify(config)
+      .replace(/</g, '\\u003c')
+      .replace(/>/g, '\\u003e')
+      .replace(/\u2028/g, '\\u2028')
+      .replace(/\u2029/g, '\\u2029');
     const injected = html.replace(
       '</head>',
-      `<script>window.__INITIAL_CONFIG__ = ${JSON.stringify(config)}</script></head>`
+      `<script>window.__INITIAL_CONFIG__ = ${safeJson}</script></head>`
     );
     res.setHeader('Cache-Control', 'no-cache');
     res.send(injected);

@@ -143,6 +143,14 @@ async function submitAddTorrent() {
       // fall through; magnets handled above
     }
 
+    if (jobs.length === 0) {
+      _atSetLoader(0, 'Nothing to add.');
+      _atSetResults(false, 'Nothing was added. Real-Debrid doesn\'t accept .torrent files — paste a magnet link instead, or use TorBox.');
+      btn.disabled = false;
+      btn.textContent = 'Add Torrent';
+      return;
+    }
+
     await Promise.all(jobs);
     _atSetLoader(100, 'Done.');
     _atSetResults(true, 'Torrent added successfully.');

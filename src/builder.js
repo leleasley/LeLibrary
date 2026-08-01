@@ -394,10 +394,13 @@ async function buildMeta(tmdbId, type, tmdbApiKey, lang, torboxApiKey, rdApiKey,
     safeDownloads(!existingEntries?.length && rdApiKey     ? getRealDebridDownloads(rdApiKey)  : null, 'RealDebrid'),
   ]);
 
-  if (!meta || tmdbType === 'movie') return meta;
-  if (!torboxApiKey && !rdApiKey) return meta;
+  if (!meta) return meta;
 
   try {
+    if (tmdbType === 'movie') {
+      // Movies skip the episode-availability pass (nothing to filter) — but
+      // still fall through to the poster/rating enhancement below.
+    } else {
     const downloads    = [...tbDownloads, ...rdDownloads];
     const availableEps = new Set();
     const indexEntries = [];
@@ -511,6 +514,7 @@ async function buildMeta(tmdbId, type, tmdbApiKey, lang, torboxApiKey, rdApiKey,
     } else {
       meta.videos = [];
       console.log(`[Meta] tmdbId=${tmdbId} → no episodes available`);
+    }
     }
   } catch (e) {
     console.error('[Meta] Error filtering episodes:', e.message);

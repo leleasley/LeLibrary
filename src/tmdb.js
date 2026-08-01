@@ -336,4 +336,10 @@ async function findEpisodeByAirDate(apiKey, tmdbId, airDate, lang = 'pt-BR') {
   }
 }
 
-module.exports = { searchMetadata, searchCandidates, getMetadata, imdbToTmdb, findEpisodeByAirDate };
+function clearCaches() {
+  tmdbCache.flushAll();
+  tvDetailCache.flushAll();
+  seasonCache.flushAll();
+}
+
+module.exports = { searchMetadata, searchCandidates, getMetadata, imdbToTmdb, findEpisodeByAirDate, clearCaches };

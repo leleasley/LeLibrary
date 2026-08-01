@@ -39,10 +39,10 @@
     </button>
     <div class="mobile-menu" id="mobileMenu">
       <a href="/">Home</a>
-      <span id="authNavMobile" style="display:none">
-        <a href="#" onclick="loadLibrary();return false">Refresh</a>
-        <a href="#" onclick="navigateTo('settings');return false">Settings</a>
-        <a href="#" onclick="logout();return false" style="color:var(--error)">Log Out</a>
+      <span id="authNavMobile" style="display:none" class="mobile-menu-actions">
+        <a href="#" onclick="loadLibrary();return false" class="mobile-menu-action" title="Refresh library from providers">Refresh</a>
+        <a href="#" onclick="navigateTo('settings');return false" class="mobile-menu-action" title="Settings"><span data-icon="settings"></span></a>
+        <a href="#" onclick="logout();return false" class="mobile-menu-action mobile-menu-logout" title="Log out"><span data-icon="logout"></span></a>
       </span>
     </div>
   </header>
@@ -73,11 +73,11 @@
       </div>
 
       <div class="input-group" id="rdKeyWrap">
-        <label>Real-Debrid API Key <span style="color:var(--amber)">*</span> <a href="http://real-debrid.com/?id=14493200" target="_blank">Get key &#8599;</a></label>
+        <label>Real-Debrid API Key <span style="color:var(--amber)">*</span> <a href="https://real-debrid.com/?id=14493200" target="_blank">Get key &#8599;</a></label>
         <div class="input-wrap">
           <input type="password" id="rdApiKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" data-lpignore="true" data-1pignore="true" />
         </div>
-        <p class="hint" style="margin-top:4px"><a href="http://real-debrid.com/?id=14493200" target="_blank">Create a Real-Debrid account &#8599;</a></p>
+        <p class="hint" style="margin-top:4px"><a href="https://real-debrid.com/?id=14493200" target="_blank">Create a Real-Debrid account &#8599;</a></p>
       </div>
 
       <div class="input-group">
@@ -86,6 +86,7 @@
           <input type="password" id="tmdbKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" data-lpignore="true" data-1pignore="true" />
           <button class="toggle-btn" type="button" onclick="toggleVis('tmdbKey',this)"><span data-icon="eye"></span></button>
         </div>
+        <p class="hint" id="tmdbV4Hint" style="display:none;color:var(--error)">That looks like a TMDB v4 "Read Access Token". Use your v3 API key instead — the 32-character key from your TMDB settings (themoviedb.org/settings/api). v4 tokens expire and won't work.</p>
       </div>
       <div class="input-group">
         <label>Encryption Password <span style="color:var(--amber);font-weight:600">(required)</span></label>
@@ -106,6 +107,7 @@
         </div>
       </div>
       <p class="hint" style="margin-bottom:12px">Enter the password you used when saving your keys.</p>
+      <button class="btn btn-secondary btn-sm" onclick="useDifferentKeys()" style="width:100%;margin-bottom:12px" title="Forget the saved keys and enter different ones">Use different keys</button>
     </div>
 
     <button class="btn-load" id="btnLoad" onclick="handleLoad()">Load Library</button>
@@ -163,10 +165,6 @@
         <a class="bottom-nav-item active" data-page="dashboard" onclick="navigateTo('dashboard')">
           <span class="nav-icon" data-icon="home"></span>
           <span class="nav-label">Home</span>
-        </a>
-        <a class="bottom-nav-item" data-page="browse-movies" onclick="navigateTo('browse-movies')">
-          <span class="nav-icon" data-icon="movie"></span>
-          <span class="nav-label">Movies</span>
         </a>
         <a class="bottom-nav-item" data-page="library" onclick="navigateTo('library')">
           <span class="nav-icon" data-icon="folder"></span>
@@ -307,7 +305,7 @@
         el.addEventListener('mouseenter', () => { acActiveIdx = parseInt(el.dataset.idx); acHighlight(acDropdown.querySelectorAll('.ac-item')); });
         el.addEventListener('click', () => acSelect(acResults[parseInt(el.dataset.idx)]));
       });
-    } catch (err) { acDropdown.innerHTML = '<div class="ac-empty">Search failed</div>'; }
+    } catch (err) { acDropdown.innerHTML = `<div class="ac-empty">${escHtml(friendlyError(err, 'Search failed — check your TMDB key and connection.'))}</div>`; }
   }
 
   function doFullSearch() {

@@ -7,6 +7,28 @@ let _detailCurrentSeason = 1;
 let _detailResults = [];
 let _detailCachedFirst = false;
 let _detailLangFilter = 'all';
+let _detailToken = 0;
+let _detailScrapeFailed = false;
+
+// Escape a string for embedding inside an inline `onclick="..."` attribute
+// where the JS uses single-quoted string literals. Handles HTML decoding,
+// JS string escaping and attribute termination (double quotes, < > &).
+function jsInlineStr(s) {
+  return String(s == null ? '' : s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\r/g, '')
+    .replace(/\n/g, ' ')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;');
+}
+
+// Guard: aborts async callbacks that belong to a previous detail overlay.
+function detailIsCurrent() {
+  return document.getElementById('detailPage')?.dataset.openToken === String(_detailToken);
+}
 
 function openTMDBDetail(item) {
   _detailTrailerKey = null;
@@ -16,6 +38,8 @@ function openTMDBDetail(item) {
   _detailResults = [];
   _detailCachedFirst = false;
   _detailLangFilter = 'all';
+  _detailToken = Date.now();
+  _detailScrapeFailed = false;
 
   // Remove any existing detail overlay (e.g. navigating from a recommendation)
   document.getElementById('detailPage')?.remove();
@@ -31,16 +55,17 @@ function openTMDBDetail(item) {
 
   const detailEl = document.createElement('div');
   detailEl.id = 'detailPage';
+  detailEl.dataset.openToken = String(_detailToken);
 
   detailEl.innerHTML = `
     <div class="detail-hero">
-      <img src="${backdrop || ''}" onerror="this.parentElement.style.display='none'" />
+      <img src="${backdrop || ''}" onerror="this.style.display='none'" />
       <div class="detail-hero-overlay"></div>
       <div class="detail-hero-content">
         <button onclick="closeDetail()" class="detail-back-btn">${icon('back', 14)} Back</button>
         <div class="detail-actions-row">
           <button id="btnTrailer" style="display:none" class="detail-action-btn">${icon('play', 12)} Trailer</button>
-          <button onclick="toggleDetailWatchlist(${item.id},'${item.mt}','${escHtml(item.title).replace(/'/g, "\\'")}','${item.poster || ''}','${item.backdrop || ''}')" class="detail-action-btn detail-save-btn" style="background:${inWatch ? 'var(--amber)' : 'rgba(22,27,34,0.8)'};color:${inWatch ? 'var(--bg)' : 'var(--text)'}">${icon('star', 13)} ${inWatch ? 'Saved' : 'Save'}</button>
+          <button onclick="toggleDetailWatchlist(${item.id},'${jsInlineStr(item.mt)}','${jsInlineStr(item.title)}','${jsInlineStr(item.poster || '')}','${jsInlineStr(item.backdrop || '')}')" class="detail-action-btn detail-save-btn" style="background:${inWatch ? 'var(--amber)' : 'rgba(22,27,34,0.8)'};color:${inWatch ? 'var(--bg)' : 'var(--text)'}">${icon('star', 13)} ${inWatch ? 'Saved' : 'Save'}</button>
         </div>
       </div>
     </div>
@@ -97,9 +122,10 @@ function openTMDBDetail(item) {
   setTimeout(() => detailEl.scrollTop = 0, 10);
 
   // Fetch trailer
-  const trailerUrl = item.id ? `/api/tmdb/${item.mt === 'tv' ? 'tv' : 'movie'}/${item.id}/videos?api_key=${App.keys.tmdbKey}` : '';
-  if (trailerUrl) {
-    fetch(trailerUrl).then(r => r.json()).then(d => {
+  const trailerPath = item.id ? `/api/tmdb/${item.mt === 'tv' ? 'tv' : 'movie'}/${item.id}/videos` : '';
+  if (trailerPath) {
+    fetch(trailerPath, { headers: { 'x-tmdb-key': App.keys.tmdbKey } }).then(r => r.json()).then(d => {
+      if (!detailIsCurrent()) return;
       const vids = d.results || [];
       const trailer = vids.find(v => v.type === 'Trailer' && v.site === 'YouTube');
       if (trailer) {
@@ -112,8 +138,9 @@ function openTMDBDetail(item) {
 
   // Fetch IMDB link via TMDB external IDs
   if (item.id) {
-    const extUrl = `/api/tmdb/${item.mt === 'tv' ? 'tv' : 'movie'}/${item.id}/external_ids?api_key=${App.keys.tmdbKey}`;
-    fetch(extUrl).then(r => r.json()).then(d => {
+    const extPath = `/api/tmdb/${item.mt === 'tv' ? 'tv' : 'movie'}/${item.id}/external_ids`;
+    fetch(extPath, { headers: { 'x-tmdb-key': App.keys.tmdbKey } }).then(r => r.json()).then(d => {
+      if (!detailIsCurrent()) return;
       const imdbId = d.imdb_id;
       if (imdbId) {
         const el = document.getElementById('imdbRating');
@@ -176,6 +203,7 @@ async function loadRecommendations(item) {
       tmdbGet(detailEndpoint).catch(() => ({})),
       tmdbGet(recEndpoint).catch(() => ({})),
     ]);
+    if (!detailIsCurrent()) return;
 
     // Display genres
     const genres = detailData.genres || [];
@@ -211,8 +239,18 @@ async function loadRecommendations(item) {
       const title = r.title || r.name || '';
       const year = (r.release_date || r.first_air_date || '').split('-')[0];
       const mt = r.media_type || type;
+      const rec = {
+        id: r.id,
+        mt: jsInlineStr(mt),
+        title: jsInlineStr(title),
+        year: jsInlineStr(year),
+        poster: jsInlineStr(r.poster_path || ''),
+        backdrop: jsInlineStr(r.backdrop_path || ''),
+        overview: jsInlineStr(r.overview || ''),
+        rating: r.vote_average || 0,
+      };
       return `<div class="card" role="button" tabindex="0" aria-label="Open details: ${escHtml(title)}"
-        onclick="openTMDBDetail({id:${r.id},mt:'${mt}',title:'${escHtml(title).replace(/'/g, "\\'")}',year:'${year || ''}',poster:'${r.poster_path || ''}',backdrop:'${r.backdrop_path || ''}',overview:'${(r.overview || '').replace(/'/g, "\\'").replace(/\n/g, ' ')}',rating:${r.vote_average || 0}})">
+        onclick="openTMDBDetail({id:${rec.id},mt:'${rec.mt}',title:'${rec.title}',year:'${rec.year}',poster:'${rec.poster}',backdrop:'${rec.backdrop}',overview:'${rec.overview}',rating:${rec.rating}})">
         <img src="https://image.tmdb.org/t/p/w185${r.poster_path}" alt="${escHtml(title)}" loading="lazy" />
         <div class="card-info"><div class="card-title" title="${escHtml(title)}">${escHtml(title)}</div>${year ? `<div class="card-year">${year}</div>` : ''}</div>
       </div>`;
@@ -225,10 +263,12 @@ async function loadRecommendations(item) {
 async function fetchTVSeasons(tmdbId) {
   try {
     const data = await tmdbGet('/tv/' + tmdbId);
+    if (!detailIsCurrent()) return;
     _detailSeasons = (data.seasons || []).filter(s => s.season_number > 0);
     renderSeasonBar();
     searchSeason(1);
   } catch (e) {
+    if (!detailIsCurrent()) return;
     document.getElementById('autoSearchHint').style.display = 'block';
     autoSearchTorrents(_detailItem.title, _detailItem.year, _detailItem.id, _detailItem.mt, 1);
   }
@@ -289,6 +329,8 @@ async function runTorrentSearch(query) {
   ];
 
   const settled = await Promise.allSettled(sources.map(s => s.fn()));
+  if (!detailIsCurrent()) return;
+  _detailScrapeFailed = settled.length > 0 && settled.every(r => r.status === 'rejected');
   let allResults = [];
   settled.forEach(r => {
     if (r.status === 'fulfilled' && Array.isArray(r.value)) {
@@ -316,6 +358,7 @@ async function runTorrentSearch(query) {
   if (torboxKey && _detailResults.length > 0) {
     await checkTorBoxCache(_detailResults, torboxKey);
   }
+  if (!detailIsCurrent()) return;
 
   loading.style.display = 'none';
 
@@ -358,7 +401,9 @@ function renderFromResults() {
   if (!grid) return;
 
   if (!_detailResults.length) {
-    grid.innerHTML = '<div class="detail-empty">No torrents found</div>';
+    grid.innerHTML = _detailScrapeFailed
+      ? '<div class="detail-empty">Torrent sources are unreachable right now — check your connection and try again.</div>'
+      : '<div class="detail-empty">No torrents found</div>';
     return;
   }
 

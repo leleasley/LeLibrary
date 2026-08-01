@@ -12,6 +12,13 @@ let libraryState = {
   yearFilter: '',
 };
 
+// Selection identity must include the source: TorBox torrents, TorBox usenet
+// and Real-Debrid all use their own independent numeric id sequences, so a
+// raw id can refer to multiple different downloads.
+function selKey(item) {
+  return (item.source || 'tb') + '|' + item.id;
+}
+
 function renderLibraryView() {
   // Cleanup previous observer
   if (libraryState.scrollObserver) { libraryState.scrollObserver.disconnect(); libraryState.scrollObserver = null; }
@@ -23,7 +30,6 @@ function renderLibraryView() {
   const items = App.allItems || [];
   libraryState.currentTab = 'all';
   libraryState.selectedIds.clear();
-
   // Pre-compute counts once
   let movieCount = 0, seriesCount = 0;
   for (const i of items) {
@@ -99,6 +105,15 @@ function renderLibraryView() {
   `;
 
   addBackBtn(libraryView);
+
+  // Re-apply the persisted sort/filter values to the freshly-built controls so
+  // the dropdowns don't visually disagree with the active sort/filter.
+  const sortSel = document.getElementById('libSort');
+  if (sortSel) sortSel.value = libraryState.sortBy;
+  const sizeSel = document.getElementById('libSizeFilter');
+  if (sizeSel) sizeSel.value = libraryState.sizeFilter;
+  const yearInp = document.getElementById('libYearFilter');
+  if (yearInp) yearInp.value = libraryState.yearFilter;
 
   libraryState.filteredItems = getFilteredLibraryItems();
   renderLibraryList();
@@ -219,7 +234,7 @@ function setLibraryYearFilter(val) {
 
 function markSelectedWatched() {
   if (libraryState.selectedIds.size === 0) return;
-  const items = App.allItems.filter(i => libraryState.selectedIds.has(i.id));
+  const items = App.allItems.filter(i => libraryState.selectedIds.has(selKey(i)));
   markManyWatched(items);
   libraryState.selectedIds.clear();
   updateBatchBar();
@@ -244,7 +259,7 @@ function createLibraryListItem(item, idx) {
   if (item.source === 'realdebrid') { sourceLabel = 'RD'; sourceClass = 'rd'; }
   else if (item.source === 'usenet') { sourceLabel = 'Usenet'; sourceClass = 'usenet'; }
   else { sourceLabel = 'Torrent'; sourceClass = 'torrent'; }
-  const isSelected = libraryState.selectedIds.has(item.id);
+  const isSelected = libraryState.selectedIds.has(selKey(item));
   const isDupe = isDuplicateExtra(item);
   const dupeBadge = isDupe ? ' <span class="badge badge-dupe">DUPE</span>' : '';
   const watched = isWatched(item);
@@ -252,10 +267,10 @@ function createLibraryListItem(item, idx) {
 
   const el = document.createElement('div');
   el.className = 'list-item' + (isSelected ? ' selected' : '') + (watched ? ' watched' : '');
-  el.setAttribute('data-item-id', item.id);
+  el.setAttribute('data-sel-key', selKey(item));
 
   el.innerHTML = `
-    <div class="cb"><input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleLibrarySelect(${item.id}, this.checked)" /></div>
+    <div class="cb"><input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleLibrarySelect('${selKey(item)}', this.checked)" /></div>
     <div class="list-info">
       <div class="list-title">${escHtml(parsed.cleanName)}${parsed.year ? `<span class="year">(${escHtml(parsed.year)})</span>` : ''}${dupeBadge}${watchedBadge}</div>
       <div class="list-filename" title="${escHtml(name)}">${escHtml(name)}</div>
@@ -267,7 +282,7 @@ function createLibraryListItem(item, idx) {
         <span class="badge badge-${state}">${stateLabel}</span>
       </div>
     </div>
-    <button class="btn-watch" onclick="toggleWatchedItem(${item.id})" title="${watched ? 'Mark as not watched' : 'Mark as watched'}">${watched ? icon('x', 14) : icon('check', 14)}</button>
+    <button class="btn-watch" onclick="toggleWatchedItem('${selKey(item)}')" title="${watched ? 'Mark as not watched' : 'Mark as watched'}">${watched ? icon('x', 14) : icon('check', 14)}</button>
     <button class="btn-delete" onclick='deleteLibraryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})' title="Delete">${icon('trash', 14)}</button>
   `;
 
@@ -284,17 +299,17 @@ function createLibraryCard(item, idx) {
   if (item.source === 'realdebrid') { sourceLabel = 'RD'; sourceClass = 'rd'; }
   else if (item.source === 'usenet') { sourceLabel = 'Usenet'; sourceClass = 'usenet'; }
   else { sourceLabel = 'Torrent'; sourceClass = 'torrent'; }
-  const isSelected = libraryState.selectedIds.has(item.id);
+  const isSelected = libraryState.selectedIds.has(selKey(item));
   const isDupe = isDuplicateExtra(item);
   const watched = isWatched(item);
 
   const el = document.createElement('div');
   el.className = 'card' + (isSelected ? ' selected' : '') + (watched ? ' watched' : '');
-  el.setAttribute('data-item-id', item.id);
+  el.setAttribute('data-sel-key', selKey(item));
   el.style.cursor = 'pointer';
 
   el.innerHTML = `
-    <div class="cb lib-card-cb"><input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleLibrarySelect(${item.id}, this.checked)" title="Select" /></div>
+    <div class="cb lib-card-cb"><input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleLibrarySelect('${selKey(item)}', this.checked)" title="Select" /></div>
     ${isDupe ? '<div class="card-badge" style="background:var(--error)">DUPE</div>' : ''}
     ${watched ? '<div class="card-badge" style="right:38px;background:var(--success)">✓</div>' : ''}
     <div class="card-info">
@@ -308,30 +323,29 @@ function createLibraryCard(item, idx) {
       </div>
     </div>
     <div class="torrent-card-actions" style="padding:8px">
-      <button class="btn-action btn-download" onclick="toggleWatchedItem(${item.id})" title="${watched ? 'Mark as not watched' : 'Mark as watched'}" aria-label="${watched ? 'Mark as not watched' : 'Mark as watched'}: ${escHtml(parsed.cleanName)}">${watched ? icon('x', 10) + ' Unwatch' : icon('check', 10) + ' Watched'}</button>
+      <button class="btn-action btn-download" onclick="toggleWatchedItem('${selKey(item)}')" title="${watched ? 'Mark as not watched' : 'Mark as watched'}" aria-label="${watched ? 'Mark as not watched' : 'Mark as watched'}: ${escHtml(parsed.cleanName)}">${watched ? icon('x', 10) + ' Unwatch' : icon('check', 10) + ' Watched'}</button>
       <button class="btn-action btn-report" onclick='deleteLibraryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})' title="Delete" aria-label="Delete: ${escHtml(parsed.cleanName)}">${icon('trash', 10)} Delete</button>
     </div>
   `;
   el.onclick = (e) => {
     if (e.target.closest('button') || e.target.closest('input')) return;
-    toggleLibrarySelect(item.id, !isSelected);
+    toggleLibrarySelect(selKey(item), !isSelected);
   };
   return el;
 }
 
-function toggleWatchedItem(id) {
-  const item = App.allItems.find(i => i.id === id);
+function toggleWatchedItem(key) {
+  const item = App.allItems.find(i => selKey(i) === key);
   if (!item) return;
   toggleWatched(item);
   renderLibraryList();
 }
 
-function toggleLibrarySelect(id, checked) {
-  if (checked) libraryState.selectedIds.add(id); else libraryState.selectedIds.delete(id);
+function toggleLibrarySelect(key, checked) {
+  if (checked) libraryState.selectedIds.add(key); else libraryState.selectedIds.delete(key);
   // Update all visible items
-  document.querySelectorAll('#libraryContent [data-item-id]').forEach(el => {
-    const itemId = parseInt(el.getAttribute('data-item-id'));
-    if (itemId === id) {
+  document.querySelectorAll('#libraryContent [data-sel-key]').forEach(el => {
+    if (el.getAttribute('data-sel-key') === key) {
       el.classList.toggle('selected', checked);
       const cb = el.querySelector('input[type="checkbox"]');
       if (cb) cb.checked = checked;
@@ -342,25 +356,25 @@ function toggleLibrarySelect(id, checked) {
 
 function selectAllToggle() {
   const filtered = libraryState.filteredItems;
-  const allSelected = filtered.length > 0 && filtered.every(i => libraryState.selectedIds.has(i.id));
+  const allSelected = filtered.length > 0 && filtered.every(i => libraryState.selectedIds.has(selKey(i)));
   if (allSelected) {
-    filtered.forEach(i => libraryState.selectedIds.delete(i.id));
+    filtered.forEach(i => libraryState.selectedIds.delete(selKey(i)));
   } else {
-    filtered.forEach(i => libraryState.selectedIds.add(i.id));
+    filtered.forEach(i => libraryState.selectedIds.add(selKey(i)));
   }
   // Update visible checkboxes
-  document.querySelectorAll('#libraryContent [data-item-id]').forEach(el => {
-    const id = parseInt(el.getAttribute('data-item-id'));
+  document.querySelectorAll('#libraryContent [data-sel-key]').forEach(el => {
+    const key = el.getAttribute('data-sel-key');
     const cb = el.querySelector('input[type="checkbox"]');
-    if (cb) cb.checked = libraryState.selectedIds.has(id);
-    el.classList.toggle('selected', libraryState.selectedIds.has(id));
+    if (cb) cb.checked = libraryState.selectedIds.has(key);
+    el.classList.toggle('selected', libraryState.selectedIds.has(key));
   });
   updateBatchBar();
 }
 
 function clearSelection() {
   libraryState.selectedIds.clear();
-  document.querySelectorAll('#libraryContent [data-item-id]').forEach(el => {
+  document.querySelectorAll('#libraryContent [data-sel-key]').forEach(el => {
     el.classList.remove('selected');
     const cb = el.querySelector('input[type="checkbox"]');
     if (cb) cb.checked = false;
@@ -392,9 +406,10 @@ async function deleteLibraryItem(item) {
       const path = item.source === 'torrent' ? '/torrents/' + item.id : '/usenet/' + item.id;
       await torboxDelete(path, tbKey);
     }
-    App.allItems = App.allItems.filter(i => i.id !== item.id);
-    libraryState.selectedIds.delete(item.id);
+    App.allItems = App.allItems.filter(i => !(i.source === item.source && String(i.id) === String(item.id)));
+    libraryState.selectedIds.delete(selKey(item));
     libraryState.filteredItems = getFilteredLibraryItems();
+    buildLibraryIndex();
     renderLibraryList();
     showToast('Deleted "' + name + '"');
   } catch (err) {
@@ -409,24 +424,25 @@ async function deleteSelected(skipConfirm) {
   const tbKey = App.keys.torboxKey;
   const rdKey = App.keys.rdKey;
   let deleted = 0;
-  for (const id of libraryState.selectedIds) {
-    const item = App.allItems.find(i => i.id === id);
+  for (const key of libraryState.selectedIds) {
+    const item = App.allItems.find(i => selKey(i) === key);
     if (!item) continue;
     try {
       if (item.source === 'realdebrid') {
-        await rdDelete('/torrents/delete/' + id, rdKey);
+        await rdDelete('/torrents/delete/' + item.id, rdKey);
       } else {
-        const path = item.source === 'torrent' ? '/torrents/' + id : '/usenet/' + id;
+        const path = item.source === 'torrent' ? '/torrents/' + item.id : '/usenet/' + item.id;
         await torboxDelete(path, tbKey);
       }
       deleted++;
     } catch (err) {
-      showError('Delete failed for item ' + id + ': ' + err.message);
+      showError('Delete failed for item ' + item.id + ': ' + err.message);
     }
   }
-  App.allItems = App.allItems.filter(i => !libraryState.selectedIds.has(i.id));
+  App.allItems = App.allItems.filter(i => !libraryState.selectedIds.has(selKey(i)));
   libraryState.selectedIds.clear();
   libraryState.filteredItems = getFilteredLibraryItems();
+  buildLibraryIndex();
   updateBatchBar();
   renderLibraryList();
   showToast('Deleted ' + deleted + ' item(s)');
@@ -476,7 +492,7 @@ function findDuplicates() {
   for (const group of Object.values(dupeGroups)) {
     const sorted = group.slice().sort((a, b) => (b.size || 0) - (a.size || 0));
     for (let i = 1; i < sorted.length; i++) {
-      libraryState.selectedIds.add(sorted[i].id);
+      libraryState.selectedIds.add(selKey(sorted[i]));
     }
   }
 
@@ -509,7 +525,7 @@ function clearDuplicateMode() {
 
 function isDuplicateExtra(item) {
   if (!libraryState.duplicateMode) return false;
-  return libraryState.selectedIds.has(item.id);
+  return libraryState.selectedIds.has(selKey(item));
 }
 
 function deleteDuplicateExtras() {

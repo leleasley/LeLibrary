@@ -123,12 +123,14 @@ function toggleShortcutsSetting(el) {
   el.classList.toggle('active');
 }
 
-function clearAllData() {
+async function clearAllData() {
   if (!confirm('This will remove all your API keys, watchlist, and settings. Are you sure?')) return;
   localStorage.removeItem('lelibrary_encrypted');
   localStorage.removeItem('lelibrary_watchlist');
   localStorage.removeItem('lelibrary_settings');
+  localStorage.removeItem('lelibrary_watched');
   sessionStorage.removeItem('lelibrary_password');
+  await clearLibraryCache();
   window.location.reload();
 }
 
@@ -168,7 +170,7 @@ function importWatchlist(event) {
   event.target.value = '';
 }
 
-const APP_VERSION = '3.0.3';
+const APP_VERSION = '3.1.0';
 async function checkMylibraryVersion() {
   const row = document.getElementById('versionCheckRow');
   const msg = document.getElementById('versionCheckMsg');

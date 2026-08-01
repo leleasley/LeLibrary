@@ -799,8 +799,8 @@
       </div>
 
       <div class="referral-compact" style="margin-top:8px;">
-        <span>Need a Real-Debrid account? Use referral <a href="http://real-debrid.com/?id=14493200" target="_blank" style="color:var(--amber);text-decoration:none;font-weight:600">real-debrid.com/?id=14493200</a></span>
-        <button class="btn-copy-sm" onclick="copyRefText('http://real-debrid.com/?id=14493200')">Copy</button>
+        <span>Need a Real-Debrid account? Use referral <a href="https://real-debrid.com/?id=14493200" target="_blank" style="color:var(--amber);text-decoration:none;font-weight:600">real-debrid.com/?id=14493200</a></span>
+        <button class="btn-copy-sm" onclick="copyRefText('https://real-debrid.com/?id=14493200')">Copy</button>
       </div>
 
       <div class="url-warning">Protect this page — anyone with the URL can access your configuration.</div>
@@ -836,7 +836,7 @@
         <div class="field" id="rdKeyField">
           <div class="field-label">
             Real-Debrid API Key <span class="req" id="rdReq">*</span>
-            <a href="http://real-debrid.com/?id=14493200" target="_blank">Get key →</a>
+            <a href="https://real-debrid.com/?id=14493200" target="_blank">Get key →</a>
           </div>
           <div class="input-row">
             <input type="password" id="rdApiKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
@@ -1246,10 +1246,10 @@
       const provider = document.getElementById('posterProvider').value;
       const samples = { erdb: { url: () => {
         const t = document.getElementById('erdbToken').value.trim();
-        return t ? `https://easyratingsdb.com/${t}/poster/tt0133093.jpg` : null;
+        return t ? `https://easyratingsdb.com/${encodeURIComponent(t)}/poster/tt0133093.jpg` : null;
       }, label: 'ERDB' }, rpdb: { url: () => {
         const k = document.getElementById('rpdbKey').value.trim();
-        return k ? `https://api.ratingposterdb.com/${k}/imdb/poster-default/tt0133093.jpg?fallback=true` : null;
+        return k ? `https://api.ratingposterdb.com/${encodeURIComponent(k)}/imdb/poster-default/tt0133093.jpg?fallback=true` : null;
       }, label: 'RPDB' }, fanart: { url: () => null, label: 'Fanart.tv' } };
       const s = samples[provider];
       let html;
@@ -1356,7 +1356,29 @@
 
     function copyModalUrl() {
       const url = document.getElementById('modalManifestUrl').textContent;
-      navigator.clipboard.writeText(url).then(() => showToast('URL copied!'));
+      copyText(url, 'URL copied!');
+    }
+
+    // Copy with a fallback for non-HTTPS (LAN) contexts where the async
+    // Clipboard API is unavailable, plus feedback on failure.
+    function copyText(text, okMsg) {
+      const done = () => showToast(okMsg || 'Copied!');
+      const fail = () => showToast('Copy failed — select the text and copy manually', 'error');
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done).catch(fail);
+        return;
+      }
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        ok ? done() : fail();
+      } catch { fail(); }
     }
 
     function showToast(msg) {
@@ -1420,7 +1442,11 @@
       btn.textContent = '⏳';
       btn.className = 'btn-verify';
       try {
-        const r = await fetch('/api/verify/' + service + '?key=' + encodeURIComponent(val));
+        const r = await fetch('/api/verify/' + service, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: val })
+        });
         const d = await r.json();
         if (d.valid) {
           btn.className = 'btn-verify verified';
@@ -1535,7 +1561,11 @@
         document.querySelector('#btnGenerate small').textContent = 'Validating your API keys';
 
         const results = await Promise.all(checks.map(c =>
-          fetch('/api/verify/' + c.service + '?key=' + encodeURIComponent(c.key))
+          fetch('/api/verify/' + c.service, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: c.key })
+          })
             .then(r => r.json().catch(() => ({ networkError: true })))
             .then(d => ({ ...c, d }))
             .catch(() => ({ ...c, d: { networkError: true } }))
@@ -1628,6 +1658,7 @@
         return;
       }
       // New user — scroll to links
+      initialConfig = getCurrentConfig();
       btn.disabled = false;
       document.getElementById('genBtnTitle').textContent = originalLabel;
       document.getElementById('btnDesktop').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1635,24 +1666,42 @@
 
     function copyUrl(btn) {
       const url = document.getElementById('manifestUrl').textContent;
-      navigator.clipboard.writeText(url).then(() => {
-        showToast('URL copied!');
-        flashCopied(btn);
-      });
+      const flash = () => flashCopied(btn);
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(url).then(() => { showToast('URL copied!'); flash(); }).catch(() => flash());
+        return;
+      }
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); showToast('URL copied!'); } catch { showToast('Copy failed — select the URL manually', 'error'); }
+      document.body.removeChild(ta);
+      flash();
     }
 
     function copyRef(btn) {
       const code = document.getElementById('refCode').textContent;
-      navigator.clipboard.writeText(code).then(() => {
-        showToast('Code copied!');
-        flashCopied(btn);
-      });
+      const flash = () => flashCopied(btn);
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(code).then(() => { showToast('Code copied!'); flash(); }).catch(() => flash());
+        return;
+      }
+      const ta = document.createElement('textarea');
+      ta.value = code;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); showToast('Code copied!'); } catch { showToast('Copy failed — select the code manually', 'error'); }
+      document.body.removeChild(ta);
+      flash();
     }
 
     function copyRefText(text) {
-      navigator.clipboard.writeText(text).then(() => {
-        showToast('Link copied!');
-      });
+      copyText(text, 'Link copied!');
     }
 
     function flashCopied(btn) {
@@ -1663,8 +1712,9 @@
     }
 
     function resetForm() {
-      ['torboxApiKey', 'tmdbApiKey', 'rdApiKey'].forEach(id => {
+      ['torboxApiKey', 'tmdbApiKey', 'rdApiKey', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'catNameMovies', 'catNameSeries', 'catNameAnime'].forEach(id => {
         const el = document.getElementById(id);
+        if (!el) return;
         el.value = '';
         el.classList.remove('invalid');
       });
@@ -1672,6 +1722,15 @@
       document.getElementById('provider').value = 'both';
       document.getElementById('lang').value = 'en-US';
       document.getElementById('sortBy').value = 'data_adicao';
+      document.getElementById('rdCatalog').value = 'merge';
+      document.getElementById('posterProvider').value = 'tmdb';
+      document.getElementById('enhanceBackground').checked = false;
+      document.getElementById('enhanceLogo').checked = false;
+      document.getElementById('hideAnime').checked = false;
+      customStreams = [];
+      renderCustomStreams();
+      onPosterChange();
+      updatePosterPreview();
       document.getElementById('catalogModeSection').style.display = 'block';
       document.getElementById('btnDesktop').classList.remove('show');
       document.getElementById('btnWeb').classList.remove('show');
@@ -1687,7 +1746,7 @@
       onProviderChange();
     }
 
-    const APP_VERSION = '3.0.3';
+    const APP_VERSION = '3.1.0';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');
@@ -1779,6 +1838,10 @@
         const el = document.getElementById(id);
         if (el) el.addEventListener('change', checkChanged);
       });
+      ['csName', 'csUrl', 'csType'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', checkChanged);
+      });
       ['erdbToken', 'rpdbKey'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', updatePosterPreview);
@@ -1794,7 +1857,14 @@
       }
     });
 
-    document.addEventListener('keydown', e => { if (e.key === 'Enter') generate(); });
+    // Enter on inputs triggers generate; everywhere else (custom-stream fields,
+    // modal, buttons) it must NOT silently regenerate/override the form.
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      const t = e.target;
+      if (t && t.tagName && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
+      generate();
+    });
 
     async function clearCache() {
       const btn = document.getElementById('btnRefresh');
@@ -1803,7 +1873,7 @@
       btn.disabled = true;
       btn.innerHTML = '<div class="ico">⏳</div><div class="txt"><span>Clearing cache...</span></div>';
       try {
-        const r = await fetch('/api/clear-cache/' + token);
+        const r = await fetch('/api/clear-cache/' + token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
         const d = await r.json();
         if (d.success) {
           btn.innerHTML = '<div class="ico">✅</div><div class="txt"><span>Cache cleared!</span><small>Now refresh your app</small></div>';

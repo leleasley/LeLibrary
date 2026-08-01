@@ -27,6 +27,7 @@ let genreState = {
   isLoading: false,
   items: [],
   scrollObserver: null,
+  reqToken: 0,
 };
 
 function renderGenreView() {
@@ -73,6 +74,7 @@ function switchGenreType(type) {
   genreState.items = [];
   genreState.page = 1;
   genreState.hasMore = false;
+  genreState.reqToken++;
 
   document.querySelectorAll('.genre-type-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.type === type);
@@ -94,6 +96,7 @@ function selectGenre(genreId, genreName) {
   genreState.items = [];
   genreState.page = 1;
   genreState.hasMore = false;
+  genreState.reqToken++;
 
   document.querySelectorAll('.genre-chip').forEach(c => {
     c.classList.toggle('active', parseInt(c.dataset.id) === genreId);
@@ -113,6 +116,7 @@ function selectGenre(genreId, genreName) {
 async function loadGenrePage(endpoint, page, replace) {
   if (genreState.isLoading) return;
   genreState.isLoading = true;
+  const myToken = genreState.reqToken;
   const grid = document.getElementById('genreGrid');
   const loadMore = document.getElementById('genreLoadMore');
 
@@ -125,6 +129,7 @@ async function loadGenrePage(endpoint, page, replace) {
   try {
     const sep = endpoint.includes('?') ? '&' : '?';
     const data = await tmdbGet(endpoint + sep + 'page=' + page);
+    if (myToken !== genreState.reqToken) return;
     const items = (data.results || []).filter(i => i.poster_path);
 
     if (replace) grid.innerHTML = '';
@@ -167,7 +172,7 @@ async function loadGenrePage(endpoint, page, replace) {
       genreState.scrollObserver.observe(loadMore);
     }
   } catch (err) {
-    loadMore.innerHTML = '<p style="color:var(--error);font-size:12px">Error loading content</p>';
+    loadMore.innerHTML = `<p style="color:var(--error);font-size:12px">${escHtml(friendlyError(err, 'Could not load content — check your TMDB key and connection.'))}</p>`;
     loadMore.style.display = 'block';
   } finally {
     genreState.isLoading = false;

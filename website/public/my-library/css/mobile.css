@@ -33,6 +33,9 @@
   .bottom-nav { display: block; }
   body { padding-bottom: 70px; }
 
+  /* No "Back to Dashboard" button on mobile — the bottom nav covers it */
+  .back-btn { display: none; }
+
   .container { padding: 0 10px; }
 
   .list-item { gap: 8px; padding: 8px 4px; }
@@ -81,6 +84,18 @@
 }
 .mobile-menu a:last-child { border-bottom: none; }
 .mobile-menu a:hover { color: var(--white); }
+
+/* Compact one-row actions (Refresh · Settings · Logout) under Home */
+.mobile-menu-actions {
+  display: flex; align-items: center; gap: 20px;
+  padding: 12px 0 4px;
+}
+.mobile-menu-actions a.mobile-menu-action {
+  border-bottom: none; padding: 8px 0; font-size: 14px;
+}
+.mobile-menu-actions a.mobile-menu-action:hover { color: var(--white); }
+.mobile-menu-actions a.mobile-menu-logout { color: var(--error); }
+.mobile-menu-actions a.mobile-menu-logout:hover { color: var(--error); }
 
 @media (min-width: 769px) {
   .hamburger { display: none !important; }

@@ -18,6 +18,15 @@ try {
 
 const ROOT_DIR = path.resolve(__dirname);
 
+const http  = require('http');
+const https = require('https');
+// Reuse TCP/TLS connections to provider APIs (TorBox, Real-Debrid, TMDB).
+// axios opens a brand-new connection per request by default and each TLS
+// handshake can cost 100ms–1s depending on the provider — keep-alive makes the
+// repeated calls (key verify, catalog/meta/stream builds, TMDB proxy) faster.
+http.globalAgent.keepAlive  = true;
+https.globalAgent.keepAlive = true;
+
 const TTL_CATALOG = parseInt(process.env.CACHE_TTL_CATALOG) || 3600;  // default 1h
 const TTL_STREAM  = parseInt(process.env.CACHE_TTL_STREAM)  || 600;  // default 10min
 
@@ -51,10 +60,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// Never log query strings (they used to carry API keys) or base64 config
+// tokens (which contain the keys) — redact long base64url-looking segments.
+function maskSensitivePath(p) {
+  return p.split('/').map(seg => /^[A-Za-z0-9_-]{16,}$/.test(seg) ? '[token]' : seg).join('/');
+}
+
 app.use((req, res, next) => {
-  const url = req.url;
+  const url = req.originalUrl || req.url;
   const isAsset = /\.(css|js|png|jpg|jpeg|svg|webp|ico|webmanifest|woff2?|ttf|map)(\?|$)/i.test(url) || url.startsWith('/img/');
-  if (!isAsset) console.log(`[REQ] ${req.method} ${url}`);
+  if (!isAsset) console.log(`[REQ] ${req.method} ${maskSensitivePath(req.path)}`);
   next();
 });
 
@@ -94,28 +109,35 @@ function decodeConfig(str) {
   } catch { return null; }
 }
 
+function safeDecode(s) {
+  try { return decodeURIComponent(s); } catch { return s; }
+}
+
 function parseExtra(str) {
   const extra = {};
   if (!str || typeof str !== 'string' || str.length > 512) return extra;
-  str.split('&').forEach(pair => {
-    const eq = pair.indexOf('=');
-    if (eq > 0) {
-      const key = decodeURIComponent(pair.slice(0, eq));
-      const val = decodeURIComponent(pair.slice(eq + 1));
-      if (key.length < 50 && val.length < 200) extra[key] = val;
-    }
-  });
+  try {
+    str.split('&').forEach(pair => {
+      const eq = pair.indexOf('=');
+      if (eq > 0) {
+        const key = safeDecode(pair.slice(0, eq));
+        const val = safeDecode(pair.slice(eq + 1));
+        if (key.length < 50 && val.length < 200) extra[key] = val;
+      }
+    });
+  } catch { /* malformed input — ignore and return what we parsed */ }
   return extra;
 }
 
 const TYPES   = ['movie', 'series', 'anime'];
 const REFRESH = 2 * 60 * 1000;
 
-// Fingerprint of a user's library. Includes updated_at so in-place edits
-// (renames, file changes) also trigger a rebuild, not just add/remove.
+// Fingerprint of a user's library. Includes updated_at AND the name so in-place
+// edits (renames, file changes) also trigger a rebuild, not just add/remove —
+// Real-Debrid items have no updated_at, so name is what catches renames there.
 function hashDownloads(downloads) {
   return downloads
-    .map(d => `${d.id}:${d.updated_at || d.created_at || ''}`)
+    .map(d => `${d.id}:${d.name || d.filename || ''}:${d.updated_at || d.created_at || ''}`)
     .sort()
     .join(',');
 }
@@ -189,7 +211,7 @@ function getLogoUrl(baseUrl) {
 function getBaseManifest(baseUrl) {
   return {
     id: 'community.torbox.catalog',
-    version: '3.0.3',
+    version: '3.1.0',
     name: 'LeLibrary',
     description: 'Your personal TorBox catalog with TMDB metadata.',
     logo: getLogoUrl(baseUrl),
@@ -261,7 +283,7 @@ function getConfiguredManifest(baseUrl, config = {}) {
 
   return {
     id: 'community.torbox.catalog',
-    version: '3.0.3',
+    version: '3.1.0',
     name: 'LeLibrary',
     description: 'Your personal library with TMDB metadata.',
     logo: getLogoUrl(baseUrl),
@@ -283,11 +305,16 @@ app.get('/health', async (req, res) => {
   res.json({
     status: 'ok',
     cache: stats,
-    version: '3.0.3',
+    version: '3.1.0',
   });
 });
 
 app.post('/cache/clear', async (req, res) => {
+  // Admin-only: requires CACHE_CLEAR_SECRET to be set. Disabled otherwise,
+  // so no anonymous visitor can wipe the whole cache (a DoS primitive).
+  const secret = process.env.CACHE_CLEAR_SECRET;
+  if (!secret) return res.status(403).json({ success: false, error: 'Global cache clear is disabled. Set CACHE_CLEAR_SECRET to enable.' });
+  if (req.headers['x-cache-secret'] !== secret) return res.status(403).json({ success: false, error: 'Invalid cache secret' });
   try {
     const deleted = await cache.delPattern('*');
     res.json({ success: true, deleted, message: 'Cache cleared successfully' });
@@ -307,6 +334,7 @@ app.post('/:token/cache/clear', async (req, res) => {
     
     const pattern = `*${userKey}*`;
     const deleted = await cache.delPattern(pattern);
+    require('./src/tmdb').clearCaches();
     res.json({ success: true, deleted, message: 'User cache cleared' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

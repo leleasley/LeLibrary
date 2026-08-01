@@ -7,6 +7,19 @@ function escHtml(str) {
   return div.innerHTML;
 }
 
+// Surface a meaningful error message when we have one, otherwise fall back to
+// a generic message. Raw network errors ("Failed to fetch") shouldn't be shown
+// verbatim.
+function friendlyError(err, fallback) {
+  const m = err && err.message;
+  if (!m) return fallback;
+  if (/^TMDB/.test(m) || /^TorBox/.test(m) || /^Real-Debrid/.test(m)
+      || m.includes('API key') || m.includes('rate limit') || m.includes('Rate limited')) {
+    return m;
+  }
+  return fallback;
+}
+
 // Format bytes to human readable
 function formatBytes(bytes) {
   if (!bytes) return '';
@@ -270,4 +283,17 @@ async function getCachedLibrary() {
   } catch (e) {
     return { items: [], lastUpdated: 0 };
   }
+}
+
+// Nuke the IndexedDB library cache so a different account can't see the
+// previous account's cached items. Resolves when the deletion settles.
+function clearLibraryCache() {
+  return new Promise(resolve => {
+    try {
+      const req = indexedDB.deleteDatabase(DB_NAME);
+      req.onsuccess = () => resolve();
+      req.onerror = () => resolve();
+      req.onblocked = () => resolve();
+    } catch (e) { resolve(); }
+  });
 }

@@ -49,12 +49,12 @@ async function renderProfileView() {
         const info = document.getElementById('tbProfileInfo');
         if (!info) return;
         if (!d.success || d.error) {
-          info.innerHTML = renderProfileError('TorBox: ' + (d.error || d.detail || 'Unknown error'));
+          info.innerHTML = renderProfileError('TorBox: ' + escHtml(d.error || d.detail || 'Unknown error'));
           return;
         }
         const data = d.data || {};
         const planMap = { 0: 'Free', 1: 'Essential', 2: 'Pro', 3: 'Standard' };
-        const planName = planMap[data.plan] || 'Plan ' + data.plan;
+        const planName = escHtml(planMap[data.plan] || 'Plan ' + data.plan);
         let statusHtml = '';
         if (data.premium_expires_at && new Date(data.premium_expires_at) > new Date()) {
           statusHtml = '<span class="profile-badge badge-valid">Active</span>';
@@ -64,11 +64,11 @@ async function renderProfileView() {
           statusHtml = '<span class="profile-badge badge-valid">Free</span>';
         }
         info.innerHTML = renderProfileInfo([
-          { label: 'Email', value: data.email || 'N/A' },
+          { label: 'Email', value: escHtml(data.email || 'N/A') },
           { label: 'Plan', value: planName + ' ' + statusHtml },
-          { label: 'Premium Expires', value: data.premium_expires_at ? new Date(data.premium_expires_at).toLocaleDateString() : 'N/A' },
-          { label: 'Cooldown Until', value: data.cooldown_until ? new Date(data.cooldown_until).toLocaleString() : 'None' },
-          { label: 'API Key', value: tbKey.slice(0, 12) + '...' + tbKey.slice(-4) },
+          { label: 'Premium Expires', value: escHtml(data.premium_expires_at ? new Date(data.premium_expires_at).toLocaleDateString() : 'N/A') },
+          { label: 'Cooldown Until', value: escHtml(data.cooldown_until ? new Date(data.cooldown_until).toLocaleString() : 'None') },
+          { label: 'API Key', value: escHtml(tbKey.slice(0, 12) + '...' + tbKey.slice(-4)) },
         ]);
       })
       .catch(() => {
@@ -86,11 +86,11 @@ async function renderProfileView() {
         const info = document.getElementById('tbProfileInfo');
         if (!info) return;
         const subHtml = subs.map(s => renderProfileInfo([
-          { label: 'Plan Name', value: s.name || s.plan_name || 'N/A' },
-          { label: 'Status', value: s.status || s.state || 'N/A' },
-          { label: 'Next Billing', value: s.next_billing_at ? new Date(s.next_billing_at).toLocaleDateString() : 'N/A' },
-          { label: 'Expires', value: s.expires_at ? new Date(s.expires_at).toLocaleDateString() : 'N/A' },
-          { label: 'Price', value: s.amount ? '\u00A3' + (s.amount / 100).toFixed(2) : 'N/A' },
+          { label: 'Plan Name', value: escHtml(s.name || s.plan_name || 'N/A') },
+          { label: 'Status', value: escHtml(s.status || s.state || 'N/A') },
+          { label: 'Next Billing', value: escHtml(s.next_billing_at ? new Date(s.next_billing_at).toLocaleDateString() : 'N/A') },
+          { label: 'Expires', value: escHtml(s.expires_at ? new Date(s.expires_at).toLocaleDateString() : 'N/A') },
+          { label: 'Price', value: escHtml(s.amount ? '\u00A3' + (s.amount / 100).toFixed(2) : 'N/A') },
         ])).join('');
         info.innerHTML += `<div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px"><div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">Subscription</div>${subHtml}</div>`;
       })
@@ -105,19 +105,19 @@ async function renderProfileView() {
         const info = document.getElementById('rdProfileInfo');
         if (!info) return;
         if (d.error || d.error_code) {
-          info.innerHTML = renderProfileError('Real-Debrid: ' + (d.error || 'Invalid API key'));
+          info.innerHTML = renderProfileError('Real-Debrid: ' + escHtml(d.error || 'Invalid API key'));
           return;
         }
         const expired = d.premium === 0;
         const expDate = d.expiration ? new Date(d.expiration).toLocaleDateString() : 'N/A';
         info.innerHTML = renderProfileInfo([
-          { label: 'Username', value: d.username || 'N/A' },
-          { label: 'Email', value: d.email || 'N/A' },
-          { label: 'Type', value: d.type || 'N/A' },
+          { label: 'Username', value: escHtml(d.username || 'N/A') },
+          { label: 'Email', value: escHtml(d.email || 'N/A') },
+          { label: 'Type', value: escHtml(d.type || 'N/A') },
           { label: 'Status', value: expired ? '<span class="profile-badge badge-expired">Expired</span>' : '<span class="profile-badge badge-valid">Active</span>' },
-          { label: 'Expiry', value: expDate },
-          { label: 'Points', value: String(d.points || 0) },
-          { label: 'API Key', value: rdKey.slice(0, 12) + '...' + rdKey.slice(-4) },
+          { label: 'Expiry', value: escHtml(expDate) },
+          { label: 'Points', value: escHtml(String(d.points || 0)) },
+          { label: 'API Key', value: escHtml(rdKey.slice(0, 12) + '...' + rdKey.slice(-4)) },
         ]);
       })
       .catch(() => {

@@ -12,14 +12,30 @@ async function torboxGet(path, apiKey) {
     headers: { 'Authorization': 'Bearer ' + apiKey }
   });
   if (!res.ok) {
-    if (res.status === 401) throw new Error('Invalid API key — check your key at torbox.app/settings');
-    if (res.status === 403) throw new Error('Access denied — your API key may be expired or inactive');
-    if (res.status === 429) throw new Error('Rate limited by TorBox — try again in a minute');
-    if (res.status >= 500) throw new Error('TorBox server error — try again later');
-    throw new Error('TorBox API error: ' + res.status);
+    let msg;
+    if (res.status === 401) msg = 'Invalid TorBox API key — check your key at torbox.app/settings';
+    else if (res.status === 403) msg = 'TorBox access denied — your API key may be expired or inactive';
+    else if (res.status === 429) msg = 'Rate limited by TorBox — try again in a minute';
+    else if (res.status >= 500) msg = 'TorBox server error — try again later';
+    else msg = 'TorBox API error: ' + res.status;
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
   }
   const data = await res.json();
-  if (data.error) throw new Error('TorBox: ' + data.error);
+  // TorBox signals failures in the body too (success:false + detail) — don't
+  // swallow those and return an empty list, or a broken key looks like an
+  // empty library.
+  if (data && data.success === false) {
+    const err = new Error('TorBox: ' + (data.detail || data.error || 'Request failed'));
+    err.status = res.status;
+    throw err;
+  }
+  if (data && data.error) {
+    const err = new Error('TorBox: ' + data.error);
+    err.status = res.status;
+    throw err;
+  }
   return data.data || [];
 }
 
@@ -61,9 +77,13 @@ async function rdGet(path, apiKey) {
     headers: { 'Authorization': 'Bearer ' + apiKey }
   });
   if (!res.ok) {
-    if (res.status === 401) throw new Error('Invalid Real-Debrid API key');
-    if (res.status === 403) throw new Error('Access denied by Real-Debrid');
-    throw new Error('Real-Debrid API error: ' + res.status);
+    let msg;
+    if (res.status === 401) msg = 'Invalid Real-Debrid API key';
+    else if (res.status === 403) msg = 'Access denied by Real-Debrid';
+    else msg = 'Real-Debrid API error: ' + res.status;
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
   }
   return res.json();
 }
@@ -73,7 +93,16 @@ async function rdDelete(path, apiKey) {
     method: 'DELETE',
     headers: { 'Authorization': 'Bearer ' + apiKey }
   });
-  if (!res.ok) throw new Error('Delete failed: ' + res.status);
+  if (!res.ok) {
+    let msg;
+    if (res.status === 401) msg = 'Invalid Real-Debrid API key';
+    else if (res.status === 403) msg = 'Real-Debrid access denied';
+    else if (res.status === 404) msg = 'Item not found on Real-Debrid — it may already be gone';
+    else msg = 'Real-Debrid delete failed: ' + res.status;
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
+  }
   return true;
 }
 
@@ -130,13 +159,35 @@ function uploadTorrentFile(file, apiKey, onProgress) {
 }
 
 // ── TMDB ──────────────────────────────────────────────────────
+
+// TMDB v4 "Read Access Tokens" are JWTs (eyJ….<segment>.<segment>) and
+// expire/aren't accepted where a v3 API key (32-char hex string) is expected.
+function looksLikeV4Token(key) {
+  return /^eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}$/.test(key || '');
+}
+
+function tmdbKeyError() {
+  return 'TMDB rejected your key. If you entered a v4 "Read Access Token", use your v3 API key instead — the 32-character key from your TMDB account settings (themoviedb.org/settings/api).';
+}
+
 async function tmdbGet(path) {
   const tmdbKey = App.keys.tmdbKey;
-  if (!tmdbKey) throw new Error('TMDB API key required');
+  if (!tmdbKey) throw new Error('TMDB API key required — add it on the login screen.');
+  if (looksLikeV4Token(tmdbKey)) throw new Error(tmdbKeyError());
   const cleanPath = path.replace(/^\/+/, '/');
-  const sep = cleanPath.includes('?') ? '&' : '?';
-  const res = await fetch(API.TMDB + cleanPath + sep + 'api_key=' + tmdbKey);
-  if (!res.ok) throw new Error('TMDB error: ' + res.status);
+  const res = await fetch(API.TMDB + cleanPath, {
+    headers: { 'x-tmdb-key': tmdbKey }
+  });
+  if (!res.ok) {
+    let msg;
+    if (res.status === 401) msg = tmdbKeyError();
+    else if (res.status === 429) msg = 'TMDB rate limit reached — wait a minute and try again.';
+    else if (res.status >= 500) msg = 'TMDB is having issues right now — try again in a moment.';
+    else msg = 'TMDB error: ' + res.status;
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
+  }
   return res.json();
 }
 
@@ -214,12 +265,16 @@ async function loadLibraryFromProviders() {
   const usenet = results[1];
   const rdTorrents = results[2];
 
-  if ((torrents.status === 'rejected' || torrents.value?.length === 0) &&
-      (usenet.status === 'rejected' || usenet.value?.length === 0) &&
-      (rdTorrents.status === 'rejected' || rdTorrents.value?.length === 0)) {
-    if (torrents.status === 'rejected' && usenet.status === 'rejected' && rdTorrents.status === 'rejected') {
-      throw new Error('Failed to load: ' + (torrents.reason?.message || rdTorrents.reason?.message || 'Unknown error'));
-    }
+  // Auth failures (401/403) are fatal — surface them so the user knows their
+  // key is wrong. Transient network/server errors just degrade to empty lists
+  // so the other provider's content still shows.
+  const isAuthErr = e => e && e.status && (e.status === 401 || e.status === 403);
+  if (torboxKey) {
+    const authErr = [torrents, usenet].find(r => r.status === 'rejected' && isAuthErr(r.reason))?.reason;
+    if (authErr) throw authErr;
+  }
+  if (rdKey && rdTorrents.status === 'rejected' && isAuthErr(rdTorrents.reason)) {
+    throw rdTorrents.reason;
   }
 
   let items = [];

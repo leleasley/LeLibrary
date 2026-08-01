@@ -33,6 +33,10 @@ Thumbs.db
 website/landing.html
 website/index.js
 
+# Private addon identity (id, description, Stremio registry signature) — production-only
+# Self-hosters get a generic self-hosted manifest instead.
+src/registry.js
+
 # IDEs
 .vscode/
 .idea/

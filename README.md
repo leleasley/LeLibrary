@@ -10,6 +10,12 @@
 </p>
 
 <p align="center">
+  <a href="https://buymeacoffee.com/lelew" target="_blank">
+    <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=&slug=lelew&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" alt="Buy me a coffee" width="200">
+  </a>
+</p>
+
+<p align="center">
   <a href="#the-problem">The Problem</a> ·
   <a href="#the-solution">The Solution</a> ·
   <a href="#addon-core">Addon</a> ·

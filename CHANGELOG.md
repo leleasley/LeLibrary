@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.1]
+
+### Fixes
+
+- **Series episodes can't disappear for a day anymore**: if TMDB has a hiccup while loading a show's episodes, it retries in a few minutes instead of showing an empty detail page for 24 hours
+- **AllDebrid and Premiumize provider cards work on the configure page**: selecting them now actually activates the card and reveals the key field (a hidden dropdown was silently discarding the new providers)
+
 ## [4.0.0]
 
 ### Configure page redesign

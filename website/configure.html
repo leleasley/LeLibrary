@@ -1142,12 +1142,11 @@
         </div>
 
         <!-- Source of truth for the JS (provider select) -->
-        <select id="provider" style="display:none" onchange="onProviderChange()">
-          <option value="none" selected>None</option>
-          <option value="torbox">TorBox</option>
-          <option value="realdebrid">Real-Debrid</option>
-          <option value="both">Both (TorBox + Real-Debrid)</option>
-        </select>
+        <!-- Source of truth for the JS: a hidden input so it can hold any
+             provider combination ('alldebrid', 'torbox,alldebrid,premiumize', …).
+             A <select> can only hold values that match an <option>, which broke
+             the new providers. -->
+        <input type="hidden" id="provider" />
 
         <div class="step-card" id="catalogModeSection" style="display:none">
           <div class="field-label">Catalog mode</div>
@@ -2185,7 +2184,7 @@
       onProviderChange();
     }
 
-    const APP_VERSION = '4.0.0';
+    const APP_VERSION = '4.0.1';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');

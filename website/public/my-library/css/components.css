@@ -126,6 +126,8 @@
 .badge-torrent { background: rgba(88,166,255,0.1); color: var(--blue); }
 .badge-usenet { background: rgba(139,148,158,0.1); color: var(--muted); }
 .badge-rd { background: rgba(248,81,73,0.1); color: var(--error); }
+.badge-ad { background: rgba(63,185,80,0.12); color: var(--success); }
+.badge-pm { background: rgba(168,85,247,0.14); color: #c084fc; }
 .badge-dupe { background: rgba(210,153,34,0.1); color: var(--warning); }
 
 /* ── Toast ──────────────────────────────────────────────────── */
@@ -206,3 +208,52 @@
   background-size: 200% 100%;
 }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* ── Download progress bar (top) ─────────────────────────────── */
+.download-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+  display: none; align-items: center; gap: 12px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 8px 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+.download-bar.show { display: flex; }
+.download-bar-track {
+  flex: 1; height: 6px; border-radius: 3px; overflow: hidden;
+  background: var(--surface2);
+}
+.download-bar-fill {
+  height: 100%; width: 30%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--amber), var(--amber-dim));
+  animation: dlSweep 1.1s ease-in-out infinite;
+}
+@keyframes dlSweep {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(400%); }
+}
+.download-bar-label { font-size: 12px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+
+/* ── What's new modal ────────────────────────────────────────── */
+.wn-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 200; padding: 16px;
+}
+.wn-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; max-width: 560px; width: 100%; max-height: 80vh;
+  display: flex; flex-direction: column;
+}
+.wn-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.wn-header h3 { font-size: 15px; margin: 0; }
+.wn-close { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; }
+.wn-body {
+  padding: 14px 16px; overflow-y: auto; font-size: 13px;
+  color: var(--text); white-space: pre-wrap; line-height: 1.5;
+}
+.wn-footer {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 12px 16px; border-top: 1px solid var(--border);
+}

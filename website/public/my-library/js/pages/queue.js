@@ -1,6 +1,7 @@
 // ── Queue View (Download Queue) ───────────────────────────────
 
 let queuePollTimer = null;
+let _pmPinShown = false;
 
 function renderQueueView() {
   hideAllViews();
@@ -27,9 +28,11 @@ async function refreshQueue() {
 
   const torboxKey = App.keys.torboxKey;
   const rdKey = App.keys.rdKey;
+  const adKey = App.keys.adKey;
+  const pmKey = App.keys.pmKey;
 
-  if (!torboxKey && !rdKey) {
-    container.innerHTML = `<div class="empty"><div class="icon">${icon('queue', 32)}</div><h3>No provider connected</h3><p>Connect TorBox or Real-Debrid to see your download queue.</p></div>`;
+  if (!torboxKey && !rdKey && !adKey && !pmKey) {
+    container.innerHTML = `<div class="empty"><div class="icon">${icon('queue', 32)}</div><h3>No provider connected</h3><p>Connect a provider to see your download queue.</p></div>`;
     return;
   }
 
@@ -38,6 +41,8 @@ async function refreshQueue() {
       torboxKey ? torboxGet('/torrents/mylist', torboxKey) : Promise.resolve([]),
       torboxKey ? torboxGet('/usenet/mylist', torboxKey) : Promise.resolve([]),
       rdKey ? rdGet('/torrents', rdKey) : Promise.resolve([]),
+      adKey ? adPost('/v4.1/magnet/status', { ids: 'all' }, adKey) : Promise.resolve(null),
+      pmKey ? pmGet('/transfer/list', pmKey) : Promise.resolve(null),
     ]);
 
     // A rejected call must not silently masquerade as an empty queue — surface
@@ -47,8 +52,15 @@ async function refreshQueue() {
       const authErr = [results[0], results[1]].find(r => r.status === 'rejected' && isAuthErr(r.reason))?.reason;
       if (authErr) throw authErr;
     }
-    if (rdKey && results[2].status === 'rejected' && isAuthErr(results[2].reason)) {
-      throw results[2].reason;
+    if (rdKey && results[2].status === 'rejected' && isAuthErr(results[2].reason)) throw results[2].reason;
+    if (adKey && results[3].status === 'rejected' && isAuthErr(results[3].reason)) throw results[3].reason;
+    if (pmKey && results[4].status === 'rejected') {
+      if (results[4].reason?.needPin) {
+        // Show the PIN modal once per session, not on every 5s poll
+        if (!_pmPinShown) { _pmPinShown = true; showPinModal(results[4].reason.pin, results[4].reason.deviceUrl, () => refreshQueue()); }
+      } else if (isAuthErr(results[4].reason)) {
+        throw results[4].reason;
+      }
     }
 
     const torrents = (results[0].status === 'fulfilled' ? results[0].value : [])
@@ -63,8 +75,23 @@ async function refreshQueue() {
         download_finished: t.status === 'downloaded',
         progress: t.progress || 0,
       }));
+    const adMagnets = (results[3].status === 'fulfilled' && results[3].value?.data?.magnets ? results[3].value.data.magnets : [])
+      .map(m => ({
+        id: String(m.id), name: m.filename || m.name || '', filename: m.filename || m.name || '',
+        size: m.size || 0, source: 'alldebrid', provider: 'AllDebrid',
+        download_state: m.statusCode === 5 ? 'completed' : 'downloading',
+        download_finished: m.statusCode === 5,
+        progress: m.statusCode === 5 ? 1 : 0,
+      }));
+    const pmTransfers = (results[4].status === 'fulfilled' && results[4].value?.data?.transfers ? results[4].value.data.transfers : [])
+      .map(t => ({
+        id: String(t.id), name: t.name || '', filename: t.name || '',
+        source: 'premiumize', provider: 'Premiumize',
+        download_state: t.status, download_finished: t.status === 'finished' || t.status === 'seeding',
+        progress: t.progress || 0,
+      }));
 
-    const all = [...torrents, ...usenet, ...rdTorrents];
+    const all = [...torrents, ...usenet, ...rdTorrents, ...adMagnets, ...pmTransfers];
 
     // Categorize — TorBox reports progress on a 0-1 scale (1 = done),
     // Real-Debrid on a 0-100 scale. Treat both correctly.

@@ -2,8 +2,7 @@ const express = require('express');
 const fs      = require('fs');
 const path    = require('path');
 const cache   = require('./src/cache');
-const { getTorBoxDownloads } = require('./src/torbox');
-const { getRealDebridDownloads } = require('./src/realdebrid');
+const providers = require('./src/providers');
 const { buildCatalog, buildMeta, buildStreams, populateTmdbIndexFromMetas } = require('./src/builder');
 
 let createWebRoutes = null;
@@ -149,27 +148,19 @@ function hashDownloads(downloads) {
 }
 
 async function buildAndCacheForConfig(token, config) {
-  const { torboxApiKey, rdApiKey, tmdbApiKey, sortBy = 'data_adicao', lang = 'pt-BR', rdCatalog = 'merge', provider = 'both', erdbToken, rpdbKey, hideAnime } = config;
+  const { tmdbApiKey, sortBy = 'data_adicao', lang = 'pt-BR', rdCatalog = 'merge', erdbToken, rpdbKey, hideAnime } = config;
   if (!tmdbApiKey) return;
 
-  console.log(`[Cache] Refresh for ...${token.slice(-8)} (${lang})`);
-  try {
-    // One provider failing must not prevent the other from being catalogued
-    const safeDownloads = (p, label) => (p || Promise.resolve([])).catch(err => {
-      console.error(`[Cache] ${label} downloads failed (continuing): ${err.message}`);
-      return [];
-    });
-    const [tbDownloads, rdDownloads] = await Promise.all([
-      safeDownloads(torboxApiKey ? getTorBoxDownloads(torboxApiKey) : null, 'TorBox'),
-      safeDownloads(rdApiKey     ? getRealDebridDownloads(rdApiKey)  : null, 'RealDebrid'),
-    ]);
+  const active = providers.activeProviders(config);
+  const userKey = providers.getUserKey(config);
+  if (!active.length) return;
 
-    const tbHash  = hashDownloads(tbDownloads);
-    const rdHash  = hashDownloads(rdDownloads);
-    const newHash = tbHash + '|' + rdHash;
-    const userKey = (torboxApiKey || rdApiKey).slice(-6);
-    const hashKey = cache.makeKey('dlhash', userKey);
-    const oldHash = await cache.get(hashKey);
+  console.log(`[Cache] Refresh for ...${token.slice(-8)} (${lang}) providers=${active.join(',')}`);
+  try {
+    const downloads = await providers.fetchDownloads(config);
+    const newHash   = hashDownloads(downloads);
+    const hashKey   = cache.makeKey('dlhash', userKey);
+    const oldHash   = await cache.get(hashKey);
 
     if (oldHash === newHash) {
       console.log(`[Cache] Downloads unchanged, skip rebuild`);
@@ -179,14 +170,13 @@ async function buildAndCacheForConfig(token, config) {
       return;
     }
 
-    const merged   = [...tbDownloads, ...rdDownloads];
-    const sources  = rdCatalog === 'separate'
-      ? [{ key: 'tb', downloads: tbDownloads }, { key: 'rd', downloads: rdDownloads }]
-      : [{ key: 'merged', downloads: merged }];
+    const sources = rdCatalog === 'separate'
+      ? active.map(id => ({ key: providers.PROVIDER_META[id].cat, downloads: providers.downloadsFor(downloads, id) }))
+      : [{ key: 'merged', downloads }];
 
-    await Promise.all(sources.flatMap(({ key, downloads }) =>
+    await Promise.all(sources.flatMap(({ key, downloads: dl }) =>
       TYPES.map(async type => {
-        const metas    = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip: 0, search: '' }, lang, { erdbToken, rpdbKey }, { userKey, hideAnime });
+        const metas    = await buildCatalog(dl, tmdbApiKey, type, sortBy, { skip: 0, search: '' }, lang, { erdbToken, rpdbKey }, { userKey, hideAnime });
         const cacheKey = cache.makeKey('cat', key, type, sortBy, '', '0', userKey, lang, posterFp(config));
         await cache.set(cacheKey, { metas }, TTL_CATALOG);
         console.log(`[Cache] ${key}:${type} → ${metas.length} items`);
@@ -217,7 +207,7 @@ function getLogoUrl(baseUrl) {
 function getBaseManifest(baseUrl) {
   const manifest = {
     id: (REGISTRY && REGISTRY.addonId) || 'community.torbox.catalog.selfhosted',
-    version: '3.1.0',
+    version: '4.0.0',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -235,65 +225,52 @@ function getBaseManifest(baseUrl) {
 }
 
 function getConfiguredManifest(baseUrl, config = {}) {
-  const { rdApiKey, rdCatalog = 'merge', provider = 'both', catNameMovies, catNameSeries, catNameAnime, hideAnime } = config;
-  const hasRD = !!rdApiKey && (provider === 'both' || provider === 'realdebrid');
-  const hasTB = provider === 'both' || provider === 'torbox';
+  const { rdCatalog = 'merge', catNameMovies, catNameSeries, catNameAnime, hideAnime } = config;
+  const active  = providers.activeProviders(config);
+  const separate = rdCatalog === 'separate';
 
   function catName(def, custom) { return custom || def; }
-  // In separate mode the same custom name would be applied to both the TorBox
-  // and Real-Debrid catalogs, creating indistinguishable duplicate rows.
-  // Disambiguate the Real-Debrid side when a custom name is set.
-  function rdCatName(def, custom) {
-    return custom ? `${custom} (Real-Debrid)` : def;
-  }
 
   const catalogs = [];
+  const addCat = (prefix, nameM, nameS, nameA) => {
+    catalogs.push({ id: `${prefix}-movies`, type: 'movie',  name: nameM, extra: [{ name: 'skip' }, { name: 'search' }] });
+    catalogs.push({ id: `${prefix}-series`, type: 'series', name: nameS, extra: [{ name: 'skip' }, { name: 'search' }] });
+    if (!hideAnime) catalogs.push({ id: `${prefix}-anime`, type: 'series', name: nameA, extra: [{ name: 'skip' }, { name: 'search' }] });
+  };
 
-  if (provider === 'realdebrid') {
-    catalogs.push(
-      { id: 'rd-movies', type: 'movie',  name: catName('🔴 My Movies', catNameMovies), extra: [{ name: 'skip' }, { name: 'search' }] },
-      { id: 'rd-series', type: 'series', name: catName('🔴 My Series',  catNameSeries), extra: [{ name: 'skip' }, { name: 'search' }] },
-    );
-    if (!hideAnime) catalogs.push(
-      { id: 'rd-anime',  type: 'series', name: catName('🔴 LeLibrary Anime',  catNameAnime), extra: [{ name: 'skip' }, { name: 'search' }] },
-    );
-  } else if (provider === 'torbox') {
-    catalogs.push(
-      { id: 'torbox-movies', type: 'movie',  name: catName('🎬 My Movies', catNameMovies), extra: [{ name: 'skip' }, { name: 'search' }] },
-      { id: 'torbox-series', type: 'series', name: catName('📺 My Series',  catNameSeries), extra: [{ name: 'skip' }, { name: 'search' }] },
-    );
-    if (!hideAnime) catalogs.push(
-      { id: 'torbox-anime',  type: 'series', name: catName('🍥 LeLibrary Anime',  catNameAnime), extra: [{ name: 'skip' }, { name: 'search' }] },
-    );
-  } else if (!hasRD || rdCatalog === 'merge') {
-    catalogs.push(
-      { id: 'torbox-movies', type: 'movie',  name: catName('🎬 My Movies', catNameMovies), extra: [{ name: 'skip' }, { name: 'search' }] },
-      { id: 'torbox-series', type: 'series', name: catName('📺 My Series',  catNameSeries), extra: [{ name: 'skip' }, { name: 'search' }] },
-    );
-    if (!hideAnime) catalogs.push(
-      { id: 'torbox-anime',  type: 'series', name: catName('🍥 LeLibrary Anime',  catNameAnime), extra: [{ name: 'skip' }, { name: 'search' }] },
-    );
-  } else {
-    // separate
-    catalogs.push(
-      { id: 'torbox-movies', type: 'movie',  name: catName('🎬 TorBox Films', catNameMovies), extra: [{ name: 'skip' }, { name: 'search' }] },
-      { id: 'torbox-series', type: 'series', name: catName('📺 TorBox Series',  catNameSeries), extra: [{ name: 'skip' }, { name: 'search' }] },
-    );
-    if (!hideAnime) catalogs.push(
-      { id: 'torbox-anime',  type: 'series', name: catName('🍥 TorBox Animes',  catNameAnime), extra: [{ name: 'skip' }, { name: 'search' }] },
-    );
-    catalogs.push(
-      { id: 'rd-movies',     type: 'movie',  name: rdCatName('🔴 Real-Debrid Films', catNameMovies), extra: [{ name: 'skip' }, { name: 'search' }] },
-      { id: 'rd-series',     type: 'series', name: rdCatName('🔴 Real-Debrid Series',  catNameSeries), extra: [{ name: 'skip' }, { name: 'search' }] },
-    );
-    if (!hideAnime) catalogs.push(
-      { id: 'rd-anime',      type: 'series', name: rdCatName('🔴 Real-Debrid Animes',  catNameAnime), extra: [{ name: 'skip' }, { name: 'search' }] },
-    );
+  const EMOJI = { torbox: '🎬', realdebrid: '🔴', alldebrid: '💠', premiumize: '🧲' };
+
+  if (active.length === 1) {
+    const meta = providers.PROVIDER_META[active[0]];
+    addCat(meta.cat,
+      catName('🎬 My Movies', catNameMovies),
+      catName('📺 My Series', catNameSeries),
+      catName('🍥 LeLibrary Anime', catNameAnime));
+  } else if (active.length > 1 && !separate) {
+    // merge — keep the legacy torbox-* ids when torbox is active so existing
+    // installs don't change; otherwise fall back to the first active provider.
+    const prefix = active.includes('torbox') ? 'torbox' : providers.PROVIDER_META[active[0]].cat;
+    addCat(prefix,
+      catName('🎬 My Movies', catNameMovies),
+      catName('📺 My Series', catNameSeries),
+      catName('🍥 LeLibrary Anime', catNameAnime));
+  } else if (active.length > 1) {
+    // separate — one catalog row per provider. When a custom name is set we
+    // disambiguate each provider (legacy behavior: TorBox keeps the plain
+    // custom name, the others get a "(Provider)" suffix).
+    for (const id of active) {
+      const meta = providers.PROVIDER_META[id];
+      const suffix = id === 'torbox' ? '' : ` (${meta.label})`;
+      addCat(meta.cat,
+        catName(`${EMOJI[id] || '📦'} ${meta.label} Films`, catNameMovies) + (catNameMovies && suffix ? suffix : ''),
+        catName(`${EMOJI[id] || '📦'} ${meta.label} Series`, catNameSeries) + (catNameSeries && suffix ? suffix : ''),
+        catName(`${EMOJI[id] || '📦'} ${meta.label} Animes`, catNameAnime) + (catNameAnime && suffix ? suffix : ''));
+    }
   }
 
   return {
     id: (REGISTRY && REGISTRY.addonId) || 'community.torbox.catalog.selfhosted',
-    version: '3.1.0',
+    version: '4.0.0',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -315,7 +292,7 @@ app.get('/health', async (req, res) => {
   res.json({
     status: 'ok',
     cache: stats,
-    version: '3.1.0',
+    version: '4.0.0',
   });
 });
 
@@ -338,8 +315,7 @@ app.post('/:token/cache/clear', async (req, res) => {
   if (!config) return res.status(400).json({ error: 'Invalid token' });
   
   try {
-    const { torboxApiKey, rdApiKey } = config;
-    const userKey = (torboxApiKey || rdApiKey || '').slice(-6);
+    const userKey = providers.getUserKey(config);
     if (!userKey) return res.status(400).json({ error: 'No key configured' });
     
     const pattern = `*${userKey}*`;
@@ -371,11 +347,21 @@ async function handleCatalog(req, res) {
   const config = decodeConfig(req.params.token);
   if (!config) return res.json({ metas: [] });
 
-  const { torboxApiKey, rdApiKey, tmdbApiKey, sortBy = 'data_adicao', lang = 'pt-BR', rdCatalog = 'merge', provider = 'both', erdbToken, rpdbKey, hideAnime } = config;
-  if (!tmdbApiKey || (!torboxApiKey && !rdApiKey)) return res.json({ metas: [] });
+  const { tmdbApiKey, sortBy = 'data_adicao', lang = 'pt-BR', rdCatalog = 'merge', erdbToken, rpdbKey, hideAnime } = config;
+  const active = providers.activeProviders(config);
+  if (!tmdbApiKey || active.length === 0) return res.json({ metas: [] });
 
   const catalogId = req.params.catalogId;
-  const isRDCatalog = catalogId.startsWith('rd-');
+  const prefix    = catalogId.split('-')[0];
+  const separate  = rdCatalog === 'separate';
+
+  // Which provider(s) feed this catalog? In merge mode all active providers;
+  // in separate mode only the provider owning the catalog id prefix.
+  let catalogProviderId = null;
+  if (separate) {
+    catalogProviderId = providers.providerByCat(prefix);
+    if (!catalogProviderId || !active.includes(catalogProviderId)) return res.json({ metas: [] });
+  }
 
   let type;
   if (catalogId.endsWith('-anime'))   type = 'anime';
@@ -394,8 +380,8 @@ async function handleCatalog(req, res) {
     buildAndCacheForConfig(token, config).catch(() => {});
   }
 
-  const userKey  = (torboxApiKey || rdApiKey).slice(-6);
-  const catKey   = rdCatalog === 'separate' ? (isRDCatalog ? 'rd' : 'tb') : 'merged';
+  const userKey  = providers.getUserKey(config);
+  const catKey   = separate ? providers.PROVIDER_META[catalogProviderId].cat : 'merged';
   const cacheKey = cache.makeKey('cat', catKey, type, sortBy, search, skip.toString(), userKey, lang, posterFp(config));
   const cached   = await cache.get(cacheKey);
 
@@ -407,21 +393,12 @@ async function handleCatalog(req, res) {
   }
 
   try {
-    const safeDownloads = (p, label) => (p || Promise.resolve([])).catch(err => {
-      console.error(`[Catalog] ${label} downloads failed (continuing): ${err.message}`);
-      return [];
-    });
-    const [tbDownloads, rdDownloads] = await Promise.all([
-      safeDownloads(torboxApiKey && (!isRDCatalog || rdCatalog === 'merge') ? getTorBoxDownloads(torboxApiKey) : null, 'TorBox'),
-      safeDownloads(rdApiKey     && (isRDCatalog  || rdCatalog === 'merge') ? getRealDebridDownloads(rdApiKey)  : null, 'RealDebrid'),
-    ]);
-
-    const downloads = [...tbDownloads, ...rdDownloads];
+    // In separate mode fetch only this provider's downloads; in merge mode all.
+    const all   = await providers.fetchDownloads(config, { only: separate ? [catalogProviderId] : null });
+    const downloads = separate ? providers.downloadsFor(all, catalogProviderId) : all;
 
     // Compute hash the same way as background refresh (buildAndCacheForConfig)
-    const tbHash  = hashDownloads(tbDownloads);
-    const rdHash  = hashDownloads(rdDownloads);
-    const newHash = tbHash + '|' + rdHash;
+    const newHash = hashDownloads(downloads);
     const hashKey = cache.makeKey('dlhash', userKey);
     const oldHash = await cache.get(hashKey);
     const hashChanged = oldHash !== newHash;
@@ -489,9 +466,10 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
   const config = decodeConfig(req.params.token);
   if (!config) return res.json({ meta: null });
 
-  const { torboxApiKey, rdApiKey, tmdbApiKey, lang = 'pt-BR', provider = 'both', erdbToken, rpdbKey, omdbKey, fanartKey, enhanceBackground, enhanceLogo, customStreams } = config;
+  const { tmdbApiKey, lang = 'pt-BR', erdbToken, rpdbKey, omdbKey, fanartKey, enhanceBackground, enhanceLogo, customStreams } = config;
+  const active = providers.activeProviders(config);
   const { type, id } = req.params;
-  if (!tmdbApiKey) return res.json({ meta: null });
+  if (!tmdbApiKey || active.length === 0) return res.json({ meta: null });
 
   console.log(`[Meta] Request: type=${type} id=${id}`);
   let tmdbId;
@@ -506,7 +484,7 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
     return res.json({ meta: null });
   }
 
-  const userKey = (torboxApiKey || rdApiKey || '').slice(-6);
+  const userKey = providers.getUserKey(config);
   const cacheKey = cache.makeKey('meta', 'v2', `torbox:${type}:${tmdbId}`, lang, userKey, posterFp(config));
   const cached   = await cache.get(cacheKey);
 
@@ -522,13 +500,13 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
     const streamCacheKey = cache.makeKey('stream', type, tmdbId, '', '', userKey);
     const streamPrefetch = type === 'movie'
       ? cache.get(streamCacheKey).then(hit => {
-          if (!hit) buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, undefined, undefined, lang, rdApiKey, customStreams, userKey)
+          if (!hit) buildStreams(config, tmdbApiKey, type, tmdbId, undefined, undefined, lang, customStreams, userKey)
             .then(streams => cache.set(streamCacheKey, { streams }, TTL_STREAM))
             .catch(() => {});
         })
       : Promise.resolve();
 
-    const meta   = await buildMeta(tmdbId, type, tmdbApiKey, lang, torboxApiKey, rdApiKey, { erdbToken, rpdbKey, omdbKey, fanartKey, enhanceBackground, enhanceLogo }, userKey);
+    const meta   = await buildMeta(tmdbId, type, tmdbApiKey, lang, config, { erdbToken, rpdbKey, omdbKey, fanartKey, enhanceBackground, enhanceLogo }, userKey);
     const result = { meta };
 
     await Promise.all([
@@ -544,7 +522,7 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
       const firstEp = meta.videos[0];
       const epKey   = cache.makeKey('stream', type, tmdbId, String(firstEp.season), String(firstEp.episode), userKey);
       cache.get(epKey).then(hit => {
-        if (!hit) buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, String(firstEp.season), String(firstEp.episode), lang, rdApiKey, customStreams, userKey)
+        if (!hit) buildStreams(config, tmdbApiKey, type, tmdbId, String(firstEp.season), String(firstEp.episode), lang, customStreams, userKey)
           .then(streams => cache.set(epKey, { streams }, TTL_STREAM))
           .catch(() => {});
       }).catch(() => {});
@@ -559,8 +537,9 @@ app.get('/:token/stream/:type/:id.json', async (req, res) => {
   const config = decodeConfig(req.params.token);
   if (!config) return res.json({ streams: [] });
 
-  const { torboxApiKey, rdApiKey, tmdbApiKey, lang = 'pt-BR', provider = 'both', customStreams } = config;
-  if (!tmdbApiKey || (!torboxApiKey && !rdApiKey)) return res.json({ streams: [] });
+  const { tmdbApiKey, lang = 'pt-BR', customStreams } = config;
+  const active = providers.activeProviders(config);
+  if (!tmdbApiKey || active.length === 0) return res.json({ streams: [] });
 
   const { type, id } = req.params;
   if (!id.startsWith('torbox:') && !id.startsWith('tt') && !id.startsWith('kitsu:')) {
@@ -598,7 +577,7 @@ app.get('/:token/stream/:type/:id.json', async (req, res) => {
       tmdbId = search.id;
     }
 
-    const userKey        = (torboxApiKey || rdApiKey).slice(-6);
+    const userKey        = providers.getUserKey(config);
     const streamCacheKey = cache.makeKey('stream', type, tmdbId, season || '', episode || '', userKey);
     const cachedStreams  = await cache.get(streamCacheKey);
     if (cachedStreams) {
@@ -606,7 +585,7 @@ app.get('/:token/stream/:type/:id.json', async (req, res) => {
       return res.json(withCacheHints(cachedStreams, { cacheMaxAge: TTL_STREAM, staleRevalidate: TTL_STREAM, staleError: 604800 }));
     }
 
-    const streams = await buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, episode, lang, rdApiKey, customStreams, userKey);
+    const streams = await buildStreams(config, tmdbApiKey, type, tmdbId, season, episode, lang, customStreams, userKey);
     const result  = { streams };
     await cache.set(streamCacheKey, result, TTL_STREAM);
 

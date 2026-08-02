@@ -8,7 +8,10 @@ function openAddTorrentModal() {
 
   const hasTB = !!App.keys.torboxKey;
   const hasRD = !!App.keys.rdKey;
-  const defaultTB = !hasRD; // if only one provider, preselect it
+  const hasAD = !!App.keys.adKey;
+  const hasPM = !!App.keys.pmKey;
+  const onlyOne = [hasTB, hasRD, hasAD, hasPM].filter(Boolean).length === 1;
+  const defaultTB = onlyOne && hasTB;
 
   const overlay = document.createElement('div');
   overlay.className = 'at-overlay';
@@ -39,7 +42,10 @@ function openAddTorrentModal() {
 
         <div class="at-providers">
           ${hasTB ? `<label class="dl-provider"><input type="checkbox" id="atTB" ${defaultTB ? 'checked' : ''} /> TorBox</label>` : ''}
-          ${hasRD ? `<label class="dl-provider"><input type="checkbox" id="atRD" ${hasTB ? '' : 'checked'} /> Real-Debrid</label>` : ''}
+          ${hasRD ? `<label class="dl-provider"><input type="checkbox" id="atRD" ${onlyOne && hasRD ? 'checked' : ''} /> Real-Debrid</label>` : ''}
+          ${hasAD ? `<label class="dl-provider"><input type="checkbox" id="atAD" ${onlyOne && hasAD ? 'checked' : ''} /> AllDebrid</label>` : ''}
+          ${hasPM ? `<label class="dl-provider"><input type="checkbox" id="atPM" ${onlyOne && hasPM ? 'checked' : ''} /> Premiumize</label>` : ''}
+          <p class="hint" style="grid-column:1/-1">AllDebrid &amp; Premiumize take magnet links only (no .torrent files).</p>
         </div>
 
         <button class="btn-load" id="atSubmit" onclick="submitAddTorrent()">Add Torrent</button>
@@ -110,12 +116,16 @@ async function submitAddTorrent() {
   const link = (document.getElementById('atLink')?.value || '').trim();
   const hasTB = !!App.keys.torboxKey;
   const hasRD = !!App.keys.rdKey;
+  const hasAD = !!App.keys.adKey;
+  const hasPM = !!App.keys.pmKey;
   const wantTB = hasTB && document.getElementById('atTB')?.checked;
   const wantRD = hasRD && document.getElementById('atRD')?.checked;
+  const wantAD = hasAD && document.getElementById('atAD')?.checked;
+  const wantPM = hasPM && document.getElementById('atPM')?.checked;
   const btn = document.getElementById('atSubmit');
 
   if (!atFile && !link) { _atSetResults(false, 'Drop a .torrent file or paste a magnet link.'); return; }
-  if (!wantTB && !wantRD) { _atSetResults(false, 'Choose at least one provider.'); return; }
+  if (!wantTB && !wantRD && !wantAD && !wantPM) { _atSetResults(false, 'Choose at least one provider.'); return; }
 
   btn.disabled = true;
   btn.textContent = 'Adding...';
@@ -138,14 +148,24 @@ async function submitAddTorrent() {
       jobs.push(addRdMagnet(link, App.keys.rdKey)
         .then(() => { _atSetLoader(100, 'Added to Real-Debrid.'); return 'Real-Debrid'; }));
     }
-    if (wantRD && atFile) {
-      _atSetLoader(0, 'Real-Debrid does not accept .torrent files — paste a magnet link instead.');
+    if (wantAD && link) {
+      _atSetLoader(0, 'Adding to AllDebrid...');
+      jobs.push(addAlldebridMagnet(link, App.keys.adKey)
+        .then(() => { _atSetLoader(100, 'Added to AllDebrid.'); return 'AllDebrid'; }));
+    }
+    if (wantPM && link) {
+      _atSetLoader(0, 'Adding to Premiumize...');
+      jobs.push(addPremiumizeMagnet(link, App.keys.pmKey)
+        .then(() => { _atSetLoader(100, 'Added to Premiumize.'); return 'Premiumize'; }));
+    }
+    if ((wantRD || wantAD || wantPM) && atFile) {
+      _atSetLoader(0, 'Only TorBox accepts .torrent files — paste a magnet link for the other providers.');
       // fall through; magnets handled above
     }
 
     if (jobs.length === 0) {
       _atSetLoader(0, 'Nothing to add.');
-      _atSetResults(false, 'Nothing was added. Real-Debrid doesn\'t accept .torrent files — paste a magnet link instead, or use TorBox.');
+      _atSetResults(false, 'Nothing was added. Only TorBox accepts .torrent files — paste a magnet link for Real-Debrid, AllDebrid or Premiumize.');
       btn.disabled = false;
       btn.textContent = 'Add Torrent';
       return;

@@ -33,6 +33,18 @@ function isSeries(name) {
     /\bSeason\s+\d+\b/i.test(name) || /\bComplete\b/i.test(name);
 }
 
+// Provider display labels + badge classes for library items
+function providerLabel(source) {
+  return { torrent: 'Torrent', usenet: 'Usenet', realdebrid: 'RD', alldebrid: 'AD', premiumize: 'PM' }[source] || 'Unknown';
+}
+function providerBadgeClass(source) {
+  if (source === 'realdebrid') return 'rd';
+  if (source === 'alldebrid') return 'ad';
+  if (source === 'premiumize') return 'pm';
+  if (source === 'usenet') return 'usenet';
+  return 'torrent';
+}
+
 // Parse title from filename
 function parseTitle(name) {
   let cleanName = name;

@@ -7,6 +7,8 @@ async function renderProfileView() {
 
   const tbKey = App.keys.torboxKey;
   const rdKey = App.keys.rdKey;
+  const adKey = App.keys.adKey;
+  const pmKey = App.keys.pmKey;
 
   profileView.innerHTML = `
     <div class="browse-header"><h2>${icon('user', 18)} Profile</h2></div>
@@ -32,6 +34,24 @@ async function renderProfileView() {
   // RD card placeholder
   if (rdKey) {
     html += `<div class="profile-card"><h3>${icon('cloud', 16)} Real-Debrid Account</h3><div id="rdProfileInfo">
+      <div class="skelly-row" style="margin-bottom:8px"></div>
+      <div class="skelly-row" style="margin-bottom:8px"></div>
+      <div class="skelly-row" style="width:60%"></div>
+    </div></div>`;
+  }
+
+  // AllDebrid card placeholder
+  if (adKey) {
+    html += `<div class="profile-card"><h3>${icon('cloud', 16)} AllDebrid Account</h3><div id="adProfileInfo">
+      <div class="skelly-row" style="margin-bottom:8px"></div>
+      <div class="skelly-row" style="margin-bottom:8px"></div>
+      <div class="skelly-row" style="width:60%"></div>
+    </div></div>`;
+  }
+
+  // Premiumize card placeholder
+  if (pmKey) {
+    html += `<div class="profile-card"><h3>${icon('cloud', 16)} Premiumize Account</h3><div id="pmProfileInfo">
       <div class="skelly-row" style="margin-bottom:8px"></div>
       <div class="skelly-row" style="margin-bottom:8px"></div>
       <div class="skelly-row" style="width:60%"></div>
@@ -124,6 +144,46 @@ async function renderProfileView() {
         const info = document.getElementById('rdProfileInfo');
         if (info) info.innerHTML = renderProfileError('Failed to connect to Real-Debrid.');
       });
+  }
+
+  // Fetch AllDebrid profile
+  if (adKey) {
+    adGet('/user', adKey).then(d => {
+      const info = document.getElementById('adProfileInfo');
+      if (!info) return;
+      const u = d.data?.user;
+      if (!u) { info.innerHTML = renderProfileError('AllDebrid: ' + escHtml(d.error?.message || 'Invalid API key')); return; }
+      const premiumUntil = u.premiumUntil ? new Date(u.premiumUntil * 1000).toLocaleDateString() : 'N/A';
+      const active = u.isPremium && u.premiumUntil && u.premiumUntil * 1000 > Date.now();
+      info.innerHTML = renderProfileInfo([
+        { label: 'Username', value: escHtml(u.username || 'N/A') },
+        { label: 'Email', value: escHtml(u.email || 'N/A') },
+        { label: 'Status', value: active ? '<span class="profile-badge badge-valid">Premium</span>' : '<span class="profile-badge badge-expired">Not premium</span>' },
+        { label: 'Premium Until', value: escHtml(premiumUntil) },
+      ]);
+    }).catch(() => {
+      const info = document.getElementById('adProfileInfo');
+      if (info) info.innerHTML = renderProfileError('Failed to connect to AllDebrid.');
+    });
+  }
+
+  // Fetch Premiumize profile
+  if (pmKey) {
+    pmGet('/account/info', pmKey).then(d => {
+      const info = document.getElementById('pmProfileInfo');
+      if (!info) return;
+      const data = d.data || {};
+      const premiumUntil = data.premium_until ? new Date(data.premium_until * 1000).toLocaleDateString() : 'N/A';
+      const active = data.premium_until && data.premium_until * 1000 > Date.now();
+      info.innerHTML = renderProfileInfo([
+        { label: 'Customer ID', value: escHtml(String(data.customer_id || 'N/A')) },
+        { label: 'Status', value: active ? '<span class="profile-badge badge-valid">Premium</span>' : '<span class="profile-badge badge-expired">Free / Expired</span>' },
+        { label: 'Premium Until', value: escHtml(premiumUntil) },
+      ]);
+    }).catch(() => {
+      const info = document.getElementById('pmProfileInfo');
+      if (info) info.innerHTML = renderProfileError('Failed to connect to Premiumize.');
+    });
   }
 
   updateBottomNav('profile');

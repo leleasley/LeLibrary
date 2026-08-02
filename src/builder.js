@@ -2,6 +2,7 @@ const fs   = require('fs');
 const axios = require('axios');
 const { getTorBoxDownloads, getTorBoxStreamLink, getTorBoxFiles, isVideoFile, isJunkVideo } = require('./torbox');
 const { getRealDebridDownloads, getRealDebridFiles, getRealDebridStreamLink } = require('./realdebrid');
+const providers = require('./providers');
 const { searchMetadata, searchCandidates, getMetadata, findEpisodeByAirDate } = require('./tmdb');
 const { guessMediaInfo } = require('./parser');
 const NodeCache = require('node-cache');
@@ -373,7 +374,7 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
   return output;
 }
 
-async function buildMeta(tmdbId, type, tmdbApiKey, lang, torboxApiKey, rdApiKey, enhance = {}, userKey = '') {
+async function buildMeta(tmdbId, type, tmdbApiKey, lang, config = {}, enhance = {}, userKey = '') {
   const tmdbType = type === 'series' || type === 'anime' ? 'series' : 'movie';
 
   // Check if tmdbindex already has entries (per-user) before fetching downloads
@@ -384,14 +385,9 @@ async function buildMeta(tmdbId, type, tmdbApiKey, lang, torboxApiKey, rdApiKey,
 
   // Fetch TMDB metadata; downloads only if needed.
   // One provider failing (expired key, API hiccup) must not empty the result.
-  const safeDownloads = (p, label) => (p || Promise.resolve([])).catch(err => {
-    console.error(`[Meta] ${label} downloads failed (continuing): ${err.message}`);
-    return [];
-  });
-  const [meta, tbDownloads, rdDownloads] = await Promise.all([
+  const [meta, downloads] = await Promise.all([
     getMetadata(tmdbApiKey, tmdbId, tmdbType, lang),
-    safeDownloads(!existingEntries?.length && torboxApiKey ? getTorBoxDownloads(torboxApiKey) : null, 'TorBox'),
-    safeDownloads(!existingEntries?.length && rdApiKey     ? getRealDebridDownloads(rdApiKey)  : null, 'RealDebrid'),
+    existingEntries?.length ? Promise.resolve([]) : providers.fetchDownloads(config),
   ]);
 
   if (!meta) return meta;
@@ -401,7 +397,6 @@ async function buildMeta(tmdbId, type, tmdbApiKey, lang, torboxApiKey, rdApiKey,
       // Movies skip the episode-availability pass (nothing to filter) — but
       // still fall through to the poster/rating enhancement below.
     } else {
-    const downloads    = [...tbDownloads, ...rdDownloads];
     const availableEps = new Set();
     const indexEntries = [];
 
@@ -558,7 +553,7 @@ async function buildMeta(tmdbId, type, tmdbApiKey, lang, torboxApiKey, rdApiKey,
   return meta;
 }
 
-async function buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, episode, lang, rdApiKey, customStreams, userKey = '') {
+async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episode, lang, customStreams, userKey = '') {
   // Try both indexes (series and anime) since ID is always torbox:series:X
   const possibleKeys = [
     `${userKey}:${type === 'anime' ? 'series' : type}:${tmdbId}`,
@@ -584,15 +579,7 @@ async function buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, epis
   if (!entries || entries.length === 0) {
     console.log(`[Stream] Rebuilding index...`);
     entries = [];
-    const safeDownloads = (p, label) => (p || Promise.resolve([])).catch(err => {
-      console.error(`[Stream] ${label} downloads failed (continuing): ${err.message}`);
-      return [];
-    });
-    const [tbDownloads, rdDownloads] = await Promise.all([
-      safeDownloads(torboxApiKey ? getTorBoxDownloads(torboxApiKey) : null, 'TorBox'),
-      safeDownloads(rdApiKey     ? getRealDebridDownloads(rdApiKey)  : null, 'RealDebrid'),
-    ]);
-    const downloads = [...tbDownloads, ...rdDownloads];
+    const downloads = await providers.fetchDownloads(config);
 
     for (const item of downloads) {
       const name = item.name || item.filename || '';
@@ -717,13 +704,8 @@ async function buildStreams(torboxApiKey, tmdbApiKey, type, tmdbId, season, epis
 
   const rawStreams = [];
   await Promise.all(filtered.map(async ({ item }) => {
-    const isRD = item.source === 'realdebrid';
-    const getFiles = isRD
-      ? () => getRealDebridFiles(rdApiKey, item.id)
-      : () => getTorBoxFiles(torboxApiKey, item.source, item.id);
-    const getLink = isRD
-      ? (fileId) => getRealDebridStreamLink(rdApiKey, item.id, fileId)
-      : (fileId) => getTorBoxStreamLink(torboxApiKey, item.source, item.id, fileId);
+    const getFiles = () => providers.getFiles(config, item);
+    const getLink  = (fileId) => providers.getStreamLink(config, item, fileId);
 
     const files      = await getFiles();
     let videoFiles = files.filter(f => isVideoFile(f.name || f.short_name));
@@ -940,7 +922,11 @@ function formatBytes(bytes) {
  *   Line 3 → visual tags (HDR / DV / 10bit) — only if present
  */
 function formatStreamName(filename = '', source = '') {
-  const provider = source === 'realdebrid' ? '🔴 RD' : '📦 TorBox';
+  const pid = providers.providerBySource(source);
+  const provider = pid === 'realdebrid' ? '🔴 RD'
+    : pid === 'alldebrid' ? '💠 AD'
+    : pid === 'premiumize' ? '🧲 PM'
+    : '📦 TorBox';
 
   const quality  = extractQuality(filename);
   const resLabel = { '4K':'🟣 4ᴋ', '1080p':'🔵 ғʜᴅ', '720p':'🟢 ʜᴅ', '576p':'⚫ sᴅ', '480p':'⚫ sᴅ' }[quality] || '';

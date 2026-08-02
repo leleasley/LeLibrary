@@ -111,18 +111,13 @@
       overflow: hidden;
     }
 
-    @media (max-width: 860px) {
-      .main { grid-template-columns: 1fr; }
-      .sidebar { display: none; }
-    }
-
     /* ── LEFT: FORM ── */
     .form-area {
       padding: clamp(24px, 4vw, 48px);
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 28px;
+      gap: 26px;
     }
 
     .form-header h1 {
@@ -137,30 +132,144 @@
       font-size: 0.88rem;
       color: var(--muted);
       line-height: 1.5;
+      max-width: 620px;
     }
 
     .form-header p strong { color: var(--text); font-weight: 600; }
 
-    /* Referral compact */
-    .referral-compact {
+    /* ── STEPS ── */
+    .step {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .step-head {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .step-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
       background: var(--amber-glow);
-      border: 1px solid rgba(245, 158, 11, 0.2);
-      border-radius: 10px;
-      padding: 10px 14px;
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      color: var(--amber);
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-size: 0.78rem;
-      color: var(--text);
-      flex-wrap: wrap;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+      margin-top: 2px;
     }
-    .referral-compact strong {
-      color: var(--amber);
-      font-family: var(--mono);
-      font-size: 0.7rem;
-    }
-    .referral-compact .btn-copy-sm { flex-shrink: 0; }
 
+    .step-head h2 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: -0.01em;
+      margin-bottom: 2px;
+    }
+
+    .step-head p {
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .step-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* ── PROVIDER CARDS ── */
+    .provider-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+
+    .provider-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .provider-card.active {
+      border-color: var(--amber);
+      box-shadow: 0 0 0 1px var(--amber), 0 6px 24px rgba(245, 158, 11, 0.08);
+    }
+
+    .pc-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .pc-head:hover { background: var(--surface2); }
+
+    .pc-head img {
+      width: 34px;
+      height: 34px;
+      border-radius: 6px;
+      object-fit: contain;
+      flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 2px;
+    }
+
+    .pc-info { flex: 1; min-width: 0; }
+    .pc-info strong { display: block; color: var(--white); font-size: 0.9rem; }
+    .pc-info small { display: block; color: var(--muted); font-size: 0.7rem; margin-top: 1px; }
+
+    .pc-check {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid var(--border2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: transparent;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .provider-card.active .pc-check {
+      background: var(--amber);
+      border-color: var(--amber);
+      color: var(--bg);
+    }
+
+    .pc-body {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      padding: 12px 14px 14px;
+      border-top: 1px solid var(--border);
+    }
+
+    .pc-referral {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .pc-referral a { color: var(--amber); text-decoration: none; font-weight: 600; }
+    .pc-referral a:hover { text-decoration: underline; }
+
+    /* Shared small notice */
     .url-warning {
       background: rgba(239, 68, 68, 0.08);
       border: 1px solid rgba(239, 68, 68, 0.2);
@@ -171,22 +280,6 @@
       line-height: 1.5;
       text-align: center;
     }
-
-    .btn-copy-sm {
-      background: var(--amber);
-      border: none;
-      color: var(--bg);
-      padding: 4px 10px;
-      border-radius: 4px;
-      font-size: 0.68rem;
-      font-weight: 600;
-      cursor: pointer;
-      font-family: var(--font);
-      white-space: nowrap;
-      transition: all 0.2s;
-    }
-    .btn-copy-sm:hover { opacity: 0.85; }
-    .btn-copy-sm.copied { background: var(--success); }
 
     /* Sections */
     .form-section {
@@ -201,8 +294,13 @@
       letter-spacing: 0.12em;
       text-transform: uppercase;
       color: var(--muted);
-      padding-bottom: 8px;
-      border-bottom: 1px solid var(--border);
+    }
+
+    .adv {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      overflow: hidden;
     }
 
     .collapsible-header {
@@ -211,20 +309,12 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 16px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      margin-bottom: 0;
-      transition: border-color 0.2s;
+      padding: 14px 16px;
+      border: none;
+      border-radius: 0;
+      transition: color 0.2s;
     }
-    .collapsible-header:hover {
-      border-color: var(--border2);
-    }
-    .collapsible-header.open {
-      border-color: var(--amber);
-      border-bottom-left-radius: 0;
-      border-bottom-right-radius: 0;
-    }
+    .collapsible-header:hover .section-title { color: var(--text); }
     .collapse-arrow {
       font-size: 1rem;
       transition: transform 0.2s, color 0.2s;
@@ -234,7 +324,7 @@
     .collapse-arrow.open { transform: rotate(90deg); color: var(--amber); }
     .collapsible-body {
       display: none;
-      padding: 16px 0 0 0;
+      padding: 0 16px 18px;
     }
     .collapsible-body.open { display: block; }
 
@@ -324,6 +414,30 @@
       transition: all 0.15s;
       flex-shrink: 0;
     }
+
+    /* ── PIN modal (Premiumize device authorization) ── */
+    .pin-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 300; padding: 16px;
+    }
+    .pin-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; max-width: 420px; width: 100%;
+      padding: 20px; text-align: center;
+    }
+    .pin-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .pin-header h3 { font-size: 1rem; margin: 0; }
+    .pin-close { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; }
+    .pin-box p { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+    .pin-code {
+      font-family: var(--mono, monospace); font-size: 1.5rem; font-weight: 700;
+      letter-spacing: 0.15em; color: var(--amber);
+      background: var(--surface2); border: 1px dashed var(--border2);
+      border-radius: 8px; padding: 14px; margin: 14px 0;
+    }
+    .pin-box .btn { width: 100%; margin-bottom: 10px; }
+    .pin-status { min-height: 1.2em; color: var(--error); }
     .btn-verify:hover { border-color: var(--amber); color: var(--amber); }
     .btn-verify:disabled { opacity: 0.4; cursor: wait; }
     .btn-verify.verified { background: rgba(52, 211, 153, 0.15); border-color: #34d399; color: #34d399; }
@@ -384,17 +498,6 @@
     }
     select:focus { border-color: var(--amber); }
     select option { background: var(--surface2); }
-
-    /* RD Section */
-    .rd-section {
-      border: 1px dashed var(--border);
-      border-radius: 10px;
-      padding: 16px;
-      opacity: 0.6;
-      transition: all 0.25s;
-    }
-    .rd-section:focus-within,
-    .rd-section:hover { opacity: 1; border-style: solid; }
 
     /* Actions */
     .actions {
@@ -591,6 +694,188 @@
       background: rgba(0, 0, 0, 0.2);
     }
 
+    /* Info cards (privacy / how it works) */
+    .info-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+    }
+    .info-card:last-child { margin-bottom: 0; }
+
+    .info-card h4 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 8px;
+    }
+
+    .info-card p {
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .info-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .info-list li {
+      font-size: 0.75rem;
+      color: var(--muted);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.4;
+    }
+
+    .info-list li::before {
+      content: '';
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--amber);
+      margin-top: 6px;
+      flex-shrink: 0;
+    }
+
+    /* ── SIDEBAR / YOUR SETUP ── */
+    .sidebar {
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      padding: 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .setup-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+    }
+
+    .setup-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .setup-head h3 {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .setup-count {
+      font-size: 0.7rem;
+      color: var(--amber);
+      font-weight: 600;
+      background: var(--amber-glow);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+      border-radius: 20px;
+      padding: 2px 10px;
+    }
+
+    .setup-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px 10px 4px 5px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .chip img { width: 16px; height: 16px; border-radius: 3px; object-fit: contain; }
+    .chip.dim { color: var(--border2); font-weight: 400; }
+
+    .setup-rows {
+      display: flex;
+      flex-direction: column;
+      border-top: 1px solid var(--border);
+    }
+
+    .setup-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.78rem;
+    }
+    .setup-row:last-child { border-bottom: none; }
+    .setup-row span { color: var(--muted); }
+    .setup-row strong { color: var(--text); font-weight: 600; text-align: right; }
+
+    .btn-primary-sm {
+      width: 100%;
+      background: var(--amber);
+      color: var(--bg);
+      border: none;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      font-family: var(--font);
+      transition: all 0.2s;
+    }
+    .btn-primary-sm:hover { background: var(--amber-dim); box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3); }
+
+    .setup-privacy {
+      font-size: 0.7rem;
+      color: var(--muted);
+      line-height: 1.5;
+      text-align: center;
+    }
+
+    .sidebar-section h3 {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    /* Privacy section (visible) */
+    .privacy-section {
+      border-top: 1px solid var(--border);
+      padding-top: 20px;
+    }
+
+    .privacy-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    @media (max-width: 860px) {
+      .privacy-grid { grid-template-columns: 1fr; }
+    }
+
     /* Footer */
     .form-footer {
       margin-top: auto;
@@ -641,76 +926,6 @@
       margin-top: 12px;
     }
 
-    /* ── SIDEBAR ── */
-    .sidebar {
-      background: var(--surface);
-      border-left: 1px solid var(--border);
-      padding: 32px 24px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 24px;
-    }
-
-    .sidebar-section h3 {
-      font-size: 0.68rem;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 14px;
-    }
-
-    .info-card {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px;
-    }
-
-    .info-card h4 {
-      font-size: 0.85rem;
-      font-weight: 700;
-      color: var(--white);
-      margin-bottom: 8px;
-    }
-
-    .info-card p {
-      font-size: 0.78rem;
-      color: var(--muted);
-      line-height: 1.55;
-    }
-
-    .info-card p a { color: var(--amber); text-decoration: none; font-weight: 500; }
-
-    .info-list {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-top: 10px;
-    }
-
-    .info-list li {
-      font-size: 0.75rem;
-      color: var(--muted);
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      line-height: 1.4;
-    }
-
-    .info-list li::before {
-      content: '';
-      width: 5px;
-      height: 5px;
-      border-radius: 50%;
-      background: var(--amber);
-      margin-top: 6px;
-      flex-shrink: 0;
-    }
-
-    /* ── PASSWORD PROTECTION ── */
     /* Toast */
     .toast {
       position: fixed;
@@ -731,12 +946,38 @@
     }
     .toast.show { opacity: 1; transform: translateY(0); }
 
+    /* ── MOBILE STICKY INSTALL BAR ── */
+    .mobile-install-bar {
+      display: none;
+    }
+
     @media (max-width: 860px) {
       .main { grid-template-columns: 1fr; overflow: visible; }
       .sidebar { display: none; }
       .form-area { padding: 24px 20px; overflow: visible; }
       .topbar-right .topbar-link { display: none; }
       .sidebar-poster-preview { display: none; }
+
+      .mobile-install-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 50;
+        padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+        background: rgba(17, 17, 20, 0.92);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-top: 1px solid var(--border);
+      }
+      .mib-dots { display: flex; gap: 6px; }
+      .dot { width: 10px; height: 10px; border-radius: 50%; }
+      .dot.tb { background: #58a6ff; }
+      .dot.rd { background: #ef4444; }
+      body { padding-bottom: 66px; }
     }
 
     @media (min-width: 861px) {
@@ -756,11 +997,11 @@
       .form-header h1 { font-size: 1.3rem; }
       .form-header p { font-size: 0.82rem; }
       .field-row { grid-template-columns: 1fr; }
-      .referral-compact { flex-direction: column; align-items: stretch; }
-      .referral-compact .btn-copy-sm { align-self: flex-end; }
+      .provider-grid { grid-template-columns: 1fr; }
+      .pc-body { padding-bottom: 14px; }
+      .input-row input { font-size: 0.82rem; padding: 10px 12px; }
       .btn-main { padding: 14px 16px; font-size: 0.85rem; }
       .btn-main .ico { width: 34px; height: 34px; }
-      .input-row input { font-size: 0.82rem; padding: 10px 12px; }
       .url-box { flex-wrap: wrap; }
       .url-box span { min-width: 0; }
     }
@@ -794,150 +1035,217 @@
     <div class="form-area">
       <div class="form-header">
         <h1>Set up your addon</h1>
-        <p>Enter your API keys to get started. They're <strong>encoded in the addon URL</strong> — never stored or logged.</p>
+        <p>Add your debrid providers and a TMDB key, then install straight into Stremio or Nuvio. Your keys are <strong>encoded in the addon URL</strong> — never stored or logged.</p>
       </div>
 
-      <div class="referral-compact">
-        <span>No TorBox account yet? <a href="https://torbox.app/subscription?referral=fba69dd3-9611-4e43-a505-87190b4db7fb" target="_blank" style="color:var(--amber);text-decoration:none;font-weight:600">Create one — referral already applied &#8599;</a></span>
-      </div>
-
-      <div class="referral-compact" style="margin-top:8px;">
-        <span>No Real-Debrid account yet? <a href="https://real-debrid.com/?id=14493200" target="_blank" style="color:var(--amber);text-decoration:none;font-weight:600">Create one — referral already applied &#8599;</a></span>
-      </div>
-
-      <div class="url-warning">Protect this page — anyone with the URL can access your configuration.</div>
-
-      <!-- Debrid Provider -->
-      <div class="form-section">
-        <div class="section-title">Debrid Provider</div>
-        <div class="field">
-          <select id="provider" onchange="onProviderChange()">
-            <option value="torbox">TorBox</option>
-            <option value="realdebrid">Real-Debrid</option>
-            <option value="both" selected>Both (TorBox + Real-Debrid)</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- API Keys -->
-      <div class="form-section" id="apiKeysSection">
-        <div class="section-title">API Keys</div>
-
-        <div class="field" id="tbKeyField">
-          <div class="field-label">
-            TorBox API Key <span class="req" id="tbReq">*</span>
-            <a href="https://torbox.app/settings" target="_blank">Get key →</a>
-          </div>
-          <div class="input-row">
-            <input type="password" id="torboxApiKey" placeholder="tb-xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
-            <button class="btn-icon" type="button" onclick="toggleVis('torboxApiKey',this)" aria-label="Show/hide">👁</button>
-            <button class="btn-verify" type="button" onclick="verifyKey('torbox')" id="verifyTorbox" title="Verify key">✓</button>
+      <!-- STEP 1: PROVIDERS -->
+      <div class="step">
+        <div class="step-head">
+          <div class="step-num">1</div>
+          <div>
+            <h2>Choose your providers</h2>
+            <p>Pick one or both — your library is pulled from whichever you enable.</p>
           </div>
         </div>
 
-        <div class="field" id="rdKeyField">
-          <div class="field-label">
-            Real-Debrid API Key <span class="req" id="rdReq">*</span>
-            <a href="https://real-debrid.com/?id=14493200" target="_blank">Get key →</a>
+        <div class="provider-grid">
+          <div class="provider-card" id="tbCard">
+            <div class="pc-head" onclick="toggleProviderCard('torbox')">
+              <img src="/provider-logos/torbox.png" alt="TorBox" />
+              <div class="pc-info">
+                <strong>TorBox</strong>
+                <small>Torrents + Usenet</small>
+              </div>
+              <span class="pc-check">✓</span>
+            </div>
+            <div class="pc-body" id="tbKeyField" style="display:none">
+              <div class="field-label">
+                TorBox API Key <span class="req" id="tbReq">*</span>
+                <a href="https://torbox.app/settings" target="_blank">Get key →</a>
+              </div>
+              <div class="input-row">
+                <input type="password" id="torboxApiKey" placeholder="tb-xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+                <button class="btn-icon" type="button" onclick="toggleVis('torboxApiKey',this)" aria-label="Show/hide">👁</button>
+                <button class="btn-verify" type="button" onclick="verifyKey('torbox')" id="verifyTorbox" title="Verify key">✓</button>
+              </div>
+              <p class="pc-referral">No TorBox account? <a href="https://torbox.app/subscription?referral=fba69dd3-9611-4e43-a505-87190b4db7fb" target="_blank">Sign up — referral applied ↗</a></p>
+            </div>
           </div>
-          <div class="input-row">
-            <input type="password" id="rdApiKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
-            <button class="btn-icon" type="button" onclick="toggleVis('rdApiKey',this)" aria-label="Show/hide">👁</button>
-            <button class="btn-verify" type="button" onclick="verifyKey('realdebrid')" id="verifyRealdebrid" title="Verify key">✓</button>
+
+          <div class="provider-card" id="rdCard">
+            <div class="pc-head" onclick="toggleProviderCard('realdebrid')">
+              <img src="/provider-logos/realdebrid.svg" alt="Real-Debrid" />
+              <div class="pc-info">
+                <strong>Real-Debrid</strong>
+                <small>Torrents</small>
+              </div>
+              <span class="pc-check">✓</span>
+            </div>
+            <div class="pc-body" id="rdKeyField" style="display:none">
+              <div class="field-label">
+                Real-Debrid API Key <span class="req" id="rdReq">*</span>
+                <a href="https://real-debrid.com/?id=14493200" target="_blank">Get key →</a>
+              </div>
+              <div class="input-row">
+                <input type="password" id="rdApiKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+                <button class="btn-icon" type="button" onclick="toggleVis('rdApiKey',this)" aria-label="Show/hide">👁</button>
+                <button class="btn-verify" type="button" onclick="verifyKey('realdebrid')" id="verifyRealdebrid" title="Verify key">✓</button>
+              </div>
+              <p class="pc-referral">No Real-Debrid account? <a href="https://real-debrid.com/?id=14493200" target="_blank">Sign up — referral applied ↗</a></p>
+            </div>
+          </div>
+
+          <div class="provider-card" id="adCard">
+            <div class="pc-head" onclick="toggleProviderCard('alldebrid')">
+              <img src="/provider-logos/alldebrid.png" alt="AllDebrid" />
+              <div class="pc-info">
+                <strong>AllDebrid</strong>
+                <small>Torrents</small>
+              </div>
+              <span class="pc-check">✓</span>
+            </div>
+            <div class="pc-body" id="adKeyField" style="display:none">
+              <div class="field-label">
+                AllDebrid API Key <span class="req" id="adReq">*</span>
+                <a href="https://alldebrid.com/apikeys" target="_blank">Get key →</a>
+              </div>
+              <div class="input-row">
+                <input type="password" id="adApiKey" placeholder="Your AllDebrid API key" autocomplete="off" />
+                <button class="btn-icon" type="button" onclick="toggleVis('adApiKey',this)" aria-label="Show/hide">👁</button>
+                <button class="btn-verify" type="button" onclick="verifyKey('alldebrid')" id="verifyAlldebrid" title="Verify key">✓</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="provider-card" id="pmCard">
+            <div class="pc-head" onclick="toggleProviderCard('premiumize')">
+              <img src="/provider-logos/premiumize.svg" alt="Premiumize" />
+              <div class="pc-info">
+                <strong>Premiumize</strong>
+                <small>Torrents + Usenet</small>
+              </div>
+              <span class="pc-check">✓</span>
+            </div>
+            <div class="pc-body" id="pmKeyField" style="display:none">
+              <div class="field-label">
+                Premiumize API Key <span class="req" id="pmReq">*</span>
+                <a href="https://www.premiumize.me/account" target="_blank">Get key →</a>
+              </div>
+              <div class="input-row">
+                <input type="password" id="pmApiKey" placeholder="Your Premiumize API key" autocomplete="off" />
+                <button class="btn-icon" type="button" onclick="toggleVis('pmApiKey',this)" aria-label="Show/hide">👁</button>
+                <button class="btn-verify" type="button" onclick="verifyKey('premiumize')" id="verifyPremiumize" title="Verify key">✓</button>
+              </div>
+              <p class="pc-referral">First use from a new IP asks you to authorize — we'll show you the PIN.</p>
+            </div>
           </div>
         </div>
 
-        <div class="field">
-          <div class="field-label">
-            TMDB API Key <span class="req">*</span>
-            <a href="https://www.themoviedb.org/settings/api" target="_blank">Get key →</a>
-          </div>
-          <div class="input-row">
-            <input type="password" id="tmdbApiKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
-            <button class="btn-icon" type="button" onclick="toggleVis('tmdbApiKey',this)" aria-label="Show/hide">👁</button>
-            <button class="btn-verify" type="button" onclick="verifyKey('tmdb')" id="verifyTmdb" title="Verify key">✓</button>
-          </div>
-          <p class="field-hint">Copy <strong style="color:var(--text)">API Key (v3)</strong> from your TMDB account settings — a 32-character string.</p>
-          <div class="url-warning" id="tmdbV4Warning" style="display:none">
-            ⚠️ That looks like a TMDB <strong>v4 Read Access Token</strong>, not the v3 API key.
-            v4 tokens expire, which makes the addon stop working. Use your <strong>v3 API key</strong> instead
-            (TMDB → Account Settings → API → API Key (v3)).
-          </div>
-        </div>
-      </div>
+        <!-- Source of truth for the JS (provider select) -->
+        <select id="provider" style="display:none" onchange="onProviderChange()">
+          <option value="none" selected>None</option>
+          <option value="torbox">TorBox</option>
+          <option value="realdebrid">Real-Debrid</option>
+          <option value="both">Both (TorBox + Real-Debrid)</option>
+        </select>
 
-      <!-- Preferences -->
-      <div class="form-section">
-        <div class="section-title">Preferences</div>
-        <div class="field-row">
-          <div class="field">
-            <div class="field-label">Language</div>
-            <select id="lang">
-              <option value="en-US" selected>English</option>
-              <option value="pt-BR">PT-BR</option>
-              <option value="pt-PT">PT-PT</option>
-              <option value="es-ES">Espanol</option>
-              <option value="fr-FR">Francais</option>
-              <option value="de-DE">Deutsch</option>
-              <option value="it-IT">Italiano</option>
-              <option value="ja-JP">Japanese</option>
-            </select>
-          </div>
-          <div class="field">
-            <div class="field-label">Sort by</div>
-            <select id="sortBy">
-              <option value="data_adicao">Date added</option>
-              <option value="data_lancamento">Release date</option>
-              <option value="titulo">Title (A-Z)</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <!-- Catalog mode (only when both) -->
-      <div class="form-section" id="catalogModeSection" style="display:block;">
-        <div class="section-title">Catalog Mode</div>
-        <div class="field">
+        <div class="step-card" id="catalogModeSection" style="display:none">
+          <div class="field-label">Catalog mode</div>
           <select id="rdCatalog">
-            <option value="merge">Merge TorBox & Real-Debrid</option>
-            <option value="separate">Separate catalogs per provider</option>
+            <option value="merge">Merge providers into one library</option>
+            <option value="separate">Separate catalog per provider</option>
           </select>
+          <p class="field-hint">Merge shows one combined library; separate keeps each provider in its own catalog row in Stremio/Nuvio.</p>
+        </div>
+
+        <div class="url-warning">Protect this page — anyone with the URL can access your configuration.</div>
+      </div>
+
+      <!-- STEP 2: METADATA -->
+      <div class="step">
+        <div class="step-head">
+          <div class="step-num">2</div>
+          <div>
+            <h2>Metadata</h2>
+            <p>TMDB powers your posters, ratings and detail pages.</p>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="field">
+            <div class="field-label">
+              TMDB API Key <span class="req">*</span>
+              <a href="https://www.themoviedb.org/settings/api" target="_blank">Get key →</a>
+            </div>
+            <div class="input-row">
+              <input type="password" id="tmdbApiKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+              <button class="btn-icon" type="button" onclick="toggleVis('tmdbApiKey',this)" aria-label="Show/hide">👁</button>
+              <button class="btn-verify" type="button" onclick="verifyKey('tmdb')" id="verifyTmdb" title="Verify key">✓</button>
+            </div>
+            <p class="field-hint">Copy <strong style="color:var(--text)">API Key (v3)</strong> from your TMDB account settings — a 32-character string.</p>
+            <div class="url-warning" id="tmdbV4Warning" style="display:none">
+              ⚠️ That looks like a TMDB <strong>v4 Read Access Token</strong>, not the v3 API key.
+              v4 tokens expire, which makes the addon stop working. Use your <strong>v3 API key</strong> instead
+              (TMDB → Account Settings → API → API Key (v3)).
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <div class="field-label">Language</div>
+              <select id="lang">
+                <option value="en-US" selected>English</option>
+                <option value="pt-BR">PT-BR</option>
+                <option value="pt-PT">PT-PT</option>
+                <option value="es-ES">Espanol</option>
+                <option value="fr-FR">Francais</option>
+                <option value="de-DE">Deutsch</option>
+                <option value="it-IT">Italiano</option>
+                <option value="ja-JP">Japanese</option>
+              </select>
+            </div>
+            <div class="field">
+              <div class="field-label">Sort by</div>
+              <select id="sortBy">
+                <option value="data_adicao">Date added</option>
+                <option value="data_lancamento">Release date</option>
+                <option value="titulo">Title (A-Z)</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Catalog Display (collapsible) -->
-      <div class="form-section collapsible">
-        <div class="collapsible-header" onclick="toggleSection(this)">
-          <span class="section-title" style="border:none;padding:0">Catalog Display <span style="color:var(--amber);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></span>
-          <span class="collapse-arrow">▸</span>
+      <!-- STEP 3: ADVANCED SETTINGS -->
+      <div class="step">
+        <div class="collapsible-header" onclick="toggleSection(this)" style="padding:0;margin:0">
+          <div class="step-head" style="margin:0;flex:1">
+            <div class="step-num">3</div>
+            <div>
+              <h2>Advanced settings</h2>
+              <p>Catalog names, poster art and custom streams — all optional.</p>
+            </div>
+          </div>
+          <span class="collapse-arrow" style="margin-right:16px">▸</span>
         </div>
         <div class="collapsible-body">
-          <div class="field">
+          <div class="field" style="margin-bottom:14px">
             <div class="field-label">Movies catalog name</div>
             <input type="text" id="catNameMovies" placeholder="🎬 My Movies" />
           </div>
-          <div class="field">
+          <div class="field" style="margin-bottom:14px">
             <div class="field-label">Series catalog name</div>
             <input type="text" id="catNameSeries" placeholder="📺 My Series" />
           </div>
-          <div class="field" id="catNameAnimeField">
+          <div class="field" id="catNameAnimeField" style="margin-bottom:14px">
             <div class="field-label">Anime catalog name</div>
             <input type="text" id="catNameAnime" placeholder="🍥 LeLibrary Anime" />
           </div>
-          <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;margin-top:8px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;margin-bottom:16px">
             <input type="checkbox" id="hideAnime" onchange="onHideAnimeChange()" /> Hide anime catalog
           </label>
-        </div>
-      </div>
 
-      <!-- Poster Enhancement (collapsible) -->
-      <div class="form-section collapsible">
-        <div class="collapsible-header" onclick="toggleSection(this)">
-          <span class="section-title" style="border:none;padding:0">Poster &amp; Ratings Enhancement <span style="color:var(--amber);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></span>
-          <span class="collapse-arrow">▸</span>
-        </div>
-        <div class="collapsible-body">
-          <div class="field">
+          <div class="field" style="margin-bottom:14px">
             <div class="field-label">Poster Service</div>
             <select id="posterProvider" onchange="onPosterChange()">
               <option value="">None (TMDB default)</option>
@@ -947,7 +1255,7 @@
             </select>
           </div>
 
-          <div class="field" id="erdbField" style="display:none">
+          <div class="field" id="erdbField" style="display:none;margin-bottom:14px">
             <div class="field-label">
               ERDB Token <a href="https://easyratingsdb.com/configurator" target="_blank">Get token →</a>
             </div>
@@ -959,7 +1267,7 @@
             <p class="field-hint">Create a token at <a href="https://easyratingsdb.com/configurator" target="_blank">easyratingsdb.com/configurator</a></p>
           </div>
 
-          <div class="field" id="rpdbField" style="display:none">
+          <div class="field" id="rpdbField" style="display:none;margin-bottom:14px">
             <div class="field-label">
               RPDB API Key <a href="https://ratingposterdb.com/" target="_blank">Get key →</a>
             </div>
@@ -971,7 +1279,7 @@
             <p class="field-hint">Available via <a href="https://www.patreon.com/rpdb" target="_blank">Patreon</a>. Supports IMDb, RT & Metacritic ratings on posters.</p>
           </div>
 
-          <div class="field" id="fanartField" style="display:none">
+          <div class="field" id="fanartField" style="display:none;margin-bottom:14px">
             <div class="field-label">
               Fanart.tv API Key <a href="https://fanart.tv/" target="_blank">Get key →</a>
             </div>
@@ -982,7 +1290,7 @@
             </div>
           </div>
 
-          <div class="field-row" id="posterToggles" style="display:none">
+          <div class="field-row" id="posterToggles" style="display:none;margin-bottom:16px">
             <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer">
               <input type="checkbox" id="enhanceBackground" checked /> Enhance backgrounds
             </label>
@@ -1011,108 +1319,142 @@
               <span>Select a poster service above<br>to see a live preview</span>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- Custom Streams (collapsible) -->
-      <div class="form-section collapsible">
-        <div class="collapsible-header" onclick="toggleSection(this)">
-          <span class="section-title" style="border:none;padding:0">Custom Streams <span style="color:var(--amber);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></span>
-          <span class="collapse-arrow">▸</span>
-        </div>
-        <div class="collapsible-body">
-          <p class="field-hint" style="margin:0 0 12px 0">Inject your own direct stream URLs alongside debrid streams in Stremio.</p>
-          <div id="customStreamsList"></div>
-          <div class="field-row" style="grid-template-columns:2fr 3fr 1fr auto;align-items:end">
-            <div class="field" style="gap:2px">
-              <div class="field-label" style="font-size:0.75rem">Name</div>
-              <input type="text" id="csName" placeholder="My Plex" />
+          <!-- Custom Streams -->
+          <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+            <p class="field-hint" style="margin:0 0 12px 0">Inject your own direct stream URLs alongside debrid streams in Stremio.</p>
+            <div id="customStreamsList"></div>
+            <div class="field-row" style="grid-template-columns:2fr 3fr 1fr auto;align-items:end">
+              <div class="field" style="gap:2px">
+                <div class="field-label" style="font-size:0.75rem">Name</div>
+                <input type="text" id="csName" placeholder="My Plex" />
+              </div>
+              <div class="field" style="gap:2px">
+                <div class="field-label" style="font-size:0.75rem">URL</div>
+                <input type="text" id="csUrl" placeholder="https://..." />
+              </div>
+              <div class="field" style="gap:2px">
+                <div class="field-label" style="font-size:0.75rem">Type</div>
+                <select id="csType">
+                  <option value="*">All</option>
+                  <option value="movie">Movies</option>
+                  <option value="series">Series</option>
+                </select>
+              </div>
+              <button class="btn-main" type="button" onclick="addCustomStream()" style="padding:8px 16px;font-size:0.82rem;white-space:nowrap">+ Add</button>
             </div>
-            <div class="field" style="gap:2px">
-              <div class="field-label" style="font-size:0.75rem">URL</div>
-              <input type="text" id="csUrl" placeholder="https://..." />
-            </div>
-            <div class="field" style="gap:2px">
-              <div class="field-label" style="font-size:0.75rem">Type</div>
-              <select id="csType">
-                <option value="*">All</option>
-                <option value="movie">Movies</option>
-                <option value="series">Series</option>
-              </select>
-            </div>
-            <button class="btn-main" type="button" onclick="addCustomStream()" style="padding:8px 16px;font-size:0.82rem;white-space:nowrap">+ Add</button>
+            <div id="csEmpty" style="text-align:center;padding:16px;color:var(--border2);font-size:0.85rem">No custom streams added yet.</div>
           </div>
-          <div id="csEmpty" style="text-align:center;padding:16px;color:var(--border2);font-size:0.85rem">No custom streams added yet.</div>
         </div>
       </div>
 
-      <!-- Actions -->
-      <div id="unsavedBanner" style="display:none;background:rgba(245,158,11,0.12);border:1px solid var(--amber);border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:0.85rem;color:var(--amber);display:none;align-items:center;gap:8px">
-        <span style="font-size:1.1rem">⚠️</span> You have unsaved changes
-      </div>
-      <div class="actions">
-        <button class="btn-main btn-gen" id="btnGenerate" onclick="generate()">
-          <div class="ico">⚡</div>
-          <div class="txt">
-            <span id="genBtnTitle">Generate install links</span>
-            <small>Create links with your keys</small>
+      <!-- STEP 4: INSTALL -->
+      <div class="step">
+        <div class="step-head">
+          <div class="step-num">4</div>
+          <div>
+            <h2>Install</h2>
+            <p>Generate your links, then install on Stremio or Nuvio.</p>
           </div>
-          <span class="arr">›</span>
-        </button>
-
-        <a class="btn-main btn-stremio" id="btnDesktop" href="#">
-          <div class="ico"><img src="/stremio.svg" alt="Stremio" style="width:20px;height:20px" /></div>
-          <div class="txt">
-            <span>Install on Stremio (Desktop / Mobile)</span>
-            <small>Opens the app and installs the addon</small>
-          </div>
-          <span class="arr">›</span>
-        </a>
-
-        <a class="btn-main btn-nuvio" id="btnNuvio" href="#" target="_blank" rel="noopener">
-          <div class="ico"><img src="/nuvio.png" alt="Nuvio" style="width:20px;height:20px" /></div>
-          <div class="txt">
-            <span>Install on Nuvio</span>
-            <small>Opens Nuvio app and installs the addon</small>
-          </div>
-          <span class="arr">›</span>
-        </a>
-
-        <a class="btn-main btn-outline" id="btnWeb" href="#" target="_blank" rel="noopener">
-          <div class="ico"><img src="/stremio.svg" alt="Stremio" style="width:20px;height:20px" /></div>
-          <div class="txt">
-            <span>Install via Stremio Web</span>
-            <small>Use at web.stremio.com in the browser</small>
-          </div>
-          <span class="arr">›</span>
-        </a>
-
-        <button class="btn-main btn-gen" id="btnRefresh" onclick="clearCache()" style="display:none;background:var(--surface2);color:var(--text);border:1px solid var(--border)">
-          <div class="ico">🔄</div>
-          <div class="txt">
-            <span>Refresh catalog</span>
-            <small>Clears server cache — then refresh in Stremio or Nuvio</small>
-          </div>
-          <span class="arr">›</span>
-        </button>
-
-        <div class="url-box" id="urlRow">
-          <span id="manifestUrl"></span>
-          <button class="btn-copy-url" onclick="copyUrl(this)">Copy</button>
         </div>
 
+        <div id="unsavedBanner" style="display:none;background:rgba(245,158,11,0.12);border:1px solid var(--amber);border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:0.85rem;color:var(--amber);align-items:center;gap:8px">
+          <span style="font-size:1.1rem">⚠️</span> You have unsaved changes
+        </div>
+
+        <div class="actions">
+          <button class="btn-main btn-gen" id="btnGenerate" onclick="generate()">
+            <div class="ico">⚡</div>
+            <div class="txt">
+              <span id="genBtnTitle">Generate install links</span>
+              <small>Create links with your keys</small>
+            </div>
+            <span class="arr">›</span>
+          </button>
+
+          <a class="btn-main btn-stremio" id="btnDesktop" href="#">
+            <div class="ico"><img src="/stremio.svg" alt="Stremio" style="width:20px;height:20px" /></div>
+            <div class="txt">
+              <span>Install on Stremio (Desktop / Mobile)</span>
+              <small>Opens the app and installs the addon</small>
+            </div>
+            <span class="arr">›</span>
+          </a>
+
+          <a class="btn-main btn-nuvio" id="btnNuvio" href="#" target="_blank" rel="noopener">
+            <div class="ico"><img src="/nuvio.png" alt="Nuvio" style="width:20px;height:20px" /></div>
+            <div class="txt">
+              <span>Install on Nuvio</span>
+              <small>Opens Nuvio app and installs the addon</small>
+            </div>
+            <span class="arr">›</span>
+          </a>
+
+          <a class="btn-main btn-outline" id="btnWeb" href="#" target="_blank" rel="noopener">
+            <div class="ico"><img src="/stremio.svg" alt="Stremio" style="width:20px;height:20px" /></div>
+            <div class="txt">
+              <span>Install via Stremio Web</span>
+              <small>Use at web.stremio.com in the browser</small>
+            </div>
+            <span class="arr">›</span>
+          </a>
+
+          <button class="btn-main btn-gen" id="btnRefresh" onclick="clearCache()" style="display:none;background:var(--surface2);color:var(--text);border:1px solid var(--border)">
+            <div class="ico">🔄</div>
+            <div class="txt">
+              <span>Refresh catalog</span>
+              <small>Clears server cache — then refresh in Stremio or Nuvio</small>
+            </div>
+            <span class="arr">›</span>
+          </button>
+
+          <div class="url-box" id="urlRow">
+            <span id="manifestUrl"></span>
+            <button class="btn-copy-url" onclick="copyUrl(this)">Copy</button>
+          </div>
+        </div>
+
+        <!-- Preview -->
+        <div class="preview-wrap">
+          <button class="preview-btn" id="previewToggle" onclick="togglePreview()">
+            <span>Streams Preview</span>
+            <span class="arr">›</span>
+          </button>
+          <div class="preview-panel" id="previewBody">
+            <div class="preview-head">Example of how streams appear in Stremio</div>
+            <div id="previewCards"></div>
+            <div class="preview-footer">Actual streams depend on the files in your TorBox / Real-Debrid account</div>
+          </div>
+        </div>
       </div>
 
-      <!-- Preview -->
-      <div class="preview-wrap">
-        <button class="preview-btn" id="previewToggle" onclick="togglePreview()">
-          <span>Streams Preview</span>
-          <span class="arr">›</span>
-        </button>
-        <div class="preview-panel" id="previewBody">
-          <div class="preview-head">Example of how streams appear in Stremio</div>
-          <div id="previewCards"></div>
-          <div class="preview-footer">Actual streams depend on the files in your TorBox / Real-Debrid account</div>
+      <!-- PRIVACY & HOW IT WORKS (visible) -->
+      <div class="privacy-section">
+        <div class="privacy-grid">
+          <div class="info-card">
+            <h4>How LeLibrary works</h4>
+            <ul class="info-list">
+              <li>Reads your enabled debrid downloads and groups episodes into series</li>
+              <li>Fetches TMDB metadata for posters, ratings and detail pages</li>
+              <li>Serves it all as a Stremio / Nuvio addon — Movies, Series and Anime</li>
+            </ul>
+          </div>
+          <div class="info-card">
+            <h4>Your privacy</h4>
+            <ul class="info-list">
+              <li>API keys are encoded in the addon URL — sent to the server only when Stremio fetches your library</li>
+              <li>Keys are never stored in a database or logged</li>
+              <li>No tracking, analytics, or third-party requests</li>
+            </ul>
+          </div>
+          <div class="info-card">
+            <h4>Requirements</h4>
+            <ul class="info-list">
+              <li>A TorBox and/or Real-Debrid account with downloads</li>
+              <li>A free TMDB API key</li>
+              <li style="color:var(--border2);font-size:0.78rem">Poster/Ratings/Stream enhancements are all optional</li>
+            </ul>
+          </div>
         </div>
       </div>
 
@@ -1124,42 +1466,22 @@
       </div>
     </div>
 
-    <!-- RIGHT: SIDEBAR -->
+    <!-- RIGHT: YOUR SETUP -->
     <aside class="sidebar">
-      <div class="sidebar-section">
-        <h3>How it works</h3>
-        <div class="info-card">
-          <h4>What LeLibrary does</h4>
-          <p>Reads your TorBox and Real-Debrid downloads, groups episodes into series, fetches TMDB metadata, and serves it all as a Stremio/Nuvio addon.</p>
-          <ul class="info-list">
-            <li>Movies, Series, and Anime — three separate catalogs</li>
-            <li>Supports TorBox + Real-Debrid (merged or separate)</li>
-            <li>Rich stream info: quality, codec, HDR, audio, size</li>
-            <li>Direct playback from the CDN</li>
-          </ul>
+      <div class="setup-panel">
+        <div class="setup-head">
+          <h3>Your setup</h3>
+          <span class="setup-count" id="setupCount">0/2 providers</span>
         </div>
-      </div>
-
-      <div class="sidebar-section">
-        <h3>Privacy</h3>
-        <div class="info-card">
-          <ul class="info-list">
-            <li>API keys are encoded in the addon URL — sent to the server only when Stremio fetches your library</li>
-            <li>Keys are never stored in a database or logged</li>
-            <li>No tracking, analytics, or third-party requests</li>
-          </ul>
+        <div class="setup-chips" id="setupChips"><span class="chip dim">No provider set</span></div>
+        <div class="setup-rows">
+          <div class="setup-row"><span>Catalog mode</span><strong id="setupCatalogMode">—</strong></div>
+          <div class="setup-row"><span>TMDB key</span><strong id="setupTmdb">Not set</strong></div>
+          <div class="setup-row"><span>Poster service</span><strong id="setupPoster">TMDB</strong></div>
+          <div class="setup-row"><span>Custom streams</span><strong id="setupStreams">None</strong></div>
         </div>
-      </div>
-
-      <div class="sidebar-section">
-        <h3>Requirements</h3>
-        <div class="info-card">
-          <ul class="info-list">
-          <li>A TorBox and/or Real-Debrid account with downloads</li>
-          <li>A free TMDB API key</li>
-          <li style="color:var(--border2);font-size:0.78rem">Poster/Ratings/Stream enhancements are all optional</li>
-          </ul>
-        </div>
+        <button class="btn-primary-sm" id="btnGenerateSide" onclick="generate()">Generate install links</button>
+        <p class="setup-privacy">🔒 Keys are encoded in your addon URL and never logged.</p>
       </div>
 
       <!-- Poster Preview (desktop) -->
@@ -1174,10 +1496,16 @@
     </aside>
   </div>
 
+  <!-- MOBILE STICKY INSTALL BAR -->
+  <div class="mobile-install-bar" id="mobileInstallBar">
+    <span class="mib-dots" id="mobileBarDots"></span>
+    <button class="btn-primary-sm" id="btnGenerateMobile" onclick="generate()">Generate</button>
+  </div>
+
   <div class="toast" id="toast">Copied!</div>
 
   <!-- Reinstall Modal -->
-  <div id="reinstallModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;display:none;align-items:center;justify-content:center">
+  <div id="reinstallModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:440px;width:90%;text-align:center">
       <div style="font-size:2rem;margin-bottom:12px">✅</div>
       <h2 style="font-size:1.1rem;margin:0 0 8px 0;color:var(--text)">Settings Saved</h2>
@@ -1221,11 +1549,60 @@
     let customStreams = [];
     let hasExistingToken = false;
 
+    const PROVIDER_META = {
+      torbox: { label: 'TorBox', logo: '/provider-logos/torbox.png' },
+      realdebrid: { label: 'Real-Debrid', logo: '/provider-logos/realdebrid.svg' },
+      alldebrid: { label: 'AllDebrid', logo: '/provider-logos/alldebrid.png' },
+      premiumize: { label: 'Premiumize', logo: '/provider-logos/premiumize.svg' },
+    };
+
     function toggleSection(header) {
       const body = header.nextElementSibling;
       const arrow = header.querySelector('.collapse-arrow');
       if (body) body.classList.toggle('open');
       if (arrow) arrow.classList.toggle('open');
+    }
+
+    function getProviderSet() {
+      const v = document.getElementById('provider').value;
+      if (!v || v === 'none') return [];
+      if (v === 'both') return ['torbox', 'realdebrid'];
+      return v.split(',').map(s => s.trim()).filter(Boolean);
+    }
+
+    function toggleProviderCard(id) {
+      const set = new Set(getProviderSet());
+      if (set.has(id)) set.delete(id); else set.add(id);
+      const arr = [...set];
+      // Keep legacy 'both' for the exact TorBox+Real-Debrid combo; otherwise a
+      // comma-separated list (the server normalizes both).
+      document.getElementById('provider').value =
+        arr.length === 0 ? 'none'
+        : arr.length === 2 && arr.includes('torbox') && arr.includes('realdebrid') ? 'both'
+        : arr.join(',');
+      onProviderChange();
+      checkChanged();
+    }
+
+    function updateSetupSummary() {
+      const set = getProviderSet();
+      const chips = set.map(id => `<span class="chip"><img src="${PROVIDER_META[id].logo}" alt="" />${PROVIDER_META[id].label}</span>`).join('');
+      document.getElementById('setupChips').innerHTML = chips || '<span class="chip dim">No provider set</span>';
+      document.getElementById('setupCount').textContent = set.length + '/4 providers';
+
+      const catMode = document.getElementById('rdCatalog').value;
+      document.getElementById('setupCatalogMode').textContent = set.length < 2 ? '—' : catMode === 'separate' ? 'Separate' : 'Merged';
+
+      const tmdb = document.getElementById('tmdbApiKey').value.trim();
+      document.getElementById('setupTmdb').textContent = !tmdb ? 'Not set' : looksLikeV4Token(tmdb) ? '⚠️ v4 — use v3' : '✓ Set';
+
+      const posters = { '': 'TMDB', erdb: 'ERDB', rpdb: 'RPDB', fanart: 'Fanart.tv' };
+      document.getElementById('setupPoster').textContent = posters[document.getElementById('posterProvider').value] || 'TMDB';
+
+      document.getElementById('setupStreams').textContent = customStreams.length ? `${customStreams.length} added` : 'None';
+
+      const dots = set.map(id => `<span class="dot ${id}"></span>`).join('');
+      document.getElementById('mobileBarDots').innerHTML = dots;
     }
 
     function onHideAnimeChange() {
@@ -1269,18 +1646,25 @@
     }
 
     function onProviderChange() {
-      const provider = document.getElementById('provider').value;
-      const tbField = document.getElementById('tbKeyField');
-      const rdField = document.getElementById('rdKeyField');
-      const tbReq = document.getElementById('tbReq');
-      const rdReq = document.getElementById('rdReq');
-      const catalogMode = document.getElementById('catalogModeSection');
-
-      tbField.style.display = provider === 'realdebrid' ? 'none' : 'block';
-      rdField.style.display = provider === 'torbox' ? 'none' : 'block';
-      catalogMode.style.display = provider === 'both' ? 'block' : 'none';
-      tbReq.textContent = provider === 'torbox' || provider === 'both' ? '*' : '';
-      rdReq.textContent = provider === 'realdebrid' || provider === 'both' ? '*' : '';
+      const set = getProviderSet();
+      const hasTB = set.includes('torbox');
+      const hasRD = set.includes('realdebrid');
+      const hasAD = set.includes('alldebrid');
+      const hasPM = set.includes('premiumize');
+      document.getElementById('tbCard').classList.toggle('active', hasTB);
+      document.getElementById('rdCard').classList.toggle('active', hasRD);
+      document.getElementById('adCard').classList.toggle('active', hasAD);
+      document.getElementById('pmCard').classList.toggle('active', hasPM);
+      document.getElementById('tbKeyField').style.display = hasTB ? 'flex' : 'none';
+      document.getElementById('rdKeyField').style.display = hasRD ? 'flex' : 'none';
+      document.getElementById('adKeyField').style.display = hasAD ? 'flex' : 'none';
+      document.getElementById('pmKeyField').style.display = hasPM ? 'flex' : 'none';
+      document.getElementById('tbReq').textContent = hasTB ? '*' : '';
+      document.getElementById('rdReq').textContent = hasRD ? '*' : '';
+      document.getElementById('adReq').textContent = hasAD ? '*' : '';
+      document.getElementById('pmReq').textContent = hasPM ? '*' : '';
+      document.getElementById('catalogModeSection').style.display = set.length >= 2 ? 'block' : 'none';
+      updateSetupSummary();
       checkChanged();
     }
 
@@ -1289,6 +1673,8 @@
         provider: document.getElementById('provider').value,
         torboxApiKey: document.getElementById('torboxApiKey').value.trim(),
         rdApiKey: document.getElementById('rdApiKey').value.trim(),
+        adApiKey: document.getElementById('adApiKey').value.trim(),
+        pmApiKey: document.getElementById('pmApiKey').value.trim(),
         tmdbApiKey: document.getElementById('tmdbApiKey').value.trim(),
         rdCatalog: document.getElementById('rdCatalog').value,
         sortBy: document.getElementById('sortBy').value,
@@ -1312,6 +1698,8 @@
       return a.provider === b.provider &&
         a.torboxApiKey === b.torboxApiKey &&
         a.rdApiKey === b.rdApiKey &&
+        a.adApiKey === b.adApiKey &&
+        a.pmApiKey === b.pmApiKey &&
         a.tmdbApiKey === b.tmdbApiKey &&
         a.rdCatalog === b.rdCatalog &&
         a.sortBy === b.sortBy &&
@@ -1331,6 +1719,7 @@
     }
 
     function checkChanged() {
+      updateSetupSummary();
       if (!initialConfig) return;
       const changed = !configsEqual(getCurrentConfig(), initialConfig);
       const btn = document.getElementById('btnGenerate');
@@ -1433,8 +1822,8 @@
     }
 
     async function verifyKey(service) {
-      const inputMap = { tmdb: 'tmdbApiKey', torbox: 'torboxApiKey', realdebrid: 'rdApiKey', erdb: 'erdbToken', rpdb: 'rpdbKey', omdb: 'omdbKey', fanart: 'fanartKey' };
-      const labels   = { tmdb: 'TMDB', torbox: 'TorBox', realdebrid: 'Real-Debrid', erdb: 'ERDB', rpdb: 'RPDB', omdb: 'OMDB', fanart: 'Fanart' };
+      const inputMap = { tmdb: 'tmdbApiKey', torbox: 'torboxApiKey', realdebrid: 'rdApiKey', alldebrid: 'adApiKey', premiumize: 'pmApiKey', erdb: 'erdbToken', rpdb: 'rpdbKey', omdb: 'omdbKey', fanart: 'fanartKey' };
+      const labels   = { tmdb: 'TMDB', torbox: 'TorBox', realdebrid: 'Real-Debrid', alldebrid: 'AllDebrid', premiumize: 'Premiumize', erdb: 'ERDB', rpdb: 'RPDB', omdb: 'OMDB', fanart: 'Fanart' };
       const id = inputMap[service];
       const el = document.getElementById(id);
       const btn = document.getElementById('verify' + service.charAt(0).toUpperCase() + service.slice(1));
@@ -1462,6 +1851,11 @@
           if (d.code === 'V4_ACCESS_TOKEN') {
             showV4Warning(true);
             showToast('TMDB v4 token detected — use your v3 API key');
+          } else if (d.needPin) {
+            // Premiumize device authorization required
+            showPinModal(d.pin || '', d.deviceUrl || 'https://www.premiumize.me/device', service);
+            btn.disabled = false;
+            return;
           } else {
             showToast(d.error || 'Invalid key');
           }
@@ -1480,6 +1874,63 @@
       return /^eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}$/.test(key || '');
     }
 
+    // Premiumize device authorization modal: shows the PIN and re-polls the
+    // verify endpoint until the user has authorized the key.
+    function showPinModal(pin, deviceUrl, service) {
+      const existing = document.getElementById('pinModal');
+      if (existing) existing.remove();
+      const inputId = { premiumize: 'pmApiKey', alldebrid: 'adApiKey' }[service] || service + 'ApiKey';
+      const overlay = document.createElement('div');
+      overlay.id = 'pinModal';
+      overlay.className = 'pin-overlay';
+      overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+      overlay.innerHTML = `
+        <div class="pin-box">
+          <div class="pin-header">
+            <h3>Authorize your ${escHtml(service)} key</h3>
+            <button class="pin-close" onclick="this.closest('.pin-overlay').remove()" aria-label="Close">&times;</button>
+          </div>
+          <p>Premiumize needs you to authorize this key from a new device. Open the link and enter this PIN:</p>
+          <div class="pin-code">${escHtml(pin)}</div>
+          <a class="btn btn-amber" href="${escHtml(deviceUrl)}" target="_blank" rel="noopener">Open premiumize.me/device ↗</a>
+          <button class="btn-load" id="pinRecheck">I've done it — recheck</button>
+          <p class="pin-status" id="pinStatus"></p>
+        </div>`;
+      document.body.appendChild(overlay);
+      const recheck = document.getElementById('pinRecheck');
+      const status = document.getElementById('pinStatus');
+      recheck.onclick = async () => {
+        const val = (document.getElementById(inputId)?.value || '').trim();
+        recheck.disabled = true;
+        status.textContent = 'Checking…';
+        try {
+          const r = await fetch('/api/verify/' + service, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: val })
+          });
+          const d = await r.json();
+          if (d.valid) {
+            overlay.remove();
+            const el = document.getElementById(inputId);
+            if (el) el.classList.remove('invalid');
+            const btn = document.getElementById('verify' + service.charAt(0).toUpperCase() + service.slice(1));
+            if (btn) { btn.className = 'btn-verify verified'; btn.textContent = '✓'; }
+            showToast(service + ' key is valid!');
+          } else if (d.needPin) {
+            status.textContent = 'Still waiting — have you entered the PIN on the Premiumize page?';
+            recheck.disabled = false;
+          } else {
+            status.textContent = d.error || 'Invalid key';
+            recheck.disabled = false;
+          }
+        } catch (e) {
+          status.textContent = 'Could not reach the service — try again.';
+          recheck.disabled = false;
+        }
+      };
+    }
+
     function showV4Warning(show) {
       document.getElementById('tmdbV4Warning').style.display = show ? 'block' : 'none';
     }
@@ -1495,9 +1946,14 @@
     async function generate(opts = {}) {
       const { skipVerify = false } = opts;
       const provider     = document.getElementById('provider').value;
+      if (provider === 'none' || provider === '') { showToast('Select at least one provider'); return; }
+      const providerSet  = getProviderSet();
+      const KEY_FIELD = { torbox: 'torboxApiKey', realdebrid: 'rdApiKey', alldebrid: 'adApiKey', premiumize: 'pmApiKey' };
       const torboxApiKey = document.getElementById('torboxApiKey').value.trim();
       const tmdbApiKey   = document.getElementById('tmdbApiKey').value.trim();
       const rdApiKey     = document.getElementById('rdApiKey').value.trim();
+      const adApiKey     = document.getElementById('adApiKey').value.trim();
+      const pmApiKey     = document.getElementById('pmApiKey').value.trim();
       const rdCatalog    = document.getElementById('rdCatalog').value;
       const sortBy       = document.getElementById('sortBy').value;
       const lang         = document.getElementById('lang').value;
@@ -1514,15 +1970,11 @@
       const hideAnime     = document.getElementById('hideAnime').checked;
 
       let valid = true;
-      if (provider === 'torbox' || provider === 'both') {
-        const el = document.getElementById('torboxApiKey');
-        if (!torboxApiKey) { el.classList.add('invalid'); valid = false; }
-        else el.classList.remove('invalid');
-      }
-      if (provider === 'realdebrid' || provider === 'both') {
-        const el = document.getElementById('rdApiKey');
-        if (!rdApiKey) { el.classList.add('invalid'); valid = false; }
-        else el.classList.remove('invalid');
+      for (const id of providerSet) {
+        const el = document.getElementById(KEY_FIELD[id]);
+        const key = (el && el.value.trim()) || '';
+        if (!key) { el?.classList.add('invalid'); valid = false; }
+        else el?.classList.remove('invalid');
       }
       const tmdbEl = document.getElementById('tmdbApiKey');
       if (!tmdbApiKey) {
@@ -1552,10 +2004,12 @@
       // If a provider can't be reached (network), proceed anyway rather than
       // blocking a valid user on our own verification hiccup.
       if (!skipVerify) {
-        const labels = { tmdb: 'TMDB', torbox: 'TorBox', realdebrid: 'Real-Debrid' };
+        const labels = { tmdb: 'TMDB', torbox: 'TorBox', realdebrid: 'Real-Debrid', alldebrid: 'AllDebrid', premiumize: 'Premiumize' };
         const checks = [];
-        if (provider === 'torbox' || provider === 'both') checks.push({ service: 'torbox', key: torboxApiKey, el: document.getElementById('torboxApiKey') });
-        if (provider === 'realdebrid' || provider === 'both') checks.push({ service: 'realdebrid', key: rdApiKey, el: document.getElementById('rdApiKey') });
+        for (const id of providerSet) {
+          const el = document.getElementById(KEY_FIELD[id]);
+          checks.push({ service: id, key: (el && el.value.trim()) || '', el });
+        }
         checks.push({ service: 'tmdb', key: tmdbApiKey, el: tmdbEl });
 
         btn.disabled = true;
@@ -1583,6 +2037,11 @@
             el.classList.remove('invalid');
           } else if (d.networkError) {
             // Can't confirm — don't block
+          } else if (d.needPin) {
+            // Premiumize device authorization — show the PIN modal and wait
+            btn.disabled = false;
+            showPinModal(d.pin || '', d.deviceUrl || 'https://www.premiumize.me/device', service);
+            return;
           } else {
             el.classList.add('invalid');
             allValid = false;
@@ -1597,11 +2056,11 @@
         showToast('Keys validated ✓');
       }
 
-      const cfg = { provider, tmdbApiKey, sortBy, lang };
-      if (provider === 'torbox' || provider === 'both') cfg.torboxApiKey = torboxApiKey;
-      if (provider === 'realdebrid' || provider === 'both') {
-        cfg.rdApiKey = rdApiKey;
-        cfg.rdCatalog = rdCatalog;
+      const cfg = { provider, tmdbApiKey, sortBy, lang, rdCatalog };
+      for (const id of providerSet) {
+        const el = document.getElementById(KEY_FIELD[id]);
+        const key = (el && el.value.trim()) || '';
+        if (key) cfg[KEY_FIELD[id]] = key;
       }
       if (posterProvider) {
         cfg.posterProvider = posterProvider;
@@ -1692,14 +2151,14 @@
     }
 
     function resetForm() {
-      ['torboxApiKey', 'tmdbApiKey', 'rdApiKey', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'catNameMovies', 'catNameSeries', 'catNameAnime'].forEach(id => {
+      ['torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'catNameMovies', 'catNameSeries', 'catNameAnime'].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         el.value = '';
         el.classList.remove('invalid');
       });
       showV4Warning(false);
-      document.getElementById('provider').value = 'both';
+      document.getElementById('provider').value = 'none';
       document.getElementById('lang').value = 'en-US';
       document.getElementById('sortBy').value = 'data_adicao';
       document.getElementById('rdCatalog').value = 'merge';
@@ -1726,7 +2185,7 @@
       onProviderChange();
     }
 
-    const APP_VERSION = '3.1.0';
+    const APP_VERSION = '4.0.0';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');
@@ -1764,6 +2223,9 @@
         document.getElementById('genBtnTitle').textContent = 'Save';
         document.querySelector('#btnGenerate small').textContent = 'Save your config changes';
       }
+      const sideLabel = hasToken ? 'Save' : 'Generate install links';
+      document.getElementById('btnGenerateSide').textContent = sideLabel;
+      document.getElementById('btnGenerateMobile').textContent = hasToken ? 'Save' : 'Generate';
 
       const cfg = window.__INITIAL_CONFIG__;
       if (cfg) {
@@ -1773,9 +2235,9 @@
         }
         if (cfg.torboxApiKey) document.getElementById('torboxApiKey').value = cfg.torboxApiKey;
         if (cfg.tmdbApiKey) document.getElementById('tmdbApiKey').value = cfg.tmdbApiKey;
-        if (cfg.rdApiKey) {
-          document.getElementById('rdApiKey').value = cfg.rdApiKey;
-        }
+        if (cfg.rdApiKey) document.getElementById('rdApiKey').value = cfg.rdApiKey;
+        if (cfg.adApiKey) document.getElementById('adApiKey').value = cfg.adApiKey;
+        if (cfg.pmApiKey) document.getElementById('pmApiKey').value = cfg.pmApiKey;
         if (cfg.rdCatalog) document.getElementById('rdCatalog').value = cfg.rdCatalog;
         if (cfg.sortBy) document.getElementById('sortBy').value = cfg.sortBy;
         if (cfg.lang) document.getElementById('lang').value = cfg.lang;
@@ -1804,9 +2266,10 @@
         initialConfig = getCurrentConfig();
         if (hasToken) document.getElementById('btnGenerate').style.display = 'none';
       }
+      updateSetupSummary();
 
       // Watch for changes on all config fields
-      const watchIds = ['provider', 'torboxApiKey', 'rdApiKey', 'tmdbApiKey', 'rdCatalog', 'sortBy', 'lang', 'posterProvider', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'catNameMovies', 'catNameSeries', 'catNameAnime'];
+      const watchIds = ['provider', 'torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'rdCatalog', 'sortBy', 'lang', 'posterProvider', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'catNameMovies', 'catNameSeries', 'catNameAnime'];
       watchIds.forEach(id => {
         const el = document.getElementById(id);
         if (el) {

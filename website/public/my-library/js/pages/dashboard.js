@@ -17,11 +17,15 @@ function renderDashboard() {
   const seriesCount = stats.seriesCount;
   const hasTB = !!App.keys.torboxKey;
   const hasRD = !!App.keys.rdKey;
+  const hasAD = !!App.keys.adKey;
+  const hasPM = !!App.keys.pmKey;
 
   // Provider badges
   let providerBadges = '';
   if (hasTB) providerBadges += `<span class="provider-badge tb"><img class="provider-logo" src="/provider-logos/torbox.png" alt="" loading="lazy" />TorBox</span>`;
   if (hasRD) providerBadges += `<span class="provider-badge rd"><img class="provider-logo" src="/provider-logos/realdebrid.svg" alt="" loading="lazy" />Real-Debrid</span>`;
+  if (hasAD) providerBadges += `<span class="provider-badge ad"><img class="provider-logo" src="/provider-logos/alldebrid.png" alt="" loading="lazy" />AllDebrid</span>`;
+  if (hasPM) providerBadges += `<span class="provider-badge pm"><img class="provider-logo" src="/provider-logos/premiumize.svg" alt="" loading="lazy" />Premiumize</span>`;
 
   // Recent items for Continue Watching
   const recent = items.slice()

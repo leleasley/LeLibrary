@@ -54,13 +54,12 @@
 
     <div id="newUserForm">
       <div class="input-group">
-        <label>Provider</label>
-        <div class="input-wrap">
-          <select id="providerSelect" onchange="onProviderChange()">
-            <option value="torbox">TorBox</option>
-            <option value="realdebrid">Real-Debrid</option>
-            <option value="both">Both (TorBox + Real-Debrid)</option>
-          </select>
+        <label>Providers</label>
+        <div class="dl-providers">
+          <label class="dl-provider"><input type="checkbox" id="ckTB" checked onchange="onProviderChange()" /> TorBox</label>
+          <label class="dl-provider"><input type="checkbox" id="ckRD" onchange="onProviderChange()" /> Real-Debrid</label>
+          <label class="dl-provider"><input type="checkbox" id="ckAD" onchange="onProviderChange()" /> AllDebrid</label>
+          <label class="dl-provider"><input type="checkbox" id="ckPM" onchange="onProviderChange()" /> Premiumize</label>
         </div>
       </div>
 
@@ -78,6 +77,21 @@
           <input type="password" id="rdApiKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" data-lpignore="true" data-1pignore="true" />
         </div>
         <p class="hint" style="margin-top:4px"><a href="https://real-debrid.com/?id=14493200" target="_blank">Create a Real-Debrid account &#8599;</a></p>
+      </div>
+
+      <div class="input-group" id="adKeyWrap">
+        <label>AllDebrid API Key <span style="color:var(--amber)">*</span> <a href="https://alldebrid.com/apikeys" target="_blank">Get key &#8599;</a></label>
+        <div class="input-wrap">
+          <input type="password" id="adApiKey" placeholder="Your AllDebrid API key" autocomplete="off" data-lpignore="true" data-1pignore="true" />
+        </div>
+      </div>
+
+      <div class="input-group" id="pmKeyWrap">
+        <label>Premiumize API Key <span style="color:var(--amber)">*</span> <a href="https://www.premiumize.me/account" target="_blank">Get key &#8599;</a></label>
+        <div class="input-wrap">
+          <input type="password" id="pmApiKey" placeholder="Your Premiumize API key" autocomplete="off" data-lpignore="true" data-1pignore="true" />
+        </div>
+        <p class="hint" style="margin-top:4px">First use from a new IP may ask you to authorize the key on premiumize.me — we'll guide you.</p>
       </div>
 
       <div class="input-group">
@@ -198,6 +212,9 @@
   </div>
 </div>
 
+<!-- Item preview bar (bottom, TorBox-style) -->
+<div id="itemPreviewBar" class="item-preview-bar"></div>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
@@ -217,6 +234,7 @@
 <script src="js/pages/queue.js?v=16"></script>
 <script src="js/pages/download.js?v=16"></script>
 <script src="js/pages/addtorrent.js?v=16"></script>
+<script src="js/pages/itemActions.js?v=16"></script>
 <script src="js/pages/settings.js?v=16"></script>
 <script src="js/app.js?v=16"></script>
 

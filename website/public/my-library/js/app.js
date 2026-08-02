@@ -1,7 +1,7 @@
 // ── App State & Routing ───────────────────────────────────────
 
 const App = {
-  keys: { torboxKey: '', rdKey: '', tmdbKey: '' },
+  keys: { torboxKey: '', rdKey: '', adKey: '', pmKey: '', tmdbKey: '' },
   allItems: [],
   currentPage: 'dashboard',
 };
@@ -109,10 +109,22 @@ function updateBottomNav(active) {
 }
 
 // ── Login / Auth ──────────────────────────────────────────────
+function getSelectedProviders() {
+  const out = [];
+  if (document.getElementById('ckTB')?.checked) out.push('torbox');
+  if (document.getElementById('ckRD')?.checked) out.push('realdebrid');
+  if (document.getElementById('ckAD')?.checked) out.push('alldebrid');
+  if (document.getElementById('ckPM')?.checked) out.push('premiumize');
+  return out;
+}
+
 function onProviderChange() {
-  const provider = document.getElementById('providerSelect').value;
-  document.getElementById('tbKeyWrap').style.display = provider === 'realdebrid' ? 'none' : 'block';
-  document.getElementById('rdKeyWrap').style.display = provider === 'torbox' ? 'none' : 'block';
+  const set = getSelectedProviders();
+  const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? 'block' : 'none'; };
+  show('tbKeyWrap', set.includes('torbox'));
+  show('rdKeyWrap', set.includes('realdebrid'));
+  show('adKeyWrap', set.includes('alldebrid'));
+  show('pmKeyWrap', set.includes('premiumize'));
 }
 
 function toggleVis(id, btn) {
@@ -123,7 +135,6 @@ function toggleVis(id, btn) {
 }
 
 async function handleLoad() {
-  const provider = document.getElementById('providerSelect').value;
   const hasEncrypted = localStorage.getItem('lelibrary_encrypted');
 
   if (hasEncrypted) {
@@ -135,9 +146,13 @@ async function handleLoad() {
       if (looksLikeV4Token(keys.tmdbKey || '')) { showError(tmdbKeyError()); return; }
       document.getElementById('apiKey').value = keys.torboxKey || '';
       document.getElementById('rdApiKey').value = keys.rdKey || '';
+      document.getElementById('adApiKey').value = keys.adKey || '';
+      document.getElementById('pmApiKey').value = keys.pmKey || '';
       document.getElementById('tmdbKey').value = keys.tmdbKey || '';
       if (keys.torboxKey) App.keys.torboxKey = keys.torboxKey;
       if (keys.rdKey) App.keys.rdKey = keys.rdKey;
+      if (keys.adKey) App.keys.adKey = keys.adKey;
+      if (keys.pmKey) App.keys.pmKey = keys.pmKey;
       if (keys.tmdbKey) App.keys.tmdbKey = keys.tmdbKey;
       sessionStorage.setItem('lelibrary_password', password);
       await loadLibrary();
@@ -145,18 +160,29 @@ async function handleLoad() {
       showError('Wrong password \u2014 could not decrypt your keys');
     }
   } else {
-    const apiKey = document.getElementById('apiKey').value.trim();
-    const rdApiKey = document.getElementById('rdApiKey').value.trim();
+    const set = getSelectedProviders();
+    if (set.length === 0) { showError('Choose at least one provider'); return; }
+    const KEY_FIELD = { torbox: 'apiKey', realdebrid: 'rdApiKey', alldebrid: 'adApiKey', premiumize: 'pmApiKey' };
+    const keyVals = {};
+    for (const id of set) {
+      const v = document.getElementById(KEY_FIELD[id]).value.trim();
+      if (!v) { showError('Please enter your ' + { torbox: 'TorBox', realdebrid: 'Real-Debrid', alldebrid: 'AllDebrid', premiumize: 'Premiumize' }[id] + ' API key'); return; }
+      keyVals[id] = v;
+    }
     const tmdbKey = document.getElementById('tmdbKey').value.trim();
     const password = document.getElementById('encPassword').value.trim();
-    if ((provider === 'torbox' || provider === 'both') && !apiKey) { showError('Please enter your TorBox API key'); return; }
-    if ((provider === 'realdebrid' || provider === 'both') && !rdApiKey) { showError('Please enter your Real-Debrid API key'); return; }
     if (!tmdbKey) { showError('Please enter your TMDB API key'); return; }
     if (looksLikeV4Token(tmdbKey)) { showError(tmdbKeyError()); return; }
     if (!password) { showError('Please choose an encryption password'); return; }
     if (password.length < 4) { showError('Password must be at least 4 characters'); return; }
     try {
-      const encrypted = await encryptData({ torboxKey: apiKey, rdKey: rdApiKey, tmdbKey }, password);
+      const encrypted = await encryptData({
+        torboxKey: keyVals.torbox || '',
+        rdKey: keyVals.realdebrid || '',
+        adKey: keyVals.alldebrid || '',
+        pmKey: keyVals.premiumize || '',
+        tmdbKey,
+      }, password);
       localStorage.setItem('lelibrary_encrypted', JSON.stringify(encrypted));
       sessionStorage.setItem('lelibrary_password', password);
       await loadLibrary();
@@ -169,11 +195,15 @@ async function handleLoad() {
 async function loadLibrary() {
   const apiKey = document.getElementById('apiKey')?.value?.trim() || '';
   const rdApiKey = document.getElementById('rdApiKey')?.value?.trim() || '';
+  const adApiKey = document.getElementById('adApiKey')?.value?.trim() || '';
+  const pmApiKey = document.getElementById('pmApiKey')?.value?.trim() || '';
   const tmdbKey = document.getElementById('tmdbKey')?.value?.trim() || '';
-  if (!apiKey && !rdApiKey) { showError('Enter at least one API key (TorBox or Real-Debrid)'); return; }
+  if (!apiKey && !rdApiKey && !adApiKey && !pmApiKey) { showError('Enter at least one API key'); return; }
 
   if (apiKey) App.keys.torboxKey = apiKey;
   if (rdApiKey) App.keys.rdKey = rdApiKey;
+  if (adApiKey) App.keys.adKey = adApiKey;
+  if (pmApiKey) App.keys.pmKey = pmApiKey;
   if (tmdbKey) App.keys.tmdbKey = tmdbKey;
 
   hideError();
@@ -210,13 +240,13 @@ async function loadLibrary() {
       document.getElementById('loadingScreen').style.display = 'none';
       const empty = document.getElementById('emptyState');
       if (empty) {
-        const rdOnly = rdApiKey && !apiKey;
-        const tbOnly = apiKey && !rdApiKey;
+        const rdOnly = rdApiKey && !apiKey && !adApiKey && !pmApiKey;
+        const tbOnly = apiKey && !rdApiKey && !adApiKey && !pmApiKey;
         empty.querySelector('p').textContent = rdOnly
           ? 'No completed downloads found on Real-Debrid. Add some content to see it here.'
           : tbOnly
             ? 'No completed downloads found on TorBox. Add some content to see it here.'
-            : 'No completed downloads found on TorBox or Real-Debrid. Add some content to see it here.';
+            : 'No completed downloads found on your providers yet. Add some content to see it here.';
         empty.style.display = 'block';
       }
       return;
@@ -309,6 +339,9 @@ document.addEventListener('DOMContentLoaded', () => {
   onProviderChange();
   initKeyboardShortcuts();
 
+  // Show release notes once per new version
+  checkWhatsNew();
+
   // Live TMDB v4 warning as the user types their key
   const tmdbInput = document.getElementById('tmdbKey');
   if (tmdbInput) {
@@ -335,9 +368,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         document.getElementById('apiKey').value = keys.torboxKey || '';
         document.getElementById('rdApiKey').value = keys.rdKey || '';
+        document.getElementById('adApiKey').value = keys.adKey || '';
+        document.getElementById('pmApiKey').value = keys.pmKey || '';
         document.getElementById('tmdbKey').value = keys.tmdbKey || '';
         if (keys.torboxKey) App.keys.torboxKey = keys.torboxKey;
         if (keys.rdKey) App.keys.rdKey = keys.rdKey;
+        if (keys.adKey) App.keys.adKey = keys.adKey;
+        if (keys.pmKey) App.keys.pmKey = keys.pmKey;
         if (keys.tmdbKey) App.keys.tmdbKey = keys.tmdbKey;
         loadLibrary();
       }).catch(() => {
@@ -359,7 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Enter key on inputs
-  ['apiKey', 'rdApiKey', 'tmdbKey', 'encPassword', 'decPassword'].forEach(id => {
+  ['apiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbKey', 'encPassword', 'decPassword'].forEach(id => {
     document.getElementById(id)?.addEventListener('keydown', e => { if (e.key === 'Enter') handleLoad(); });
   });
 

@@ -2,6 +2,31 @@
 
 ## [4.0.0]
 
+### Configure page redesign
+
+- **A brand new setup flow**: the configure page is now a clear 1–2–3–4 walkthrough: pick your providers, add your TMDB key, tweak the optional extras, then install
+- **Pick your providers with cards**: TorBox and Real-Debrid now show as tappable cards with their logos: click one (or both) and its key field opens right there, no more dropdown
+- **Nothing is pre-selected**: when you first land on the page it's blank until you choose a provider, so you always know what you've actually set up
+- **A live "Your setup" panel** on the right shows exactly what you've configured as you go: which providers, catalog mode, TMDB status and more
+- **Advanced options tucked away**: catalog names, poster & ratings services and custom streams live in their own "Advanced settings" step so the main flow stays simple
+- **Privacy front and centre**: how LeLibrary works, what we do with your keys and what you need are now always visible at the bottom of the page
+- **Referral links moved into the provider cards**: sign up for TorBox or Real-Debrid (with your referral already applied) right where you'd enter the key
+- **A clearer mobile experience**: a sticky bar keeps the Generate button in reach while you scroll, and everything stacks neatly on small screens
+
+### Four debrid providers
+
+- **AllDebrid and Premiumize are here**: alongside TorBox and Real-Debrid, you can now connect AllDebrid and Premiumize: any combination of two, three or all four in one addon
+- **Per-provider catalog mode**: merge everything into one unified library, or keep a separate catalog row per provider (TorBox / Real-Debrid / AllDebrid / Premiumize), with custom catalog names still supported
+- **Premiumize PIN flow built in**: the first time a key is used from a new IP, Premiumize asks you to authorize it: we show the PIN and walk you through it on the configure page, and again in My Library if it crops up mid-session
+- **My Library supports all four**: per-provider login rows, logos on the dashboard, account cards in Profile, and the download/queue/add views all offer the new providers (AllDebrid & Premiumize take magnets, not .torrent files)
+- **Your keys are still yours**: they live only in your browser (encrypted), and cache namespaces are now hashed rather than keyed on a key fragment
+
+### My Library
+
+- **Library item actions**: every download now has a preview bar and a "View files" modal with real actions: download the whole torrent, download as a ZIP (TorBox), download individual files, copy the magnet (short or full), and export a .magnet file. TorBox items also get an airlock toggle, rename, tags and alternative hashes, all saved straight to TorBox
+- **Download progress bar**: starting any download shows a sweeping progress bar at the top ("Preparing download…" then "Download started") so you always know something is happening
+- **What's new modal**: when a new release comes out, My Library shows the release notes once (dismiss it and it won't nag again)
+
 ### Branding
 
 - **Provider logos**: TorBox, Real-Debrid, AllDebrid and Premiumize now show their own logos across the app instead of plain text badges
@@ -11,33 +36,33 @@
 
 ### Your privacy & safety
 
-- **Your API keys are never shown in URLs or server logs anymore** — previously a small fragment could end up in your browser history and our logs
-- **Fixed a security hole on the configure page**: a specially crafted install link could run code on that page — it's now safely neutralised
+- **Your API keys are never shown in URLs or server logs anymore**: previously a small fragment could end up in your browser history and our logs
+- **Fixed a security hole on the configure page**: a specially crafted install link could run code on that page: it's now safely neutralised
 - **Clearing your cache is locked down**: it can only clear your own data, needs to be triggered deliberately, and can't be fired off by a random webpage
 
 ### Clearer errors, fewer surprises
 
-- **You'll know if you used the wrong TMDB key**: paste a TMDB v4 "Read Access Token" (these expire and don't work) and you'll be told straight away — as you type it, when you log in, and again if TMDB still rejects it. You want the v3 API key, and it tells you exactly how to get it
+- **You'll know if you used the wrong TMDB key**: paste a TMDB v4 "Read Access Token" (these expire and don't work) and you'll be told straight away: as you type it, when you log in, and again if TMDB still rejects it. You want the v3 API key, and it tells you exactly how to get it
 - **Plain-English messages everywhere**: wrong TorBox/Real-Debrid/TMDB keys, rate limits and provider outages now explain what's wrong instead of showing a number or a blank screen
 - **A bad key can no longer hide behind a loading spinner** or masquerade as an empty library or an empty download queue
 - **Torrent search tells you when the search sources are down** instead of just saying "no torrents found"
 
 ### Fixes & improvements
 
-- **Snappier key checks and catalog loading**: the app now reuses its connections to TorBox, Real-Debrid and TMDB instead of reconnecting for every call — so key verification responds quicker and big libraries build without the extra connection overhead
-- **Movie pages now show your chosen artwork and ratings** (ERDB / RPDB / Fanart.tv / OMDB) — previously this only worked for series
+- **Snappier key checks and catalog loading**: the app now reuses its connections to TorBox, Real-Debrid and TMDB instead of reconnecting for every call: so key verification responds quicker and big libraries build without the extra connection overhead
+- **Movie pages now show your chosen artwork and ratings** (ERDB / RPDB / Fanart.tv / OMDB): previously this only worked for series
 - **Renaming a download on Real-Debrid now shows up in your catalog** right away
 - **Fixed a crash** that a malformed request could trigger on the addon
 - **Selecting, marking as watched and deleting is more reliable** when torrents, usenet and Real-Debrid items happen to share the same number
 - **Logout really logs out** now, and there's a new "Use different keys" option to switch accounts
-- **"Clear all data" clears everything** — no leftover cached items from a previous account
+- **"Clear all data" clears everything**: no leftover cached items from a previous account
 - **The dashboard stays up to date** after refreshing instead of showing stale counts
 - **The detail page can't trap you anymore**: missing artwork no longer hides the Back and Save buttons
 - **Shared links work even with an empty library**: opening a saved movie/series link no longer silently drops you to the dashboard
 - **Fast re-searches don't show stale results** anymore
 - **The download queue shows everything**, including items in uncommon states (queued, waiting for file selection…)
 - **The HTTP "watch folder" hint is now honest**: the TorBox/Real-Debrid add APIs only accept magnets, and the page says so instead of silently failing
-- **Adding a `.torrent` file to Real-Debrid no longer claims success** — RD needs a magnet link, and it tells you
+- **Adding a `.torrent` file to Real-Debrid no longer claims success**: RD needs a magnet link, and it tells you
 - **Empty library messages name the right provider**, and the profile page safely escapes account data
 
 ### Configure page
@@ -51,7 +76,7 @@
 
 ### Website / Configure
 
-- **Your keys are checked before you get install links**: click "Generate" and it validates your TorBox, Real-Debrid and TMDB keys, flashes "Keys validated ✓", and flags any field that's wrong — no more installing a broken key and wondering why nothing works
+- **Your keys are checked before you get install links**: click "Generate" and it validates your TorBox, Real-Debrid and TMDB keys, flashes "Keys validated ✓", and flags any field that's wrong: no more installing a broken key and wondering why nothing works
 
 ## [3.0.2]
 
@@ -59,7 +84,7 @@
 
 - **The right seasons & episodes for you**: your downloads are tracked separately per user, so you never see someone else's seasons or the wrong episode list
 - **Streams match what you clicked**: an episode that isn't in a download no longer plays a random file from it
-- **"Hide anime" really hides anime now** — it's removed from the Movies and Series rows too, not just the anime row
+- **"Hide anime" really hides anime now**: it's removed from the Movies and Series rows too, not just the anime row
 - **A broken provider key no longer empties your library**: if one service's key is expired, the other service's content still shows
 - **You're warned about TMDB v4 tokens** (they expire and silently break things) and pointed to the v3 API key
 - **Keys are verified before you install**, with a check button on each field
@@ -146,16 +171,16 @@
 - **Version check banner** for self-hosters
 - Removed private website files from the public repo
 
-## [2.0.0] — Multi-provider support
+## [2.0.0]
 
-- **TorBox + Real-Debrid** — use one, the other, or both
+- **TorBox + Real-Debrid**: use one, the other, or both
 - **Merge or separate catalog modes**
 - **Pick your provider** in the config
 - **One addon** that works with both services
 - **Nuvio compatible**
 - **Revamped My Library**: virtual scroll, watchlist and queue
 
-## [1.0.0] — Initial release
+## [1.0.0]
 
 - TorBox-only addon
 - Basic catalog, meta and stream endpoints

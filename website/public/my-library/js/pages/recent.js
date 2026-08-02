@@ -29,10 +29,8 @@ function renderRecentView() {
     const parsed = parseTitle(name);
     const state = (item.download_state || '').toLowerCase();
     const size = item.size ? formatBytes(item.size) : '';
-    let sourceLabel, sourceClass;
-    if (item.source === 'realdebrid') { sourceLabel = 'RD'; sourceClass = 'rd'; }
-    else if (item.source === 'usenet') { sourceLabel = 'Usenet'; sourceClass = 'usenet'; }
-    else { sourceLabel = 'Torrent'; sourceClass = 'torrent'; }
+    const sourceLabel = providerLabel(item.source);
+    const sourceClass = providerBadgeClass(item.source);
 
     const el = document.createElement('div');
     el.className = 'list-item';

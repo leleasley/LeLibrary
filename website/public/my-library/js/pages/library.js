@@ -255,15 +255,14 @@ function createLibraryListItem(item, idx) {
   const state = (item.download_state || '').toLowerCase();
   const stateLabel = state.charAt(0).toUpperCase() + state.slice(1);
   const size = item.size ? formatBytes(item.size) : '';
-  let sourceLabel, sourceClass;
-  if (item.source === 'realdebrid') { sourceLabel = 'RD'; sourceClass = 'rd'; }
-  else if (item.source === 'usenet') { sourceLabel = 'Usenet'; sourceClass = 'usenet'; }
-  else { sourceLabel = 'Torrent'; sourceClass = 'torrent'; }
+  const sourceLabel = providerLabel(item.source);
+  const sourceClass = providerBadgeClass(item.source);
   const isSelected = libraryState.selectedIds.has(selKey(item));
   const isDupe = isDuplicateExtra(item);
   const dupeBadge = isDupe ? ' <span class="badge badge-dupe">DUPE</span>' : '';
   const watched = isWatched(item);
   const watchedBadge = watched ? ` <span class="badge badge-watched" title="Watched">${icon('check', 10)}</span>` : '';
+  const payload = JSON.stringify(itemPayload(item)).replace(/'/g, "&#39;");
 
   const el = document.createElement('div');
   el.className = 'list-item' + (isSelected ? ' selected' : '') + (watched ? ' watched' : '');
@@ -272,7 +271,7 @@ function createLibraryListItem(item, idx) {
   el.innerHTML = `
     <div class="cb"><input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleLibrarySelect('${selKey(item)}', this.checked)" /></div>
     <div class="list-info">
-      <div class="list-title">${escHtml(parsed.cleanName)}${parsed.year ? `<span class="year">(${escHtml(parsed.year)})</span>` : ''}${dupeBadge}${watchedBadge}</div>
+      <div class="list-title" onclick='showItemPreview(${payload})' style="cursor:pointer">${escHtml(parsed.cleanName)}${parsed.year ? `<span class="year">(${escHtml(parsed.year)})</span>` : ''}${dupeBadge}${watchedBadge}</div>
       <div class="list-filename" title="${escHtml(name)}">${escHtml(name)}</div>
       <div class="list-meta">
         <span>${size}</span>
@@ -282,6 +281,8 @@ function createLibraryListItem(item, idx) {
         <span class="badge badge-${state}">${stateLabel}</span>
       </div>
     </div>
+    <button class="btn-view" onclick='showItemPreview(${payload})' title="Preview">${icon('eye', 14)}</button>
+    <button class="btn-view" onclick='openItemActionsData(${payload})' title="View files & actions">${icon('folder', 14)}</button>
     <button class="btn-watch" onclick="toggleWatchedItem('${selKey(item)}')" title="${watched ? 'Mark as not watched' : 'Mark as watched'}">${watched ? icon('x', 14) : icon('check', 14)}</button>
     <button class="btn-delete" onclick='deleteLibraryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})' title="Delete">${icon('trash', 14)}</button>
   `;
@@ -295,13 +296,12 @@ function createLibraryCard(item, idx) {
   const state = (item.download_state || '').toLowerCase();
   const stateLabel = state.charAt(0).toUpperCase() + state.slice(1);
   const size = item.size ? formatBytes(item.size) : '';
-  let sourceLabel, sourceClass;
-  if (item.source === 'realdebrid') { sourceLabel = 'RD'; sourceClass = 'rd'; }
-  else if (item.source === 'usenet') { sourceLabel = 'Usenet'; sourceClass = 'usenet'; }
-  else { sourceLabel = 'Torrent'; sourceClass = 'torrent'; }
+  const sourceLabel = providerLabel(item.source);
+  const sourceClass = providerBadgeClass(item.source);
   const isSelected = libraryState.selectedIds.has(selKey(item));
   const isDupe = isDuplicateExtra(item);
   const watched = isWatched(item);
+  const payload = JSON.stringify(itemPayload(item)).replace(/'/g, "&#39;");
 
   const el = document.createElement('div');
   el.className = 'card' + (isSelected ? ' selected' : '') + (watched ? ' watched' : '');
@@ -323,6 +323,8 @@ function createLibraryCard(item, idx) {
       </div>
     </div>
     <div class="torrent-card-actions" style="padding:8px">
+      <button class="btn-action btn-info" onclick='showItemPreview(${payload})' title="Preview">${icon('eye', 10)} Preview</button>
+      <button class="btn-action btn-info" onclick='openItemActionsData(${payload})' title="View files & actions">${icon('folder', 10)} Files</button>
       <button class="btn-action btn-download" onclick="toggleWatchedItem('${selKey(item)}')" title="${watched ? 'Mark as not watched' : 'Mark as watched'}" aria-label="${watched ? 'Mark as not watched' : 'Mark as watched'}: ${escHtml(parsed.cleanName)}">${watched ? icon('x', 10) + ' Unwatch' : icon('check', 10) + ' Watched'}</button>
       <button class="btn-action btn-report" onclick='deleteLibraryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})' title="Delete" aria-label="Delete: ${escHtml(parsed.cleanName)}">${icon('trash', 10)} Delete</button>
     </div>
@@ -395,13 +397,19 @@ function updateBatchBar() {
 async function deleteLibraryItem(item) {
   const tbKey = App.keys.torboxKey;
   const rdKey = App.keys.rdKey;
+  const adKey = App.keys.adKey;
+  const pmKey = App.keys.pmKey;
   const name = item.name || item.filename || 'Unknown';
-  const provider = item.source === 'realdebrid' ? 'Real-Debrid' : 'TorBox';
+  const provider = { realdebrid: 'Real-Debrid', alldebrid: 'AllDebrid', premiumize: 'Premiumize', usenet: 'TorBox Usenet', torrent: 'TorBox' }[item.source] || 'TorBox';
   if (!confirm(`Delete "${name}" from ${provider}?`)) return;
 
   try {
     if (item.source === 'realdebrid') {
       await rdDelete('/torrents/delete/' + item.id, rdKey);
+    } else if (item.source === 'alldebrid') {
+      await adDelete('/v4/magnet/delete/' + item.id, adKey);
+    } else if (item.source === 'premiumize') {
+      await pmDelete('/transfer/delete/' + item.id, pmKey);
     } else {
       const path = item.source === 'torrent' ? '/torrents/' + item.id : '/usenet/' + item.id;
       await torboxDelete(path, tbKey);
@@ -423,6 +431,8 @@ async function deleteSelected(skipConfirm) {
 
   const tbKey = App.keys.torboxKey;
   const rdKey = App.keys.rdKey;
+  const adKey = App.keys.adKey;
+  const pmKey = App.keys.pmKey;
   let deleted = 0;
   for (const key of libraryState.selectedIds) {
     const item = App.allItems.find(i => selKey(i) === key);
@@ -430,6 +440,10 @@ async function deleteSelected(skipConfirm) {
     try {
       if (item.source === 'realdebrid') {
         await rdDelete('/torrents/delete/' + item.id, rdKey);
+      } else if (item.source === 'alldebrid') {
+        await adDelete('/v4/magnet/delete/' + item.id, adKey);
+      } else if (item.source === 'premiumize') {
+        await pmDelete('/transfer/delete/' + item.id, pmKey);
       } else {
         const path = item.source === 'torrent' ? '/torrents/' + item.id : '/usenet/' + item.id;
         await torboxDelete(path, tbKey);

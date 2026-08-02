@@ -8,6 +8,8 @@ function renderDownloadView() {
 
   const hasTB = !!App.keys.torboxKey;
   const hasRD = !!App.keys.rdKey;
+  const hasAD = !!App.keys.adKey;
+  const hasPM = !!App.keys.pmKey;
 
   view.innerHTML = `
     <div class="browse-header">
@@ -26,13 +28,15 @@ function renderDownloadView() {
       <div class="input-wrap" id="dlProviderWrap">
         <label>Send to</label>
         <div class="dl-providers">
-          ${hasTB ? `<label class="dl-provider"><input type="checkbox" id="dlTB" ${hasRD ? '' : 'checked'} /> TorBox</label>` : ''}
+          ${hasTB ? `<label class="dl-provider"><input type="checkbox" id="dlTB" ${!hasRD && !hasAD && !hasPM ? 'checked' : ''} /> TorBox</label>` : ''}
           ${hasRD ? `<label class="dl-provider"><input type="checkbox" id="dlRD" ${hasTB ? '' : 'checked'} /> Real-Debrid</label>` : ''}
+          ${hasAD ? `<label class="dl-provider"><input type="checkbox" id="dlAD" ${hasTB || hasRD || hasPM ? '' : 'checked'} /> AllDebrid</label>` : ''}
+          ${hasPM ? `<label class="dl-provider"><input type="checkbox" id="dlPM" ${hasTB || hasRD || hasAD ? '' : 'checked'} /> Premiumize</label>` : ''}
         </div>
-        ${!hasTB && !hasRD ? '<p class="hint">No provider keys loaded. Re-enter your API keys.</p>' : ''}
+        ${!hasTB && !hasRD && !hasAD && !hasPM ? '<p class="hint">No provider keys loaded. Re-enter your API keys.</p>' : ''}
       </div>
 
-      <button class="btn-load" id="dlSubmit" onclick="submitDownloads()" ${!hasTB && !hasRD ? 'disabled' : ''}>Add to Library</button>
+      <button class="btn-load" id="dlSubmit" onclick="submitDownloads()" ${!hasTB && !hasRD && !hasAD && !hasPM ? 'disabled' : ''}>Add to Library</button>
 
       <div id="dlResults" style="margin-top:16px"></div>
     </div>
@@ -59,9 +63,13 @@ async function submitDownloads() {
 
   const hasTB = !!App.keys.torboxKey;
   const hasRD = !!App.keys.rdKey;
+  const hasAD = !!App.keys.adKey;
+  const hasPM = !!App.keys.pmKey;
   const wantTB = hasTB && document.getElementById('dlTB')?.checked;
   const wantRD = hasRD && document.getElementById('dlRD')?.checked;
-  if (!wantTB && !wantRD) { showToast('Choose at least one provider', 'error'); return; }
+  const wantAD = hasAD && document.getElementById('dlAD')?.checked;
+  const wantPM = hasPM && document.getElementById('dlPM')?.checked;
+  if (!wantTB && !wantRD && !wantAD && !wantPM) { showToast('Choose at least one provider', 'error'); return; }
 
   btn.disabled = true;
   btn.textContent = 'Adding...';
@@ -79,15 +87,25 @@ async function submitDownloads() {
       continue;
     }
 
-    for (const provider of [wantTB ? 'torbox' : null, wantRD ? 'realdebrid' : null]) {
-      if (!provider) continue;
+    const providerIds = [];
+    if (wantTB) providerIds.push('torbox');
+    if (wantRD) providerIds.push('realdebrid');
+    if (wantAD) providerIds.push('alldebrid');
+    if (wantPM) providerIds.push('premiumize');
+    for (const provider of providerIds) {
       try {
         if (provider === 'torbox') {
           await addTorboxMagnet(parts.value, App.keys.torboxKey);
           results.push({ line: parts.value.slice(0, 60), ok: true, msg: 'Added to TorBox' });
-        } else {
+        } else if (provider === 'realdebrid') {
           await addRdMagnet(parts.value, App.keys.rdKey);
           results.push({ line: parts.value.slice(0, 60), ok: true, msg: 'Added to Real-Debrid' });
+        } else if (provider === 'alldebrid') {
+          await addAlldebridMagnet(parts.value, App.keys.adKey);
+          results.push({ line: parts.value.slice(0, 60), ok: true, msg: 'Added to AllDebrid' });
+        } else {
+          await addPremiumizeMagnet(parts.value, App.keys.pmKey);
+          results.push({ line: parts.value.slice(0, 60), ok: true, msg: 'Added to Premiumize' });
         }
       } catch (err) {
         results.push({ line: parts.value.slice(0, 60), ok: false, msg: provider + ': ' + err.message });

@@ -268,7 +268,14 @@ async function getMetadata(apiKey, tmdbId, type, lang = 'pt-BR') {
       app_extras: Object.keys(appExtras).length > 0 ? appExtras : undefined,
       status: detail.status,
     };
-    tmdbCache.set(cacheKey, result);
+    // A transient season-fetch failure (rate limit, TMDB hiccup) can leave
+    // videos empty. Don't cache that for 24h and show a hollow detail page all
+    // day — retry in 5 minutes instead.
+    if (rawSeasons.length > 0 && videos.length === 0) {
+      tmdbCache.set(cacheKey, result, 300);
+    } else {
+      tmdbCache.set(cacheKey, result);
+    }
     return result;
   }
 }

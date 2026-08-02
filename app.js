@@ -206,7 +206,7 @@ function getLogoUrl(baseUrl) {
 
 function getBaseManifest(baseUrl) {
   const manifest = {
-    id: (REGISTRY && REGISTRY.addonId) || 'community.torbox.catalog.selfhosted',
+    id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
     version: '4.0.0',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
@@ -269,7 +269,7 @@ function getConfiguredManifest(baseUrl, config = {}) {
   }
 
   return {
-    id: (REGISTRY && REGISTRY.addonId) || 'community.torbox.catalog.selfhosted',
+    id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
     version: '4.0.0',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',

@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.0]
+
+### Branding
+
+- **Provider logos**: TorBox, Real-Debrid, AllDebrid and Premiumize now show their own logos across the app instead of plain text badges
+- **Reddit community link**: the footer and the configure page now link to the r/LeLibrary subreddit with a Reddit icon, right alongside GitHub
+
 ## [3.1.0]
 
 ### Your privacy & safety

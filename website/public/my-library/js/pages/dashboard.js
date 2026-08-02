@@ -20,8 +20,8 @@ function renderDashboard() {
 
   // Provider badges
   let providerBadges = '';
-  if (hasTB) providerBadges += '<span class="provider-badge tb">TorBox</span>';
-  if (hasRD) providerBadges += '<span class="provider-badge rd">Real-Debrid</span>';
+  if (hasTB) providerBadges += `<span class="provider-badge tb"><img class="provider-logo" src="/provider-logos/torbox.png" alt="" loading="lazy" />TorBox</span>`;
+  if (hasRD) providerBadges += `<span class="provider-badge rd"><img class="provider-logo" src="/provider-logos/realdebrid.svg" alt="" loading="lazy" />Real-Debrid</span>`;
 
   // Recent items for Continue Watching
   const recent = items.slice()

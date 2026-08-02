@@ -62,9 +62,15 @@
 .dash-welcome .provider-badge {
   padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.03em;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.dash-welcome .provider-badge .provider-logo {
+  width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0;
 }
 .provider-badge.tb { background: rgba(88,166,255,0.12); color: var(--blue); }
 .provider-badge.rd { background: rgba(248,81,73,0.12); color: var(--error); }
+.provider-badge.ad { background: rgba(63,185,80,0.12); color: var(--success); }
+.provider-badge.pm { background: rgba(168,85,247,0.14); color: #c084fc; }
 
 /* Stats Grid */
 .stats-grid {

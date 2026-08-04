@@ -188,26 +188,62 @@ function hideDownloadBar() {
   document.getElementById('downloadBar')?.classList.remove('show');
 }
 
-// ── What's new modal (shown once per release) ─────────────────
+// ── What's new modal (shows recent releases once each, scrollable) ─
+
+// Strip Markdown formatting from release bodies so they display cleanly
+// in the modal (GitHub releases are raw Markdown with ## headers, **bold**
+// markers, and lots of blank lines).
+function cleanReleaseBody(body) {
+  if (!body) return '';
+  return body
+    .replace(/^## \[.*?\]\s*/m, '')          // strip top-level version header (duplicate of title)
+    .replace(/^### /gm, '')                   // strip sub-header markers (keep text)
+    .replace(/\*\*(.*?)\*\*/g, '$1')         // strip **bold** markers
+    .replace(/\n{3,}/g, '\n\n')              // collapse 3+ blank lines to 2
+    .replace(/^\n+/, '')                      // trim leading newlines
+    .trim();
+}
+
 async function checkWhatsNew() {
   try {
-    const r = await fetch('https://api.github.com/repos/leleasley/LeLibrary/releases/latest', {
+    const r = await fetch('https://api.github.com/repos/leleasley/LeLibrary/releases?per_page=5', {
       headers: { 'Accept': 'application/vnd.github.v3+json' },
       signal: AbortSignal.timeout(10000),
     });
     if (!r.ok) return;
-    const data = await r.json();
-    const tag = (data.tag_name || '').replace(/^v/, '');
-    if (!tag) return;
-    const seen = localStorage.getItem('lelibrary_seen_release') || '';
-    if (tag === seen) return; // already shown once for this release
-    localStorage.setItem('lelibrary_seen_release', tag);
-    showWhatsNewModal('v' + tag, data.body || '');
+    const releases = await r.json();
+    if (!Array.isArray(releases) || releases.length === 0) return;
+
+    // Seen tags (migrate the old single-key format if present)
+    const rawSeen = (localStorage.getItem('lelibrary_seen_releases') || localStorage.getItem('lelibrary_seen_release') || '');
+    const seen = new Set(rawSeen.split(',').map(s => s.trim()).filter(Boolean));
+
+    const unseen = releases
+      .filter(rel => { const tag = (rel.tag_name || '').replace(/^v/, ''); return tag && !seen.has(tag); })
+      .slice(0, 4); // cap the wall of text
+
+    if (unseen.length === 0) return;
+
+    unseen.forEach(rel => seen.add((rel.tag_name || '').replace(/^v/, '')));
+    localStorage.setItem('lelibrary_seen_releases', [...seen].join(','));
+    localStorage.removeItem('lelibrary_seen_release');
+
+    showWhatsNewModal(unseen.map(rel => ({ title: rel.name || rel.tag_name, body: rel.body || '' })));
   } catch (e) { /* offline / blocked — skip silently */ }
 }
 
-function showWhatsNewModal(title, body) {
+function showWhatsNewModal(releases) {
   if (document.getElementById('whatsNewModal')) return;
+  const items = Array.isArray(releases) && releases.length
+    ? releases.map(r => ({ title: r.title || r.name || r.tag_name, body: cleanReleaseBody(r.body || '') }))
+    : [{ title: 'Release notes', body: (typeof releases === 'string' ? releases : '') || 'Release notes are empty.' }];
+  const count = items.length;
+  const bodyHtml = items.map(r => `
+    <div class="wn-release">
+      <div class="wn-release-title">${escHtml(r.title || 'Release')}</div>
+      <div class="wn-release-body">${escHtml(r.body || 'Release notes are empty.')}</div>
+    </div>`).join('');
+
   const overlay = document.createElement('div');
   overlay.id = 'whatsNewModal';
   overlay.className = 'wn-overlay';
@@ -215,12 +251,12 @@ function showWhatsNewModal(title, body) {
   overlay.innerHTML = `
     <div class="wn-box">
       <div class="wn-header">
-        <h3>${icon('zap', 16)} What's new in ${escHtml(title)}</h3>
+        <h3>${icon('zap', 16)} What's new${count > 1 ? ` (${count} releases)` : ''}</h3>
         <button class="wn-close" onclick="this.closest('.wn-overlay').remove()" aria-label="Close">&times;</button>
       </div>
-      <div class="wn-body">${escHtml(body || 'Release notes are empty.')}</div>
+      <div class="wn-body">${bodyHtml}</div>
       <div class="wn-footer">
-        <a class="btn btn-secondary btn-sm" href="https://github.com/leleasley/LeLibrary/releases" target="_blank" rel="noopener">View on GitHub ${icon('external', 12)}</a>
+        <a class="btn btn-secondary btn-sm" href="https://github.com/leleasley/LeLibrary/releases" target="_blank" rel="noopener">View all on GitHub ${icon('external', 12)}</a>
         <button class="btn btn-primary btn-sm" onclick="this.closest('.wn-overlay').remove()">Got it</button>
       </div>
     </div>`;

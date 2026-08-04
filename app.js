@@ -170,6 +170,16 @@ async function buildAndCacheForConfig(token, config) {
       return;
     }
 
+    // Resilience: if the provider suddenly returns nothing but we previously had
+    // content, don't wipe the cached catalogs. A transient provider blip (or a
+    // silently-failing key) shouldn't blank someone's library for hours.
+    if (downloads.length === 0 && oldHash) {
+      console.log('[Cache] Downloads empty but we had content — keeping existing catalog');
+      await cache.touchPattern(`cat:*${userKey}*`, TTL_CATALOG);
+      await cache.expire(hashKey, 7200);
+      return;
+    }
+
     const sources = rdCatalog === 'separate'
       ? active.map(id => ({ key: providers.PROVIDER_META[id].cat, downloads: providers.downloadsFor(downloads, id) }))
       : [{ key: 'merged', downloads }];
@@ -403,6 +413,19 @@ async function handleCatalog(req, res) {
     const oldHash = await cache.get(hashKey);
     const hashChanged = oldHash !== newHash;
 
+    // Resilience: a suddenly-empty provider response must not blank the cached
+    // catalog. If we had content before and now get nothing, serve the existing
+    // cache instead of rebuilding it empty.
+    if (hashChanged && downloads.length === 0 && oldHash) {
+      const stale = await cache.get(cacheKey).catch(() => null);
+      if (stale) {
+        console.log('[Catalog] Empty provider response — serving cached catalog instead of blanking');
+        await cache.touchPattern(`cat:*${userKey}*`, TTL_CATALOG);
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+        return res.json(withCacheHints(stale, { cacheMaxAge: 60, staleRevalidate: 60, staleError: 1800 }));
+      }
+    }
+
     // Progressive: return already-known items immediately, complete the rest in the background
     const built = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey }, { progressive: true, userKey, hideAnime });
     const isPartial = !!built.completion;
@@ -509,13 +532,19 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
     const meta   = await buildMeta(tmdbId, type, tmdbApiKey, lang, config, { erdbToken, rpdbKey, omdbKey, fanartKey, enhanceBackground, enhanceLogo }, userKey);
     const result = { meta };
 
+    // Resilience: don't cache hollow results for 24h. A series with zero
+    // episodes (provider down/empty) or a meta that failed to build (TMDB
+    // blip) gets a 5-minute TTL so it rebuilds once the source is reachable
+    // again — otherwise a temporary outage empties detail pages for a day.
+    const metaTtl = (!meta || (type !== 'movie' && (!meta.videos || meta.videos.length === 0))) ? 300 : 86400;
+
     await Promise.all([
-      cache.set(cacheKey, result, 86400),
+      cache.set(cacheKey, result, metaTtl),
       streamPrefetch,
     ]);
 
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
-    res.json(withCacheHints(result, { cacheMaxAge: 86400, staleRevalidate: 86400, staleError: 604800 }));
+    res.json(withCacheHints(result, { cacheMaxAge: metaTtl, staleRevalidate: metaTtl, staleError: 604800 }));
 
     // For series: prefetch first episode streams in background after responding
     if (type === 'series' && meta?.videos?.length > 0) {

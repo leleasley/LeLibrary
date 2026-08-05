@@ -228,7 +228,7 @@ function getLogoUrl(baseUrl) {
 function getBaseManifest(baseUrl) {
   const manifest = {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-    version: '4.5.0',
+    version: '4.5.1',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -309,7 +309,7 @@ function getConfiguredManifest(baseUrl, config = {}) {
 
   return {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-    version: '4.5.0',
+    version: '4.5.1',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -331,7 +331,7 @@ app.get('/health', async (req, res) => {
   res.json({
     status: 'ok',
     cache: stats,
-    version: '4.5.0',
+    version: '4.5.1',
   });
 });
 
@@ -450,7 +450,7 @@ async function handleNuvioProfile(req, res) {
     focusGlowEnabled: true,
     id: 'collection-lelibrary-franchises',
     title: 'LeLibrary Franchises',
-    pinToTop: true,
+    pinToTop: false,
     showAllTab: true,
     viewMode: 'TABBED_GRID',
     folders,

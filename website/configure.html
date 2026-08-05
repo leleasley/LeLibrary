@@ -2626,7 +2626,7 @@
       goToStep(1);
     }
 
-    const APP_VERSION = '4.5.0';
+    const APP_VERSION = '4.5.1';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');
@@ -2966,6 +2966,7 @@
     const NUVIO_API_BASE        = 'https://api.nuvio.tv';
     const NUVIO_PUBLISHABLE_KEY = 'sb_publishable_1Clq8rlTVACkdcZuqr6_AD__xUUC_EN';
     const CONNECT_STORAGE_KEY   = 'lelibrary_connect';
+    const NUVIO_CLIENT_ID_KEY   = 'lelibrary_nuvio_client_id';
 
     const connectState = {
       platform: null,          // 'stremio' | 'nuvio'
@@ -3002,6 +3003,19 @@
 
     function clearPersistedConnect() {
       try { localStorage.removeItem(CONNECT_STORAGE_KEY); } catch {}
+    }
+
+    function nuvioOriginClientId() {
+      try {
+        let id = localStorage.getItem(NUVIO_CLIENT_ID_KEY);
+        if (!id) {
+          id = `lelibrary-web-${crypto.randomUUID()}`;
+          localStorage.setItem(NUVIO_CLIENT_ID_KEY, id);
+        }
+        return id;
+      } catch {
+        return `lelibrary-web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      }
     }
 
     function restoreConnect() {
@@ -3205,14 +3219,13 @@
               <span class="arr">›</span>
             </button>
             <div class="url-warning">
-              ⚠️ <strong>This replaces every addon currently installed on your ${plat} account</strong> so your home screen stays clean.
-              A list of your previous addon URLs will be shown afterwards so you can reinstall them manually if you need to.
+              <strong>Your other addons are kept</strong> — LeLibrary is simply added (or updated if it was already installed).
             </div>
             <button class="btn-main btn-gen" id="btnPushCatalogues" onclick="pushCatalogues()">
               <div class="ico">⬆️</div>
               <div class="txt">
                 <span id="pushCataloguesLabel">Push to ${plat}</span>
-                <small id="pushCataloguesSmall">Installs LeLibrary and replaces your current addons</small>
+                <small id="pushCataloguesSmall">Adds or updates LeLibrary and keeps your other addons</small>
               </div>
               <span class="arr">›</span>
             </button>
@@ -3247,7 +3260,7 @@
       el('pushActions').style.display = guard ? 'none' : '';
       el('cataloguesProfileField').style.display = (connectState.platform === 'nuvio' && !guard) ? '' : 'none';
       const warn = document.querySelector('#installPush .url-warning strong');
-      if (warn) warn.textContent = `This replaces every addon currently installed on your ${connectState.platform === 'stremio' ? 'Stremio' : 'Nuvio'} account`;
+      if (warn) warn.textContent = `Your other addons are kept — LeLibrary is added or updated on ${connectState.platform === 'stremio' ? 'Stremio' : 'Nuvio'}`;
       el('pushCataloguesStatus').textContent = '';
       el('pushCataloguesStatus').style.color = '';
       el('pushCataloguesStatus').style.display = guard ? 'none' : '';
@@ -3410,7 +3423,7 @@
     // Nuvio keeps Home-row visibility separately from Collections. Disable the
     // dynamic franchise rows there, while leaving the same manifest catalogs
     // available to the LeLibrary Franchises collection folders.
-    async function syncNuvioHomeRows(token, profileId, manifest, hide = true) {
+    async function syncNuvioHomeRows(token, profileId, manifest, hide = true, collectionId = '') {
       const franchiseCatalogs = (manifest?.catalogs || []).filter(c =>
         String(c?.id || '').startsWith('torbox-collection-')
       );
@@ -3449,6 +3462,30 @@
         });
       }
 
+      if (collectionId) {
+        const key = `collection_${collectionId}`;
+        const existing = byKey.get(key) || {};
+        const libraryOrders = Array.from(byKey.values())
+          .filter(item => item.addon_id === manifest.id && /-(movies|series)$/.test(String(item.catalog_id || '')))
+          .map(item => Number(item.order))
+          .filter(Number.isFinite);
+        const targetOrder = libraryOrders.length ? Math.min(...libraryOrders) - 1 : (existing.order ?? 0);
+        byKey.set(key, {
+          ...existing,
+          addon_id: '',
+          type: '',
+          catalog_id: '',
+          enabled: true,
+          // Keep it available without pinning it permanently. Place it just
+          // before this addon's My Movies/My Series rows.
+          order: targetOrder,
+          custom_title: existing.custom_title || '',
+          is_collection: true,
+          collection_id: collectionId,
+          key,
+        });
+      }
+
       await nuvioRpc(token, '/rest/v1/rpc/sync_push_home_catalog_settings', {
         p_profile_id: profileId,
         p_platform: platform,
@@ -3457,8 +3494,68 @@
           hide_unreleased_content: settings.hide_unreleased_content === true,
           items: Array.from(byKey.values()).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0)),
         },
+        p_origin_client_id: nuvioOriginClientId(),
       });
       return franchiseCatalogs.length;
+    }
+
+    // Remove only old LeLibrary collection data from another profile. Other
+    // user collections are preserved, and this repairs copies created by the
+    // earlier account-wide push behavior.
+    async function removeLeLibraryFromNuvioProfile(token, profileId, manifest) {
+      const collectionId = 'collection-lelibrary-franchises';
+      try {
+        const pulled = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_collections', {
+          p_profile_id: profileId,
+        });
+        const row = Array.isArray(pulled) ? pulled[0] : pulled;
+        let collections = row?.collections_json;
+        if (typeof collections === 'string') {
+          try { collections = JSON.parse(collections); } catch { collections = []; }
+        }
+        if (Array.isArray(collections)) {
+          const filtered = collections.filter(c => c?.id !== collectionId);
+          if (filtered.length !== collections.length) {
+            await nuvioRpc(token, '/rest/v1/rpc/sync_push_collections', {
+              p_profile_id: profileId,
+              p_collections_json: filtered,
+              p_origin_client_id: nuvioOriginClientId(),
+            });
+          }
+        }
+
+        const platform = 'home_catalog_shared';
+        const homePulled = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_home_catalog_settings', {
+          p_profile_id: profileId,
+          p_platform: platform,
+        });
+        const homeRow = Array.isArray(homePulled) ? homePulled[0] : homePulled;
+        const settings = homeRow?.settings_json && typeof homeRow.settings_json === 'object'
+          ? homeRow.settings_json
+          : {};
+        const items = Array.isArray(settings.items) ? settings.items : [];
+        const filteredItems = items.filter(item => {
+          const catalog = String(item.catalog_id || '');
+          const itemKey = String(item.key || '');
+          return !(item.collection_id === collectionId ||
+            itemKey === `collection_${collectionId}` ||
+            (item.addon_id && item.addon_id === manifest.id && catalog.startsWith('torbox-collection-')));
+        });
+        if (filteredItems.length !== items.length) {
+          await nuvioRpc(token, '/rest/v1/rpc/sync_push_home_catalog_settings', {
+            p_profile_id: profileId,
+            p_platform: platform,
+            p_settings_json: {
+              show_catalog_type: settings.show_catalog_type !== false,
+              hide_unreleased_content: settings.hide_unreleased_content === true,
+              items: filteredItems,
+            },
+            p_origin_client_id: nuvioOriginClientId(),
+          });
+        }
+      } catch (err) {
+        console.warn(`[Push] Could not clean old LeLibrary data from Nuvio profile ${profileId}:`, err.message);
+      }
     }
 
     // After restoring a saved session, quietly confirm the token still works.
@@ -3578,16 +3675,19 @@
         } catch { /* keep going — the addon still installs even if the build is slow */ }
 
         if (connectState.platform === 'stremio') {
-          small.textContent = 'Backing up your current addons…';
+          small.textContent = 'Reading your current addons…';
           const getData = await stremioCall('addonCollectionGet', { authKey: connectState.stremioAuth });
           const addons = Array.isArray(getData.result?.addons) ? getData.result.addons : [];
           const backup = addons.map(a => ({ url: a.transportUrl, name: (a.manifest && a.manifest.name) || '' })).filter(b => b.url);
           small.textContent = 'Installing LeLibrary…';
           const manifest = await fetch(urls.manifestUrl, { signal: AbortSignal.timeout(10000) }).then(r => r.json());
           const descriptor = { transportUrl: urls.manifestUrl, transportName: 'http', flags: {}, manifest };
-          await stremioCall('addonCollectionSet', { authKey: connectState.stremioAuth, addons: [descriptor] });
+          // Upsert: keep every addon, replace only a previous LeLibrary entry.
+          const ours = addons.filter(a => (a.manifest?.id || a.id) !== manifest.id);
+          ours.push(descriptor);
+          await stremioCall('addonCollectionSet', { authKey: connectState.stremioAuth, addons: ours });
           status.style.color = 'var(--success)';
-          status.textContent = 'Installed — all catalogues have been imported. Please refresh Stremio.';
+          status.textContent = 'Installed — all your addons kept and catalogues imported. Please refresh Stremio.';
           renderBackupList(backup);
         } else {
           const profileIndex = parseInt(document.getElementById('cataloguesProfile').value, 10);
@@ -3614,7 +3714,10 @@
                   avatar_url: p.avatar_url || null,
                 };
               });
-              await nuvioRpc(connectState.nuvioToken, '/rest/v1/rpc/sync_push_profiles', { p_profiles: pushed });
+              await nuvioRpc(connectState.nuvioToken, '/rest/v1/rpc/sync_push_profiles', {
+                p_profiles: pushed,
+                p_origin_client_id: nuvioOriginClientId(),
+              });
               console.log('[Push] Profile switched to own addons');
               connectState.nuvioProfiles = connectState.nuvioProfiles.map(p =>
                 p.profile_index === profileIndex ? { ...p, uses_primary_addons: false } : p);
@@ -3622,7 +3725,7 @@
               console.warn('[Push] Profile switch failed (continuing):', err.message);
             }
           }
-          small.textContent = 'Backing up your current addons…';
+          small.textContent = 'Reading your current addons…';
           const ownerData = await nuvioRpc(connectState.nuvioToken, '/rest/v1/rpc/get_sync_owner', {});
           const ownerId = Array.isArray(ownerData) && typeof ownerData[0] === 'string' ? ownerData[0]
             : (typeof ownerData === 'string' ? ownerData : ownerData?.owner_id || ownerData?.id);
@@ -3632,7 +3735,11 @@
           const list = Array.isArray(existing) ? existing : [];
           const backup = list.map(a => ({ url: a.url, name: a.name || '' })).filter(b => b.url);
           small.textContent = 'Installing LeLibrary…';
+          // Upsert: keep every addon, remove only a previous LeLibrary row.
           for (const a of list) {
+            const isOurs = String(a.url || '').includes('/manifest.json') &&
+              String(a.url || '').startsWith(window.location.origin);
+            if (!isOurs && String(a.name || '').toLowerCase() !== 'lelibrary') continue;
             await nuvioRest(connectState.nuvioToken,
               `/rest/v1/addons?id=eq.${encodeURIComponent(a.id)}&profile_id=eq.${profileIndex}`,
               { method: 'DELETE' });
@@ -3666,9 +3773,10 @@
           // Give Nuvio a moment to process the new addon before pushing collections
           await new Promise(r => setTimeout(r, 1500));
           let homeRowsHidden = false;
+          let manifestForNuvio = null;
           try {
-            const manifest = await fetch(urls.manifestUrl, { signal: AbortSignal.timeout(10000) }).then(r => r.json());
-            await syncNuvioHomeRows(connectState.nuvioToken, profileIndex, manifest, hideFranchiseRows);
+            manifestForNuvio = await fetch(urls.manifestUrl, { signal: AbortSignal.timeout(10000) }).then(r => r.json());
+            await syncNuvioHomeRows(connectState.nuvioToken, profileIndex, manifestForNuvio, hideFranchiseRows);
             homeRowsHidden = hideFranchiseRows;
           } catch (err) {
             console.warn('[Push] Could not sync Nuvio Home-row visibility:', err.message);
@@ -3677,10 +3785,42 @@
             small.textContent = 'Importing your LeLibrary Franchises…';
             const collections = Array.isArray(warmedCollections) ? warmedCollections : [];
             if (Array.isArray(collections) && collections.length > 0) {
+              // Preserve other collections on this profile. Replace only the
+              // LeLibrary group, rather than overwriting the user's collection set.
+              const pulledCollections = await nuvioRpc(connectState.nuvioToken, '/rest/v1/rpc/sync_pull_collections', {
+                p_profile_id: profileIndex,
+              });
+              const remoteRow = Array.isArray(pulledCollections) ? pulledCollections[0] : pulledCollections;
+              let existingCollections = remoteRow?.collections_json;
+              if (typeof existingCollections === 'string') {
+                try { existingCollections = JSON.parse(existingCollections); } catch { existingCollections = []; }
+              }
+              if (!Array.isArray(existingCollections)) existingCollections = [];
+              const leLibraryId = 'collection-lelibrary-franchises';
+              const mergedCollections = [
+                ...existingCollections.filter(c => c?.id !== leLibraryId),
+                ...collections.filter(c => c?.id !== leLibraryId),
+              ];
+              const leLibraryCollection = collections.find(c => c?.id === leLibraryId);
+              if (leLibraryCollection) mergedCollections.push(leLibraryCollection);
               await nuvioRpc(connectState.nuvioToken, '/rest/v1/rpc/sync_push_collections', {
                 p_profile_id: profileIndex,
-                p_collections_json: collections,
+                p_collections_json: mergedCollections,
+                p_origin_client_id: nuvioOriginClientId(),
               });
+              try {
+                if (!manifestForNuvio) {
+                  manifestForNuvio = await fetch(urls.manifestUrl, { signal: AbortSignal.timeout(10000) }).then(r => r.json());
+                }
+                await syncNuvioHomeRows(connectState.nuvioToken, profileIndex, manifestForNuvio, hideFranchiseRows, leLibraryId);
+              } catch (err) {
+                console.warn('[Push] Could not update the LeLibrary collection Home order:', err.message);
+              }
+              if (manifestForNuvio) {
+                await Promise.all(connectState.nuvioProfiles
+                  .filter(p => p.profile_index !== profileIndex)
+                  .map(p => removeLeLibraryFromNuvioProfile(connectState.nuvioToken, p.profile_index, manifestForNuvio)));
+              }
               status.style.color = 'var(--success)';
               status.textContent = homeRowsHidden
                 ? 'Installed — catalogues imported and franchise Home rows hidden. Please refresh Nuvio.'

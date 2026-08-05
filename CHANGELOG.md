@@ -1,5 +1,15 @@
 # Changelog
 
+## [4.5.1]
+
+### Safer account push
+
+- **Existing addons stay installed**: pushing LeLibrary now adds or updates only LeLibrary instead of removing the rest of your Stremio or Nuvio setup
+- **Existing collections stay installed**: pushing new LeLibrary franchises now replaces only the LeLibrary collection and preserves your other collections
+- **Old LeLibrary copies are cleaned safely**: stale LeLibrary entries on other Nuvio profiles are removed without touching unrelated addons or collections
+- **Franchise Home rows stay hidden**: LeLibrary Franchises remains available in Collections without duplicating every franchise across Home
+- **Collections are no longer forced to the very top**: the LeLibrary collection is placed above the normal library rows without being pinned permanently
+
 ## [4.5.0]
 
 ### One-click setup

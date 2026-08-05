@@ -18,6 +18,27 @@
 .topbar-logout { color: var(--error) !important; }
 .topbar-logout:hover { background: rgba(248,81,73,0.1) !important; color: var(--error) !important; }
 
+/* Topbar provider status pill */
+.topbar-status { gap: 2px !important; padding: 5px 8px !important; }
+.provider-dots { display: inline-flex; align-items: center; gap: 3px; }
+.pdot { position: relative; display: inline-flex; }
+.pdot img { width: 15px; height: 15px; border-radius: 3px; display: block; background: var(--surface2); }
+.pdot .sdot {
+  position: absolute; right: -3px; bottom: -3px;
+  width: 7px; height: 7px; border-radius: 50%;
+  border: 2px solid var(--bg); background: var(--muted);
+}
+.pdot.op .sdot { background: #3fb950; }
+.pdot.deg .sdot { background: var(--amber); }
+.pdot.down .sdot { background: var(--error); }
+.pdot.unknown .sdot { background: var(--muted); }
+
+.mobile-status {
+  display: flex !important; align-items: center; justify-content: space-between;
+}
+.mobile-status .mobile-status-label { font-size: 13px; }
+.mobile-status .pdot img { width: 18px; height: 18px; }
+
 /* ── Buttons ────────────────────────────────────────────────── */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;

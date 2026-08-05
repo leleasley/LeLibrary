@@ -1,5 +1,50 @@
 # Changelog
 
+## [4.5.0]
+
+### One-click setup
+
+- **Push LeLibrary directly to Stremio or Nuvio**: connect your account from the final setup step instead of copying addon URLs manually
+- **Choose the Nuvio profile**: sign in once, select the profile, and install LeLibrary and its catalogues together
+- **Safer replacement flow**: previous addon names and manifest links are shown with individual copy buttons before you reinstall anything
+- **Sessions stay on your device**: Stremio and Nuvio login sessions are saved locally in your browser, never on LeLibrary's server, and can be cleared with Disconnect
+
+### Franchises and catalogues
+
+- **LeLibrary Franchises now use a tabbed grid in Nuvio**: your owned films are grouped into one clean collection instead of being scattered across separate collection pages
+- **Franchise rows stay available to Collections without cluttering Home**: Nuvio Home settings hide the duplicate franchise rows while the collection folders continue to work
+- **New films are picked up by existing franchises**: refresh Nuvio to see the latest files, while a new franchise can be added with another push
+- **Edit catalogues separately**: the Catalogues tab now controls what gets pushed, with imports from other catalogue files planned next
+
+### Cleaner setup
+
+- **Five-step configure wizard**: Providers, Metadata, Advanced settings, Connect, then Preview and install
+- **Responsive mobile layout**: the old sticky Save and Generate bar is gone, and the wizard stays within the phone screen
+- **Manual install remains available**: users who do not connect an account can still generate normal install links, with a clear explanation of what the manual route includes
+
+### More reliable playback
+
+- **TorBox stream links are reused**: repeated plays no longer request a fresh link for the same file every time
+- **TorBox rate limits are handled more gracefully**: temporary throttling no longer causes a long chain of repeated failed requests
+- **Temporary empty stream results recover faster**: a short provider outage no longer leaves a stale empty result behind for the full cache period
+- **Collections survive temporary provider empty responses**: a brief library API hiccup no longer wipes working franchise folders
+
+### Live provider status
+
+- **A live status bar for all four providers**: the website and My Library now show the current health of TorBox, Real-Debrid, AllDebrid and Premiumize. Each provider gets its own card with its logo and a green, amber or red dot, so you can see at a glance if a service is slow or down
+- **Status in the top navigation**: the Status link in the site's top bar carries all four provider logos with live dots, on desktop and mobile. My Library shows the same in its top bar and on the Settings page
+- **Tap through to official status pages**: every provider card links straight to that provider's own status page for the full picture
+
+### Smoother library
+
+- **Episodes no longer vanish for a day**: if TMDB stumbles while loading a show's episodes, it retries after a few minutes instead of leaving the detail page empty for 24 hours
+- **Brief provider hiccups no longer blank your library**: if a provider returns nothing for a moment, you keep your last good catalog instead of an empty row
+- **Release notes cover everything you missed**: if you skipped a release or two, My Library now shows all recent release notes at once instead of just the newest
+
+### Fixes
+
+- **AllDebrid downloads now actually show up**: a connected AllDebrid account used to see an empty library because the app was calling the wrong AllDebrid endpoint. Your downloads now load on both the addon and My Library
+
 ## [4.0.1]
 
 ### Fixes

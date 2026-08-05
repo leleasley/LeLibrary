@@ -10,6 +10,7 @@ let libraryState = {
   sortBy: 'newest',
   sizeFilter: 'all',
   yearFilter: '',
+  providerFilter: 'all',
 };
 
 // Selection identity must include the source: TorBox torrents, TorBox usenet
@@ -66,13 +67,13 @@ function renderLibraryView() {
 
     <div class="batch-bar" id="batchBar">
       <span><span class="count" id="batchCount">0</span> selected</span>
-      <button class="btn btn-secondary btn-sm" onclick="markSelectedWatched()">${icon('check', 13)} Mark Watched</button>
       <button class="btn btn-danger btn-sm" onclick="deleteSelected()">Delete Selected</button>
       <button class="btn btn-secondary btn-sm" onclick="clearSelection()">Clear</button>
     </div>
 
     <div class="duplicate-bar" id="duplicateBar" style="display:none">
       <span id="dupeSummary" style="font-size:12px"></span>
+      <div id="dupeGroupList" class="dupe-group-list"></div>
       <button class="btn btn-danger btn-sm" onclick="deleteDuplicateExtras()">Delete Extra Copies</button>
       <button class="btn btn-secondary btn-sm" onclick="clearDuplicateMode()">Cancel</button>
     </div>
@@ -95,8 +96,15 @@ function renderLibraryView() {
         <option value="medium">2&#8211;10 GB</option>
         <option value="large">&gt; 10 GB</option>
       </select>
+      <select id="libProviderFilter" onchange="setLibraryProviderFilter(this.value)" title="Provider filter">
+        <option value="all">All providers</option>
+        <option value="torbox">TorBox</option>
+        <option value="realdebrid">Real-Debrid</option>
+        <option value="alldebrid">AllDebrid</option>
+        <option value="premiumize">Premiumize</option>
+      </select>
       <input type="text" id="libYearFilter" placeholder="Year" inputmode="numeric" maxlength="4" oninput="setLibraryYearFilter(this.value)" />
-      <button class="btn btn-secondary btn-sm" onclick="markSelectedWatched()" title="Mark selected as watched">${icon('check', 13)} Watched</button>
+      <button class="btn btn-secondary btn-sm" id="btnResetFilters" style="display:none" onclick="resetLibraryFilters()" title="Clear all filters">${icon('x', 12)} Reset</button>
     </div>
 
     <div class="list" id="libraryContent"></div>
@@ -114,6 +122,8 @@ function renderLibraryView() {
   if (sizeSel) sizeSel.value = libraryState.sizeFilter;
   const yearInp = document.getElementById('libYearFilter');
   if (yearInp) yearInp.value = libraryState.yearFilter;
+  const providerSel = document.getElementById('libProviderFilter');
+  if (providerSel) providerSel.value = libraryState.providerFilter;
 
   libraryState.filteredItems = getFilteredLibraryItems();
   renderLibraryList();
@@ -140,6 +150,8 @@ function renderLibraryList() {
       ? `Showing ${items.length} items`
       : `${items.length} items`;
   }
+
+  updateResetFiltersBtn();
 }
 
 function setLibraryViewMode(mode) {
@@ -193,6 +205,10 @@ function getFilteredLibraryItems() {
     });
   }
 
+  // Provider filter
+  const pf = libraryState.providerFilter;
+  if (pf !== 'all') items = items.filter(i => itemProviderGroup(i) === pf);
+
   // Sort
   const sorter = libraryState.sortBy;
   items = items.slice().sort((a, b) => {
@@ -232,14 +248,42 @@ function setLibraryYearFilter(val) {
   renderLibraryList();
 }
 
-function markSelectedWatched() {
-  if (libraryState.selectedIds.size === 0) return;
-  const items = App.allItems.filter(i => libraryState.selectedIds.has(selKey(i)));
-  markManyWatched(items);
+function itemProviderGroup(item) {
+  if (item.source === 'realdebrid') return 'realdebrid';
+  if (item.source === 'alldebrid') return 'alldebrid';
+  if (item.source === 'premiumize') return 'premiumize';
+  return 'torbox'; // TorBox torrents + usenet
+}
+
+function setLibraryProviderFilter(val) {
+  libraryState.providerFilter = val;
   libraryState.selectedIds.clear();
   updateBatchBar();
+  libraryState.filteredItems = getFilteredLibraryItems();
   renderLibraryList();
-  showToast('Marked ' + items.length + ' as watched');
+}
+
+function resetLibraryFilters() {
+  libraryState.sizeFilter = 'all';
+  libraryState.yearFilter = '';
+  libraryState.providerFilter = 'all';
+  const s = document.getElementById('libSizeFilter'); if (s) s.value = 'all';
+  const y = document.getElementById('libYearFilter'); if (y) y.value = '';
+  const p = document.getElementById('libProviderFilter'); if (p) p.value = 'all';
+  const q = document.getElementById('libSearchInput'); if (q) q.value = '';
+  libraryState.selectedIds.clear();
+  updateBatchBar();
+  libraryState.filteredItems = getFilteredLibraryItems();
+  renderLibraryList();
+}
+
+function updateResetFiltersBtn() {
+  const btn = document.getElementById('btnResetFilters');
+  if (!btn) return;
+  const active = libraryState.sizeFilter !== 'all' || !!libraryState.yearFilter
+    || libraryState.providerFilter !== 'all'
+    || !!(document.getElementById('libSearchInput')?.value || '');
+  btn.style.display = active ? 'inline-block' : 'none';
 }
 
 function handleLibrarySearch() {
@@ -260,18 +304,16 @@ function createLibraryListItem(item, idx) {
   const isSelected = libraryState.selectedIds.has(selKey(item));
   const isDupe = isDuplicateExtra(item);
   const dupeBadge = isDupe ? ' <span class="badge badge-dupe">DUPE</span>' : '';
-  const watched = isWatched(item);
-  const watchedBadge = watched ? ` <span class="badge badge-watched" title="Watched">${icon('check', 10)}</span>` : '';
   const payload = JSON.stringify(itemPayload(item)).replace(/'/g, "&#39;");
 
   const el = document.createElement('div');
-  el.className = 'list-item' + (isSelected ? ' selected' : '') + (watched ? ' watched' : '');
+  el.className = 'list-item' + (isSelected ? ' selected' : '');
   el.setAttribute('data-sel-key', selKey(item));
 
   el.innerHTML = `
     <div class="cb"><input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleLibrarySelect('${selKey(item)}', this.checked)" /></div>
     <div class="list-info">
-      <div class="list-title" onclick='showItemPreview(${payload})' style="cursor:pointer">${escHtml(parsed.cleanName)}${parsed.year ? `<span class="year">(${escHtml(parsed.year)})</span>` : ''}${dupeBadge}${watchedBadge}</div>
+      <div class="list-title" onclick='showItemPreview(${payload})' style="cursor:pointer">${escHtml(parsed.cleanName)}${parsed.year ? `<span class="year">(${escHtml(parsed.year)})</span>` : ''}${dupeBadge}</div>
       <div class="list-filename" title="${escHtml(name)}">${escHtml(name)}</div>
       <div class="list-meta">
         <span>${size}</span>
@@ -283,7 +325,6 @@ function createLibraryListItem(item, idx) {
     </div>
     <button class="btn-view" onclick='showItemPreview(${payload})' title="Preview">${icon('eye', 14)}</button>
     <button class="btn-view" onclick='openItemActionsData(${payload})' title="View files & actions">${icon('folder', 14)}</button>
-    <button class="btn-watch" onclick="toggleWatchedItem('${selKey(item)}')" title="${watched ? 'Mark as not watched' : 'Mark as watched'}">${watched ? icon('x', 14) : icon('check', 14)}</button>
     <button class="btn-delete" onclick='deleteLibraryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})' title="Delete">${icon('trash', 14)}</button>
   `;
 
@@ -300,18 +341,16 @@ function createLibraryCard(item, idx) {
   const sourceClass = providerBadgeClass(item.source);
   const isSelected = libraryState.selectedIds.has(selKey(item));
   const isDupe = isDuplicateExtra(item);
-  const watched = isWatched(item);
   const payload = JSON.stringify(itemPayload(item)).replace(/'/g, "&#39;");
 
   const el = document.createElement('div');
-  el.className = 'card' + (isSelected ? ' selected' : '') + (watched ? ' watched' : '');
+  el.className = 'card' + (isSelected ? ' selected' : '');
   el.setAttribute('data-sel-key', selKey(item));
   el.style.cursor = 'pointer';
 
   el.innerHTML = `
     <div class="cb lib-card-cb"><input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleLibrarySelect('${selKey(item)}', this.checked)" title="Select" /></div>
     ${isDupe ? '<div class="card-badge" style="background:var(--error)">DUPE</div>' : ''}
-    ${watched ? '<div class="card-badge" style="right:38px;background:var(--success)">✓</div>' : ''}
     <div class="card-info">
       <div class="card-title" title="${escHtml(name)}">${escHtml(parsed.cleanName)}${parsed.year ? ` <span style="color:var(--muted);font-weight:400">(${escHtml(parsed.year)})</span>` : ''}</div>
       <div class="list-filename" title="${escHtml(name)}">${escHtml(name)}</div>
@@ -325,7 +364,6 @@ function createLibraryCard(item, idx) {
     <div class="torrent-card-actions" style="padding:8px">
       <button class="btn-action btn-info" onclick='showItemPreview(${payload})' title="Preview">${icon('eye', 10)} Preview</button>
       <button class="btn-action btn-info" onclick='openItemActionsData(${payload})' title="View files & actions">${icon('folder', 10)} Files</button>
-      <button class="btn-action btn-download" onclick="toggleWatchedItem('${selKey(item)}')" title="${watched ? 'Mark as not watched' : 'Mark as watched'}" aria-label="${watched ? 'Mark as not watched' : 'Mark as watched'}: ${escHtml(parsed.cleanName)}">${watched ? icon('x', 10) + ' Unwatch' : icon('check', 10) + ' Watched'}</button>
       <button class="btn-action btn-report" onclick='deleteLibraryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})' title="Delete" aria-label="Delete: ${escHtml(parsed.cleanName)}">${icon('trash', 10)} Delete</button>
     </div>
   `;
@@ -334,13 +372,6 @@ function createLibraryCard(item, idx) {
     toggleLibrarySelect(selKey(item), !isSelected);
   };
   return el;
-}
-
-function toggleWatchedItem(key) {
-  const item = App.allItems.find(i => selKey(i) === key);
-  if (!item) return;
-  toggleWatched(item);
-  renderLibraryList();
 }
 
 function toggleLibrarySelect(key, checked) {
@@ -474,23 +505,66 @@ function toggleDuplicateMode() {
 
 function findDuplicates() {
   const items = libraryState.filteredItems;
-  const groups = {};
+  const parsed = [];
 
-  // Group items by duplicate key
   for (const item of items) {
-    const key = getDuplicateKey(item);
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(item);
+    const info = guessMediaInfo(item.name || item.filename || '');
+    if (!info) continue;
+    const norm = info.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+    parsed.push({ item, info, norm });
   }
 
-  // Only keep groups with 2+ items
-  const dupeGroups = {};
-  let dupeCount = 0;
-  for (const [key, group] of Object.entries(groups)) {
-    if (group.length >= 2) {
-      dupeGroups[key] = group;
-      dupeCount += group.length - 1; // extras (keep 1, delete rest)
+  // Phase 1: group by normalized-title + year (+ season/episode for series)
+  const prelimMap = new Map();
+  for (const p of parsed) {
+    let key;
+    if (p.info.isSeries) {
+      if (p.info.season && p.info.episode) key = `s|${p.norm}|${p.info.year || ''}|s${p.info.season}e${p.info.episode}`;
+      else if (p.info.season) key = `s|${p.norm}|${p.info.year || ''}|s${p.info.season}`;
+      else key = `s|${p.norm}|${p.info.year || ''}|full`;
+    } else {
+      key = `m|${p.norm}|${p.info.year || ''}`;
     }
+    if (!prelimMap.has(key)) {
+      prelimMap.set(key, {
+        norm: p.norm, year: p.info.year || '',
+        season: p.info.season, episode: p.info.episode,
+        type: p.info.isSeries ? 'series' : 'movie',
+        title: p.info.title, items: [],
+      });
+    }
+    prelimMap.get(key).items.push(p.item);
+  }
+
+  // Phase 2: merge groups where one title is a substring of another (same
+  // year, same season+episode for series).  "Die Another Day" merges into
+  // "James Bond Die Another Day" because norm "dieanotherday" is inside
+  // "jamesbonddieanotherday".
+  const merged = [];
+  for (const [, group] of prelimMap) {
+    let wasMerged = false;
+    for (const mg of merged) {
+      if (mg.year !== group.year) continue;
+      if (group.type === 'series' && (mg.season !== group.season || mg.episode !== group.episode)) continue;
+      if (mg.norm.includes(group.norm) || group.norm.includes(mg.norm)) {
+        mg.items.push(...group.items);
+        if (group.title.length > mg.title.length) mg.title = group.title;
+        wasMerged = true;
+        break;
+      }
+    }
+    if (!wasMerged) merged.push({ ...group });
+  }
+
+  // Build result
+  const dupeGroups = {};
+  let totalExtras = 0;
+  for (let i = 0; i < merged.length; i++) {
+    const g = merged[i];
+    if (g.items.length < 2) continue;
+    g.items.sort((a, b) => (b.size || 0) - (a.size || 0));
+    dupeGroups[i] = { title: g.title, year: g.year, type: g.type, season: g.season, episode: g.episode, items: g.items, keepSize: g.items[0].size || 0 };
+    totalExtras += g.items.length - 1;
   }
 
   if (Object.keys(dupeGroups).length === 0) {
@@ -500,26 +574,30 @@ function findDuplicates() {
 
   libraryState.duplicateMode = true;
   libraryState.duplicateGroups = dupeGroups;
-
-  // Collect all duplicate item IDs — select extras for deletion
   libraryState.selectedIds.clear();
-  for (const group of Object.values(dupeGroups)) {
-    const sorted = group.slice().sort((a, b) => (b.size || 0) - (a.size || 0));
-    for (let i = 1; i < sorted.length; i++) {
-      libraryState.selectedIds.add(selKey(sorted[i]));
+  for (const g of Object.values(dupeGroups)) {
+    for (let i = 1; i < g.items.length; i++) {
+      libraryState.selectedIds.add(selKey(g.items[i]));
     }
   }
 
-  // Update UI
   const bar = document.getElementById('duplicateBar');
   const summary = document.getElementById('dupeSummary');
-  const btnDupes = document.getElementById('btnFindDupes');
   if (bar) bar.style.display = 'flex';
-  if (summary) summary.innerHTML = `<strong style="color:var(--warning)">${Object.keys(dupeGroups).length}</strong> duplicate groups &middot; <strong style="color:var(--error)">${dupeCount}</strong> extra copies selected`;
+  if (summary) {
+    summary.innerHTML = `<strong style="color:var(--warning)">${Object.keys(dupeGroups).length}</strong> duplicate groups &middot; <strong style="color:var(--error)">${totalExtras}</strong> extra copies selected`;
+  }
+  const list = document.getElementById('dupeGroupList');
+  if (list) {
+    list.innerHTML = Object.values(dupeGroups).map(g => `
+      <div class="dupe-group">
+        <span class="dupe-group-title">${escHtml(g.title)}${g.year ? ` <span class="year">(${escHtml(g.year)})</span>` : ''}${g.type === 'series' ? ` <span class="badge badge-series">${g.season && g.episode ? `S${g.season}E${g.episode}` : g.season ? `Season ${g.season}` : 'Series'}</span>` : ''}</span>
+        <span class="dupe-group-count">${g.items.length} copies &middot; ${formatBytes(g.keepSize)} keep</span>
+      </div>`).join('');
+  }
+  const btnDupes = document.getElementById('btnFindDupes');
   if (btnDupes) { btnDupes.innerHTML = `${icon('x', 13)} Clear`; btnDupes.classList.add('active-dupe'); }
 
-  // Re-render with highlights
-  libraryState.filteredItems = getFilteredLibraryItems();
   renderLibraryList();
   updateBatchBar();
 }
@@ -529,8 +607,10 @@ function clearDuplicateMode() {
   libraryState.duplicateGroups = {};
   libraryState.selectedIds.clear();
   const bar = document.getElementById('duplicateBar');
+  const list = document.getElementById('dupeGroupList');
   const btnDupes = document.getElementById('btnFindDupes');
   if (bar) bar.style.display = 'none';
+  if (list) list.innerHTML = '';
   if (btnDupes) { btnDupes.innerHTML = `${icon('search', 13)} Find Duplicates`; btnDupes.classList.remove('active-dupe'); }
   libraryState.filteredItems = getFilteredLibraryItems();
   renderLibraryList();

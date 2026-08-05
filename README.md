@@ -124,6 +124,43 @@ API keys are encrypted in `localStorage` using Web Crypto API (AES-256-GCM with 
 - **API keys**: encoded in the addon URL (base64 JSON with `provider`, `torboxApiKey`, `rdApiKey`, `tmdbApiKey`, plus optional `erdbToken`, `rpdbKey`, `omdbKey`, `fanartKey`, `customStreams`) — sent to the server only when Stremio/Nuvio fetches your library, never stored in a database or logged
 - **Configure page**: the `/configure` page has no server-side auth — anyone with the URL can access it. No tracking, analytics, or third-party requests.
 
+### Push to Stremio / Nuvio (Beta)
+
+Push lives at the very end of the configure flow as **Step 5: "Push to your account"** (right after the install links are generated). Sign in with Stremio or Nuvio, pick your catalogues, and push — no copy/pasting URLs. It is **fully client-side**: the browser talks directly to the platform's own API and the auth token never touches this server.
+
+**Stremio** — email + password sign-in (the only supported method). Credentials are sent only to Stremio's `POST /api/login`; the returned session token is used for the push and saved in the browser's `localStorage` so you stay signed in.
+
+**Nuvio** — email + password sign-in. It shows a loading state, then loads your **Nuvio profiles** into a dropdown so you can pick which profile to install on.
+
+The push **replaces every addon** currently on the account (keeps your home screen clean) and shows a **backup list of your previous addon URLs** at the end so you can reinstall them manually if needed. The normal install links from Step 4 remain available.
+
+Stremio flow:
+
+```
+POST https://api.strem.io/api/login               { type: 1, email, password }   → { result: { authKey, user } }
+POST https://api.strem.io/api/addonCollectionGet  { authKey }                    → { result: { addons: [...] } }   (backup)
+POST https://api.strem.io/api/addonCollectionSet  { authKey, addons }            → { result: { msg } }             (replace)
+```
+
+The addon descriptor is built from the live manifest as `{ transportUrl, transportName, flags, manifest }`. Errors (invalid credentials, expired session, rate limits, "Max descriptor size reached") are surfaced inline.
+
+Nuvio flow (email/password → profiles → replace addons → push collections):
+
+```
+POST https://api.nuvio.tv/auth/v1/token?grant_type=password   { email, password }  → { access_token, user }
+POST https://api.nuvio.tv/rest/v1/rpc/sync_pull_profiles      {}                   → profiles
+POST https://api.nuvio.tv/rest/v1/rpc/get_sync_owner          {}                   → owner id
+GET  https://api.nuvio.tv/rest/v1/addons?select=*&user_id=eq.X&profile_id=eq.Y     → existing (backup)
+POST https://api.nuvio.tv/rest/v1/addons                      [{ user_id, profile_id, url, name, enabled, sort_order }]
+POST https://api.nuvio.tv/rest/v1/rpc/sync_push_collections   { p_profile_id, p_collections_json }
+```
+
+(Headers for Nuvio calls carry `apikey: <Nuvio's public publishable key>` and, once signed in, `Authorization: Bearer <access_token>`.)
+
+**Catalogues (Beta):** the Catalogues tab is an editor for which catalogues get pushed — **LeLibrary Franchises** (your owned films grouped into folders) with **Trending** and **Popular** marked "Coming soon" (future TMDB-driven catalogues). Importing catalogues/collections from other addons is planned. Pushing itself happens on the Setup tab (Step 5).
+
+**Privacy implications:** the Stremio / Nuvio session token is saved in the browser's `localStorage` on the user's own device so they stay signed in across refreshes. It is never written to `sessionStorage`, cookies, or logs, and never sent to LeLibrary's servers. On load the saved session is re-validated against the platform in the background (Nuvio's access token is refreshed automatically); if it has expired the user is prompted to sign in again. **Disconnect** clears it from `localStorage`. Each push targets the signed-in user's own account — nobody else's.
+
 ---
 
 ## Quick Deploy

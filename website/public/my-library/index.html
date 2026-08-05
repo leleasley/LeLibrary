@@ -12,11 +12,11 @@
   <title>My Library | LeLibrary</title>
   <base href="/my-library/" />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/variables.css?v=16" />
-  <link rel="stylesheet" href="css/base.css?v=16" />
-  <link rel="stylesheet" href="css/components.css?v=16" />
-  <link rel="stylesheet" href="css/pages.css?v=16" />
-  <link rel="stylesheet" href="css/mobile.css?v=16" />
+  <link rel="stylesheet" href="css/variables.css?v=19" />
+  <link rel="stylesheet" href="css/base.css?v=19" />
+  <link rel="stylesheet" href="css/components.css?v=19" />
+  <link rel="stylesheet" href="css/pages.css?v=19" />
+  <link rel="stylesheet" href="css/mobile.css?v=19" />
 </head>
 <body>
 <div class="container">
@@ -28,6 +28,14 @@
     </a>
     <nav class="topbar-links">
       <a href="/">Home</a>
+      <a href="#" onclick="navigateTo('settings');return false" class="topbar-status" id="topbarStatus" title="Provider status">
+        <span class="provider-dots">
+          <span class="pdot unknown" data-id="torbox"><img src="/provider-logos/torbox.png" alt=""><i class="sdot"></i></span>
+          <span class="pdot unknown" data-id="realdebrid"><img src="/provider-logos/realdebrid.svg" alt=""><i class="sdot"></i></span>
+          <span class="pdot unknown" data-id="alldebrid"><img src="/provider-logos/alldebrid.png" alt=""><i class="sdot"></i></span>
+          <span class="pdot unknown" data-id="premiumize"><img src="/provider-logos/premiumize.svg" alt=""><i class="sdot"></i></span>
+        </span>
+      </a>
       <span id="authNav" style="display:none">
         <a href="#" onclick="loadLibrary();return false" style="color:var(--amber)" title="Refresh library from providers">Refresh</a>
         <a href="#" onclick="navigateTo('settings');return false" title="Settings"><span data-icon="settings"></span></a>
@@ -39,6 +47,15 @@
     </button>
     <div class="mobile-menu" id="mobileMenu">
       <a href="/">Home</a>
+      <a href="#" onclick="navigateTo('settings');return false" class="mobile-menu-action mobile-status" id="topbarStatusMobile" title="Provider status">
+        <span class="mobile-status-label">Status</span>
+        <span class="provider-dots">
+          <span class="pdot unknown" data-id="torbox"><img src="/provider-logos/torbox.png" alt=""><i class="sdot"></i></span>
+          <span class="pdot unknown" data-id="realdebrid"><img src="/provider-logos/realdebrid.svg" alt=""><i class="sdot"></i></span>
+          <span class="pdot unknown" data-id="alldebrid"><img src="/provider-logos/alldebrid.png" alt=""><i class="sdot"></i></span>
+          <span class="pdot unknown" data-id="premiumize"><img src="/provider-logos/premiumize.svg" alt=""><i class="sdot"></i></span>
+        </span>
+      </a>
       <span id="authNavMobile" style="display:none" class="mobile-menu-actions">
         <a href="#" onclick="loadLibrary();return false" class="mobile-menu-action" title="Refresh library from providers">Refresh</a>
         <a href="#" onclick="navigateTo('settings');return false" class="mobile-menu-action" title="Settings"><span data-icon="settings"></span></a>
@@ -219,24 +236,25 @@
 <div class="toast" id="toast"></div>
 
 <!-- Scripts -->
-<script src="js/utils.js?v=16"></script>
-<script src="js/api.js?v=16"></script>
-<script src="js/icons.js?v=16"></script>
-<script src="js/components.js?v=16"></script>
-<script src="js/pages/dashboard.js?v=16"></script>
-<script src="js/pages/browse.js?v=16"></script>
-<script src="js/pages/library.js?v=16"></script>
-<script src="js/pages/genres.js?v=16"></script>
-<script src="js/pages/recent.js?v=16"></script>
-<script src="js/pages/profile.js?v=16"></script>
-<script src="js/pages/detail.js?v=16"></script>
-<script src="js/pages/watchlist.js?v=16"></script>
-<script src="js/pages/queue.js?v=16"></script>
-<script src="js/pages/download.js?v=16"></script>
-<script src="js/pages/addtorrent.js?v=16"></script>
-<script src="js/pages/itemActions.js?v=16"></script>
-<script src="js/pages/settings.js?v=16"></script>
-<script src="js/app.js?v=16"></script>
+<script src="js/utils.js?v=19"></script>
+<script src="js/api.js?v=19"></script>
+<script src="js/icons.js?v=19"></script>
+<script src="js/components.js?v=19"></script>
+<script src="js/pages/dashboard.js?v=19"></script>
+<script src="js/pages/videoParser.js?v=19"></script>
+<script src="js/pages/browse.js?v=19"></script>
+<script src="js/pages/library.js?v=19"></script>
+<script src="js/pages/genres.js?v=19"></script>
+<script src="js/pages/recent.js?v=19"></script>
+<script src="js/pages/profile.js?v=19"></script>
+<script src="js/pages/detail.js?v=19"></script>
+<script src="js/pages/watchlist.js?v=19"></script>
+<script src="js/pages/queue.js?v=19"></script>
+<script src="js/pages/download.js?v=19"></script>
+<script src="js/pages/addtorrent.js?v=19"></script>
+<script src="js/pages/itemActions.js?v=19"></script>
+<script src="js/pages/settings.js?v=19"></script>
+<script src="js/app.js?v=19"></script>
 
 <!-- TMDB Search (autocomplete + full search) -->
 <script>

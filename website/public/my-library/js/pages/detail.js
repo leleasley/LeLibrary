@@ -110,6 +110,16 @@ function openTMDBDetail(item) {
           <button class="lang-chip" onclick="setLangFilter('subs', this)">Subs</button>
           <button class="lang-chip" onclick="setLangFilter('eng', this)">English</button>
         </div>
+        ${item.mt === 'tv' ? `
+        <div class="detail-batch-bar" id="batchBar" style="display:none">
+          <div class="batch-title">${icon('zap', 12)} Season add</div>
+          <div class="batch-providers" id="batchProviders"></div>
+          <div class="batch-actions">
+            <button class="btn-action btn-instant" onclick="handleBatchAdd('season')" title="Find a complete cached season pack and add it">${icon('zap', 12)} Add season</button>
+            <button class="btn-action btn-instant" onclick="handleBatchAdd('episodes')" title="Add each individually cached episode of this season">${icon('film', 12)} Add episodes</button>
+          </div>
+          <div class="batch-status" id="batchStatus"></div>
+        </div>` : ''}
         <div id="torrentLoading" style="display:none" class="detail-loading"><div class="spinner"></div><p>Searching across sources...</p></div>
         <div id="autoSearchHint" class="detail-auto-hint">Loading torrents...</div>
         <div class="torrent-grid" id="torrentGrid"></div>
@@ -264,8 +274,11 @@ async function fetchTVSeasons(tmdbId) {
   try {
     const data = await tmdbGet('/tv/' + tmdbId);
     if (!detailIsCurrent()) return;
-    _detailSeasons = (data.seasons || []).filter(s => s.season_number > 0);
+    _detailSeasons = (data.seasons || [])
+      .filter(s => s.season_number > 0)
+      .map(s => ({ season_number: s.season_number, name: s.name, episode_count: s.episode_count || 0 }));
     renderSeasonBar();
+    renderBatchBar();
     searchSeason(1);
   } catch (e) {
     if (!detailIsCurrent()) return;
@@ -294,6 +307,108 @@ function searchSeason(num) {
   autoSearchTorrents(_detailItem.title, _detailItem.year, _detailItem.id, _detailItem.mt, num);
 }
 
+// ── Season batch add (whole season / every episode) ─────────────
+// Modeled on Debrid Media Manager's "Instant RD (Whole Season)" and
+// "Instant RD (Every Episode)" actions. Because the public scrapers only give
+// us title/hash (no per-file manifest), "whole season" matches title-level
+// complete-season packs and "every episode" matches single-episode torrents.
+const BATCH_PROVIDERS = [
+  { key: 'torbox', label: 'TorBox', has: () => !!App.keys.torboxKey },
+  { key: 'rd', label: 'Real-Debrid', has: () => !!App.keys.rdKey },
+  { key: 'ad', label: 'AllDebrid', has: () => !!App.keys.adKey },
+  { key: 'pm', label: 'Premiumize', has: () => !!App.keys.pmKey },
+];
+
+function renderBatchBar() {
+  const bar = document.getElementById('batchBar');
+  const wrap = document.getElementById('batchProviders');
+  if (!bar || !wrap) return;
+  const enabled = BATCH_PROVIDERS.filter(p => p.has());
+  if (!enabled.length) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  wrap.innerHTML = enabled.map((p, i) =>
+    `<label class="batch-provider"><input type="checkbox" data-prov="${p.key}" ${i === 0 ? 'checked' : ''} /> ${p.label}</label>`
+  ).join('');
+}
+
+function getSelectedBatchProviders() {
+  return BATCH_PROVIDERS
+    .filter(p => p.has())
+    .filter(p => document.querySelector(`#batchProviders input[data-prov="${p.key}"]`)?.checked);
+}
+
+function batchStatus(msg, isErr) {
+  const el = document.getElementById('batchStatus');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = isErr ? 'var(--error)' : 'var(--muted)';
+}
+
+async function handleBatchAdd(mode) {
+  const provs = getSelectedBatchProviders();
+  if (!provs.length) { batchStatus('Select at least one provider', true); return; }
+
+  const seasonNum = _detailCurrentSeason;
+  const expected = currentSeasonEpisodeCount();
+
+  // Candidates: complete-season packs (mode 'season') or single-episode
+  // torrents (mode 'episodes') for the current season, skipping anything the
+  // user already owns across any provider.
+  const seen = new Set();
+  const candidates = _detailResults
+    .filter(t => t.hash && !libraryHashSet().has(String(t.hash).toLowerCase()))
+    .map(t => ({ t, a: analyzeSeasonTorrent(t, seasonNum, expected) }))
+    .filter(x => mode === 'season' ? x.a.seasonPack : x.a.isSingle)
+    .filter(x => { if (seen.has(x.t.hash)) return false; seen.add(x.t.hash); return true; })
+    .map(x => x.t);
+
+  if (!candidates.length) {
+    batchStatus(mode === 'season'
+      ? 'No complete-season torrents found in results'
+      : 'No single-episode torrents found in results', true);
+    return;
+  }
+
+  batchStatus('Checking cache across providers...');
+  const hashes = candidates.map(t => t.hash);
+  const lines = [];
+  let anyAdded = false;
+
+  for (const p of provs) {
+    let cachedSet;
+    try {
+      cachedSet = await {
+        torbox: () => torboxCachedSet(hashes, App.keys.torboxKey),
+        rd: () => rdCachedSet(hashes, App.keys.rdKey),
+        ad: () => adCachedSet(hashes, App.keys.adKey),
+        pm: () => pmCachedSet(hashes, App.keys.pmKey),
+      }[p.key]();
+    } catch (e) { cachedSet = new Set(); }
+
+    const cachedCandidates = candidates.filter(t => cachedSet.has(String(t.hash).toLowerCase()));
+    if (!cachedCandidates.length) { lines.push(p.label + ': no cached matches'); continue; }
+    // "Season" mode picks the single best-quality cached pack (results are
+    // quality-sorted); "episodes" mode adds every cached individual episode.
+    const toAdd = mode === 'season' ? cachedCandidates.slice(0, 1) : cachedCandidates;
+
+    batchStatus(p.label + ': adding ' + toAdd.length + ' cached...');
+    let added = 0;
+    for (const t of toAdd) {
+      try {
+        await addCachedByProvider(p.key, magnetFromHash(t.hash), App.keys[p.key + 'Key']);
+        added++;
+      } catch (e) { /* skip a failed add and keep going */ }
+    }
+    if (added > 0) anyAdded = true;
+    lines.push(p.label + ': ' + added + ' added');
+  }
+
+  invalidateLibraryHashSet();
+  if (anyAdded) { showToast('Added to your library'); refreshInBackground(); }
+  batchStatus(lines.join(' · '));
+}
+
+
 // ── Smart Search Query Builder ──────────────────────────────────
 function buildSearchQuery(title, year, mediaType, seasonNum) {
   let cleanTitle = title.replace(/[:\-]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -303,6 +418,84 @@ function buildSearchQuery(title, year, mediaType, seasonNum) {
   }
   return query;
 }
+
+// ── Season episode analysis ─────────────────────────────────────
+// The public scrapers only return {title, size, hash, seeds, source}, so
+// episode coverage has to be inferred from the torrent title. These helpers
+// power the episode-completeness badge and the batch "add season/episodes".
+
+// Expected episode count for the currently selected season (from TMDB).
+function currentSeasonEpisodeCount() {
+  const s = _detailSeasons.find(x => x.season_number === _detailCurrentSeason);
+  return (s && s.episode_count) || 0;
+}
+
+// Episode numbers of the given season present in a torrent title (SxxExx / nxx).
+function extractEpisodeNums(title, seasonNum) {
+  const sn = String(seasonNum).padStart(2, '0');
+  const eps = new Set();
+  const patterns = [
+    new RegExp('\\bS' + sn + 'E(\\d{1,2})\\b', 'gi'),
+    new RegExp('\\b' + seasonNum + 'x(\\d{1,2})\\b', 'i'),
+    new RegExp('\\bseason\\s*' + seasonNum + '\\b', 'i'),
+  ];
+  for (const re of patterns) {
+    let m;
+    while ((m = re.exec(title)) !== null) {
+      if (m[1]) eps.add(parseInt(m[1], 10));
+      else eps.add(seasonNum); // "Season N" counts as a full pack signal
+    }
+  }
+  return [...eps].filter(n => n > 0).sort((a, b) => a - b);
+}
+
+// Is this torrent a complete-season (or multi-season) pack for the season?
+function isCompleteSeasonTorrent(title, seasonNum, expected) {
+  const sn = String(seasonNum).padStart(2, '0');
+  const lower = title.toLowerCase();
+  const eps = extractEpisodeNums(title, seasonNum);
+
+  // Explicit "S01 COMPLETE" / "Season 1 Complete" markers
+  if (new RegExp('\\b(s' + sn + '|season\\s*' + seasonNum + ')[^a-z0-9]{0,5}(complete|full|whole)\\b', 'i').test(lower)) return true;
+  // Explicit "S01E01-E10" or "S01E01-S01E10" ranges
+  const rm = title.match(new RegExp('\\bS' + sn + 'E(\\d{1,2})[^0-9]{1,8}(?:S' + sn + ')?E(\\d{1,2})\\b', 'i'));
+  if (rm) {
+    const start = parseInt(rm[1], 10), end = parseInt(rm[2], 10);
+    if (end - start + 1 >= Math.min(5, Math.max(1, expected))) return true;
+  }
+  // "Complete Series" / "All Seasons" (covers any season)
+  if (/\b(complete.?series|all seasons|entire.?series|full.?series)\b/i.test(lower)) return true;
+  // A pack with enough distinct episodes to be the whole season
+  if (expected > 0 && eps.length >= Math.max(5, expected - 2)) return true;
+  return false;
+}
+
+// Classify a torrent against the current season for the badge + batch add.
+function analyzeSeasonTorrent(t, seasonNum, expected) {
+  const eps = extractEpisodeNums(t.title, seasonNum);
+  const isSingle = eps.length === 1;
+  const seasonPack = isCompleteSeasonTorrent(t.title, seasonNum, expected);
+  return { eps, isSingle, seasonPack };
+}
+
+// Set of every infohash already in the user's library (all providers), so a
+// batch add can skip content they already own.
+let _libHashSet = null;
+function libraryHashSet() {
+  if (_libHashSet) return _libHashSet;
+  const set = new Set();
+  (App.allItems || []).forEach(it => {
+    [it.hash, it._rdHash, it._adHash, it.info_hash, it.magnet].forEach(v => {
+      if (!v) return;
+      const mm = String(v).match(/btih:([a-f0-9]{40})/i);
+      if (mm) set.add(mm[1].toLowerCase());
+      else set.add(String(v).toLowerCase());
+    });
+  });
+  _libHashSet = set;
+  return set;
+}
+function invalidateLibraryHashSet() { _libHashSet = null; }
 
 // ── Search Core (shared by auto + manual) ─────────────────────
 async function runTorrentSearch(query) {
@@ -495,13 +688,23 @@ async function checkTorBoxCache(torrents, torboxKey) {
 
 // ── Render Torrent Cards ────────────────────────────────────────
 function renderTorrentCards(torrents, grid) {
-  function detectBadge(name) {
-    const hasSeasonEp = /\bS\d{1,2}E\d{1,2}\b/i.test(name);
-    const hasExtras = /\b(Extras?|Bonus|Featurettes?|Making.?Of|Behind.?The.?Scenes|Deleted.?Scenes)\b/i.test(name);
-    if (hasSeasonEp) return { label: 'Single', cls: 'badge-single' };
-    if (hasExtras) return { label: 'With extras', cls: 'badge-extras' };
+  function detectBadge(name, isTv, seasonNum, expected) {
+    if (/\b(Extras?|Bonus|Featurettes?|Making.?Of|Behind.?The.?Scenes|Deleted.?Scenes)\b/i.test(name)) {
+      return { label: 'Extras', cls: 'badge-extras' };
+    }
+    if (isTv && seasonNum) {
+      const { eps, seasonPack } = analyzeSeasonTorrent({ title: name }, seasonNum, expected);
+      if (eps.length === 1) return { label: 'E' + String(eps[0]).padStart(2, '0'), cls: 'badge-single' };
+      if (seasonPack) return { label: 'Full S' + String(seasonNum).padStart(2, '0'), cls: 'badge-full' };
+      if (eps.length > 1) return { label: eps.length + '/' + (expected || '?') + ' eps', cls: 'badge-partial' };
+      return { label: 'Single', cls: 'badge-single' };
+    }
     return { label: 'Single', cls: 'badge-single' };
   }
+
+  const isTv = _detailItem?.mt === 'tv';
+  const seasonNum = isTv ? _detailCurrentSeason : null;
+  const expected = isTv ? currentSeasonEpisodeCount() : 0;
 
   const displayResults = torrents.slice(0, 50);
   grid.innerHTML = displayResults.map(t => {
@@ -511,7 +714,7 @@ function renderTorrentCards(torrents, grid) {
     const cached = t.cached || false;
     const hash = t.hash || '';
     const magnet = t.magnet || (hash ? 'magnet:?xt=urn:btih:' + hash : '');
-    const badge = detectBadge(name);
+    const badge = detectBadge(name, isTv, seasonNum, expected);
 
     const safeName = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' ');
     const safeHash = hash.replace(/'/g, "\\'").replace(/"/g, '&quot;');

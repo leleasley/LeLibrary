@@ -219,16 +219,20 @@ async function checkWhatsNew() {
     const seen = new Set(rawSeen.split(',').map(s => s.trim()).filter(Boolean));
 
     const unseen = releases
-      .filter(rel => { const tag = (rel.tag_name || '').replace(/^v/, ''); return tag && !seen.has(tag); })
-      .slice(0, 4); // cap the wall of text
+      .filter(rel => { const tag = (rel.tag_name || '').replace(/^v/, ''); return tag && !seen.has(tag); });
 
     if (unseen.length === 0) return;
 
-    unseen.forEach(rel => seen.add((rel.tag_name || '').replace(/^v/, '')));
+    // Mark EVERY fetched release as seen (not just the ones we display) so a
+    // release that was pushed off the list doesn't reappear on the next load.
+    for (const rel of releases) {
+      const tag = (rel.tag_name || '').replace(/^v/, '');
+      if (tag) seen.add(tag);
+    }
     localStorage.setItem('lelibrary_seen_releases', [...seen].join(','));
     localStorage.removeItem('lelibrary_seen_release');
 
-    showWhatsNewModal(unseen.map(rel => ({ title: rel.name || rel.tag_name, body: rel.body || '' })));
+    showWhatsNewModal(unseen.slice(0, 4).map(rel => ({ title: rel.name || rel.tag_name, body: rel.body || '' })));
   } catch (e) { /* offline / blocked — skip silently */ }
 }
 

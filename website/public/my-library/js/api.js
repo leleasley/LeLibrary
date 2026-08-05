@@ -229,6 +229,89 @@ async function addPremiumizeMagnet(magnet, apiKey) {
   return data;
 }
 
+// ── Cached-only adds + cache checks (used by instant / batch add) ──
+// Add a magnet to TorBox but only if it is already cached (instant) on their
+// servers, so we never kick off a slow real download for a batch action.
+async function addTorboxMagnetCached(magnet, apiKey) {
+  const data = await torboxPost('/torrents/createtorrent', { magnet, add_only_if_cached: true }, apiKey);
+  return data;
+}
+
+function magnetFromHash(hash) {
+  return 'magnet:?xt=urn:btih:' + String(hash || '').toLowerCase();
+}
+
+// Return a Set of lowercase infohashes that are cached (instant) on TorBox.
+async function torboxCachedSet(hashes, apiKey) {
+  const set = new Set();
+  const CHUNK = 20;
+  for (let i = 0; i < hashes.length; i += CHUNK) {
+    const chunk = hashes.slice(i, i + CHUNK);
+    try {
+      const data = await torboxPostJson('/torrents/checkcached', { hashes: chunk }, apiKey);
+      if (data.success && data.data) {
+        Object.keys(data.data).forEach(h => set.add(String(h).toLowerCase()));
+      }
+    } catch (e) { /* keep the hashes we already have */ }
+  }
+  return set;
+}
+
+// Return a Set of lowercase infohashes that are instantly available on RD.
+async function rdCachedSet(hashes, apiKey) {
+  const set = new Set();
+  try {
+    const magnets = hashes.map(magnetFromHash).join('\n');
+    const res = await fetch(API.RD + '/torrents/instantAvailability', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ files: magnets }).toString(),
+    });
+    const d = await res.json().catch(() => ({}));
+    Object.keys(d || {}).forEach(h => set.add(String(h).toLowerCase()));
+  } catch (e) { /* no instant hashes detected */ }
+  return set;
+}
+
+// Return a Set of lowercase infohashes that are instantly available on AllDebrid.
+async function adCachedSet(hashes, apiKey) {
+  const set = new Set();
+  try {
+    const magnets = hashes.map(magnetFromHash).join(',');
+    const d = await adPost('/v4/magnet/instant', { magnets }, apiKey);
+    const list = d.data?.magnets || [];
+    list.forEach(m => {
+      if (!m.instant) return;
+      const mm = String(m.magnet || '').match(/btih:([a-f0-9]{32,40})/i);
+      if (mm) set.add(mm[1].toLowerCase());
+      else if (m.hash) set.add(String(m.hash).toLowerCase());
+    });
+  } catch (e) { /* no instant hashes detected */ }
+  return set;
+}
+
+// Return a Set of lowercase infohashes that are cached on Premiumize.
+async function pmCachedSet(hashes, apiKey) {
+  const set = new Set();
+  try {
+    const d = await pmPost('/transfer/cachecheck', { hashes: hashes.join(',') }, apiKey);
+    const resp = d.data?.response || {};
+    Object.entries(resp).forEach(([h, ok]) => { if (ok) set.add(String(h).toLowerCase()); });
+  } catch (e) { /* no cached hashes detected */ }
+  return set;
+}
+
+// Provider dispatch used by the detail-view batch add. `provider` is one of
+// 'torbox' | 'rd' | 'ad' | 'pm'. Only ever adds content already cached on the
+// provider so a batch action never starts a slow real download.
+async function addCachedByProvider(provider, magnet, apiKey) {
+  if (provider === 'torbox') return addTorboxMagnetCached(magnet, apiKey);
+  if (provider === 'rd') return addRdMagnet(magnet, apiKey);
+  if (provider === 'ad') return addAlldebridMagnet(magnet, apiKey);
+  if (provider === 'pm') return addPremiumizeMagnet(magnet, apiKey);
+  throw new Error('Unknown provider: ' + provider);
+}
+
 // Upload a .torrent file to TorBox with upload progress callback
 function uploadTorrentFile(file, apiKey, onProgress) {
   return new Promise((resolve, reject) => {

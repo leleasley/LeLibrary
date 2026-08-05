@@ -67,6 +67,16 @@ function renderSettingsView() {
       </div>
 
       <div class="settings-card">
+        <h3>${icon('cloud', 15)} Provider Status</h3>
+        <div id="providerStatusList">
+          <div class="status-item"><div class="status-item-detail">Checking provider status&hellip;</div></div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-desc" id="providerStatusMeta"></div>
+        </div>
+      </div>
+
+      <div class="settings-card">
         <h3>Info About</h3>
         <div class="settings-row">
           <div class="settings-row-label">LeLibrary</div>
@@ -86,10 +96,48 @@ function renderSettingsView() {
   `;
 
   checkMylibraryVersion();
+  renderProviderStatus();
 
   addBackBtn(settingsView);
 
   updateBottomNav('settings');
+}
+
+const PROVIDER_LOGO = {
+  torbox: '/provider-logos/torbox.png',
+  realdebrid: '/provider-logos/realdebrid.svg',
+  alldebrid: '/provider-logos/alldebrid.png',
+  premiumize: '/provider-logos/premiumize.svg',
+};
+
+function statusLabel(s) {
+  return s === 'operational' ? 'Operational' : s === 'degraded' ? 'Degraded' : s === 'down' ? 'Down' : 'Unknown';
+}
+
+async function renderProviderStatus() {
+  const list = document.getElementById('providerStatusList');
+  if (!list) return;
+
+  let data = window._lelibraryStatus || (await fetchProviderStatus());
+  if (!data || !Array.isArray(data.providers)) {
+    list.innerHTML = '<div class="status-item"><div class="status-item-detail">Could not load provider status.</div></div>';
+    return;
+  }
+
+  list.innerHTML = data.providers.map(p => `
+    <div class="status-item">
+      <img src="${PROVIDER_LOGO[p.id] || ''}" alt="${p.name}" loading="lazy" />
+      <div class="status-item-info">
+        <div class="status-item-name">${p.name}</div>
+        <div class="status-item-detail">${p.detail || ''}</div>
+      </div>
+      <a class="status-item-state state-${p.status}" href="${p.url}" target="_blank" rel="noopener">${statusLabel(p.status)} ${icon('external', 12)}</a>
+    </div>`).join('');
+
+  const meta = document.getElementById('providerStatusMeta');
+  if (meta && data.updatedAt) {
+    meta.textContent = 'Last checked ' + new Date(data.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
 }
 
 function setAccentColor(color) {
@@ -170,7 +218,7 @@ function importWatchlist(event) {
   event.target.value = '';
 }
 
-const APP_VERSION = '4.0.1';
+const APP_VERSION = '4.5.0';
 async function checkMylibraryVersion() {
   const row = document.getElementById('versionCheckRow');
   const msg = document.getElementById('versionCheckMsg');

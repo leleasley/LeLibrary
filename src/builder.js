@@ -709,8 +709,15 @@ async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episo
 
     const files      = await getFiles();
     let videoFiles = files.filter(f => isVideoFile(f.name || f.short_name));
-    // Drop sample/trailer/featurette files, but only if real files remain
-    const realFiles = videoFiles.filter(f => !isJunkVideo(f.name || f.short_name));
+    // Drop sample/trailer files by name, AND tiny sample files (e.g. the ~1MB
+    // "ETRG.mp4" bundled by some release groups) whenever a real feature-sized
+    // file is present. Keeps legit short/extra content when it's all there is.
+    const hasFeature = videoFiles.some(f => (f.size || 0) > 100 * 1024 * 1024);
+    let realFiles = videoFiles.filter(f => {
+      if (isJunkVideo(f.name || f.short_name)) return false;
+      if (hasFeature && (f.size || 0) < 20 * 1024 * 1024) return false;
+      return true;
+    });
     if (realFiles.length > 0) videoFiles = realFiles;
 
     let targetFiles = videoFiles;

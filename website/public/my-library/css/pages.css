@@ -216,6 +216,7 @@
   display: grid; grid-template-columns: repeat(3, 1fr);
   gap: 10px; margin-top: 12px;
 }
+.browse-grid .empty { grid-column: 1 / -1; justify-self: center; }
 @media (min-width: 500px) { .browse-grid { grid-template-columns: repeat(4, 1fr); } }
 @media (min-width: 700px) { .browse-grid { grid-template-columns: repeat(5, 1fr); } }
 @media (min-width: 1000px) { .browse-grid { grid-template-columns: repeat(6, 1fr); } }
@@ -341,6 +342,18 @@
   background: var(--error) !important; color: var(--bg) !important;
   border-color: var(--error) !important;
 }
+.dupe-group-list {
+  display: flex; flex-direction: column; gap: 4px;
+  margin: 8px 0; max-height: 120px; overflow-y: auto;
+}
+.dupe-group {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 8px; border-radius: 4px; font-size: 11px;
+  background: rgba(0,0,0,0.2); gap: 8px;
+}
+.dupe-group-title { color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dupe-group-count { color: var(--muted); white-space: nowrap; font-family: var(--mono); font-size: 10px; }
+.badge-series { background: rgba(88,166,255,0.12); color: var(--blue); font-size: 9px; padding: 1px 5px; border-radius: 3px; }
 
 /* Content header */
 .content-header {
@@ -635,6 +648,26 @@
 .season-btn:hover { color: var(--text); border-color: var(--border2); }
 .season-btn.active { background: var(--amber); color: var(--bg); border-color: var(--amber); }
 
+/* Season batch add */
+.detail-batch-bar {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.detail-batch-bar .batch-title {
+  font-size: 11px; font-weight: 700; color: var(--muted);
+  display: flex; align-items: center; gap: 5px;
+}
+.batch-providers {
+  display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+}
+.batch-provider {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; color: var(--text); cursor: pointer;
+}
+.batch-provider input { accent-color: var(--amber); cursor: pointer; }
+.batch-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.batch-status { font-size: 10px; color: var(--muted); min-height: 12px; }
+
 /* Recommendations */
 .detail-rec { margin-top: 8px; }
 .detail-rec-title {
@@ -747,6 +780,8 @@
 .torrent-card-badge { padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: 700; }
 .badge-single { background: rgba(59,130,246,0.15); color: #3b82f6; }
 .badge-extras { background: rgba(168,85,247,0.15); color: #a855f7; }
+.badge-full { background: rgba(63,185,80,0.15); color: var(--success); }
+.badge-partial { background: rgba(245,158,11,0.15); color: var(--amber); }
 .torrent-card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .btn-action {
   padding: 5px 10px; border-radius: 5px; font-size: 10px;
@@ -941,6 +976,28 @@
 }
 .color-option:hover { transform: scale(1.1); }
 .color-option.active { border-color: var(--white); box-shadow: 0 0 0 2px var(--bg); }
+
+/* Provider status (Settings) */
+.status-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.status-item:last-child { border-bottom: none; }
+.status-item img { width: 22px; height: 22px; border-radius: 5px; flex-shrink: 0; background: var(--surface2); }
+.status-item-info { flex: 1; min-width: 0; }
+.status-item-name { font-size: 13px; color: var(--text); font-weight: 600; }
+.status-item-detail { font-size: 11px; color: var(--muted); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-item-state {
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  text-decoration: none; display: inline-flex; align-items: center; gap: 4px;
+  white-space: nowrap; flex-shrink: 0;
+}
+.status-item-state:hover { text-decoration: underline; }
+.status-item-state.state-operational { color: #3fb950; }
+.status-item-state.state-degraded { color: var(--amber); }
+.status-item-state.state-down { color: var(--error); }
+.status-item-state.state-unknown { color: var(--muted); }
 
 /* ── Keyboard shortcuts modal ───────────────────────────────── */
 .shortcuts-overlay {

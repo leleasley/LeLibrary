@@ -277,14 +277,18 @@ async function loadLibrary() {
 
 // Background refresh — fetch fresh data without blocking UI
 async function refreshInBackground() {
+  const before = (App.allItems || []).length;
   try {
     const completed = await loadLibraryFromProviders();
+    const after = completed.length;
     App.allItems = completed;
     buildLibraryIndex();
     cacheLibrary(completed);
     // Re-render the dashboard so the user isn't left staring at stale counts.
     // (Library/recent views are stateful, so leave them to the user's next visit.)
     if (App.currentPage === 'dashboard') renderDashboard();
+    // Tell the user when the cached count was out of date
+    if (after !== before) showToast(`Updated to ${after} items`);
   } catch (e) {
     // Silent fail — cached data is still shown
   }
@@ -329,6 +333,31 @@ async function useDifferentKeys() {
   document.getElementById('loginDesc').textContent = 'Browse your downloads from TorBox and/or Real-Debrid.';
 }
 
+// ── Provider status ───────────────────────────────────────────
+function setPdot(el, status) {
+  el.classList.remove('op', 'deg', 'down', 'unknown');
+  el.classList.add(status === 'operational' ? 'op' : status === 'degraded' ? 'deg' : status === 'down' ? 'down' : 'unknown');
+}
+
+async function fetchProviderStatus() {
+  try {
+    const r = await fetch('/api/status', { signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    if (Array.isArray(data.providers)) {
+      data.providers.forEach(p => {
+        document.querySelectorAll('.pdot[data-id="' + p.id + '"]').forEach(el => setPdot(el, p.status));
+      });
+    }
+    window._lelibraryStatus = data;
+    return data;
+  } catch (e) {
+    document.querySelectorAll('.pdot').forEach(el => setPdot(el, 'unknown'));
+    window._lelibraryStatus = null;
+    return null;
+  }
+}
+
 // ── Init ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   // Inject SVG icons into any element with data-icon attribute
@@ -341,6 +370,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Show release notes once per new version
   checkWhatsNew();
+
+  // Live provider status dots in the topbar
+  fetchProviderStatus();
+  setInterval(fetchProviderStatus, 60000);
 
   // Live TMDB v4 warning as the user types their key
   const tmdbInput = document.getElementById('tmdbKey');

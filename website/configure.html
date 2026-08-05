@@ -33,7 +33,7 @@
     }
 
     html, body { height: 100%; }
-
+    html { overflow-x: hidden; }
     body {
       font-family: var(--font);
       background: var(--bg);
@@ -41,7 +41,15 @@
       display: flex;
       flex-direction: column;
       min-height: 100vh;
+      overflow-x: hidden;
     }
+
+    /* Keep every scrollable/flex/grid child from forcing the page wider than the
+       viewport (min-width: auto is the classic horizontal-scroll-on-mobile bug). */
+    .form-area, .sidebar, #setupContent, .stepper, .step-panel, .step-card,
+    .connect-grid, .connect-box, .input-row, .input-row input, .url-box, .url-box span,
+    .connected-card, .cat-options, .cat-option, .backup-list, .preview-panel,
+    .provider-grid, .provider-card, .field, .field-row, .actions { min-width: 0; }
 
     /* ── TOP BAR ── */
     .topbar {
@@ -946,43 +954,324 @@
     }
     .toast.show { opacity: 1; transform: translateY(0); }
 
-    /* ── MOBILE STICKY INSTALL BAR ── */
-    .mobile-install-bar {
-      display: none;
-    }
-
     @media (max-width: 860px) {
       .main { grid-template-columns: 1fr; overflow: visible; }
       .sidebar { display: none; }
       .form-area { padding: 24px 20px; overflow: visible; }
       .topbar-right .topbar-link { display: none; }
       .sidebar-poster-preview { display: none; }
-
-      .mobile-install-bar {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        z-index: 50;
-        padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
-        background: rgba(17, 17, 20, 0.92);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border-top: 1px solid var(--border);
-      }
-      .mib-dots { display: flex; gap: 6px; }
-      .dot { width: 10px; height: 10px; border-radius: 50%; }
-      .dot.tb { background: #58a6ff; }
-      .dot.rd { background: #ef4444; }
-      body { padding-bottom: 66px; }
     }
 
     @media (min-width: 861px) {
       .mobile-poster-preview { display: none; }
     }
+
+    /* ── STEPPER (page-by-page setup) ── */
+    .stepper {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+      scrollbar-width: thin;
+    }
+    .step-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 7px 14px;
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 0.78rem;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .step-btn span {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--surface2);
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.68rem;
+      font-weight: 700;
+      transition: all 0.2s;
+    }
+    .step-btn:hover { border-color: var(--border2); color: var(--text); }
+    .step-btn.active { border-color: var(--amber); color: var(--amber); background: var(--amber-glow); }
+    .step-btn.active span { background: var(--amber); color: var(--bg); }
+
+    .step-panel { display: none; }
+    .step-panel.visible { display: block; animation: stepIn 0.35s ease; }
+    @keyframes stepIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    .step-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 6px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+    }
+    .step-nav .btn-main { max-width: 260px; }
+    .step-nav #btnPrevStep { visibility: hidden; }
+
+    /* ── CONFIGURE TABS (Setup | Collections) ── */
+    .cfg-tabs {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0;
+      margin-bottom: 4px;
+    }
+    .cfg-tab {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 10px 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .cfg-tab:hover { color: var(--text); }
+    .cfg-tab.active { color: var(--amber); border-bottom-color: var(--amber); }
+    .beta {
+      background: var(--amber-glow);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      color: var(--amber);
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 999px;
+    }
+
+    /* ── STREMIO PUSH (Beta) ── */
+    .mode-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+    .mode-pill {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .mode-pill.active { border-color: var(--amber); color: var(--amber); background: var(--amber-glow); }
+
+    .acc-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .acc-row img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--surface2);
+    }
+    .acc-row .acc-info { flex: 1; min-width: 0; }
+    .acc-row .acc-info strong { display: block; color: var(--white); font-size: 0.9rem; }
+    .acc-row .acc-info small { color: var(--muted); font-size: 0.72rem; word-break: break-all; }
+    .acc-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .acc-actions .btn-main { flex: 1; min-width: 200px; }
+
+    /* Collections tab */
+    .coll-steps { padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }
+    .coll-steps li { font-size: 0.82rem; color: var(--text); line-height: 1.5; }
+    .coll-steps li b { color: var(--white); }
+    .coll-note {
+      font-size: 0.76rem;
+      color: var(--muted);
+      line-height: 1.5;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+    }
+
+    /* ── CONNECT WIDGET (Sign in with Stremio / Nuvio) ── */
+    .connect-widget { display: flex; flex-direction: column; gap: 12px; }
+    .connect-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 640px) { .connect-grid { grid-template-columns: 1fr; } }
+    .connect-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .connect-box:hover { border-color: var(--border2); }
+    .connect-box .cb-head { display: flex; align-items: center; gap: 12px; }
+    .connect-box .cb-head img { width: 32px; height: 32px; border-radius: 8px; object-fit: contain; flex-shrink: 0; }
+    .connect-box .cb-head h3 { color: var(--white); font-size: 0.95rem; }
+    .connect-box .cb-head p { color: var(--muted); font-size: 0.72rem; }
+    .connect-box .connect-form { display: flex; flex-direction: column; gap: 10px; }
+
+    .btn-main .ico.spin { animation: icoSpin 0.7s linear infinite; }
+    @keyframes icoSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .connect-profile-ok {
+      background: rgba(34, 197, 94, 0.08);
+      border: 1px solid rgba(34, 197, 94, 0.25);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.82rem;
+      color: var(--success);
+    }
+    .connect-profile-ok strong { color: var(--white); }
+    .connect-skip {
+      align-self: center;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 9px 24px;
+      transition: all 0.2s;
+      margin-top: 2px;
+    }
+    .connect-skip:hover { color: var(--text); border-color: var(--border2); }
+
+    /* ── QUICK CONNECT OVERLAY (modal on first load) ── */
+    /* Connect takes over the left column (top bar + sidebar stay visible) */
+    #setupContent {
+      display: flex;
+      flex-direction: column;
+      gap: 26px;
+    }
+
+    #connectStep .connect-widget, #installPush .connect-widget { animation: connectIn 0.3s ease; }
+    @keyframes connectIn {
+      from { opacity: 0; transform: translateY(10px) scale(0.98); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    .connect-intro {
+      font-size: 0.85rem;
+      color: var(--text);
+      line-height: 1.55;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .connect-intro strong { color: var(--white); }
+    .connect-intro .ci-sub { display: block; color: var(--muted); font-size: 0.78rem; margin-top: 4px; }
+    .connect-note.warn { color: var(--amber); }
+    .connect-note {
+      font-size: 0.74rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .connected-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 18px;
+    }
+    .connected-card .cc-info { flex: 1; min-width: 0; }
+    .connected-card .cc-info strong { color: var(--white); font-size: 0.9rem; display: block; }
+    .connected-card .cc-info small { color: var(--muted); font-size: 0.72rem; }
+
+    /* Catalogue options */
+    .cat-options { display: flex; flex-direction: column; gap: 8px; }
+    .cat-option {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .cat-option:hover { border-color: var(--border2); }
+    .cat-option input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--amber);
+      flex-shrink: 0;
+    }
+    .cat-option .co-info { flex: 1; min-width: 0; }
+    .cat-option .co-info strong { color: var(--white); font-size: 0.86rem; display: block; }
+    .cat-option .co-info small { color: var(--muted); font-size: 0.72rem; line-height: 1.4; display: block; }
+    .cat-option .co-coming { font-size: 0.62rem; color: var(--amber); border: 1px solid rgba(245,158,11,0.35); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+    .cat-option.disabled { opacity: 0.55; cursor: not-allowed; }
+    .cat-option.disabled:hover { border-color: var(--border); }
+
+    /* Backup list */
+    .backup-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 200px;
+      overflow-y: auto;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .backup-list .bl-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .backup-list .bl-top { display: flex; align-items: center; gap: 8px; }
+    .backup-list .bl-name {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--white);
+      font-family: var(--font);
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .backup-list .bl-url {
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      color: var(--muted);
+      word-break: break-all;
+      line-height: 1.4;
+    }
+    .backup-list .bl-empty { color: var(--border2); font-size: 0.72rem; }
 
     @media (max-width: 480px) {
       .topbar { padding: 0 16px; height: 50px; }
@@ -1004,6 +1293,15 @@
       .btn-main .ico { width: 34px; height: 34px; }
       .url-box { flex-wrap: wrap; }
       .url-box span { min-width: 0; }
+
+      /* Wizard on small screens */
+      .stepper { gap: 6px; margin-bottom: 18px; }
+      .step-btn { padding: 6px 10px; font-size: 0.72rem; }
+      .step-btn span { width: 18px; height: 18px; font-size: 0.62rem; }
+      .step-nav { flex-direction: column-reverse; gap: 10px; }
+      .step-nav .btn-main { max-width: none; width: 100%; }
+      .step-nav #btnPrevStep { align-self: flex-start; }
+      .connected-card { flex-wrap: wrap; }
     }
   </style>
 </head>
@@ -1033,12 +1331,29 @@
   <div class="main">
     <!-- LEFT: FORM -->
     <div class="form-area">
+      <div id="setupContent">
       <div class="form-header">
         <h1>Set up your addon</h1>
         <p>Add your debrid providers and a TMDB key, then install straight into Stremio or Nuvio. Your keys are <strong>encoded in the addon URL</strong> — never stored or logged.</p>
       </div>
 
-      <!-- STEP 1: PROVIDERS -->
+      <div class="cfg-tabs">
+        <button class="cfg-tab active" id="tabBtn-setup" type="button" onclick="switchTab('setup')">Setup</button>
+        <button class="cfg-tab" id="tabBtn-catalogues" type="button" onclick="switchTab('catalogues')">Catalogues <span class="beta">Beta</span></button>
+      </div>
+
+      <div id="tab-setup" class="cfg-tab-pane">
+
+            <div class="stepper">
+        <button class="step-btn active" data-step="1" type="button" onclick="goToStep(1)"><span>1</span>Providers</button>
+        <button class="step-btn" data-step="2" type="button" onclick="goToStep(2)"><span>2</span>Metadata</button>
+        <button class="step-btn" data-step="3" type="button" onclick="goToStep(3)"><span>3</span>Advanced</button>
+        <button class="step-btn" data-step="4" type="button" onclick="goToStep(4)"><span>4</span>Connect</button>
+        <button class="step-btn" data-step="5" type="button" onclick="goToStep(5)"><span>5</span>Preview</button>
+      </div>
+
+<div class="step-panel visible" id="panel-1">
+<!-- STEP 1: PROVIDERS -->
       <div class="step">
         <div class="step-head">
           <div class="step-num">1</div>
@@ -1160,7 +1475,10 @@
         <div class="url-warning">Protect this page — anyone with the URL can access your configuration.</div>
       </div>
 
-      <!-- STEP 2: METADATA -->
+            </div>
+
+<div class="step-panel" id="panel-2">
+<!-- STEP 2: METADATA -->
       <div class="step">
         <div class="step-head">
           <div class="step-num">2</div>
@@ -1215,7 +1533,10 @@
         </div>
       </div>
 
-      <!-- STEP 3: ADVANCED SETTINGS -->
+            </div>
+
+<div class="step-panel" id="panel-3">
+<!-- STEP 3: ADVANCED SETTINGS -->
       <div class="step">
         <div class="collapsible-header" onclick="toggleSection(this)" style="padding:0;margin:0">
           <div class="step-head" style="margin:0;flex:1">
@@ -1225,9 +1546,9 @@
               <p>Catalog names, poster art and custom streams — all optional.</p>
             </div>
           </div>
-          <span class="collapse-arrow" style="margin-right:16px">▸</span>
+          <span class="collapse-arrow open" style="margin-right:16px">▸</span>
         </div>
-        <div class="collapsible-body">
+        <div class="collapsible-body open">
           <div class="field" style="margin-bottom:14px">
             <div class="field-label">Movies catalog name</div>
             <input type="text" id="catNameMovies" placeholder="🎬 My Movies" />
@@ -1347,15 +1668,43 @@
         </div>
       </div>
 
-      <!-- STEP 4: INSTALL -->
+            </div>
+
+<div class="step-panel" id="panel-4">
+      <!-- STEP 4: CONNECT MEDIA PLAYER -->
       <div class="step">
         <div class="step-head">
           <div class="step-num">4</div>
           <div>
-            <h2>Install</h2>
-            <p>Generate your links, then install on Stremio or Nuvio.</p>
+            <h2>Connect your media player</h2>
+            <p>Optional — connect Stremio or Nuvio to push LeLibrary straight in. Skip this and go straight to Step 5 to install with links instead.</p>
           </div>
         </div>
+        <div id="connectStep"></div>
+      </div>
+      </div>
+
+<div class="step-panel" id="panel-5">
+<!-- STEP 5: PREVIEW & INSTALL -->
+      <div class="step">
+        <div class="step-head">
+          <div class="step-num">5</div>
+          <div>
+            <h2>Preview & install</h2>
+            <p>Push straight to your connected account, or generate the links to install manually.</p>
+          </div>
+        </div>
+
+        <!-- Push panel (rendered by JS when connected) -->
+        <div id="installPush"></div>
+
+        <!-- Manual install (always available) -->
+        <div class="step-card">
+          <div class="field-label" style="margin-bottom:6px">Install manually</div>
+          <div class="coll-note" style="margin-bottom:14px">
+            <strong>Note:</strong> your categories and your library are installed by the <strong>Push to</strong> option above.
+            If no catalogues are selected, feel free to use the options below.
+          </div>
 
         <div id="unsavedBanner" style="display:none;background:rgba(245,158,11,0.12);border:1px solid var(--amber);border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:0.85rem;color:var(--amber);align-items:center;gap:8px">
           <span style="font-size:1.1rem">⚠️</span> You have unsaved changes
@@ -1425,9 +1774,20 @@
             <div class="preview-footer">Actual streams depend on the files in your TorBox / Real-Debrid account</div>
           </div>
         </div>
+        </div><!-- /step-card manual install -->
       </div>
 
-      <!-- PRIVACY & HOW IT WORKS (visible) -->
+            </div>
+
+      <div class="step-nav">
+        <button class="btn-copy-url" id="btnPrevStep" type="button" onclick="goToStep(currentStep-1)">← Back</button>
+        <button class="btn-main btn-gen" id="btnNextStep" type="button" onclick="goToStep(currentStep+1)">
+          <div class="ico">›</div>
+          <div class="txt"><span id="nextStepLabel">Next: Metadata</span><small>Continue to the next step</small></div>
+        </button>
+      </div>
+
+<!-- PRIVACY & HOW IT WORKS (visible) -->
       <div class="privacy-section">
         <div class="privacy-grid">
           <div class="info-card">
@@ -1457,6 +1817,78 @@
         </div>
       </div>
 
+      </div><!-- /tab-setup -->
+
+      <!-- CATALOGUES TAB (BETA) — edit what gets pushed, no push here -->
+      <div id="tab-catalogues" class="cfg-tab-pane" style="display:none">
+        <div class="step">
+          <div class="step-head">
+            <div class="step-num">★</div>
+            <div>
+              <h2>Edit Catalogues <span class="beta">Beta</span></h2>
+              <p>Choose which catalogues get installed. Importing collections from other addons is coming soon.</p>
+            </div>
+          </div>
+
+          <div class="step-card">
+            <div class="field">
+              <div class="field-label">Your catalogues</div>
+              <div class="cat-options">
+                <label class="cat-option">
+                  <input type="checkbox" id="editCatFranchises" checked onchange="setCatOption('franchises', this.checked)" />
+                  <div class="co-info">
+                    <strong>LeLibrary Franchises</strong>
+                    <small>Your owned films grouped into franchises — each one becomes a folder of movies.</small>
+                  </div>
+                </label>
+                <label class="cat-option disabled">
+                  <input type="checkbox" id="editCatTrending" disabled />
+                  <div class="co-info">
+                    <strong>Trending</strong>
+                    <small>Trending titles from TMDB.</small>
+                  </div>
+                  <span class="co-coming">Coming soon</span>
+                </label>
+                <label class="cat-option disabled">
+                  <input type="checkbox" id="editCatPopular" disabled />
+                  <div class="co-info">
+                    <strong>Popular</strong>
+                    <small>Popular titles from TMDB.</small>
+                  </div>
+                  <span class="co-coming">Coming soon</span>
+                </label>
+                <label class="cat-option">
+                  <input type="checkbox" id="editHideFranchiseRows" checked onchange="setHideFranchiseRows(this.checked)" />
+                  <div class="co-info">
+                    <strong>Hide franchise rows from Home</strong>
+                    <small>Keep them available inside LeLibrary Franchises without duplicating every franchise on Home.</small>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div class="coll-note">
+              These control what's installed when you push from the Setup tab. Importing catalogues and collections
+              from other addons (AIOmetadata, Nuvio.json, etc.) is coming soon.
+            </div>
+
+            <div class="coll-note">
+              <strong>Keeping collections up to date:</strong> new films added to a franchise you already have will appear
+              automatically (press refresh in Nuvio). A brand-new franchise needs a quick re-push from Step 5 to show up,
+              because that's the step that imports the collections file.
+            </div>
+
+            <button class="btn-main btn-gen" onclick="switchTab('setup'); goToPushStep()">
+              <div class="ico">⚡</div>
+              <div class="txt"><span>Continue to push</span><small>Connect or push to Stremio / Nuvio</small></div>
+              <span class="arr">›</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      </div><!-- /setupContent -->
+
       <!-- Footer -->
       <div class="form-footer">
         <p>Want maximum speed and privacy? <a href="https://github.com/leleasley/LeLibrary" target="_blank">Self-host this addon</a></p>
@@ -1479,7 +1911,7 @@
           <div class="setup-row"><span>Poster service</span><strong id="setupPoster">TMDB</strong></div>
           <div class="setup-row"><span>Custom streams</span><strong id="setupStreams">None</strong></div>
         </div>
-        <button class="btn-primary-sm" id="btnGenerateSide" onclick="generate()">Generate install links</button>
+        <button class="btn-primary-sm" id="btnGenerateSide" onclick="goGenerate()">Generate install links</button>
         <p class="setup-privacy">🔒 Keys are encoded in your addon URL and never logged.</p>
       </div>
 
@@ -1496,10 +1928,6 @@
   </div>
 
   <!-- MOBILE STICKY INSTALL BAR -->
-  <div class="mobile-install-bar" id="mobileInstallBar">
-    <span class="mib-dots" id="mobileBarDots"></span>
-    <button class="btn-primary-sm" id="btnGenerateMobile" onclick="generate()">Generate</button>
-  </div>
 
   <div class="toast" id="toast">Copied!</div>
 
@@ -1544,6 +1972,23 @@
         .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
     }
 
+    // Central place for building the addon URLs from a config so the Install
+    // step and the Collections tab share the exact same token.
+    function buildUrls(cfg) {
+      const encoded      = encodeConfig(cfg);
+      const origin       = window.location.origin;
+      const manifestUrl  = `${origin}/${encoded}/manifest.json`;
+      return {
+        encoded,
+        manifestUrl,
+        collectionsUrl: `${origin}/${encoded}/collections.json`,
+        stremioDeep: manifestUrl.replace(/^https?:\/\//, 'stremio://'),
+        stremioWeb: `https://web.stremio.com/#/addons?addon=${encodeURIComponent(manifestUrl)}`,
+        nuvioDeep: manifestUrl.replace(/^https?:\/\//, 'nuvio://'),
+      };
+    }
+
+    let lastUrls = null;   // { manifestUrl, collectionsUrl, encoded, ... } from the last generate()
     let initialConfig = null;
     let customStreams = [];
     let hasExistingToken = false;
@@ -1600,8 +2045,6 @@
 
       document.getElementById('setupStreams').textContent = customStreams.length ? `${customStreams.length} added` : 'None';
 
-      const dots = set.map(id => `<span class="dot ${id}"></span>`).join('');
-      document.getElementById('mobileBarDots').innerHTML = dots;
     }
 
     function onHideAnimeChange() {
@@ -1719,6 +2162,7 @@
 
     function checkChanged() {
       updateSetupSummary();
+      if (typeof updateCataloguesUI === 'function') updateCataloguesUI();
       if (!initialConfig) return;
       const changed = !configsEqual(getCurrentConfig(), initialConfig);
       const btn = document.getElementById('btnGenerate');
@@ -2078,12 +2522,9 @@
       if (catNameAnime) cfg.catNameAnime = catNameAnime;
       if (hideAnime) cfg.hideAnime = true;
 
-      const encoded     = encodeConfig(cfg);
-      const origin      = window.location.origin;
-      const manifestUrl = `${origin}/${encoded}/manifest.json`;
-      const stremioDeep = manifestUrl.replace(/^https?:\/\//, 'stremio://');
-      const stremioWeb  = `https://web.stremio.com/#/addons?addon=${encodeURIComponent(manifestUrl)}`;
-      const nuvioDeep   = manifestUrl.replace(/^https?:\/\//, 'nuvio://');
+      const urls = buildUrls(cfg);
+      lastUrls = urls;
+      const { manifestUrl, stremioDeep, stremioWeb, nuvioDeep } = urls;
 
       // Show the install links regardless (for both new and existing users)
       document.getElementById('manifestUrl').textContent = manifestUrl;
@@ -2182,9 +2623,10 @@
       document.getElementById('unsavedBanner').style.display = 'none';
       initialConfig = null;
       onProviderChange();
+      goToStep(1);
     }
 
-    const APP_VERSION = '4.0.1';
+    const APP_VERSION = '4.5.0';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');
@@ -2214,6 +2656,14 @@
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('versionDisplay').textContent = `v${APP_VERSION}`;
       checkVersion();
+      renderCataloguesOptions();
+      renderConnectAll();
+      goToStep(1);
+      if (restoreConnect()) {
+        // Saved session — quietly validate it in the background
+        renderConnectAll();
+        verifyRestoredConnect();
+      }
       const token = window.location.pathname.split('/')[1];
       const hasToken = token && token !== 'configure';
       hasExistingToken = hasToken;
@@ -2224,7 +2674,6 @@
       }
       const sideLabel = hasToken ? 'Save' : 'Generate install links';
       document.getElementById('btnGenerateSide').textContent = sideLabel;
-      document.getElementById('btnGenerateMobile').textContent = hasToken ? 'Save' : 'Generate';
 
       const cfg = window.__INITIAL_CONFIG__;
       if (cfg) {
@@ -2445,6 +2894,824 @@
       btn.classList.toggle('open', isOpen);
       if (isOpen) renderPreview();
     }
+
+    // ── Configure tabs (Setup | Catalogues) ──
+    function switchTab(name) {
+      document.getElementById('tab-setup').style.display      = name === 'setup' ? '' : 'none';
+      document.getElementById('tab-catalogues').style.display = name === 'catalogues' ? '' : 'none';
+      document.getElementById('tabBtn-setup').classList.toggle('active', name === 'setup');
+      document.getElementById('tabBtn-catalogues').classList.toggle('active', name === 'catalogues');
+      if (name === 'setup') {
+        goToStep(currentStep);
+        renderConnectAll();
+      }
+    }
+
+    // ── Step-by-step wizard navigation ──
+    const STEP_LABELS = { 1: 'Next: Metadata', 2: 'Next: Advanced', 3: 'Next: Connect', 4: 'Next: Preview & install', 5: '' };
+    let currentStep = 1;
+
+    function goToStep(n) {
+      n = Math.max(1, Math.min(5, n));
+      currentStep = n;
+      for (let i = 1; i <= 5; i++) {
+        const panel = document.getElementById('panel-' + i);
+        if (panel) panel.classList.toggle('visible', i === n);
+        const btn = document.querySelector('.step-btn[data-step="' + i + '"]');
+        if (btn) btn.classList.toggle('active', i === n);
+      }
+      document.getElementById('btnPrevStep').style.visibility = n > 1 ? 'visible' : 'hidden';
+      const next = document.getElementById('btnNextStep');
+      next.style.display = n === 5 ? 'none' : '';
+      document.getElementById('nextStepLabel').textContent = STEP_LABELS[n] || 'Continue';
+      if (n === 4) renderConnectAll();
+      if (n === 5) {
+        renderConnectAll();
+        maybeAutoGenerate();
+      }
+      // Smoothly settle the scroll position after the panel swap (the swap itself
+      // is animated via CSS), so the new step appears from the top with no jump.
+      requestAnimationFrame(() => {
+        const fa = document.querySelector('.form-area');
+        if (fa && fa.scrollHeight > fa.clientHeight) fa.scrollTo({ top: 0, behavior: 'smooth' });
+        else window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }
+
+    // Go to the push step: Step 5 if connected, otherwise Step 4 (connect first)
+    function goToPushStep() {
+      goToStep(connectState.platform ? 5 : 4);
+    }
+
+    // If the setup fields are already valid, generate the install links for them
+    function maybeAutoGenerate() {
+      if (lastUrls) return;
+      const provider = document.getElementById('provider').value;
+      const tmdb = document.getElementById('tmdbApiKey').value.trim();
+      if (!provider || provider === 'none' || !tmdb) return;
+      generate({ skipVerify: true });
+    }
+
+    // Sidebar / mobile "Generate" buttons jump to the install step and generate
+    function goGenerate() {
+      goToStep(5);
+      generate();
+    }
+
+    // ── Push to your account (Step 5): Sign in with Stremio / Nuvio ──
+    // Everything is client-side. The session token is stored in localStorage on
+    // this device (so you stay signed in across refreshes) and never touches our
+    // server. Disconnect clears it.
+    const STREMIO_API = 'https://api.strem.io/api';
+    const NUVIO_API_BASE        = 'https://api.nuvio.tv';
+    const NUVIO_PUBLISHABLE_KEY = 'sb_publishable_1Clq8rlTVACkdcZuqr6_AD__xUUC_EN';
+    const CONNECT_STORAGE_KEY   = 'lelibrary_connect';
+
+    const connectState = {
+      platform: null,          // 'stremio' | 'nuvio'
+      stremioAuth: null,
+      stremioUser: null,
+      nuvioToken: null,
+      nuvioRefresh: null,
+      nuvioUser: null,
+      nuvioProfiles: [],
+      nuvioSelectedProfile: null,
+    };
+
+    // Which catalogues the user wants pushed (shared by Step 5 and the Catalogues tab)
+    const catSelection = { franchises: true, trending: false, popular: false };
+    let hideFranchiseRows = (() => {
+      try { return localStorage.getItem('lelibrary_hide_franchise_rows') !== 'false'; }
+      catch { return true; }
+    })();
+
+    function persistConnect() {
+      try {
+        localStorage.setItem(CONNECT_STORAGE_KEY, JSON.stringify({
+          platform: connectState.platform,
+          stremioAuth: connectState.stremioAuth,
+          stremioUser: connectState.stremioUser,
+          nuvioToken: connectState.nuvioToken,
+          nuvioRefresh: connectState.nuvioRefresh,
+          nuvioUser: connectState.nuvioUser,
+          nuvioProfiles: connectState.nuvioProfiles,
+          nuvioSelectedProfile: connectState.nuvioSelectedProfile,
+        }));
+      } catch { /* storage unavailable — fall back to session-only */ }
+    }
+
+    function clearPersistedConnect() {
+      try { localStorage.removeItem(CONNECT_STORAGE_KEY); } catch {}
+    }
+
+    function restoreConnect() {
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem(CONNECT_STORAGE_KEY) || 'null'); } catch {}
+      if (!saved || !saved.platform) return false;
+      connectState.platform = saved.platform;
+      connectState.stremioAuth = saved.stremioAuth || null;
+      connectState.stremioUser = saved.stremioUser || null;
+      connectState.nuvioToken = saved.nuvioToken || null;
+      connectState.nuvioRefresh = saved.nuvioRefresh || null;
+      connectState.nuvioUser = saved.nuvioUser || null;
+      connectState.nuvioProfiles = Array.isArray(saved.nuvioProfiles) ? saved.nuvioProfiles : [];
+      connectState.nuvioSelectedProfile = saved.nuvioSelectedProfile || null;
+      return true;
+    }
+
+    function catOptionsHTML(prefix) {
+      return `
+        <div class="cat-options">
+          <label class="cat-option">
+            <input type="checkbox" id="${prefix}-catFranchises" ${catSelection.franchises ? 'checked' : ''} onchange="setCatOption('franchises', this.checked)" />
+            <div class="co-info">
+              <strong>LeLibrary Franchises</strong>
+              <small>Your owned films grouped into franchises — each one becomes a folder of movies.</small>
+            </div>
+          </label>
+          <label class="cat-option disabled">
+            <input type="checkbox" id="${prefix}-catTrending" disabled />
+            <div class="co-info"><strong>Trending</strong><small>Trending titles from TMDB.</small></div>
+            <span class="co-coming">Coming soon</span>
+          </label>
+          <label class="cat-option disabled">
+            <input type="checkbox" id="${prefix}-catPopular" disabled />
+            <div class="co-info"><strong>Popular</strong><small>Popular titles from TMDB.</small></div>
+            <span class="co-coming">Coming soon</span>
+          </label>
+        </div>`;
+    }
+
+    // Keep the Step 5 and Catalogues-tab checkboxes in sync
+    function setCatOption(key, checked) {
+      catSelection[key] = checked;
+      const ids = {
+        franchises: ['catFranchises', 'editCatFranchises'],
+        trending:   ['catTrending',   'editCatTrending'],
+        popular:    ['catPopular',    'editCatPopular'],
+      }[key] || [];
+      for (const id of ids) {
+        const el = document.getElementById(id);
+        if (el && el.checked !== checked) el.checked = checked;
+      }
+    }
+
+    function renderCataloguesOptions() {
+      const el = document.getElementById('editCatFranchises');
+      if (el) el.checked = catSelection.franchises;
+      const hideRows = document.getElementById('editHideFranchiseRows');
+      if (hideRows) hideRows.checked = hideFranchiseRows;
+    }
+
+    function setHideFranchiseRows(enabled) {
+      hideFranchiseRows = !!enabled;
+      try { localStorage.setItem('lelibrary_hide_franchise_rows', String(hideFranchiseRows)); } catch {}
+    }
+
+    function connectWidgetHTML(s) {
+      return `
+        <div class="connect-widget">
+          <div class="connect-intro">
+            <strong>Optional</strong> — connect Stremio or Nuvio to install LeLibrary straight into your account and
+            import your catalogues, no copy/pasting URLs.
+            <span class="ci-sub">All Stremio / Nuvio credentials are <strong>never sent to our servers</strong> — they go only to the
+            platform's own API. Your login is saved in this browser so you stay signed in; Disconnect clears it.</span>
+          </div>
+          <div class="connect-grid">
+            <!-- STREMIO BOX -->
+            <div class="connect-box">
+              <div class="cb-head">
+                <img src="/stremio.svg" alt="Stremio" />
+                <div><h3>Sign in with Stremio</h3><p>Email + password</p></div>
+              </div>
+              <div class="connect-form">
+                <div class="field">
+                  <div class="field-label">Stremio email</div>
+                  <input type="email" id="${s}-stremioEmail" placeholder="you@example.com" autocomplete="off"
+                    onkeydown="if(event.key==='Enter') connectStremio('${s}')" />
+                </div>
+                <div class="field">
+                  <div class="field-label">Password</div>
+                  <div class="input-row">
+                    <input type="password" id="${s}-stremioPass" placeholder="••••••••" autocomplete="off"
+                      onkeydown="if(event.key==='Enter') connectStremio('${s}')" />
+                    <button class="btn-icon" type="button" onclick="toggleVis('${s}-stremioPass',this)">👁</button>
+                  </div>
+                  <p class="field-hint" id="${s}-stremioStatus">Sent only to Stremio's API (api.strem.io). Never stored.</p>
+                </div>
+                <button class="btn-main btn-gen" id="${s}-stremioSubmit" type="button" onclick="connectStremio('${s}')">
+                  <div class="ico" id="${s}-stremioIco">🔑</div>
+                  <div class="txt"><span id="${s}-stremioBtnLabel">Sign in with Stremio</span><small>Connects your Stremio account</small></div>
+                  <span class="arr">›</span>
+                </button>
+              </div>
+            </div>
+            <!-- NUVIO BOX -->
+            <div class="connect-box">
+              <div class="cb-head">
+                <img src="/nuvio.png" alt="Nuvio" />
+                <div><h3>Sign in with Nuvio</h3><p>Email + password</p></div>
+              </div>
+              <div class="connect-form">
+                <div class="field">
+                  <div class="field-label">Nuvio email</div>
+                  <input type="email" id="${s}-nuvioEmail" placeholder="you@example.com" autocomplete="off"
+                    onkeydown="if(event.key==='Enter') connectNuvio('${s}')" />
+                </div>
+                <div class="field">
+                  <div class="field-label">Password</div>
+                  <div class="input-row">
+                    <input type="password" id="${s}-nuvioPass" placeholder="••••••••" autocomplete="off"
+                      onkeydown="if(event.key==='Enter') connectNuvio('${s}')" />
+                    <button class="btn-icon" type="button" onclick="toggleVis('${s}-nuvioPass',this)">👁</button>
+                  </div>
+                  <p class="field-hint" id="${s}-nuvioStatus">Sent only to Nuvio's API (api.nuvio.tv). Never stored.</p>
+                </div>
+                <button class="btn-main btn-gen" id="${s}-nuvioSubmit" type="button" onclick="connectNuvio('${s}')">
+                  <div class="ico" id="${s}-nuvioIco">🔑</div>
+                  <div class="txt"><span id="${s}-nuvioBtnLabel">Sign in with Nuvio</span><small>Connects your Nuvio account</small></div>
+                  <span class="arr">›</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <p class="connect-note warn">🔒 Only for Catalogues (Beta). Your login is saved in this browser (localStorage) so you don't sign in
+          again — it never touches our server. <strong>Disconnect</strong> to clear it.</p>
+        </div>`;
+    }
+
+    // Render Step 4 (Connect) and Step 5 (Push panel)
+    function renderConnectAll() {
+      renderConnectStep();
+      renderInstallPush();
+    }
+
+    // Step 4: the sign-in boxes, or a connected card if signed in
+    function renderConnectStep() {
+      const el = document.getElementById('connectStep');
+      if (!connectState.platform) {
+        el.innerHTML = connectWidgetHTML('step');
+        return;
+      }
+      const plat = connectState.platform === 'stremio' ? 'Stremio' : 'Nuvio';
+      const logo = connectState.platform === 'stremio' ? '/stremio.svg' : '/nuvio.png';
+      const acc = connectState.platform === 'nuvio'
+        ? escHtml(connectState.nuvioUser?.email || 'Nuvio account')
+        : escHtml(connectState.stremioUser?.email || 'Stremio account');
+      el.innerHTML = `
+        <div class="connected-card">
+          <img src="${logo}" alt="" style="width:30px;height:30px;border-radius:6px" />
+          <div class="cc-info">
+            <strong>Connected to ${plat}</strong>
+            <small>${acc}</small>
+          </div>
+          <button class="btn-copy-url" type="button" onclick="disconnectConnect()">Disconnect</button>
+        </div>
+        <p class="field-hint" style="margin-top:10px">You're all set — go to Step 5 to push LeLibrary to your account.</p>`;
+    }
+
+    // Step 5: the push panel (only rendered when connected)
+    function renderInstallPush() {
+      const el = document.getElementById('installPush');
+      if (!connectState.platform) { el.innerHTML = ''; return; }
+      const plat = connectState.platform === 'stremio' ? 'Stremio' : 'Nuvio';
+      const profiles = connectState.nuvioProfiles
+        .map(p => `<option value="${p.profile_index}" ${connectState.nuvioSelectedProfile === p.profile_index ? 'selected' : ''}>${escHtml(p.name)}</option>`)
+        .join('') || '<option value="">No profiles found</option>';
+
+      el.innerHTML = `
+        <div class="step-card">
+          <div class="step-card" id="setupGuard" style="display:none;background:var(--amber-glow);border-color:rgba(245,158,11,0.35)">
+            <div style="display:flex;gap:12px;align-items:flex-start">
+              <span style="font-size:1.3rem;line-height:1.2">⚠️</span>
+              <div style="flex:1">
+                <strong style="color:var(--white);font-size:0.9rem">Finish the Setup tab first</strong>
+                <p style="font-size:0.82rem;color:var(--text);line-height:1.5;margin-top:6px">
+                  You're trying to add <strong>LeLibrary Franchises</strong>, but no Debrid providers or TMDB key are set up yet.
+                  Franchises are built from your own library, so we need those before we can configure them.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div id="pushActions">
+            <div class="field" id="cataloguesProfileField" style="display:none">
+              <div class="field-label">Push to profile</div>
+              <select id="cataloguesProfile" onchange="connectState.nuvioSelectedProfile = parseInt(this.value,10) || null; persistConnect();">${profiles}</select>
+              <p class="field-hint">Select the Nuvio profile to install LeLibrary on.</p>
+            </div>
+            <button class="btn-main btn-outline" type="button" onclick="switchTab('catalogues')" style="margin-bottom:12px">
+              <div class="ico">✏️</div>
+              <div class="txt"><span>Configure your catalogues here</span><small>Manage catalogues in the Catalogues tab, then come back and push</small></div>
+              <span class="arr">›</span>
+            </button>
+            <div class="url-warning">
+              ⚠️ <strong>This replaces every addon currently installed on your ${plat} account</strong> so your home screen stays clean.
+              A list of your previous addon URLs will be shown afterwards so you can reinstall them manually if you need to.
+            </div>
+            <button class="btn-main btn-gen" id="btnPushCatalogues" onclick="pushCatalogues()">
+              <div class="ico">⬆️</div>
+              <div class="txt">
+                <span id="pushCataloguesLabel">Push to ${plat}</span>
+                <small id="pushCataloguesSmall">Installs LeLibrary and replaces your current addons</small>
+              </div>
+              <span class="arr">›</span>
+            </button>
+          </div>
+          <div class="field-hint" id="pushCataloguesStatus"></div>
+          <div class="info-card" id="pushResultCard" style="display:none">
+            <h4>Previous addons (backup)</h4>
+            <p class="field-hint" style="margin:6px 0 10px 0">These were on your account before this push. Copy any you want to reinstall later.</p>
+            <div class="backup-list" id="backupList"></div>
+          </div>
+        </div>`;
+      updateCataloguesUI();
+    }
+
+    // Guard: LeLibrary Franchises are built from your own library, so a debrid
+    // provider + TMDB key must be set on the Setup tab before we can push them.
+    function setupComplete() {
+      const provider = document.getElementById('provider').value;
+      if (!provider || provider === 'none') return false;
+      const KEY_FIELD = { torbox: 'torboxApiKey', realdebrid: 'rdApiKey', alldebrid: 'adApiKey', premiumize: 'pmApiKey' };
+      for (const id of getProviderSet()) {
+        if (!(document.getElementById(KEY_FIELD[id])?.value.trim())) return false;
+      }
+      return !!document.getElementById('tmdbApiKey').value.trim();
+    }
+
+    function updateCataloguesUI() {
+      if (!connectState.platform) return;
+      const guard = !setupComplete();
+      const el = id => document.getElementById(id);
+      el('setupGuard').style.display = guard ? '' : 'none';
+      el('pushActions').style.display = guard ? 'none' : '';
+      el('cataloguesProfileField').style.display = (connectState.platform === 'nuvio' && !guard) ? '' : 'none';
+      const warn = document.querySelector('#installPush .url-warning strong');
+      if (warn) warn.textContent = `This replaces every addon currently installed on your ${connectState.platform === 'stremio' ? 'Stremio' : 'Nuvio'} account`;
+      el('pushCataloguesStatus').textContent = '';
+      el('pushCataloguesStatus').style.color = '';
+      el('pushCataloguesStatus').style.display = guard ? 'none' : '';
+      el('pushResultCard').style.display = 'none';
+    }
+
+    function disconnectConnect() {
+      connectState.platform = null;
+      connectState.stremioAuth = null;
+      connectState.stremioUser = null;
+      connectState.nuvioToken = null;
+      connectState.nuvioRefresh = null;
+      connectState.nuvioUser = null;
+      connectState.nuvioProfiles = [];
+      connectState.nuvioSelectedProfile = null;
+      clearPersistedConnect();
+      renderConnectAll();
+      showToast('Disconnected — login cleared from this browser');
+    }
+
+    async function stremioCall(path, body) {
+      const r = await fetch(`${STREMIO_API}/${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(20000),
+      });
+      if (r.status === 429) throw Object.assign(new Error('Stremio rate limit reached — wait a minute and try again'), { code: 'RATE_LIMIT' });
+      let data = null;
+      try { data = await r.json(); } catch { /* non-JSON */ }
+      if (!r.ok || data?.error) {
+        const msg = data?.error?.message || `Stremio API error (HTTP ${r.status})`;
+        throw Object.assign(new Error(msg), { code: data?.error?.code });
+      }
+      return data;
+    }
+
+    async function connectStremio(s) {
+      const email = document.getElementById(`${s}-stremioEmail`).value.trim();
+      const pass  = document.getElementById(`${s}-stremioPass`).value;
+      if (!email || !pass) { showToast('Enter your Stremio email and password'); return; }
+      const submit = document.getElementById(`${s}-stremioSubmit`);
+      const ico = document.getElementById(`${s}-stremioIco`);
+      const label = document.getElementById(`${s}-stremioBtnLabel`);
+      const status = document.getElementById(`${s}-stremioStatus`);
+      submit.disabled = true;
+      ico.classList.add('spin');
+      label.textContent = 'Signing in…';
+      try {
+        const data = await stremioCall('login', { type: 1, email, password: pass });
+        const authKey = data.result?.authKey || data.result?.token;
+        if (!authKey) throw new Error('Stremio did not return a session token');
+        connectState.stremioUser = data.result?.user || null;
+        connectState.stremioAuth = authKey;
+        connectState.platform = 'stremio';
+        persistConnect();
+        renderConnectAll();
+        showToast('Connected to Stremio ✓ — you can push below');
+      } catch (err) {
+        ico.classList.remove('spin');
+        submit.disabled = false;
+        label.textContent = 'Sign in with Stremio';
+        status.textContent = '';
+        showToast(err.code === 2 ? 'Stremio: user not found' : 'Stremio: ' + (err.message || 'login failed'), 'error');
+      }
+    }
+
+    async function nuvioRpc(token, path, body) {
+      const r = await fetch(`${NUVIO_API_BASE}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: NUVIO_PUBLISHABLE_KEY, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(body || {}),
+        signal: AbortSignal.timeout(20000),
+      });
+      let data = null;
+      try { data = await r.json(); } catch { /* non-JSON */ }
+      if (!r.ok) {
+        const msg = data?.msg || data?.message || data?.error_description || data?.error || `Nuvio API error (HTTP ${r.status})`;
+        throw Object.assign(new Error(String(msg)), { code: data?.error_code || data?.code });
+      }
+      return data;
+    }
+
+    async function nuvioRest(token, path, options = {}) {
+      const r = await fetch(`${NUVIO_API_BASE}${path}`, {
+        method: options.method || 'GET',
+        headers: { 'Content-Type': 'application/json', apikey: NUVIO_PUBLISHABLE_KEY, Authorization: `Bearer ${token}`, ...(options.headers || {}) },
+        ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+        signal: AbortSignal.timeout(20000),
+      });
+      let data = null;
+      try { data = await r.json(); } catch { /* non-JSON */ }
+      if (!r.ok) {
+        const msg = data?.msg || data?.message || data?.error || `Nuvio API error (HTTP ${r.status})`;
+        throw Object.assign(new Error(String(msg)), { code: data?.error_code || data?.code });
+      }
+      return data;
+    }
+
+    async function connectNuvio(s) {
+      const email = document.getElementById(`${s}-nuvioEmail`).value.trim();
+      const pass  = document.getElementById(`${s}-nuvioPass`).value;
+      if (!email || !pass) { showToast('Enter your Nuvio email and password'); return; }
+      const submit = document.getElementById(`${s}-nuvioSubmit`);
+      const ico = document.getElementById(`${s}-nuvioIco`);
+      const label = document.getElementById(`${s}-nuvioBtnLabel`);
+      const status = document.getElementById(`${s}-nuvioStatus`);
+      submit.disabled = true;
+      ico.classList.add('spin');
+      label.textContent = 'Signing in…';
+      try {
+        const r = await fetch(`${NUVIO_API_BASE}/auth/v1/token?grant_type=password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: NUVIO_PUBLISHABLE_KEY },
+          body: JSON.stringify({ email, password: pass }),
+          signal: AbortSignal.timeout(20000),
+        });
+        let data = null;
+        try { data = await r.json(); } catch { /* non-JSON */ }
+        if (!r.ok || !data?.access_token) {
+          const msg = data?.msg || data?.message || data?.error_description || 'sign-in failed';
+          throw new Error(msg);
+        }
+        connectState.nuvioToken = data.access_token;
+        connectState.nuvioRefresh = data.refresh_token || null;
+        connectState.nuvioUser = data.user || null;
+        label.textContent = 'Loading profiles…';
+        await loadNuvioProfiles();
+        if (connectState.nuvioProfiles.length === 1) connectState.nuvioSelectedProfile = connectState.nuvioProfiles[0].profile_index;
+        connectState.platform = 'nuvio';
+        persistConnect();
+        renderConnectAll();
+        showToast('Connected to Nuvio ✓ — pick a profile and push below');
+      } catch (err) {
+        ico.classList.remove('spin');
+        submit.disabled = false;
+        label.textContent = 'Sign in with Nuvio';
+        status.textContent = '';
+        showToast('Nuvio: ' + (err.message || 'could not connect'), 'error');
+      }
+    }
+
+    async function loadNuvioProfiles() {
+      const data = await nuvioRpc(connectState.nuvioToken, '/rest/v1/rpc/sync_pull_profiles', {});
+      const list = Array.isArray(data) ? data : (data?.profiles || []);
+      const seen = new Map();
+      for (const p of list) {
+        const idx = Math.trunc(Number(p.profile_index ?? p.id));
+        if (!Number.isFinite(idx) || idx < 1 || seen.has(idx)) continue;
+        seen.set(idx, {
+          profile_index: idx,
+          name: String(p.name || '').trim() || `Profile ${idx}`,
+          uses_primary_addons: !!(p.uses_primary_addons ?? p.usesPrimaryAddons),
+        });
+      }
+      connectState.nuvioProfiles = Array.from(seen.values()).sort((a, b) => a.profile_index - b.profile_index);
+      return connectState.nuvioProfiles;
+    }
+
+    // Nuvio keeps Home-row visibility separately from Collections. Disable the
+    // dynamic franchise rows there, while leaving the same manifest catalogs
+    // available to the LeLibrary Franchises collection folders.
+    async function syncNuvioHomeRows(token, profileId, manifest, hide = true) {
+      const franchiseCatalogs = (manifest?.catalogs || []).filter(c =>
+        String(c?.id || '').startsWith('torbox-collection-')
+      );
+      if (franchiseCatalogs.length === 0) return 0;
+
+      const platform = 'home_catalog_shared';
+      const pulled = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_home_catalog_settings', {
+        p_profile_id: profileId,
+        p_platform: platform,
+      });
+      const row = Array.isArray(pulled) ? pulled[0] : pulled;
+      const settings = row?.settings_json && typeof row.settings_json === 'object'
+        ? row.settings_json
+        : {};
+      const items = Array.isArray(settings.items) ? settings.items.slice() : [];
+      const byKey = new Map(items.map(item => {
+        const key = item.key || `${item.addon_id || ''}:${item.type || ''}:${item.catalog_id || ''}`;
+        return [key, item];
+      }));
+      let nextOrder = items.reduce((max, item) => Math.max(max, Number(item.order) || 0), -1) + 1;
+
+      for (const catalog of franchiseCatalogs) {
+        const key = `${manifest.id}:${catalog.type}:${catalog.id}`;
+        const existing = byKey.get(key) || {};
+        byKey.set(key, {
+          ...existing,
+          addon_id: manifest.id,
+          type: catalog.type,
+          catalog_id: catalog.id,
+          enabled: !hide,
+          order: existing.order == null ? nextOrder++ : existing.order,
+          custom_title: existing.custom_title || '',
+          is_collection: false,
+          collection_id: existing.collection_id || '',
+          key,
+        });
+      }
+
+      await nuvioRpc(token, '/rest/v1/rpc/sync_push_home_catalog_settings', {
+        p_profile_id: profileId,
+        p_platform: platform,
+        p_settings_json: {
+          show_catalog_type: settings.show_catalog_type !== false,
+          hide_unreleased_content: settings.hide_unreleased_content === true,
+          items: Array.from(byKey.values()).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0)),
+        },
+      });
+      return franchiseCatalogs.length;
+    }
+
+    // After restoring a saved session, quietly confirm the token still works.
+    // If it's expired, drop back to the sign-in boxes so the user can reconnect.
+    async function verifyRestoredConnect() {
+      try {
+        if (connectState.platform === 'nuvio' && connectState.nuvioToken) {
+          if (connectState.nuvioRefresh) {
+            try {
+              const r = await fetch(`${NUVIO_API_BASE}/auth/v1/token?grant_type=refresh_token`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', apikey: NUVIO_PUBLISHABLE_KEY },
+                body: JSON.stringify({ refresh_token: connectState.nuvioRefresh }),
+                signal: AbortSignal.timeout(20000),
+              });
+              const d = await r.json().catch(() => null);
+              if (r.ok && d?.access_token) {
+                connectState.nuvioToken = d.access_token;
+                connectState.nuvioRefresh = d.refresh_token || connectState.nuvioRefresh;
+              }
+            } catch { /* keep existing token; validation below decides */ }
+          }
+          await loadNuvioProfiles();
+        } else if (connectState.platform === 'stremio' && connectState.stremioAuth) {
+          const data = await stremioCall('addonCollectionGet', { authKey: connectState.stremioAuth });
+          if (!Array.isArray(data.result?.addons)) throw new Error('Session no longer valid');
+        } else {
+          throw new Error('Nothing to verify');
+        }
+        persistConnect();
+        renderConnectAll();
+      } catch {
+        // Expired / invalid session — clear and ask them to sign in again
+        connectState.platform = null;
+        connectState.stremioAuth = null;
+        connectState.nuvioToken = null;
+        connectState.nuvioRefresh = null;
+        clearPersistedConnect();
+        renderConnectAll();
+        showToast('Your saved session expired — sign in again', 'error');
+      }
+    }
+
+    // ── Push catalogues (replaces all addons, with backup list) ──
+    function ensureManifestUrl() {
+      if (lastUrls) return lastUrls;
+      const provider = document.getElementById('provider').value;
+      if (!provider || provider === 'none') return null;
+      try { return buildUrls(getCurrentConfig()); } catch { return null; }
+    }
+
+    // Show the replaced addons with their names (fetched from each manifest when
+    // not already known) plus a per-row Copy button for the manifest URL.
+    async function renderBackupList(entries) {
+      const box = document.getElementById('backupList');
+      document.getElementById('pushResultCard').style.display = 'block';
+      const items = (entries || []).map(e => typeof e === 'string' ? { url: e, name: '' } : e);
+      if (items.length === 0) {
+        box.innerHTML = '<div class="bl-empty">No previous addons found.</div>';
+        return;
+      }
+      box.innerHTML = '<div class="bl-empty">Loading addon names…</div>';
+      // Best-effort: fetch each addon's manifest for its name (parallel, short timeout)
+      await Promise.all(items.map(async it => {
+        if (it.name || !it.url || !/^https?:\/\//.test(it.url)) return;
+        try {
+          const r = await fetch(it.url, { signal: AbortSignal.timeout(6000) });
+          const m = await r.json();
+          if (m && (m.name || m.id)) it.name = m.name || m.id;
+        } catch { /* keep url only */ }
+      }));
+      window.__backupUrls = items.map(it => it.url);
+      box.innerHTML = items.map((it, i) => `
+        <div class="bl-item">
+          <div class="bl-top">
+            <span class="bl-name" title="${escHtml(it.url)}">${escHtml(it.name || ('Addon ' + (i + 1)))}</span>
+            <button class="btn-copy-url" type="button" onclick="copyBackupUrl(this, ${i})">Copy</button>
+          </div>
+          <div class="bl-url">${escHtml(it.url)}</div>
+        </div>`).join('');
+    }
+
+    function copyBackupUrl(btn, i) {
+      const url = (window.__backupUrls || [])[i];
+      if (!url) return;
+      copyText(url, 'Manifest URL copied!');
+      flashCopied(btn);
+    }
+
+    async function pushCatalogues() {
+      if (!connectState.platform) { showToast('Sign in to Stremio or Nuvio first'); return; }
+      if (!setupComplete()) {
+        updateCataloguesUI();
+        showToast('Complete the Setup tab first — providers and a TMDB key are needed', 'error');
+        document.getElementById('setupGuard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        return;
+      }
+      const urls = ensureManifestUrl();
+      if (!urls) { showToast('Fill in your providers and keys on the Setup tab first'); return; }
+      const btn = document.getElementById('btnPushCatalogues');
+      const label = document.getElementById('pushCataloguesLabel');
+      const small = document.getElementById('pushCataloguesSmall');
+      const status = document.getElementById('pushCataloguesStatus');
+      const origLabel = label.textContent;
+      const origSmall = small.textContent;
+      btn.disabled = true;
+      label.textContent = 'Pushing…';
+      try {
+        // Warm the collections build BEFORE the addon is installed. The manifest
+        // that Stremio/Nuvio fetch needs to advertise the per-franchise catalogs,
+        // and the folder contents need to exist — otherwise folders show
+        // "No Items Found". The collections.json route builds synchronously when empty.
+        small.textContent = 'Building your catalogues…';
+        let warmedCollections = null;
+        try {
+          warmedCollections = await fetch(urls.collectionsUrl, { signal: AbortSignal.timeout(60000) }).then(r => r.json());
+        } catch { /* keep going — the addon still installs even if the build is slow */ }
+
+        if (connectState.platform === 'stremio') {
+          small.textContent = 'Backing up your current addons…';
+          const getData = await stremioCall('addonCollectionGet', { authKey: connectState.stremioAuth });
+          const addons = Array.isArray(getData.result?.addons) ? getData.result.addons : [];
+          const backup = addons.map(a => ({ url: a.transportUrl, name: (a.manifest && a.manifest.name) || '' })).filter(b => b.url);
+          small.textContent = 'Installing LeLibrary…';
+          const manifest = await fetch(urls.manifestUrl, { signal: AbortSignal.timeout(10000) }).then(r => r.json());
+          const descriptor = { transportUrl: urls.manifestUrl, transportName: 'http', flags: {}, manifest };
+          await stremioCall('addonCollectionSet', { authKey: connectState.stremioAuth, addons: [descriptor] });
+          status.style.color = 'var(--success)';
+          status.textContent = 'Installed — all catalogues have been imported. Please refresh Stremio.';
+          renderBackupList(backup);
+        } else {
+          const profileIndex = parseInt(document.getElementById('cataloguesProfile').value, 10);
+          if (!Number.isFinite(profileIndex) || profileIndex < 1) { showToast('Select a Nuvio profile first'); return; }
+          const profile = connectState.nuvioProfiles.find(p => p.profile_index === profileIndex) || {};
+          small.textContent = 'Preparing your profile…';
+          // If the profile shares the primary profile's addons, switch it to its
+          // own addons FIRST — otherwise the addon we push lands on the primary
+          // profile and Nuvio reports "addon not found" on this profile's collections.
+          if (profile.uses_primary_addons) {
+            try {
+              const profData = await nuvioRpc(connectState.nuvioToken, '/rest/v1/rpc/sync_pull_profiles', {});
+              const rawProfiles = Array.isArray(profData) ? profData : (profData?.profiles || []);
+              const pushed = rawProfiles.map(p => {
+                const idx = Math.trunc(Number(p.profile_index ?? p.id));
+                const isTarget = idx === profileIndex;
+                return {
+                  profile_index: idx,
+                  name: String(p.name || '').trim() || `Profile ${idx}`,
+                  avatar_color_hex: String(p.avatar_color_hex || p.avatarColorHex || '').trim() || '#1E88E5',
+                  uses_primary_addons: isTarget ? false : !!(p.uses_primary_addons ?? p.usesPrimaryAddons),
+                  uses_primary_plugins: !!(p.uses_primary_plugins ?? p.usesPrimaryPlugins),
+                  avatar_id: p.avatar_url ? null : (p.avatar_id || null),
+                  avatar_url: p.avatar_url || null,
+                };
+              });
+              await nuvioRpc(connectState.nuvioToken, '/rest/v1/rpc/sync_push_profiles', { p_profiles: pushed });
+              console.log('[Push] Profile switched to own addons');
+              connectState.nuvioProfiles = connectState.nuvioProfiles.map(p =>
+                p.profile_index === profileIndex ? { ...p, uses_primary_addons: false } : p);
+            } catch (err) {
+              console.warn('[Push] Profile switch failed (continuing):', err.message);
+            }
+          }
+          small.textContent = 'Backing up your current addons…';
+          const ownerData = await nuvioRpc(connectState.nuvioToken, '/rest/v1/rpc/get_sync_owner', {});
+          const ownerId = Array.isArray(ownerData) && typeof ownerData[0] === 'string' ? ownerData[0]
+            : (typeof ownerData === 'string' ? ownerData : ownerData?.owner_id || ownerData?.id);
+          if (!ownerId) throw new Error('Could not resolve the Nuvio sync owner');
+          const existing = await nuvioRest(connectState.nuvioToken,
+            `/rest/v1/addons?select=*&user_id=eq.${encodeURIComponent(ownerId)}&profile_id=eq.${profileIndex}`);
+          const list = Array.isArray(existing) ? existing : [];
+          const backup = list.map(a => ({ url: a.url, name: a.name || '' })).filter(b => b.url);
+          small.textContent = 'Installing LeLibrary…';
+          for (const a of list) {
+            await nuvioRest(connectState.nuvioToken,
+              `/rest/v1/addons?id=eq.${encodeURIComponent(a.id)}&profile_id=eq.${profileIndex}`,
+              { method: 'DELETE' });
+          }
+          console.log('[Push] Manifest URL length:', urls.manifestUrl.length);
+          const addRes = await nuvioRest(connectState.nuvioToken, '/rest/v1/addons', {
+            method: 'POST',
+            headers: { Prefer: 'return=representation' },
+            body: [{ user_id: ownerId, profile_id: profileIndex, url: urls.manifestUrl, name: 'LeLibrary', enabled: true, sort_order: 0 }],
+          });
+          console.log('[Push] Addon add response:', JSON.stringify(addRes));
+          // Verify the addon is registered on this profile; retry once if not
+          let afterAdd = await nuvioRest(connectState.nuvioToken,
+            `/rest/v1/addons?select=*&user_id=eq.${encodeURIComponent(ownerId)}&profile_id=eq.${profileIndex}`);
+          let found = (afterAdd || []).some(a => String(a.url) === urls.manifestUrl);
+          if (!found) {
+            console.warn('[Push] Addon missing after first add — retrying…');
+            await nuvioRest(connectState.nuvioToken, '/rest/v1/addons', {
+              method: 'POST',
+              headers: { Prefer: 'return=representation' },
+              body: [{ user_id: ownerId, profile_id: profileIndex, url: urls.manifestUrl, name: 'LeLibrary', enabled: true, sort_order: 0 }],
+            });
+            afterAdd = await nuvioRest(connectState.nuvioToken,
+              `/rest/v1/addons?select=*&user_id=eq.${encodeURIComponent(ownerId)}&profile_id=eq.${profileIndex}`);
+            found = (afterAdd || []).some(a => String(a.url) === urls.manifestUrl);
+          }
+          console.log('[Push] Addons on profile after add:', JSON.stringify((afterAdd || []).map(a => ({ name: a.name, url: a.url }))));
+          if (!found) {
+            throw new Error('LeLibrary could not be registered on this Nuvio profile. Try selecting a different profile, then push again.');
+          }
+          // Give Nuvio a moment to process the new addon before pushing collections
+          await new Promise(r => setTimeout(r, 1500));
+          let homeRowsHidden = false;
+          try {
+            const manifest = await fetch(urls.manifestUrl, { signal: AbortSignal.timeout(10000) }).then(r => r.json());
+            await syncNuvioHomeRows(connectState.nuvioToken, profileIndex, manifest, hideFranchiseRows);
+            homeRowsHidden = hideFranchiseRows;
+          } catch (err) {
+            console.warn('[Push] Could not sync Nuvio Home-row visibility:', err.message);
+          }
+          if (catSelection.franchises) {
+            small.textContent = 'Importing your LeLibrary Franchises…';
+            const collections = Array.isArray(warmedCollections) ? warmedCollections : [];
+            if (Array.isArray(collections) && collections.length > 0) {
+              await nuvioRpc(connectState.nuvioToken, '/rest/v1/rpc/sync_push_collections', {
+                p_profile_id: profileIndex,
+                p_collections_json: collections,
+              });
+              status.style.color = 'var(--success)';
+              status.textContent = homeRowsHidden
+                ? 'Installed — catalogues imported and franchise Home rows hidden. Please refresh Nuvio.'
+                : 'Installed — all catalogues have been imported. Please refresh Nuvio.';
+            } else {
+              status.style.color = 'var(--success)';
+              status.textContent = 'Installed. Your catalogues will appear once your library has been scanned.';
+            }
+          } else {
+            status.style.color = 'var(--success)';
+            status.textContent = 'Installed — all catalogues have been imported. Please refresh Nuvio.';
+          }
+          renderBackupList(backup);
+        }
+        showToast('Pushed to your ' + (connectState.platform === 'stremio' ? 'Stremio' : 'Nuvio') + ' account ✓');
+      } catch (err) {
+        if (/session does not exist|invalid.*token|expired|jwt/i.test(err.message)) {
+          showToast('Session expired — reconnect', 'error');
+          disconnectConnect();
+        } else if (/descriptor|too large/i.test(err.message)) {
+          showToast('Stremio rejected the addon (descriptor too large?)', 'error');
+        } else {
+          showToast('Push failed: ' + (err.message || 'network error'), 'error');
+        }
+      } finally {
+        btn.disabled = false;
+        label.textContent = origLabel;
+        small.textContent = origSmall;
+      }
+    }
+
   </script>
 </body>
 </html>

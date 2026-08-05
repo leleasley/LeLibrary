@@ -1,9 +1,10 @@
 const axios = require('axios');
 
-const AD_BASE = 'https://api.alldebrid.com/v4';
+const AD_BASE = 'https://api.alldebrid.com';
 
 // AllDebrid v4: auth via `Authorization: Bearer <key>`. Responses are
 // `{ status: 'success', data: {...} }` or `{ status: 'error', error: { code, message } }`.
+// Endpoint paths carry their own version segment (/v4/..., /v4.1/...).
 // magnet/status, magnet/files and link/unlock are POST endpoints (form body);
 // /user is GET.
 async function adRequest(apiKey, method, path, form = {}, params = {}) {
@@ -72,14 +73,14 @@ async function getAlldebridStreamLink(apiKey, magnetId, fileId) {
   const files = await getAlldebridFiles(apiKey, magnetId);
   const file = files.find(f => String(f.id) === String(fileId)) || files[0];
   if (!file?.link) return null;
-  const { data, error } = await adRequest(apiKey, 'POST', '/link/unlock', { link: file.link });
+  const { data, error } = await adRequest(apiKey, 'POST', '/v4/link/unlock', { link: file.link });
   if (error || !data?.link) return null;
   return data.link;
 }
 
 // Verification: /user returns account info for a valid key.
 async function verifyAlldebridKey(apiKey) {
-  const { data, error } = await adRequest(apiKey, 'GET', '/user');
+  const { data, error } = await adRequest(apiKey, 'GET', '/v4/user');
   if (error || !data?.user) return { valid: false, error: error || 'Invalid AllDebrid API key' };
   return { valid: true, username: data.user.username || null, isPremium: !!data.user.isPremium };
 }

@@ -88,7 +88,32 @@ async function getTorBoxDownloads(apiKey) {
   return completed;
 }
 
+// Cache requestdl links per file so we don't re-request TorBox for the same
+// file on every stream build, and back off (circuit breaker) when TorBox
+// rate-limits us (429) instead of hammering — a shared server IP can otherwise
+// get throttled to the point where every user sees "no streams".
+const TBDL_TTL = 21600; // requestdl links are temporary URLs; safe to reuse for 6h
+const TBDL_THROTTLE_MS = 30000; // pause 30s after a 429 so TorBox can recover
+let tbdThrottledUntil = 0;
+
+function tbdHash(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
 async function getTorBoxStreamLink(apiKey, source, itemId, fileId) {
+  const cache = require('./cache');
+  const ck = cache.makeKey('tbdl', tbdHash(apiKey), source, itemId, fileId);
+  const cached = await cache.get(ck);
+  if (cached) return cached;
+
+  // Circuit open: TorBox just throttled us — don't add to the pile, wait it out.
+  if (Date.now() < tbdThrottledUntil) {
+    console.log(`[TorBox] requestdl skipped (throttled, resume in ${Math.ceil((tbdThrottledUntil - Date.now()) / 1000)}s)`);
+    return null;
+  }
+
   const headers = { Authorization: `Bearer ${apiKey}` };
   const endpoint = source === 'torrent'
     ? `${TORBOX_BASE}/torrents/requestdl`
@@ -100,10 +125,20 @@ async function getTorBoxStreamLink(apiKey, source, itemId, fileId) {
 
   try {
     const res = await axios.get(endpoint, { headers, params, timeout: 30000 });
-    return res.data?.data || null;
+    const url = res.data?.data || null;
+    if (url) {
+      await cache.set(ck, url, TBDL_TTL);
+      tbdThrottledUntil = 0; // healthy again
+    }
+    return url;
   } catch (err) {
     const s = err.response?.status;
-    console.error(`[TorBox] requestdl erro ${s ?? '?'} (${source} id=${itemId} file=${fileId}): ${err.message}`);
+    if (s === 429) {
+      tbdThrottledUntil = Date.now() + TBDL_THROTTLE_MS;
+      console.error(`[TorBox] requestdl 429 — throttled, backing off ${TBDL_THROTTLE_MS / 1000}s (${source} id=${itemId} file=${fileId})`);
+    } else {
+      console.error(`[TorBox] requestdl erro ${s ?? '?'} (${source} id=${itemId} file=${fileId}): ${err.message}`);
+    }
     return null;
   }
 }

@@ -493,7 +493,7 @@ async function loadLibraryFromProviders() {
   }
   if (adMagnets.status === 'fulfilled' && adMagnets.value?.data?.magnets) {
     for (const m of adMagnets.value.data.magnets) {
-      if (m.statusCode !== 5) continue; // only fully downloaded
+      if (m.statusCode !== 4) continue; // 4 = Finished/Ready
       items.push({
         id: String(m.id),
         name: m.filename || m.name || '',

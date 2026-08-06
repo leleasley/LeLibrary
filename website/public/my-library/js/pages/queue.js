@@ -79,9 +79,9 @@ async function refreshQueue() {
       .map(m => ({
         id: String(m.id), name: m.filename || m.name || '', filename: m.filename || m.name || '',
         size: m.size || 0, source: 'alldebrid', provider: 'AllDebrid',
-        download_state: m.statusCode === 5 ? 'completed' : 'downloading',
-        download_finished: m.statusCode === 5,
-        progress: m.statusCode === 5 ? 1 : 0,
+        download_state: m.statusCode === 4 ? 'completed' : 'downloading',
+        download_finished: m.statusCode === 4,
+        progress: m.statusCode === 4 ? 1 : 0,
       }));
     const pmTransfers = (results[4].status === 'fulfilled' && results[4].value?.data?.transfers ? results[4].value.data.transfers : [])
       .map(t => ({

@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.5.2]
+
+### AllDebrid library loads again
+
+- **Finished AllDebrid downloads now appear in your library**: a status mismatch in the AllDebrid API meant ready-to-watch files were being filtered out, so AllDebrid libraries could look empty. Fixed for the addon catalogues, the web library and the queue page.
+
 ## [4.5.1]
 
 ### Safer account push

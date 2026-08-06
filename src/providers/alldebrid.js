@@ -30,14 +30,15 @@ async function adRequest(apiKey, method, path, form = {}, params = {}) {
   }
 }
 
-// statusCode 5 == "finished" (fully downloaded). Others are queued/downloading/error.
+// statusCode 4 == "Finished / Ready" (fully downloaded, usable). Others are
+// queued/downloading (0-3) or error (5-15).
 async function getAlldebridDownloads(apiKey) {
   const { data, error } = await adRequest(apiKey, 'POST', '/v4.1/magnet/status', { ids: 'all' });
   if (error) throw new Error(`[AllDebrid] ${error}`);
 
   const magnets = Array.isArray(data?.magnets) ? data.magnets : [];
   const items = magnets
-    .filter(m => m.statusCode === 5)
+    .filter(m => m.statusCode === 4)
     .map(m => ({
       id:                String(m.id),
       name:              m.filename || m.name || '',

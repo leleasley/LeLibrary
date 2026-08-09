@@ -52,11 +52,25 @@ async function getMovieDetail(apiKey, tmdbId, lang) {
   const hit = detailCache.get(ck);
   if (hit !== undefined) return hit;
   try {
-    const res = await axios.get(`https://api.themoviedb.org/3/movie/${tmdbId}`, {
-      params: { api_key: apiKey, language: lang },
-      timeout: 8000,
-    });
-    const d = res.data;
+    const [detailRes, creditsRes] = await Promise.allSettled([
+      axios.get(`https://api.themoviedb.org/3/movie/${tmdbId}`, {
+        params: { api_key: apiKey, language: lang },
+        timeout: 8000,
+      }),
+      axios.get(`https://api.themoviedb.org/3/movie/${tmdbId}/credits`, {
+        params: { api_key: apiKey, language: lang },
+        timeout: 8000,
+      }),
+    ]);
+    const d = detailRes.status === 'fulfilled' ? detailRes.value.data : null;
+    if (!d) { detailCache.set(ck, null); return null; }
+    const credits = creditsRes.status === 'fulfilled' ? creditsRes.value.data : null;
+    const cast = (credits?.cast || []).slice(0, 10).map(c => ({
+      id: c.id,
+      name: c.name,
+      character: c.character || '',
+      photo: c.profile_path ? `https://image.tmdb.org/t/p/w185${c.profile_path}` : null,
+    }));
     const col = d.belongs_to_collection || null;
     const out = {
       collectionId: col ? col.id : null,
@@ -64,6 +78,7 @@ async function getMovieDetail(apiKey, tmdbId, lang) {
       collectionPoster: col ? col.poster_path : null,
       backdrop: d.backdrop_path || null,
       genres: (d.genres || []).map(g => g.name),
+      cast,
     };
     detailCache.set(ck, out);
     return out;
@@ -237,6 +252,13 @@ async function buildCollectionsCatalog(downloads, tmdbApiKey, lang = 'pt-BR', en
     const description = ownedCount === totalParts
       ? `All ${ownedCount} films in this franchise are in your library${yearRange ? ` (${yearRange})` : ''}.`
       : `${ownedCount} of ${totalParts} films in this franchise are in your library${yearRange ? ` (${yearRange})` : ''}.`;
+    const castMap = new Map();
+    for (const m of ownedMovies) {
+      for (const cc of (m.detail?.cast || [])) {
+        if (!castMap.has(cc.id)) castMap.set(cc.id, cc);
+      }
+    }
+    const cast = [...castMap.values()].slice(0, 20);
     metas.push({
       id: `torbox:collection:${key}`,
       type: 'series',
@@ -256,6 +278,7 @@ async function buildCollectionsCatalog(downloads, tmdbApiKey, lang = 'pt-BR', en
       releaseInfo: yearRange,
       genres,
       status: 'Ended',
+      app_extras: cast.length ? { cast } : undefined,
       videos: ownedMovies.map((m, i) => {
         const year = (m.result.release_date || '').slice(0, 4);
         const enhanced = enhancedPosterUrl(m.result.id, enhance);

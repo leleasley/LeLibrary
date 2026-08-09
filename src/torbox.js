@@ -165,7 +165,7 @@ async function getTorBoxFiles(apiKey, source, itemId) {
   }
 }
 
-const VIDEO_EXTENSIONS = ['.mkv', '.mp4', '.avi', '.mov', '.m4v', '.ts', '.wmv', '.webm'];
+const VIDEO_EXTENSIONS = ['.mkv', '.mp4', '.avi', '.mov', '.m4v', '.ts', '.wmv', '.webm', '.m2ts', '.mpg', '.mpeg', '.flv', '.vob', '.divx'];
 
 function isVideoFile(name = '') {
   return VIDEO_EXTENSIONS.some(ext => name.toLowerCase().endsWith(ext));

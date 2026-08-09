@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.6.3]
+
+### Premiumize scans your folders properly
+
+- **Your whole Premiumize cloud shows up now**: movies and shows inside category folders (Action, Drama, TV Shows and so on) are picked up with their real titles instead of a couple of unrelated results
+
 ## [4.6.2]
 
 ### Your other Nuvio catalogues stay put

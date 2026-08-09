@@ -34,7 +34,7 @@ async function pmRequest(apiKey, method, path, params = {}, form = {}) {
   }
 }
 
-const PM_VIDEO_EXTENSIONS = ['.mkv', '.mp4', '.avi', '.mov', '.m4v', '.ts', '.wmv', '.webm'];
+const PM_VIDEO_EXTENSIONS = ['.mkv', '.mp4', '.avi', '.mov', '.m4v', '.ts', '.wmv', '.webm', '.m2ts', '.mpg', '.mpeg', '.flv', '.vob', '.divx'];
 function isPmVideoFile(name = '') {
   return PM_VIDEO_EXTENSIONS.some(ext => name.toLowerCase().endsWith(ext));
 }
@@ -101,16 +101,30 @@ function pmLooksMediaLike(name) {
   return PM_MEDIA_RE.some(re => re.test(String(name || '')));
 }
 
-// Generic container words ("My Files", "Movies", "TV Shows", ...) — these are
-// usually catch-all parents that should be descended into, not library items.
-const PM_GENERIC_TOKENS = [
-  'my', 'files', 'file', 'movies', 'movie', 'film', 'films', 'tv', 'series',
-  'show', 'shows', 'anime', 'collection', 'collections', 'downloads', 'download',
-  'media', 'videos', 'video', 'library', 'complete', 'all',
-];
+// Generic container/category words ("My Files", "Movies", "Action", "TV Shows",
+// ...) — these are catch-all parents that should be descended into, not library
+// items. Without the genre/category words, a folder named "Action" or "Drama"
+// would parse as a plain title and swallow every movie inside it into one item.
+const PM_GENERIC_TOKENS = new Set([
+  // generic containers
+  'my', 'files', 'file', 'home', 'root', 'library', 'media', 'video', 'videos',
+  'all', 'everything', 'misc', 'stuff', 'other', 'general', 'mixed', 'archive',
+  'downloads', 'download', 'folder', 'folders',
+  // media collections
+  'movies', 'movie', 'films', 'film', 'cinema', 'collection', 'collections',
+  'series', 'shows', 'show', 'tv', 'television', 'episodes', 'episode',
+  'complete', 'pack', 'packs', 'anthology',
+  // genres / categories
+  'action', 'adventure', 'animation', 'anime', 'biography', 'comedy', 'crime',
+  'documentary', 'documentaries', 'docs', 'drama', 'family', 'fantasy', 'history',
+  'horror', 'musical', 'music', 'mystery', 'romance', 'science', 'sci', 'fi',
+  'scifi', 'thriller', 'war', 'western', 'cartoons', 'cartoon', 'kids',
+  'children', 'sports', 'sport', 'noir', 'reality',
+]);
 function pmLooksGeneric(name) {
+  if (/^\d{4}$/.test(String(name || '').trim())) return true;
   const words = String(name || '').trim().replace(/[._-]/g, ' ').replace(/\s{2,}/g, ' ').toLowerCase().split(/\s+/).filter(Boolean);
-  return words.length > 0 && words.every(w => PM_GENERIC_TOKENS.includes(w));
+  return words.length > 0 && words.every(w => PM_GENERIC_TOKENS.has(w));
 }
 
 function pmMakeFolderItem(groupPath, name, files) {

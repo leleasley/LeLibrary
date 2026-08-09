@@ -71,15 +71,21 @@ async function pmListAllFiles(apiKey) {
 
 // Logical item id scheme:
 //   single file: `f:<fileId>`
-//   folder group: `d:<base64url(full folder path)>`
+//   folder group (by path): `d:<base64url(full folder path)>`
+//   folder group (by id, from the root walk): `g:<base64url(folderId)>`
 // Legacy numeric ids (transfer ids) are still accepted for backward compat.
-function pmItemIdForFile(fileId)  { return 'f:' + String(fileId); }
-function pmItemIdForFolder(path)  { return 'd:' + Buffer.from(path, 'utf8').toString('base64url'); }
+function pmItemIdForFile(fileId)     { return 'f:' + String(fileId); }
+function pmItemIdForFolder(path)     { return 'd:' + Buffer.from(path, 'utf8').toString('base64url'); }
+function pmItemIdForFolderId(folderId) { return 'g:' + Buffer.from(String(folderId), 'utf8').toString('base64url'); }
 function pmDecodeItemId(id) {
   if (typeof id !== 'string') return null;
   if (id.startsWith('f:')) return { kind: 'file', fileId: id.slice(2) };
   if (id.startsWith('d:')) {
     try { return { kind: 'folder', path: Buffer.from(id.slice(2), 'base64url').toString('utf8') }; }
+    catch { return null; }
+  }
+  if (id.startsWith('g:')) {
+    try { return { kind: 'folderId', folderId: Buffer.from(id.slice(2), 'base64url').toString('utf8') }; }
     catch { return null; }
   }
   return null;
@@ -245,11 +251,93 @@ async function pmTransferItems(apiKey) {
     .filter(i => i.name);
 }
 
+// ── Tier-3 fallback: walk the cloud from the root folder ─────
+// Dedicated Premiumize addons (e.g. Josherinos' stremio-premiumize-addon)
+// browse content with /folder/list and stream each file's direct link — they
+// never rely on /transfer/list or /item/listall. Walking the root folder
+// therefore finds EVERYTHING in the cloud: transfers, manually-organised
+// folders, uploads. Used when the other two sources come back empty.
+
+const rootWalkCache = new Map();
+const ROOTWALK_TTL = 45000;
+
+// Recursively build a folder tree from /folder/list (bounded depth safety net).
+async function pmWalkFolder(apiKey, folderId, depth) {
+  if (depth > 10) return null;
+  const { data, error } = await pmRequest(apiKey, 'GET', '/folder/list', { id: folderId || '' });
+  if (error || !Array.isArray(data?.content)) return null;
+  const children = [];
+  for (const c of data.content) {
+    if (c.type === 'folder') {
+      const sub = await pmWalkFolder(apiKey, c.id, depth + 1);
+      if (sub) children.push(sub);
+    } else {
+      children.push({ type: 'file', id: String(c.id), name: c.name || '', size: c.size || 0, link: c.link || null });
+    }
+  }
+  return { type: 'folder', id: data.folder_id || folderId || '', name: data.name || '', children };
+}
+
+// Turn the folder tree into library rows using the same media-likeness rules
+// as the listall grouping: a folder holding videos (directly, or via a parsed
+// media name) becomes a row; generic container folders are descended into.
+function pmTreeToItems(node, depth) {
+  if (!node || node.type !== 'folder') return [];
+  const directVideos = node.children.filter(c => c.type === 'file' && isPmVideoFile(c.name));
+  if (directVideos.length === 0 && !node.children.some(c => c.type === 'folder')) return [];
+  const name = node.name || '';
+  if (directVideos.length > 0 || pmLooksMediaLike(name) || (!pmLooksGeneric(name) && guessMediaInfo(name)) || depth >= 4) {
+    return [{
+      id:                pmItemIdForFolderId(node.id),
+      name,
+      filename:          name,
+      source:            'premiumize',
+      download_state:    'completed',
+      download_finished: true,
+      progress:          1,
+      size:              node.children.filter(c => c.type === 'file').reduce((s, c) => s + (c.size || 0), 0),
+    }];
+  }
+  const items = [];
+  for (const c of node.children) {
+    if (c.type === 'folder') items.push(...pmTreeToItems(c, depth + 1));
+  }
+  return items;
+}
+
+async function pmRootWalkItems(apiKey) {
+  const now = Date.now();
+  const hit = rootWalkCache.get(apiKey);
+  if (hit && now - hit.at < ROOTWALK_TTL) return hit.items;
+  const root = await pmWalkFolder(apiKey, '', 0);
+  if (!root) return [];
+  const items = [];
+  for (const c of root.children) {
+    if (c.type === 'file' && isPmVideoFile(c.name)) {
+      items.push({
+        id:                pmItemIdForFile(c.id),
+        name:              c.name,
+        filename:          c.name,
+        source:            'premiumize',
+        download_state:    'completed',
+        download_finished: true,
+        progress:          1,
+        size:              c.size || 0,
+      });
+    } else if (c.type === 'folder') {
+      items.push(...pmTreeToItems(c, 0));
+    }
+  }
+  rootWalkCache.set(apiKey, { at: now, items });
+  return items;
+}
+
 async function getPremiumizeDownloads(apiKey) {
   // /item/listall covers the whole cloud (including manually-organised content
   // that never went through a transfer). When it returns files, use it. If it
   // returns nothing (erroring or empty for the account), fall back to the
-  // transfer list so a flaky /item/listall can never empty someone's library.
+  // transfer list, then to a full root-folder walk, so a flaky /item/listall
+  // can never empty someone's library.
   const files = await pmListAllFiles(apiKey);
   if (files.length > 0) {
     const items = pmGroupCloudFiles(files);
@@ -258,9 +346,14 @@ async function getPremiumizeDownloads(apiKey) {
       return items;
     }
   }
-  const items = await pmTransferItems(apiKey);
-  console.log(`[Premiumize] Downloads (transfer fallback): ${items.length} items`);
-  return items;
+  const transferItems = await pmTransferItems(apiKey);
+  if (transferItems.length > 0) {
+    console.log(`[Premiumize] Downloads (transfer fallback): ${transferItems.length} items`);
+    return transferItems;
+  }
+  const rootItems = await pmRootWalkItems(apiKey);
+  console.log(`[Premiumize] Downloads (root-walk fallback): ${rootItems.length} items`);
+  return rootItems;
 }
 
 // ── Files & stream links ──────────────────────────────────────
@@ -317,6 +410,9 @@ async function getPremiumizeFiles(apiKey, itemId) {
       .filter(f => (f.path || '').startsWith(prefix))
       .map(f => ({ id: String(f.id), name: f.name || '', size: f.size || 0, link: null }));
   }
+  if (dec?.kind === 'folderId') {
+    return listFolderFiles(apiKey, dec.folderId);
+  }
   // Legacy numeric transfer id
   return listTransferFiles(apiKey, itemId);
 }
@@ -338,6 +434,11 @@ async function getPremiumizeStreamLink(apiKey, itemId, fileId) {
     const files = await getPremiumizeFiles(apiKey, itemId);
     const target = (fileId && files.find(f => String(f.id) === String(fileId))) || files[0];
     return target ? pmDetailsLink(apiKey, target.id) : null;
+  }
+  if (dec?.kind === 'folderId') {
+    const files = await listFolderFiles(apiKey, dec.folderId);
+    const file = (fileId && files.find(f => String(f.id) === String(fileId))) || files[0];
+    return file?.link || null;
   }
   // Legacy numeric transfer id
   const files = await listTransferFiles(apiKey, itemId);

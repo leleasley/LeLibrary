@@ -268,7 +268,8 @@ function pmSeedListAll(apiKey, files) {
 
 // Load the Premiumize library: prefer /item/listall (whole cloud, incl.
 // manually-organised content). If it comes back empty (flaky endpoint for this
-// account), fall back to /transfer/list rows so the library is never empty.
+// account), fall back to /transfer/list rows, then to a full root-folder walk,
+// so the library is never empty.
 async function pmLoadLibrary(apiKey) {
   try {
     const r = await pmGet('/item/listall', apiKey);
@@ -281,18 +282,70 @@ async function pmLoadLibrary(apiKey) {
     if (err.needPin) throw err; // let the PIN modal flow handle it
   }
   const tr = await pmGet('/transfer/list', apiKey);
-  const transfers = tr.data?.transfers || tr.transfers || [];
-  return {
-    items: transfers
-      .filter(t => t.status === 'finished' || t.status === 'seeding')
-      .map(t => ({
-        id: String(t.id), name: t.name || '', filename: t.name || '',
-        source: 'premiumize',
-        download_state: t.status === 'seeding' ? 'seeding' : 'completed',
-        download_finished: true, progress: 1,
-      }))
-      .filter(i => i.name),
-  };
+  const transfers = (tr.data?.transfers || tr.transfers || [])
+    .filter(t => t.status === 'finished' || t.status === 'seeding')
+    .map(t => ({
+      id: String(t.id), name: t.name || '', filename: t.name || '',
+      source: 'premiumize',
+      download_state: t.status === 'seeding' ? 'seeding' : 'completed',
+      download_finished: true, progress: 1,
+    }))
+    .filter(i => i.name);
+  if (transfers.length) return { items: transfers };
+  return { items: await pmRootWalkItems(apiKey) };
+}
+
+// Recursively build a folder tree from /folder/list (used when item/listall
+// and transfer/list both come up empty — mirrors the server's tier-3 scan).
+async function pmWalkFolder(apiKey, folderId, depth) {
+  if (depth > 10) return null;
+  const r = await pmGet('/folder/list?id=' + encodeURIComponent(folderId || ''), apiKey);
+  const content = r.content || [];
+  const children = [];
+  for (const c of content) {
+    if (c.type === 'folder') {
+      const sub = await pmWalkFolder(apiKey, c.id, depth + 1);
+      if (sub) children.push(sub);
+    } else {
+      children.push({ type: 'file', id: String(c.id), name: c.name || '', size: c.size || 0, link: c.link || null });
+    }
+  }
+  return { type: 'folder', id: r.folder_id || folderId || '', name: r.name || '', children };
+}
+
+function pmTreeToItems(node, depth) {
+  if (!node || node.type !== 'folder') return [];
+  const directVideos = node.children.filter(c => c.type === 'file' && pmIsVideoFile(c.name));
+  if (directVideos.length === 0 && !node.children.some(c => c.type === 'folder')) return [];
+  const name = node.name || '';
+  if (directVideos.length > 0 || pmLooksMediaLike(name) || (!pmLooksGeneric(name) && guessMediaInfo(name)) || depth >= 4) {
+    return [{
+      id: pmItemIdForFolderId(node.id),
+      name, filename: name,
+      source: 'premiumize',
+      download_state: 'completed', download_finished: true, progress: 1,
+      size: node.children.filter(c => c.type === 'file').reduce((s, c) => s + (c.size || 0), 0),
+    }];
+  }
+  const items = [];
+  for (const c of node.children) {
+    if (c.type === 'folder') items.push(...pmTreeToItems(c, depth + 1));
+  }
+  return items;
+}
+
+async function pmRootWalkItems(apiKey) {
+  const root = await pmWalkFolder(apiKey, '', 0);
+  if (!root) return [];
+  const items = [];
+  for (const c of root.children) {
+    if (c.type === 'file' && pmIsVideoFile(c.name)) {
+      items.push({ id: pmItemIdForFile(c.id), name: c.name, filename: c.name, source: 'premiumize', download_state: 'completed', download_finished: true, progress: 1, size: c.size || 0 });
+    } else if (c.type === 'folder') {
+      items.push(...pmTreeToItems(c, 0));
+    }
+  }
+  return items;
 }
 
 function pmEncodePath(s) {
@@ -305,12 +358,17 @@ function pmDecodePath(s) {
 }
 function pmItemIdForFile(fileId) { return 'f:' + String(fileId); }
 function pmItemIdForFolder(path) { return 'd:' + pmEncodePath(path); }
+function pmItemIdForFolderId(folderId) { return 'g:' + pmEncodePath(String(folderId)); }
 function pmDecodeId(id) {
   if (typeof id !== 'string') return null;
   if (id.startsWith('f:')) return { kind: 'file', fileId: id.slice(2) };
   if (id.startsWith('d:')) {
     const path = pmDecodePath(id.slice(2));
     return path != null ? { kind: 'folder', path } : null;
+  }
+  if (id.startsWith('g:')) {
+    const folderId = pmDecodePath(id.slice(2));
+    return folderId != null ? { kind: 'folderId', folderId } : null;
   }
   return null;
 }
@@ -398,6 +456,10 @@ async function pmDelete(path, apiKey) {
     const folderId = await pmResolveFolderId(dec.path, apiKey);
     if (!folderId) throw new Error('Could not locate folder to delete');
     await pmPost('/folder/delete', { id: folderId }, apiKey);
+    return true;
+  }
+  if (dec?.kind === 'folderId') {
+    await pmPost('/folder/delete', { id: dec.folderId }, apiKey);
     return true;
   }
   await pmPost('/transfer/delete', { id }, apiKey); // legacy transfer id
@@ -901,6 +963,9 @@ async function pmItemFiles(id) {
       .filter(f => (f.path || '').startsWith(prefix))
       .map(f => ({ id: String(f.id), name: f.name || '', size: f.size || 0, link: null }));
   }
+  if (dec?.kind === 'folderId') {
+    return pmFolderFiles(App.keys.pmKey, dec.folderId, 0);
+  }
   // Legacy numeric transfer id
   const list = await pmGet('/transfer/list', App.keys.pmKey);
   const t = (list.data?.transfers || list.transfers || []).find(x => String(x.id) === String(id));
@@ -927,12 +992,31 @@ async function pmItemFiles(id) {
   return files;
 }
 
+// Recursively collect files (with links) from a folder via /folder/list.
+async function pmFolderFiles(apiKey, folderId, depth) {
+  if (depth > 12) return [];
+  const r = await pmGet('/folder/list?id=' + encodeURIComponent(folderId), apiKey);
+  const content = r.content || [];
+  const files = [];
+  for (const c of content) {
+    if (c.type === 'file') files.push({ id: String(c.id), name: c.name || '', size: c.size || 0, link: c.link || null });
+    else if (c.type === 'folder') files.push(...await pmFolderFiles(apiKey, c.id, depth + 1));
+  }
+  return files;
+}
+
 async function pmItemDownloadUrl(id, fileId) {
   const dec = pmDecodeId(id);
   if (dec?.kind === 'file') {
     const det = await pmGet('/item/details?id=' + dec.fileId, App.keys.pmKey);
     const d = det.data || det;
     if (d?.link) return d.link;
+    throw new Error('No file link on Premiumize');
+  }
+  if (dec?.kind === 'folderId') {
+    const files = await pmFolderFiles(App.keys.pmKey, dec.folderId, 0);
+    const target = (fileId && files.find(f => String(f.id) === String(fileId))) || files[0];
+    if (target?.link) return target.link;
     throw new Error('No file link on Premiumize');
   }
   const files = await pmItemFiles(id);

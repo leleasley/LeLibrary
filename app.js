@@ -527,7 +527,7 @@ async function handleNuvioProfile(req, res) {
     focusGlowEnabled: true,
     id: 'collection-lelibrary-franchises',
     title: config.collectionsName || 'LeLibrary Collections',
-    pinToTop: true,
+    pinToTop: config.pinCollections === true,
     showAllTab: true,
     viewMode: 'TABBED_GRID',
     folders,

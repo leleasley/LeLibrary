@@ -1921,6 +1921,9 @@
               <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;margin-top:12px">
                 <input type="checkbox" id="editHideAnime" onchange="toggleHideAnime(this.checked)" /> Hide anime catalogue
               </label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;margin-top:8px">
+                <input type="checkbox" id="pinCollections" onchange="checkChanged()" /> Pin LeLibrary Collections to top (Nuvio)
+              </label>
             </div>
 
             <button class="btn-main btn-gen" onclick="switchTab('setup'); goToPushStep()">
@@ -2113,6 +2116,7 @@
       if (!catSelection.series) cfg.catalogSeries = false;
       if (!catSelection.anime) cfg.catalogAnime = false;
       if (!catSelection.franchises) cfg.catalogFranchises = false;
+      if (document.getElementById('pinCollections') && document.getElementById('pinCollections').checked) cfg.pinCollections = true;
       if (catNames.trendingMovies && catNames.trendingMovies !== '🔥 Trending Movies') cfg.trendingMoviesName = catNames.trendingMovies;
       if (catNames.trendingSeries && catNames.trendingSeries !== '🔥 Trending Series') cfg.trendingSeriesName = catNames.trendingSeries;
       if (catNames.popularMovies && catNames.popularMovies !== '⭐ Popular Movies') cfg.popularMoviesName = catNames.popularMovies;
@@ -2273,6 +2277,7 @@
         catalogSeries: catSelection.series,
         catalogAnime: catSelection.anime,
         catalogFranchises: catSelection.franchises,
+        pinCollections: !!(document.getElementById('pinCollections') && document.getElementById('pinCollections').checked),
         trendingMoviesName: catNames.trendingMovies,
         trendingSeriesName: catNames.trendingSeries,
         popularMoviesName: catNames.popularMovies,
@@ -2316,6 +2321,7 @@
         a.catalogSeries === b.catalogSeries &&
         a.catalogAnime === b.catalogAnime &&
         a.catalogFranchises === b.catalogFranchises &&
+        a.pinCollections === b.pinCollections &&
         a.trendingMoviesName === b.trendingMoviesName &&
         a.trendingSeriesName === b.trendingSeriesName &&
         a.popularMoviesName === b.popularMoviesName &&
@@ -2764,6 +2770,7 @@
       document.getElementById('enhanceBackground').checked = false;
       document.getElementById('enhanceLogo').checked = false;
       document.getElementById('hideAnime').checked = false;
+      if (document.getElementById('pinCollections')) document.getElementById('pinCollections').checked = false;
       customStreams = [];
       renderCustomStreams();
       onPosterChange();
@@ -2868,6 +2875,9 @@
         if (cfg.hideAnime) {
           document.getElementById('hideAnime').checked = true;
         }
+        if (cfg.pinCollections) {
+          if (document.getElementById('pinCollections')) document.getElementById('pinCollections').checked = true;
+        }
         if (cfg.streamPreset) document.getElementById('streamPreset').value = cfg.streamPreset;
         if (cfg.streamPreset === 'custom') {
           if (cfg.streamNameTemplate) document.getElementById('streamNameTemplate').value = cfg.streamNameTemplate;
@@ -2946,7 +2956,7 @@
           el.addEventListener(ev, checkChanged);
         }
       });
-      ['enhanceBackground', 'enhanceLogo', 'hideAnime'].forEach(id => {
+      ['enhanceBackground', 'enhanceLogo', 'hideAnime', 'pinCollections'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('change', checkChanged);
       });

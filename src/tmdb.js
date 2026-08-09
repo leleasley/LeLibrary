@@ -36,7 +36,11 @@ async function imdbToTmdb(apiKey, imdbId) {
 }
 
 function titleScore(query, result) {
-  const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  // Treat "&" as "and" so "Law & Order" is an exact match for a filename
+  // "Law And Order" instead of falling to weak token overlap (where a
+  // different show whose title merely contains the query, e.g. "In the Name
+  // of Law and Order", could outrank it).
+  const norm = s => s.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
   const qn = norm(query);
   if (!qn) return 0;
   const names = [result.name, result.original_name, result.title, result.original_title].filter(Boolean);
@@ -131,7 +135,7 @@ async function searchCandidates(apiKey, query, type, year, lang = 'pt-BR') {
   return ranked;
 }
 
-async function fetchSeasonVideos(auth, tmdbId, season, lang, fallbackPoster) {
+async function fetchSeasonVideos(auth, tmdbId, season, lang, fallbackPoster, idBase) {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const res = await axios.get(`${TMDB_BASE}/tv/${tmdbId}/season/${season.season_number}`, {
@@ -149,7 +153,7 @@ async function fetchSeasonVideos(auth, tmdbId, season, lang, fallbackPoster) {
           title = rawName || `Episode ${ep.episode_number}`;
         }
         return {
-          id:        `torbox:series:${tmdbId}:${season.season_number}:${ep.episode_number}`,
+          id:        `${idBase}:${season.season_number}:${ep.episode_number}`,
           title,
           season:    season.season_number,
           episode:   ep.episode_number,
@@ -169,8 +173,9 @@ async function fetchSeasonVideos(auth, tmdbId, season, lang, fallbackPoster) {
   return [];
 }
 
-async function getMetadata(apiKey, tmdbId, type, lang = 'pt-BR') {
-  const cacheKey = `meta:${type}:${tmdbId}:${lang}`;
+async function getMetadata(apiKey, tmdbId, type, lang = 'pt-BR', opts = {}) {
+  const discovery = !!(opts && opts.discovery);
+  const cacheKey = `meta:${type}:${tmdbId}:${lang}:${discovery ? 'disc' : 'lib'}`;
   const cached = tmdbCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
@@ -242,8 +247,12 @@ async function getMetadata(apiKey, tmdbId, type, lang = 'pt-BR') {
   } else {
     const rawSeasons = (detail.seasons || []).filter(s => s.season_number > 0);
     const episodeLists = [];
+    // Discovery (tt:) metas carry tt:-based episode ids so the player routes
+    // every episode to the external stream addons; owned metas keep torbox:
+    // episode ids (isolated, LeLibrary-only streams).
+    const epIdBase = (discovery && imdbId) ? imdbId : `torbox:series:${tmdbId}`;
     for (const s of rawSeasons) {
-      episodeLists.push(await fetchSeasonVideos(auth, tmdbId, s, lang, poster));
+      episodeLists.push(await fetchSeasonVideos(auth, tmdbId, s, lang, poster, epIdBase));
     }
     const videos = episodeLists.flat();
 
@@ -349,4 +358,126 @@ function clearCaches() {
   seasonCache.flushAll();
 }
 
-module.exports = { searchMetadata, searchCandidates, getMetadata, imdbToTmdb, findEpisodeByAirDate, clearCaches };
+// ── Discovery lists (Trending / Popular) ──────────────────────────
+// These rows are meant to be shared with other stream addons, so their metas
+// carry plain `tt:` (IMDb) ids — never torbox: ids. The list endpoints don't
+// return imdb_id, so each title needs a lightweight /{type}/{id}/external_ids
+// call (batched, cached 24h).
+function pLimit(tasks, limit = 6) {
+  const results = [];
+  let i = 0;
+  async function worker() {
+    while (i < tasks.length) {
+      const idx = i++;
+      try { results[idx] = await tasks[idx](); }
+      catch (err) { results[idx] = { error: err }; }
+    }
+  }
+  return Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker)).then(() => results);
+}
+
+async function fetchDiscoveryList(apiKey, endpoint, lang, page = 1) {
+  const auth = tmdbAuth(apiKey);
+  const res = await axios.get(`${TMDB_BASE}${endpoint}`, {
+    headers: auth.headers,
+    params: { ...auth.params, language: lang, page },
+    timeout: 10000,
+  });
+  return res.data?.results || [];
+}
+
+async function getImdbId(apiKey, apiType, tmdbId) {
+  const cacheKey = `imdb:${apiType}:${tmdbId}`;
+  const cached = tmdbCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  try {
+    const auth = tmdbAuth(apiKey);
+    const res = await axios.get(`${TMDB_BASE}/${apiType}/${tmdbId}/external_ids`, {
+      headers: auth.headers,
+      params: { ...auth.params },
+      timeout: 8000,
+    });
+    const imdbId = res.data?.imdb_id || null;
+    tmdbCache.set(cacheKey, imdbId);
+    return imdbId;
+  } catch {
+    tmdbCache.set(cacheKey, null);
+    return null;
+  }
+}
+
+// Build a discovery catalog row set ({ id: tt..., type, name, poster, ... })
+// from a TMDB list, resolving each item's IMDb id. Skips items with no IMDb id.
+// apiType is 'movie' | 'tv' (TMDB's own type names for /trending & /popular).
+async function buildDiscoveryMetas(apiKey, items, lang, apiType) {
+  const enriched = await pLimit(items.map(item => async () => {
+    const imdbId = await getImdbId(apiKey, apiType, item.id);
+    return { item, imdbId };
+  }), 6);
+  const metas = [];
+  for (const { item, imdbId } of enriched) {
+    if (!imdbId) continue;
+    const name = item.title || item.name || item.original_title || item.original_name || '';
+    const date = item.release_date || item.first_air_date || '';
+    metas.push({
+      id: imdbId, // plain tt: id so other stream addons answer this row
+      type: apiType === 'movie' ? 'movie' : 'series',
+      name,
+      poster: item.poster_path ? `${TMDB_IMAGE}/w500${item.poster_path}` : null,
+      background: item.backdrop_path ? `${TMDB_IMAGE}/w1280${item.backdrop_path}` : null,
+      releaseInfo: date.slice(0, 4) || undefined,
+      released: date ? new Date(date).toISOString() : undefined,
+      year: date.slice(0, 4) || undefined,
+      description: item.overview || undefined,
+    });
+  }
+  return metas;
+}
+
+// TMDB trending (window = 'day' | 'week'). apiType = 'movie' | 'tv'.
+// Cached 24h. Defaults to 1 page (20 titles) — plenty for a home row, and each
+// title needs an external_ids call, so more pages means a much slower first load.
+async function getTrending(apiKey, apiType, lang = 'en-US', window = 'week', pages = 1) {
+  const cacheKey = `disc:trending:${apiType}:${lang}:${window}:${pages}`;
+  const cached = tmdbCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  try {
+    const all = [];
+    for (let p = 1; p <= pages; p++) {
+      const items = await fetchDiscoveryList(apiKey, `/trending/${apiType}/${window}`, lang, p);
+      all.push(...items);
+      if (items.length < 20) break;
+    }
+    const metas = await buildDiscoveryMetas(apiKey, all, lang, apiType);
+    tmdbCache.set(cacheKey, metas);
+    return metas;
+  } catch (err) {
+    console.error('[TMDB] Trending error:', err.message);
+    tmdbCache.set(cacheKey, []);
+    return [];
+  }
+}
+
+// TMDB popular. apiType = 'movie' | 'tv'. Cached 24h. 1 page (~20 titles).
+async function getPopular(apiKey, apiType, lang = 'en-US', pages = 1) {
+  const cacheKey = `disc:popular:${apiType}:${lang}:${pages}`;
+  const cached = tmdbCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  try {
+    const all = [];
+    for (let p = 1; p <= pages; p++) {
+      const items = await fetchDiscoveryList(apiKey, `/${apiType}/popular`, lang, p);
+      all.push(...items);
+      if (items.length < 20) break;
+    }
+    const metas = await buildDiscoveryMetas(apiKey, all, lang, apiType);
+    tmdbCache.set(cacheKey, metas);
+    return metas;
+  } catch (err) {
+    console.error('[TMDB] Popular error:', err.message);
+    tmdbCache.set(cacheKey, []);
+    return [];
+  }
+}
+
+module.exports = { searchMetadata, searchCandidates, getMetadata, imdbToTmdb, findEpisodeByAirDate, titleScore, clearCaches, getTrending, getPopular };

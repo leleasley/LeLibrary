@@ -4,7 +4,8 @@ const path    = require('path');
 const cache   = require('./src/cache');
 const providers = require('./src/providers');
 const { buildCatalog, buildMeta, buildStreams, populateTmdbIndexFromMetas } = require('./src/builder');
-const { buildCollectionsCatalog, cacheCollections, getCollectionMeta, getCollections } = require('./src/collections');
+const { buildDiscoveryCatalog, buildDiscoveryMeta, buildDiscoveryStreams } = require('./src/discovery');
+const { buildCollectionsCatalog, cacheCollections, getCollectionMeta, getCollections, getCollectionForMovie } = require('./src/collections');
 
 let createWebRoutes = null;
 try {
@@ -195,11 +196,29 @@ async function buildAndCacheForConfig(token, config) {
     ));
 
     // Collections catalog — merged across all providers, additive.
-    const collMetas = await buildCollectionsCatalog(downloads, tmdbApiKey, lang);
+    const collMetas = await buildCollectionsCatalog(downloads, tmdbApiKey, lang, { erdbToken, rpdbKey });
     cacheCollections(userKey, lang, collMetas);
     const collKey = cache.makeKey('cat', 'collections', 'collections', sortBy, '', '0', userKey, lang, posterFp(config));
     await cache.set(collKey, { metas: collMetas }, TTL_CATALOG);
     console.log(`[Cache] collections → ${collMetas.length} items`);
+
+    // Pre-warm Trending / Popular so their first on-screen load is instant
+    // (each row needs per-title IMDb lookups, which is slow on a cold build).
+    const { getTrending, getPopular } = require('./src/tmdb');
+    if (config.catalogTrending) {
+      await Promise.allSettled([
+        getTrending(tmdbApiKey, 'movie', lang).then(m => cache.set(cache.makeKey('cat', 'discovery', 'trending', 'movie', lang, userKey), m, TTL_CATALOG)),
+        getTrending(tmdbApiKey, 'tv', lang).then(m => cache.set(cache.makeKey('cat', 'discovery', 'trending', 'tv', lang, userKey), m, TTL_CATALOG)),
+      ]);
+      console.log('[Cache] trending pre-warmed');
+    }
+    if (config.catalogPopular) {
+      await Promise.allSettled([
+        getPopular(tmdbApiKey, 'movie', lang).then(m => cache.set(cache.makeKey('cat', 'discovery', 'popular', 'movie', lang, userKey), m, TTL_CATALOG)),
+        getPopular(tmdbApiKey, 'tv', lang).then(m => cache.set(cache.makeKey('cat', 'discovery', 'popular', 'tv', lang, userKey), m, TTL_CATALOG)),
+      ]);
+      console.log('[Cache] popular pre-warmed');
+    }
 
     // Only update hash and invalidate caches after ALL catalogs built successfully
     await cache.set(hashKey, newHash, 7200);
@@ -228,7 +247,7 @@ function getLogoUrl(baseUrl) {
 function getBaseManifest(baseUrl) {
   const manifest = {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-    version: '4.5.2',
+    version: '4.6.0',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -251,65 +270,101 @@ function getConfiguredManifest(baseUrl, config = {}) {
   const separate = rdCatalog === 'separate';
 
   function catName(def, custom) { return custom || def; }
+  // Per-catalogue names (Edit Catalogues), with the legacy single trendingName /
+  // popularName still honoured so old configs keep working.
+  const DISCOVERY = {
+    trendingMovies:  catName('🔥 Trending Movies',  config.trendingMoviesName || config.trendingName),
+    trendingSeries:  catName('🔥 Trending Series',  config.trendingSeriesName || config.trendingName),
+    popularMovies:   catName('⭐ Popular Movies',   config.popularMoviesName  || config.popularName),
+    popularSeries:   catName('⭐ Popular Series',   config.popularSeriesName  || config.popularName),
+  };
+  const CAT_EXTRA = [{ name: 'skip' }, { name: 'search' }];
 
   const catalogs = [];
-  const addCat = (prefix, nameM, nameS, nameA) => {
-    catalogs.push({ id: `${prefix}-movies`, type: 'movie',  name: nameM, extra: [{ name: 'skip' }, { name: 'search' }] });
-    catalogs.push({ id: `${prefix}-series`, type: 'series', name: nameS, extra: [{ name: 'skip' }, { name: 'search' }] });
-    if (!hideAnime) catalogs.push({ id: `${prefix}-anime`, type: 'series', name: nameA, extra: [{ name: 'skip' }, { name: 'search' }] });
-  };
-
   const EMOJI = { torbox: '🎬', realdebrid: '🔴', alldebrid: '💠', premiumize: '🧲' };
 
-  if (active.length === 1) {
-    const meta = providers.PROVIDER_META[active[0]];
-    addCat(meta.cat,
-      catName('🎬 My Movies', catNameMovies),
-      catName('📺 My Series', catNameSeries),
-      catName('🍥 LeLibrary Anime', catNameAnime));
-  } else if (active.length > 1 && !separate) {
-    // merge — keep the legacy torbox-* ids when torbox is active so existing
-    // installs don't change; otherwise fall back to the first active provider.
-    const prefix = active.includes('torbox') ? 'torbox' : providers.PROVIDER_META[active[0]].cat;
-    addCat(prefix,
-      catName('🎬 My Movies', catNameMovies),
-      catName('📺 My Series', catNameSeries),
-      catName('🍥 LeLibrary Anime', catNameAnime));
-  } else if (active.length > 1) {
-    // separate — one catalog row per provider. When a custom name is set we
-    // disambiguate each provider (legacy behavior: TorBox keeps the plain
-    // custom name, the others get a "(Provider)" suffix).
-    for (const id of active) {
-      const meta = providers.PROVIDER_META[id];
-      const suffix = id === 'torbox' ? '' : ` (${meta.label})`;
-      addCat(meta.cat,
-        catName(`${EMOJI[id] || '📦'} ${meta.label} Films`, catNameMovies) + (catNameMovies && suffix ? suffix : ''),
-        catName(`${EMOJI[id] || '📦'} ${meta.label} Series`, catNameSeries) + (catNameSeries && suffix ? suffix : ''),
-        catName(`${EMOJI[id] || '📦'} ${meta.label} Animes`, catNameAnime) + (catNameAnime && suffix ? suffix : ''));
+  // ── Library rows (My Movies / My Series / My Anime) ──
+  // buildLibrary('movies') adds just that catalogue type so each row can be
+  // reordered or hidden independently in the Edit Catalogues tab.
+  function buildLibrary(type) {
+    if (type === 'movies' && config.catalogMovies === false) return;
+    if (type === 'series' && config.catalogSeries === false) return;
+    if (type === 'anime' && config.catalogAnime === false) return;
+    const pushLib = (prefix, id, name) => {
+      catalogs.push({ id: `${prefix}-${id}`, type: id === 'movies' ? 'movie' : 'series', name, extra: CAT_EXTRA });
+    };
+    const groups = [];
+    if (active.length === 1) {
+      groups.push(providers.PROVIDER_META[active[0]].cat);
+    } else if (active.length > 1 && !separate) {
+      groups.push(active.includes('torbox') ? 'torbox' : providers.PROVIDER_META[active[0]].cat);
+    } else if (active.length > 1) {
+      groups.push(...active.map(id => providers.PROVIDER_META[id].cat));
+    }
+    for (const prefix of groups) {
+      if (type === 'movies') pushLib(prefix, 'movies', catName('🎬 My Movies', catNameMovies));
+      else if (type === 'series') pushLib(prefix, 'series', catName('📺 My Series', catNameSeries));
+      else if (type === 'anime' && !hideAnime) pushLib(prefix, 'anime', catName('🍥 LeLibrary Anime', catNameAnime));
     }
   }
 
-  // Per-franchise movie catalogs (torbox-collection-{key}). Nuvio resolves the
-  // folders in an imported collections file against the addon's manifest catalogs,
-  // so each franchise must be advertised here or its folder reports
-  // "addon not found". Only present once the collections have been built.
-  const userKey = providers.getUserKey(config);
-  const collLang = config.lang || 'pt-BR';
-  const colls = getCollections(userKey, collLang);
-  for (const c of colls) {
-    const key = c.id.split(':')[2];
-    if (!key) continue;
+  // ── "LeLibrary Collections" movie catalog (torbox-collections) ──
+  // ONE catalog listing every owned franchise film as a plain movie. Both
+  // platforms filter it through the `genre` extra (a franchise name): Nuvio
+  // collection folders send genre in the catalog URL, and Stremio's Discover
+  // shows a genre dropdown for catalogs that declare `options`. This replaces
+  // the old one-catalog-per-franchise rows, which bloated the manifest to
+  // ~38 catalogue entries. Hidden from Nuvio Home via `showInHome: false`;
+  // Stremio ignores that field so the row still appears in Discover.
+  function buildCollectionsRow() {
+    if (config.catalogFranchises === false) return;
+    const userKey = providers.getUserKey(config);
+    const collLang = config.lang || 'pt-BR';
+    const colls = getCollections(userKey, collLang);
+    const genres = colls.map(c => franchiseRowName(c.name)).filter(Boolean);
     catalogs.push({
-      id: `torbox-collection-${key}`,
+      id: 'torbox-collections',
       type: 'movie',
-      name: franchiseRowName(c.name),
-      extra: [{ name: 'skip' }, { name: 'search' }],
+      name: config.collectionsName || 'LeLibrary Collections',
+      showInHome: false,
+      extra: [
+        { name: 'genre', isRequired: false, options: genres },
+        { name: 'skip' },
+        { name: 'search' },
+      ],
     });
+  }
+
+  // ── Assemble in the user's catalogue order ──
+  const DEFAULT_ORDER = ['trendingMovies','trendingSeries','popularMovies','popularSeries','movies','series','anime','franchises'];
+  const order = Array.isArray(config.catalogOrder) && config.catalogOrder.length
+    ? config.catalogOrder
+    : DEFAULT_ORDER;
+  const seen = new Set();
+
+  for (const key of order) {
+    if (seen.has(key)) continue;
+    seen.add(key);
+    // Discovery rows tick individually (legacy catalogTrending/catalogPopular
+    // enable both of that kind for older tokens).
+    if (key === 'trendingMovies' && (config.catalogTrendingMovies || config.catalogTrending)) {
+      catalogs.push({ id: 'torbox-trending-movies', type: 'movie',  name: DISCOVERY.trendingMovies, extra: CAT_EXTRA });
+    } else if (key === 'trendingSeries' && (config.catalogTrendingSeries || config.catalogTrending)) {
+      catalogs.push({ id: 'torbox-trending-series', type: 'series', name: DISCOVERY.trendingSeries, extra: CAT_EXTRA });
+    } else if (key === 'popularMovies' && (config.catalogPopularMovies || config.catalogPopular)) {
+      catalogs.push({ id: 'torbox-popular-movies', type: 'movie',  name: DISCOVERY.popularMovies, extra: CAT_EXTRA });
+    } else if (key === 'popularSeries' && (config.catalogPopularSeries || config.catalogPopular)) {
+      catalogs.push({ id: 'torbox-popular-series', type: 'series', name: DISCOVERY.popularSeries, extra: CAT_EXTRA });
+    } else if (key === 'movies' || key === 'series' || key === 'anime') {
+      buildLibrary(key);
+    } else if (key === 'franchises') {
+      buildCollectionsRow();
+    }
   }
 
   return {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-    version: '4.5.2',
+    version: '4.6.0',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -331,7 +386,7 @@ app.get('/health', async (req, res) => {
   res.json({
     status: 'ok',
     cache: stats,
-    version: '4.5.2',
+    version: '4.6.0',
   });
 });
 
@@ -373,14 +428,31 @@ app.get('/manifest.json', (req, res) => {
   res.json(getBaseManifest(req.protocol + '://' + req.get('host')));
 });
 
-app.get('/:token/manifest.json', (req, res) => {
+app.get('/:token/manifest.json', async (req, res) => {
   const config = decodeConfig(req.params.token);
   if (!config) return res.status(400).json({ error: 'Invalid token' });
-  // Trigger a background build so per-franchise catalogs are ready for the
-  // Nuvio collections profile.
+  // Trigger a background build so catalogs are ready for the Nuvio collections
+  // profile.
   if (!knownConfigs.has(req.params.token)) {
     knownConfigs.set(req.params.token, config);
     buildAndCacheForConfig(req.params.token, config).catch(() => {});
+  }
+  // Cold start: restore the cached collections before building the manifest so
+  // the "LeLibrary Collections" row's genre options are populated immediately,
+  // even though the background build may still be running.
+  try {
+    const userKey = providers.getUserKey(config);
+    const lang = config.lang || 'pt-BR';
+    if (getCollections(userKey, lang).length === 0) {
+      const persistentKey = cache.makeKey('cat', 'collections', 'collections', config.sortBy || 'data_adicao', '', '0', userKey, lang, posterFp(config));
+      const persistent = await cache.get(persistentKey);
+      if (Array.isArray(persistent?.metas) && persistent.metas.length > 0) {
+        cacheCollections(userKey, lang, persistent.metas);
+        console.log(`[Collections] Manifest: restored ${persistent.metas.length} cached collections (${req.params.token})`);
+      }
+    }
+  } catch (err) {
+    console.warn(`[Collections] Manifest: cache restore failed: ${err.message}`);
   }
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
   res.setHeader('Pragma', 'no-cache');
@@ -395,17 +467,21 @@ function franchiseRowName(name) {
 }
 
 // ── Nuvio native Collections profile ─────────────────────────────
-// Builds a Nuvio collections JSON (the same format UltraMax/BingeCat use):
-// one "LeLibrary Franchises" collection whose folders are your franchises,
-// each showing your owned films as movies. Matches UltraMax's schema exactly
-// (catalogSources with minimal { addonId, catalogId, type }). Imported once
-// into Nuvio's Collections page — the manifest stays clean.
+// One "LeLibrary Collections" collection with one folder per franchise, each
+// folder pointing at that franchise's MOVIE catalog (torbox-collection-{key}).
+// Nuvio resolves a folder's catalogSources against the addon's manifest and
+// fetches the catalog live, so a folder always shows the franchise's current
+// films as plain movies. Every folder points at the single "LeLibrary
+// Collections" movie catalog (torbox-collections) with its franchise name as
+// the genre extra; the catalog handler filters on genre. New films appear
+// automatically; a brand-new franchise needs one re-push so its folder is added.
 async function handleNuvioProfile(req, res) {
   const config = decodeConfig(req.params.token);
   if (!config) return res.status(400).json({ error: 'Invalid token' });
   const { tmdbApiKey, lang = 'pt-BR' } = config;
   const active = providers.activeProviders(config);
   if (!tmdbApiKey || active.length === 0) return res.json([]);
+  if (config.catalogFranchises === false) return res.json([]); // franchises disabled
 
   const userKey = providers.getUserKey(config);
   if (!knownConfigs.has(req.params.token)) {
@@ -416,7 +492,7 @@ async function handleNuvioProfile(req, res) {
   if (metas.length === 0) {
     try {
       const all = await providers.fetchDownloads(config);
-      metas = await buildCollectionsCatalog(all, tmdbApiKey, lang);
+      metas = await buildCollectionsCatalog(all, tmdbApiKey, lang, { erdbToken: config.erdbToken, rpdbKey: config.rpdbKey });
       cacheCollections(userKey, lang, metas);
     } catch (err) {
       console.error('[Nuvio] Collections build error:', err.message);
@@ -428,10 +504,10 @@ async function handleNuvioProfile(req, res) {
 
   const folders = metas.map((m, i) => {
     const key = m.id.split(':')[2];
-    const title = franchiseRowName(m.name);
+    const franchiseName = franchiseRowName(m.name);
     return {
       id: `folder-franchise-${i}`,
-      title,
+      title: franchiseName,
       tileShape: 'PORTRAIT',
       hideTitle: false,
       focusGifEnabled: false,
@@ -439,8 +515,9 @@ async function handleNuvioProfile(req, res) {
       focusGifUrl: '',
       catalogSources: [{
         addonId,
-        catalogId: `torbox-collection-${key}`,
+        catalogId: 'torbox-collections',
         type: 'movie',
+        genre: franchiseName,
       }],
     };
   });
@@ -449,8 +526,8 @@ async function handleNuvioProfile(req, res) {
   res.json([{
     focusGlowEnabled: true,
     id: 'collection-lelibrary-franchises',
-    title: 'LeLibrary Franchises',
-    pinToTop: false,
+    title: config.collectionsName || 'LeLibrary Collections',
+    pinToTop: true,
     showAllTab: true,
     viewMode: 'TABBED_GRID',
     folders,
@@ -471,10 +548,11 @@ async function handleCatalog(req, res) {
 
   const catalogId = req.params.catalogId;
 
-  // ── Per-franchise MOVIE catalog (torbox-collection-{key}) ──
-  // Lists one franchise's owned films as plain movies (no series wrapper), so
-  // Nuvio collection folders can show them as movies without the "- Series"
-  // label. Clicking a film reuses the normal torbox:movie meta + stream path.
+  // ── Legacy per-franchise MOVIE catalog (torbox-collection-{key}) ──
+  // Kept for backward compat with folders/saga links pushed before the
+  // single-catalog refactor; no longer advertised in the manifest. Lists one
+  // franchise's owned films as plain movies. Clicking a film reuses the normal
+  // torbox:movie meta + stream path.
   if (catalogId.startsWith('torbox-collection-')) {
     const key = catalogId.slice('torbox-collection-'.length);
     const extra  = parseExtra(req.params.extra || '');
@@ -509,7 +587,7 @@ async function handleCatalog(req, res) {
             console.warn(`[Collections] Film catalog: provider returned no downloads (${key})`);
             return res.json({ metas: [] });
           }
-          metas = await buildCollectionsCatalog(all, tmdbApiKey, lang);
+          metas = await buildCollectionsCatalog(all, tmdbApiKey, lang, { erdbToken, rpdbKey });
           if (metas.length > 0) cacheCollections(userKey, lang, metas);
           console.log(`[Collections] Film catalog: rebuilt → ${metas.length} collections (${key})`);
         }
@@ -542,9 +620,101 @@ async function handleCatalog(req, res) {
     return res.json(withCacheHints({ metas: paginated }, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
   }
 
-  // ── Collections catalog (spans ALL providers, isolated to torbox:collection:*) ──
+  // ── Trending / Popular discovery catalogs ──
+  // torbox-trending-{movies,series} / torbox-popular-{movies,series}. These
+  // rows carry plain tt: (IMDb) meta ids so other stream addons contribute
+  // streams. Handled BEFORE the generic path (which keys off -movies/-series
+  // suffixes and would treat them as library catalogs).
+  const discMatch = catalogId.match(/^torbox-(trending|popular)-(movies|series)$/);
+  if (discMatch) {
+    const kind     = discMatch[1];   // trending | popular
+    const apiType  = discMatch[2] === 'movies' ? 'movie' : 'tv'; // TMDB's own names
+    const extra    = parseExtra(req.params.extra || '');
+    const skip     = parseInt(extra.skip) || 0;
+    const search   = extra.search || '';
+    const userKey  = providers.getUserKey(config);
+    let paginated;
+    try {
+      paginated = await buildDiscoveryCatalog({ tmdbApiKey, kind, apiType, lang, userKey, skip, search });
+    } catch (err) {
+      console.error(`[Discovery] ${kind} ${apiType} error:`, err.message);
+      return res.json({ metas: [] });
+    }
+    console.log(`[Discovery] ${kind} ${apiType} → ${paginated.length} metas (skip=${skip})`);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    return res.json(withCacheHints({ metas: paginated }, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
+  }
+
+  // ── "LeLibrary Collections" movie catalog (torbox-collections) ──
+  // One catalog listing every owned franchise film as a plain movie. Filtered
+  // by the `genre` extra (a franchise name), which Nuvio collection folders and
+  // Stremio's Discover genre dropdown both send; `search` and `skip` work too.
   // Handled before the separate-mode provider check so it works for every user
   // regardless of provider mode.
+  if (catalogId === 'torbox-collections' && req.params.type === 'movie') {
+    const extra  = parseExtra(req.params.extra || '');
+    const skip   = parseInt(extra.skip) || 0;
+    const search = extra.search || '';
+    const genre  = extra.genre || '';
+
+    const token = req.params.token;
+    if (!knownConfigs.has(token)) {
+      knownConfigs.set(token, config);
+      buildAndCacheForConfig(token, config).catch(() => {});
+    }
+    const userKey = providers.getUserKey(config);
+    let metas = getCollections(userKey, lang);
+    if (metas.length === 0) {
+      try {
+        // Prefer the persistent collections cache before rebuilding. A temporary
+        // empty provider response must not erase a previously working row.
+        const persistentKey = cache.makeKey('cat', 'collections', 'collections', sortBy, '', '0', userKey, lang, posterFp(config));
+        const persistent = await cache.get(persistentKey);
+        if (Array.isArray(persistent?.metas) && persistent.metas.length > 0) {
+          metas = persistent.metas;
+          cacheCollections(userKey, lang, metas);
+        }
+        if (metas.length === 0) {
+          const all = await providers.fetchDownloads(config);
+          if (!Array.isArray(all) || all.length === 0) {
+            console.warn('[Collections] Movie catalog: provider returned no downloads');
+            return res.json({ metas: [] });
+          }
+          metas = await buildCollectionsCatalog(all, tmdbApiKey, lang, { erdbToken, rpdbKey });
+          if (metas.length > 0) cacheCollections(userKey, lang, metas);
+        }
+      } catch (err) {
+        console.error('[Collections] Movie catalog error:', err.message);
+        return res.json({ metas: [] });
+      }
+    }
+
+    const filmMetas = [];
+    for (const c of metas) {
+      const fname = franchiseRowName(c.name);
+      if (genre && fname !== genre) continue;
+      for (const v of (c.videos || [])) {
+        filmMetas.push({
+          id: `torbox:movie:${v.id.split(':').pop()}`,
+          type: 'movie',
+          name: v.title,
+          poster: v.thumbnail ? v.thumbnail.replace('/w300', '/w500') : null,
+          releaseInfo: (v.released || '').slice(0, 4) || undefined,
+          released: v.released || undefined,
+        });
+      }
+    }
+    const filtered = filmMetas
+      .filter(f => f.poster)
+      .filter(f => !search || (f.name || '').toLowerCase().includes(search.toLowerCase()));
+    const paginated = filtered.slice(skip, skip + 50);
+    console.log(`[Collections] Movie catalog "${genre || 'all'}" → ${paginated.length} films`);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    return res.json(withCacheHints({ metas: paginated }, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
+  }
+
+  // ── Legacy Collections series catalog (dead code, kept for backward compat) ──
+  // Spans ALL providers, isolated to torbox:collection:* metas.
   if (catalogId.endsWith('-collections')) {
     const extra  = parseExtra(req.params.extra || '');
     const skip   = parseInt(extra.skip) || 0;
@@ -565,7 +735,7 @@ async function handleCatalog(req, res) {
     } else {
       try {
         const all = await providers.fetchDownloads(config);
-        metas = await buildCollectionsCatalog(all, tmdbApiKey, lang);
+        metas = await buildCollectionsCatalog(all, tmdbApiKey, lang, { erdbToken, rpdbKey });
         cacheCollections(userKey, lang, metas);
         await cache.set(collKey, { metas }, TTL_CATALOG);
         console.log(`[Collections] Built → ${metas.length} items`);
@@ -704,8 +874,9 @@ app.get('/:token/catalog/:type/:catalogId/:extra.json', handleCatalog);
 
 // ─── META ─────────────────────────────────────────────────────────────────────
 app.get('/:token/meta/:type/:id.json', async (req, res) => {
-  const config = decodeConfig(req.params.token);
-  if (!config) return res.json({ meta: null });
+  const baseConfig = decodeConfig(req.params.token);
+  if (!baseConfig) return res.json({ meta: null });
+  const config = await require('./src/configstore').mergeStoredConfig(baseConfig);
 
   const { tmdbApiKey, lang = 'pt-BR', erdbToken, rpdbKey, omdbKey, fanartKey, enhanceBackground, enhanceLogo, customStreams } = config;
   const active = providers.activeProviders(config);
@@ -713,6 +884,15 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
   if (!tmdbApiKey || active.length === 0) return res.json({ meta: null });
 
   console.log(`[Meta] Request: type=${type} id=${id}`);
+
+  // Discovery rows (Trending/Popular) carry plain tt: (IMDb) ids so Nuvio and
+  // Stremio route streams to every installed addon that claims the 'tt' prefix
+  // (Torrentio, Comet, Meteor, MediaFusion). The meta itself is built from TMDB
+  // and cached under the torbox: namespace, so for a tt: request we serve it
+  // back with the plain tt: id in the response only. This keeps the detail page
+  // requesting streams by the IMDb id; the cached copy keeps its torbox: id for
+  // library/franchise rows, where only LeLibrary should answer.
+  const ttId = id.startsWith('tt') ? id.split(':')[0] : null;
 
   // ── Collections meta (torbox:collection:* — additive, isolated) ──
   if (id.startsWith('torbox:collection:')) {
@@ -733,7 +913,7 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
       console.log(`[Collections] Meta not in memory cache (${id}) — building`);
       try {
         const all = await providers.fetchDownloads(config);
-        const metas = await buildCollectionsCatalog(all, tmdbApiKey, lang);
+        const metas = await buildCollectionsCatalog(all, tmdbApiKey, lang, { erdbToken, rpdbKey });
         cacheCollections(userKey, lang, metas);
         meta = getCollectionMeta(userKey, lang, id.split(':')[2]);
         console.log(`[Collections] Meta rebuilt → ${meta ? 'found' : 'STILL NULL'} (${id})`);
@@ -765,19 +945,23 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
   }
 
   const userKey = providers.getUserKey(config);
-  const cacheKey = cache.makeKey('meta', 'v2', `torbox:${type}:${tmdbId}`, lang, userKey, posterFp(config));
+  // Discovery (tt:) metas keep the full TMDB episode list and a tt: response id,
+  // so they must not collide with the owned-filtered library/franchise metas.
+  const discovery = !!ttId;
+  const cacheKey = cache.makeKey('meta', 'v2', `torbox:${type}:${tmdbId}`, discovery ? 'tt' : '', lang, userKey, posterFp(config));
   const cached   = await cache.get(cacheKey);
 
   if (cached) {
     console.log(`[Meta] Cache hit: ${id} → ${cached.meta?.videos?.length || 0} eps`);
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
-    return res.json(withCacheHints(cached, { cacheMaxAge: 86400, staleRevalidate: 86400, staleError: 604800 }));
+    return res.json(withCacheHints(discovery ? { meta: { ...cached.meta, id: ttId } } : cached, { cacheMaxAge: 86400, staleRevalidate: 86400, staleError: 604800 }));
   }
 
   console.log(`[Meta] Building: ${id} (tmdbId=${tmdbId})`);
   try {
     // For movies: prefetch stream in parallel with buildMeta
-    const streamCacheKey = cache.makeKey('stream', type, tmdbId, '', '', userKey);
+    const fmtFp = ':' + hashShort([config.streamPreset || '', config.streamNameTemplate || '', config.streamDescTemplate || ''].join('|'));
+    const streamCacheKey = cache.makeKey('stream', type, tmdbId, '', '', userKey + fmtFp);
     const streamPrefetch = type === 'movie'
       ? cache.get(streamCacheKey).then(hit => {
           if (!hit) buildStreams(config, tmdbApiKey, type, tmdbId, undefined, undefined, lang, customStreams, userKey)
@@ -786,8 +970,29 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
         })
       : Promise.resolve();
 
-    const meta   = await buildMeta(tmdbId, type, tmdbApiKey, lang, config, { erdbToken, rpdbKey, omdbKey, fanartKey, enhanceBackground, enhanceLogo }, userKey);
+    const enhance = { erdbToken, rpdbKey, omdbKey, fanartKey, posterProvider: config.posterProvider, enhanceBackground, enhanceLogo };
+    const meta   = discovery
+      ? await buildDiscoveryMeta({ tmdbApiKey, tmdbId, type, lang, enhance })
+      : await buildMeta(tmdbId, type, tmdbApiKey, lang, config, enhance, userKey, !discovery);
     const result = { meta };
+
+    // "More from this saga" — for movies that belong to a built collection, add
+    // a Stremio detail link that opens the franchise's movie catalog (plain
+    // movies, never a series/season view), plus the raw TMDB collection id
+    // (NuvioWeb reads it for its native Collection tab). Purely additive;
+    // skipped when the saga isn't in the collections cache.
+    if (meta && type === 'movie') {
+      const saga = getCollectionForMovie(userKey, lang, tmdbId);
+      if (saga) {
+        const manifestUrl = `${req.protocol}://${req.get('host')}/${req.params.token}/manifest.json`;
+        meta.links = [
+          ...(meta.links || []).filter(l => l && l.category !== 'saga'),
+          { name: `More from the ${saga.name} saga`, category: 'saga', url: `stremio:///discover/${encodeURIComponent(manifestUrl)}/movie/torbox-collections?genre=${encodeURIComponent(franchiseRowName(saga.name))}` },
+        ];
+        meta.collectionId = saga.collectionId;
+        meta.belongs_to_collection = { id: saga.collectionId, name: saga.name };
+      }
+    }
 
     // Resilience: don't cache hollow results for 24h. A series with zero
     // episodes (provider down/empty) or a meta that failed to build (TMDB
@@ -801,12 +1006,12 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
     ]);
 
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
-    res.json(withCacheHints(result, { cacheMaxAge: metaTtl, staleRevalidate: metaTtl, staleError: 604800 }));
+    res.json(withCacheHints(discovery ? { meta: { ...result.meta, id: ttId } } : result, { cacheMaxAge: metaTtl, staleRevalidate: metaTtl, staleError: 604800 }));
 
     // For series: prefetch first episode streams in background after responding
     if (type === 'series' && meta?.videos?.length > 0) {
       const firstEp = meta.videos[0];
-      const epKey   = cache.makeKey('stream', type, tmdbId, String(firstEp.season), String(firstEp.episode), userKey);
+      const epKey   = cache.makeKey('stream', type, tmdbId, String(firstEp.season), String(firstEp.episode), userKey + fmtFp);
       cache.get(epKey).then(hit => {
         if (!hit) buildStreams(config, tmdbApiKey, type, tmdbId, String(firstEp.season), String(firstEp.episode), lang, customStreams, userKey)
           .then(streams => cache.set(epKey, { streams }, streams.length > 0 ? TTL_STREAM : 60))
@@ -820,8 +1025,12 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
 });
 
 app.get('/:token/stream/:type/:id.json', async (req, res) => {
-  const config = decodeConfig(req.params.token);
-  if (!config) return res.json({ streams: [] });
+  const baseConfig = decodeConfig(req.params.token);
+  if (!baseConfig) return res.json({ streams: [] });
+  // Merge server-side stream settings (addons + format) stored in Redis by the
+  // configure page — the token stays small and these survive reloads/device
+  // switches. Falls back to the token's own fields when nothing is stored.
+  const config = await require('./src/configstore').mergeStoredConfig(baseConfig);
 
   const { tmdbApiKey, lang = 'pt-BR', customStreams } = config;
   const active = providers.activeProviders(config);
@@ -831,6 +1040,17 @@ app.get('/:token/stream/:type/:id.json', async (req, res) => {
   if (!id.startsWith('torbox:') && !id.startsWith('tt') && !id.startsWith('kitsu:')) {
     return res.json({ streams: [] });
   }
+
+  // ── Trending / Popular discovery streams (tt: ids) ──
+  // These rows carry plain IMDb ids and are backed by external stream addons
+  // (Torrentio, Comet, Meteor, MediaFusion). When the user OWNS the title, the
+  // "owned bridge" lists their library copy first, then the external addon
+  // streams. Handled by src/discovery.js (buildDiscoveryStreams).
+  const externalAddons = Array.isArray(config.streamAddons) ? config.streamAddons : [];
+  const userKey        = providers.getUserKey(config);
+  // Include the stream-format fingerprint so changing the preset/templates
+  // invalidates cached streams instead of serving stale names for the TTL.
+  const fmtFp = ':' + hashShort([config.streamPreset || '', config.streamNameTemplate || '', config.streamDescTemplate || ''].join('|'));
 
   let tmdbId, season, episode;
   let buildType = type;
@@ -852,15 +1072,6 @@ app.get('/:token/stream/:type/:id.json', async (req, res) => {
       tmdbId  = parts[2];
       season  = parts[3];
       episode = parts[4];
-    } else if (id.startsWith('tt')) {
-      const parts = id.split(':');
-      const imdbId = parts[0];
-      season = parts[1];
-      episode = parts[2];
-      const { imdbToTmdb } = require('./src/tmdb');
-      const mapped = await imdbToTmdb(tmdbApiKey, imdbId);
-      if (!mapped) return res.json({ streams: [] });
-      tmdbId = mapped.tmdbId;
     } else if (id.startsWith('kitsu:')) {
       const parts = id.split(':');
       const kitsuId = parts[1];
@@ -875,8 +1086,29 @@ app.get('/:token/stream/:type/:id.json', async (req, res) => {
       tmdbId = search.id;
     }
 
-    const userKey        = providers.getUserKey(config);
-    const streamCacheKey = cache.makeKey('stream', buildType, tmdbId, season || '', episode || '', userKey);
+    // ── tt: id + stream addons → owned copy first, then external addons ──
+    if (id.startsWith('tt')) {
+      const addonFp = ':' + hashShort(externalAddons.slice().sort().join(','));
+      const discKey = cache.makeKey('stream', type, id, '', '', userKey + addonFp);
+      const cached  = await cache.get(discKey);
+      if (cached) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+        return res.json(withCacheHints(cached, { cacheMaxAge: TTL_STREAM, staleRevalidate: TTL_STREAM, staleError: 604800 }));
+      }
+      const { streams, ownedCount, externalCount } = await buildDiscoveryStreams({
+        config, tmdbApiKey, type, id, lang, customStreams, userKey, externalAddons,
+      });
+      const result   = { streams };
+      const streamTtl = streams.length > 0 ? TTL_STREAM : 60;
+      await cache.set(discKey, result, streamTtl);
+      console.log(`[Stream] ${id} → ${streams.length} streams (${ownedCount} owned, ${externalCount} external)`);
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+      return res.json(withCacheHints(result, { cacheMaxAge: TTL_STREAM, staleRevalidate: TTL_STREAM, staleError: 604800 }));
+    }
+
+    // Include the stream-format fingerprint so changing the preset/templates
+    // invalidates cached streams instead of serving stale names for the TTL.
+    const streamCacheKey = cache.makeKey('stream', buildType, tmdbId, season || '', episode || '', userKey + fmtFp);
     const cachedStreams  = await cache.get(streamCacheKey);
     if (cachedStreams) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
@@ -884,6 +1116,7 @@ app.get('/:token/stream/:type/:id.json', async (req, res) => {
     }
 
     const streams = await buildStreams(config, tmdbApiKey, buildType, tmdbId, season, episode, lang, customStreams, userKey);
+
     const result  = { streams };
     // Don't cache hollow results for the full TTL — a provider blip (e.g. TorBox
     // rate-limiting requestdl) would otherwise blank streams for 10 minutes.

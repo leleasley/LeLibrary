@@ -194,10 +194,177 @@ async function pmPost(path, body, apiKey) {
   return data;
 }
 
+// ── Premiumize cloud scan (item/listall) ─────────────────────
+// item/listall returns EVERY file in the cloud as a flat list with full
+// paths — so content inside folders is always found, at any depth. Items are
+// grouped by their top-level folder (root files are their own item). The
+// logical id scheme matches the addon server:
+//   single file: `f:<fileId>`
+//   folder group: `d:<base64url(full folder path)>`
+// Legacy numeric transfer ids are still accepted for backward compat.
+
+const PM_VIDEO_EXTS = ['.mkv', '.mp4', '.avi', '.mov', '.m4v', '.ts', '.wmv', '.webm'];
+function pmIsVideoFile(name = '') {
+  return PM_VIDEO_EXTS.some(ext => String(name || '').toLowerCase().endsWith(ext));
+}
+
+// Strong media signals in a folder name (year, season/episode, resolution,
+// release tag, codec, or a bracketed anime group).
+const PM_MEDIA_RE = [
+  /\b(19[5-9]\d|20[0-3]\d)\b/,
+  /\b[Ss]\d{1,2}(?:\s*[Ee]\d{1,2})?\b/,
+  /\b(?:season|temporada)\s*\d+\b/i,
+  /\b(2160p|1080p|720p|480p|360p|4k|uhd)\b/i,
+  /\b(blu[-\s]?ray|web[-\s]?dl|web[-\s]?rip|webrip|bdrip|brrip|hdtv|dvdrip|remux)\b/i,
+  /\b(x264|x265|h\.?26[45]|hevc|avc|xvid)\b/i,
+  /^\[[^\]]+\]/,
+];
+function pmLooksMediaLike(name) {
+  return PM_MEDIA_RE.some(re => re.test(String(name || '')));
+}
+
+// Generic container words ("My Files", "Movies", "TV Shows", ...) — these are
+// usually catch-all parents that should be descended into, not library items.
+const PM_GENERIC_TOKENS = [
+  'my', 'files', 'file', 'movies', 'movie', 'film', 'films', 'tv', 'series',
+  'show', 'shows', 'anime', 'collection', 'collections', 'downloads', 'download',
+  'media', 'videos', 'video', 'library', 'complete', 'all',
+];
+function pmLooksGeneric(name) {
+  const words = String(name || '').trim().replace(/[._-]/g, ' ').replace(/\s{2,}/g, ' ').toLowerCase().split(/\s+/).filter(Boolean);
+  return words.length > 0 && words.every(w => PM_GENERIC_TOKENS.includes(w));
+}
+
+// Short-lived session cache for the flat file list (seeded by the library
+// load, reused by "view files" so we don't re-request the whole cloud per item).
+let _pmListAll = { key: null, at: 0, files: null };
+async function pmListAllFiles(apiKey) {
+  const now = Date.now();
+  if (_pmListAll.key === apiKey && _pmListAll.files && now - _pmListAll.at < 60000) {
+    return _pmListAll.files;
+  }
+  const r = await pmGet('/item/listall', apiKey);
+  const files = r.files || [];
+  _pmListAll = { key: apiKey, at: now, files };
+  return files;
+}
+function pmSeedListAll(apiKey, files) {
+  _pmListAll = { key: apiKey, at: Date.now(), files: files || [] };
+}
+
+function pmEncodePath(s) {
+  try { return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+  catch { return ''; }
+}
+function pmDecodePath(s) {
+  try { return decodeURIComponent(escape(atob(String(s).replace(/-/g, '+').replace(/_/g, '/')))); }
+  catch { return null; }
+}
+function pmItemIdForFile(fileId) { return 'f:' + String(fileId); }
+function pmItemIdForFolder(path) { return 'd:' + pmEncodePath(path); }
+function pmDecodeId(id) {
+  if (typeof id !== 'string') return null;
+  if (id.startsWith('f:')) return { kind: 'file', fileId: id.slice(2) };
+  if (id.startsWith('d:')) {
+    const path = pmDecodePath(id.slice(2));
+    return path != null ? { kind: 'folder', path } : null;
+  }
+  return null;
+}
+
+function pmFirstCreatedAt(files) {
+  let min = null;
+  for (const f of files) {
+    if (f.created_at && (min === null || f.created_at < min)) min = f.created_at;
+  }
+  return min ? new Date(min * 1000).toISOString() : undefined;
+}
+
+function pmMakeFolderItem(groupPath, name, files) {
+  return {
+    id: pmItemIdForFolder(groupPath),
+    name, filename: name,
+    source: 'premiumize',
+    download_state: 'completed',
+    download_finished: true,
+    progress: 1,
+    size: files.reduce((s, f) => s + (f.size || 0), 0),
+    created_at: pmFirstCreatedAt(files),
+  };
+}
+
+function pmMakeFileItem(file) {
+  return {
+    id: pmItemIdForFile(file.id),
+    name: file.name || '', filename: file.name || '',
+    source: 'premiumize',
+    download_state: 'completed',
+    download_finished: true,
+    progress: 1,
+    size: file.size || 0,
+    created_at: file.created_at ? new Date(file.created_at * 1000).toISOString() : undefined,
+  };
+}
+
+function pmGroupCloudFiles(files) {
+  const items = [];
+  const root = [];
+  const byTop = new Map();
+
+  for (const f of files) {
+    const path = f.path || f.name || '';
+    const slash = path.indexOf('/');
+    if (slash === -1) { root.push(f); continue; }
+    const top = path.slice(0, slash);
+    if (!byTop.has(top)) byTop.set(top, []);
+    byTop.get(top).push(f);
+  }
+
+  for (const f of root) items.push(pmMakeFileItem(f));
+  for (const [top, gf] of byTop) pmGroupDescend(items, gf, [top], 0);
+  return items;
+}
+
+function pmGroupDescend(items, files, prefixParts, depth) {
+  const name = prefixParts[prefixParts.length - 1];
+  const hasAnyVideo = files.some(f => pmIsVideoFile(f.name || ''));
+  if (!hasAnyVideo) return;
+
+  const isDirect = f => (f.path || '').split('/').length === prefixParts.length + 1;
+  const hasDirectVideo = files.some(f => isDirect(f) && pmIsVideoFile(f.name || ''));
+
+  if (hasDirectVideo || pmLooksMediaLike(name) || (!pmLooksGeneric(name) && guessMediaInfo(name)) || depth >= 4) {
+    items.push(pmMakeFolderItem(prefixParts.join('/'), name, files));
+    return;
+  }
+  const next = new Map();
+  for (const f of files) {
+    const parts = (f.path || '').split('/');
+    const seg = parts.length > prefixParts.length ? parts[prefixParts.length] : (f.name || '');
+    if (!next.has(seg)) next.set(seg, []);
+    next.get(seg).push(f);
+  }
+  for (const [seg, sf] of next) pmGroupDescend(items, sf, [...prefixParts, seg], depth + 1);
+}
+
 async function pmDelete(path, apiKey) {
   const id = path.split('/').pop();
-  await pmPost('/transfer/delete', { id }, apiKey);
+  const dec = pmDecodeId(id);
+  if (dec?.kind === 'file') { await pmPost('/item/delete', { id: dec.fileId }, apiKey); return true; }
+  if (dec?.kind === 'folder') {
+    const folderId = await pmResolveFolderId(dec.path, apiKey);
+    if (!folderId) throw new Error('Could not locate folder to delete');
+    await pmPost('/folder/delete', { id: folderId }, apiKey);
+    return true;
+  }
+  await pmPost('/transfer/delete', { id }, apiKey); // legacy transfer id
   return true;
+}
+
+// Resolve a folder id from a folder path (folder/list accepts `path`).
+async function pmResolveFolderId(groupPath, apiKey) {
+  const r = await pmGet('/folder/list?path=' + encodeURIComponent(groupPath), apiKey);
+  return r.folder_id || r.data?.folder_id || null;
 }
 
 // ── Adding downloads ──────────────────────────────────────────
@@ -440,7 +607,7 @@ async function loadLibraryFromProviders() {
     torboxKey ? torboxGet('/usenet/mylist', torboxKey) : Promise.resolve([]),
     rdKey ? rdGet('/torrents', rdKey) : Promise.resolve([]),
     adKey ? adPost('/v4.1/magnet/status', { ids: 'all' }, adKey) : Promise.resolve(null),
-    pmKey ? pmGet('/transfer/list', pmKey) : Promise.resolve(null),
+    pmKey ? pmGet('/item/listall', pmKey) : Promise.resolve(null),
   ]);
 
   const torrents = results[0];
@@ -507,19 +674,9 @@ async function loadLibraryFromProviders() {
       });
     }
   }
-  if (pmTransfers.status === 'fulfilled' && pmTransfers.value?.data?.transfers) {
-    for (const t of pmTransfers.value.data.transfers) {
-      if (t.status !== 'finished' && t.status !== 'seeding') continue;
-      items.push({
-        id: String(t.id),
-        name: t.name || '',
-        filename: t.name || '',
-        source: 'premiumize',
-        download_state: t.status === 'seeding' ? 'seeding' : 'completed',
-        download_finished: true,
-        progress: 1,
-      });
-    }
+  if (pmTransfers.status === 'fulfilled' && pmTransfers.value?.files) {
+    pmSeedListAll(pmKey, pmTransfers.value.files);
+    items = items.concat(pmGroupCloudFiles(pmTransfers.value.files));
   }
 
   return items.filter(i => {
@@ -686,23 +843,41 @@ async function adItemDownloadUrl(id, fileId) {
 
 // ── Premiumize file/download helpers ──
 async function pmItemFiles(id) {
+  const dec = pmDecodeId(id);
+  if (dec?.kind === 'file') {
+    const det = await pmGet('/item/details?id=' + dec.fileId, App.keys.pmKey);
+    if (det.data?.id || det.id) {
+      const d = det.data || det;
+      return [{ id: String(d.id), name: d.name || '', size: d.size || 0, link: d.link || null }];
+    }
+    return [];
+  }
+  if (dec?.kind === 'folder') {
+    const files = await pmListAllFiles(App.keys.pmKey);
+    const prefix = dec.path + '/';
+    return files
+      .filter(f => (f.path || '').startsWith(prefix))
+      .map(f => ({ id: String(f.id), name: f.name || '', size: f.size || 0, link: null }));
+  }
+  // Legacy numeric transfer id
   const list = await pmGet('/transfer/list', App.keys.pmKey);
-  const t = (list.data?.transfers || []).find(x => String(x.id) === String(id));
+  const t = (list.data?.transfers || list.transfers || []).find(x => String(x.id) === String(id));
   if (!t) return [];
   if (t.file_id) {
     const det = await pmGet('/item/details?id=' + t.file_id, App.keys.pmKey);
-    if (det.data?.id) return [{ id: String(det.data.id), name: det.data.name || '', size: det.data.size || 0, link: det.data.link || null }];
+    const d = det.data || det;
+    if (d?.id) return [{ id: String(d.id), name: d.name || '', size: d.size || 0, link: d.link || null }];
     return [];
   }
   if (!t.folder_id) return [];
   const folder = await pmGet('/folder/list?id=' + t.folder_id, App.keys.pmKey);
-  const content = folder.data?.content || [];
+  const content = folder.data?.content || folder.content || [];
   const files = [];
   for (const c of content) {
     if (c.type === 'file') files.push({ id: String(c.id), name: c.name || '', size: c.size || 0, link: c.link || null });
     else if (c.type === 'folder') {
       const sub = await pmGet('/folder/list?id=' + c.id, App.keys.pmKey);
-      (sub.data?.content || []).forEach(f => {
+      (sub.data?.content || sub.content || []).forEach(f => {
         if (f.type === 'file') files.push({ id: String(f.id), name: f.name || '', size: f.size || 0, link: f.link || null });
       });
     }
@@ -711,10 +886,21 @@ async function pmItemFiles(id) {
 }
 
 async function pmItemDownloadUrl(id, fileId) {
+  const dec = pmDecodeId(id);
+  if (dec?.kind === 'file') {
+    const det = await pmGet('/item/details?id=' + dec.fileId, App.keys.pmKey);
+    const d = det.data || det;
+    if (d?.link) return d.link;
+    throw new Error('No file link on Premiumize');
+  }
   const files = await pmItemFiles(id);
-  const link = (files.find(f => String(f.id) === String(fileId)) || files[0])?.link;
-  if (!link) throw new Error('No file link on Premiumize');
-  return link;
+  const target = (fileId && files.find(f => String(f.id) === String(fileId))) || files[0];
+  if (!target?.id) throw new Error('No file link on Premiumize');
+  if (target.link) return target.link;
+  const det = await pmGet('/item/details?id=' + target.id, App.keys.pmKey);
+  const d = det.data || det;
+  if (d?.link) return d.link;
+  throw new Error('No file link on Premiumize');
 }
 
 // ── Copy / export magnet ──

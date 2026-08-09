@@ -157,7 +157,11 @@ POST https://api.nuvio.tv/rest/v1/rpc/sync_push_collections   { p_profile_id, p_
 
 (Headers for Nuvio calls carry `apikey: <Nuvio's public publishable key>` and, once signed in, `Authorization: Bearer <access_token>`.)
 
-**Catalogues (Beta):** the Catalogues tab is an editor for which catalogues get pushed — **LeLibrary Franchises** (your owned films grouped into folders) with **Trending** and **Popular** marked "Coming soon" (future TMDB-driven catalogues). Importing catalogues/collections from other addons is planned. Pushing itself happens on the Setup tab (Step 5).
+**Catalogues (Beta):** the Catalogues tab is an editor for which catalogues get pushed — **LeLibrary Collections** (each franchise you own becomes a folder of plain movies, never a series), plus **Trending** and **Popular** (TMDB-driven discovery rows). Importing catalogues/collections from other addons is planned. Pushing itself happens on the Setup tab (Step 5).
+
+**Stream Addons (Beta):** in the Setup tab you can enable external stream addons (Torrentio, Comet, Meteor, MediaFusion) that LeLibrary pulls streams from server-side. These power the **Trending** and **Popular** discovery rows only — your library rows (My Movies, My Series, LeLibrary Collections) keep using your own debrid copies and are never touched. None are enabled by default.
+
+**Franchise folders:** in Nuvio, "LeLibrary Collections" has one folder per franchise showing its films as plain movies; in Stremio each franchise is its own movie catalogue row. New films added to a franchise you already own appear automatically. A brand-new franchise needs one re-push so its folder/row is added.
 
 **Privacy implications:** the Stremio / Nuvio session token is saved in the browser's `localStorage` on the user's own device so they stay signed in across refreshes. It is never written to `sessionStorage`, cookies, or logs, and never sent to LeLibrary's servers. On load the saved session is re-validated against the platform in the background (Nuvio's access token is refreshed automatically); if it has expired the user is prompted to sign in again. **Disconnect** clears it from `localStorage`. Each push targets the signed-in user's own account — nobody else's.
 

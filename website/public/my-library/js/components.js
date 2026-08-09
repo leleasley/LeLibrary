@@ -204,6 +204,49 @@ function cleanReleaseBody(body) {
     .trim();
 }
 
+// Convert markdown-like release body to HTML:
+// - ### headers -> <h3>
+// - - bullet items -> <ul><li>
+// - plain text -> <p>
+function renderReleaseBody(body) {
+  if (!body) return '<p style="color:var(--muted)">Release notes are empty.</p>';
+  const lines = body.split('\n');
+  let html = '';
+  let inList = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Sub-header (### Title)
+    if (/^### /.test(trimmed)) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<h3>${escHtml(trimmed.replace(/^### /, ''))}</h3>`;
+      continue;
+    }
+
+    // Bullet item (- text)
+    if (/^- /.test(trimmed)) {
+      if (!inList) { html += '<ul>'; inList = true; }
+      html += `<li>${escHtml(trimmed.replace(/^- /, ''))}</li>`;
+      continue;
+    }
+
+    // Empty line
+    if (!trimmed) {
+      if (inList) { html += '</ul>'; inList = false; }
+      continue;
+    }
+
+    // Plain text
+    if (inList) { html += '</ul>'; inList = false; }
+    html += `<p>${escHtml(trimmed)}</p>`;
+  }
+
+  if (inList) html += '</ul>';
+  return html || '<p style="color:var(--muted)">Release notes are empty.</p>';
+}
+
 async function checkWhatsNew() {
   try {
     const r = await fetch('https://api.github.com/repos/leleasley/LeLibrary/releases?per_page=5', {
@@ -232,21 +275,27 @@ async function checkWhatsNew() {
     localStorage.setItem('lelibrary_seen_releases', [...seen].join(','));
     localStorage.removeItem('lelibrary_seen_release');
 
-    showWhatsNewModal(unseen.slice(0, 4).map(rel => ({ title: rel.name || rel.tag_name, body: rel.body || '' })));
+    showWhatsNewModal(unseen.slice(0, 4).map(rel => ({ title: rel.name || rel.tag_name, body: rel.body || '', date: rel.published_at || '' })));
   } catch (e) { /* offline / blocked — skip silently */ }
 }
 
 function showWhatsNewModal(releases) {
   if (document.getElementById('whatsNewModal')) return;
   const items = Array.isArray(releases) && releases.length
-    ? releases.map(r => ({ title: r.title || r.name || r.tag_name, body: cleanReleaseBody(r.body || '') }))
-    : [{ title: 'Release notes', body: (typeof releases === 'string' ? releases : '') || 'Release notes are empty.' }];
+    ? releases.map(r => ({ title: r.title || r.name || r.tag_name, body: cleanReleaseBody(r.body || ''), date: r.date || '' }))
+    : [{ title: 'Release notes', body: (typeof releases === 'string' ? releases : '') || '', date: '' }];
   const count = items.length;
-  const bodyHtml = items.map(r => `
+  const bodyHtml = items.map(r => {
+    const dateStr = r.date ? new Date(r.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+    return `
     <div class="wn-release">
-      <div class="wn-release-title">${escHtml(r.title || 'Release')}</div>
-      <div class="wn-release-body">${escHtml(r.body || 'Release notes are empty.')}</div>
-    </div>`).join('');
+      <div class="wn-release-header">
+        <span class="wn-release-title">${escHtml(r.title || 'Release')}</span>
+        ${dateStr ? `<span class="wn-release-date">${dateStr}</span>` : ''}
+      </div>
+      <div class="wn-release-body">${renderReleaseBody(r.body)}</div>
+    </div>`;
+  }).join('');
 
   const overlay = document.createElement('div');
   overlay.id = 'whatsNewModal';

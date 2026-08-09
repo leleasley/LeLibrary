@@ -6,6 +6,8 @@ const providers = require('./providers');
 const { searchMetadata, searchCandidates, getMetadata, findEpisodeByAirDate } = require('./tmdb');
 const { guessMediaInfo } = require('./parser');
 const NodeCache = require('node-cache');
+// AIOStreams-compatible stream formatter engine (works in Node + browser).
+const formatter = require('../website/public/formatter.js');
 
 const CACHE_FILE = '/tmp/torbox-tmdb-cache.json';
 const matchCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
@@ -85,6 +87,15 @@ function buildErdbUrl(token, type, id) {
 function buildRpdbUrl(key, idType, posterType, mediaId) {
   if (!key || !mediaId) return null;
   return `https://api.ratingposterdb.com/${key}/${idType}/${posterType}/${mediaId}.jpg?fallback=true`;
+}
+
+// BetterPoster (btttr.cc) serves poster-default artwork keyed by the title's
+// IMDb id. The id is a byproduct of TMDB's external_ids that getMetadata
+// already fetches — it is never used for matching. Poster-only: no backdrops
+// or logos.
+function buildBetterPosterUrl(imdbId) {
+  if (!imdbId) return null;
+  return `https://btttr.cc/poster/imdb/poster-default/${String(imdbId).toLowerCase()}.jpg`;
 }
 
 async function getOmdbRatings(apiKey, imdbId) {
@@ -374,7 +385,7 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
   return output;
 }
 
-async function buildMeta(tmdbId, type, tmdbApiKey, lang, config = {}, enhance = {}, userKey = '') {
+async function buildMeta(tmdbId, type, tmdbApiKey, lang, config = {}, enhance = {}, userKey = '', filterOwnedEpisodes = true) {
   const tmdbType = type === 'series' || type === 'anime' ? 'series' : 'movie';
 
   // Check if tmdbindex already has entries (per-user) before fetching downloads
@@ -383,18 +394,24 @@ async function buildMeta(tmdbId, type, tmdbApiKey, lang, config = {}, enhance = 
     || tmdbindex.get(`${userKey}:series:${tmdbId}`)
     || tmdbindex.get(`${userKey}:anime:${tmdbId}`);
 
+  // Discovery (tt:) requests skip the owned-episode pass entirely: they show
+  // every TMDB episode so external stream addons can contribute, regardless of
+  // what the user owns. Library/franchise series keep only owned episodes.
+  const needsOwnedPass = filterOwnedEpisodes && tmdbType !== 'movie';
+
   // Fetch TMDB metadata; downloads only if needed.
   // One provider failing (expired key, API hiccup) must not empty the result.
   const [meta, downloads] = await Promise.all([
-    getMetadata(tmdbApiKey, tmdbId, tmdbType, lang),
-    existingEntries?.length ? Promise.resolve([]) : providers.fetchDownloads(config),
+    getMetadata(tmdbApiKey, tmdbId, tmdbType, lang, { discovery: !filterOwnedEpisodes }),
+    (needsOwnedPass && !existingEntries?.length) ? providers.fetchDownloads(config) : Promise.resolve([]),
   ]);
 
   if (!meta) return meta;
 
   try {
-    if (tmdbType === 'movie') {
-      // Movies skip the episode-availability pass (nothing to filter) — but
+    if (!needsOwnedPass) {
+      // Movies skip the episode-availability pass (nothing to filter), and
+      // discovery (tt:) series keep their full TMDB episode list — but both
       // still fall through to the poster/rating enhancement below.
     } else {
     const availableEps = new Set();
@@ -515,41 +532,62 @@ async function buildMeta(tmdbId, type, tmdbApiKey, lang, config = {}, enhance = 
     console.error('[Meta] Error filtering episodes:', e.message);
   }
 
-  if (meta) {
-    const { erdbToken, rpdbKey, omdbKey, fanartKey, posterProvider, enhanceBackground, enhanceLogo } = enhance;
-    const imdbId = meta.imdbId;
+  await enhanceMeta(meta, enhance);
 
-    if (erdbToken && imdbId) {
-      meta.poster = buildErdbUrl(erdbToken, 'poster', imdbId);
-      if (enhanceBackground) meta.background = buildErdbUrl(erdbToken, 'backdrop', imdbId);
-      if (enhanceLogo) meta.logo = buildErdbUrl(erdbToken, 'logo', imdbId);
-    } else if (rpdbKey && imdbId) {
-      meta.poster = buildRpdbUrl(rpdbKey, 'imdb', 'poster-default', imdbId);
-      if (enhanceBackground) meta.background = buildRpdbUrl(rpdbKey, 'imdb', 'backdrop-default', imdbId);
-      if (enhanceLogo) meta.logo = buildRpdbUrl(rpdbKey, 'imdb', 'logo-default', imdbId);
-    } else if (fanartKey && meta.tmdbId) {
-      const tmdbType = meta.type === 'movie' ? 'movie' : 'tv';
-      const art = await getFanartArt(fanartKey, meta.tmdbId, tmdbType).catch(() => null);
-      if (art) {
-        if (enhanceBackground && art.background) meta.background = art.background;
-        if (enhanceLogo && art.logo) meta.logo = art.logo;
-        if (!erdbToken && !rpdbKey && art.poster) meta.poster = art.poster;
-      }
-    }
-
-    if (omdbKey && imdbId) {
-      const ratings = await getOmdbRatings(omdbKey, imdbId).catch(() => null);
-      if (ratings) {
-        if (ratings.imdbRating) meta.imdbRating = ratings.imdbRating;
-        if (!meta.app_extras) meta.app_extras = {};
-        meta.app_extras.ratings = {};
-        if (ratings.rtRating) meta.app_extras.ratings.rottenTomatoes = ratings.rtRating;
-        if (ratings.mcRating) meta.app_extras.ratings.metacritic = ratings.mcRating;
-        if (ratings.awards) meta.app_extras.awards = ratings.awards;
-      }
+  // Owned library / franchise metas (torbox:) stay minimal — trailers, the
+  // clickable cast and the network/production links are a Popular/Trending
+  // (tt:) discovery feature, so only discovery metas carry them. This keeps
+  // My Movies / My Shows / LeLibrary Collections items clean while the
+  // IMDB-linked discovery rows stay rich and interactive.
+  if (meta && filterOwnedEpisodes) {
+    delete meta.trailerStreams;
+    if (meta.app_extras) delete meta.app_extras.cast;
+    if (Array.isArray(meta.links)) {
+      meta.links = meta.links.filter(l => l && l.category === 'imdb');
     }
   }
 
+  return meta;
+}
+
+// Shared poster/rating enhancement for a TMDB meta (used by both the owned
+// library builder and the discovery builder).
+async function enhanceMeta(meta, enhance = {}) {
+  if (!meta) return meta;
+  const { erdbToken, rpdbKey, omdbKey, fanartKey, posterProvider, enhanceBackground, enhanceLogo } = enhance;
+  const imdbId = meta.imdbId;
+
+  if (erdbToken && imdbId) {
+    meta.poster = buildErdbUrl(erdbToken, 'poster', imdbId);
+    if (enhanceBackground) meta.background = buildErdbUrl(erdbToken, 'backdrop', imdbId);
+    if (enhanceLogo) meta.logo = buildErdbUrl(erdbToken, 'logo', imdbId);
+  } else if (rpdbKey && imdbId) {
+    meta.poster = buildRpdbUrl(rpdbKey, 'imdb', 'poster-default', imdbId);
+    if (enhanceBackground) meta.background = buildRpdbUrl(rpdbKey, 'imdb', 'backdrop-default', imdbId);
+    if (enhanceLogo) meta.logo = buildRpdbUrl(rpdbKey, 'imdb', 'logo-default', imdbId);
+  } else if (posterProvider === 'betterposter' && imdbId) {
+    meta.poster = buildBetterPosterUrl(imdbId);
+  } else if (fanartKey && meta.tmdbId) {
+    const tmdbType = meta.type === 'movie' ? 'movie' : 'tv';
+    const art = await getFanartArt(fanartKey, meta.tmdbId, tmdbType).catch(() => null);
+    if (art) {
+      if (enhanceBackground && art.background) meta.background = art.background;
+      if (enhanceLogo && art.logo) meta.logo = art.logo;
+      if (!erdbToken && !rpdbKey && art.poster) meta.poster = art.poster;
+    }
+  }
+
+  if (omdbKey && imdbId) {
+    const ratings = await getOmdbRatings(omdbKey, imdbId).catch(() => null);
+    if (ratings) {
+      if (ratings.imdbRating) meta.imdbRating = ratings.imdbRating;
+      if (!meta.app_extras) meta.app_extras = {};
+      meta.app_extras.ratings = {};
+      if (ratings.rtRating) meta.app_extras.ratings.rottenTomatoes = ratings.rtRating;
+      if (ratings.mcRating) meta.app_extras.ratings.metacritic = ratings.mcRating;
+      if (ratings.awards) meta.app_extras.awards = ratings.awards;
+    }
+  }
   return meta;
 }
 
@@ -780,8 +818,8 @@ async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episo
     if (bingeKey) behaviorHints.bingeGroup = bingeKey;
     return {
       url,
-      name:        formatStreamName(fname, source),
-      description: formatStreamDesc(fname, size, source),
+      name:        formatStreamName(fname, source, size, config),
+      description: formatStreamDesc(fname, size, source, config),
       behaviorHints,
     };
   });
@@ -928,22 +966,19 @@ function formatBytes(bytes) {
  *   Line 2 → resolution · source
  *   Line 3 → visual tags (HDR / DV / 10bit) — only if present
  */
-function formatStreamName(filename = '', source = '') {
-  const pid = providers.providerBySource(source);
-  const provider = pid === 'realdebrid' ? '🔴 RD'
-    : pid === 'alldebrid' ? '💠 AD'
-    : pid === 'premiumize' ? '🧲 PM'
-    : '📦 TorBox';
+// Resolve the effective name/description templates for a config: the chosen
+// preset from formatter.js, overridden by any custom templates.
+function streamTemplates(config = {}) {
+  const preset = (formatter.presets && formatter.presets[config.streamPreset]) || formatter.presets.lelibrary;
+  return {
+    name: config.streamNameTemplate || preset.name,
+    description: config.streamDescTemplate || preset.description,
+  };
+}
 
-  const quality  = extractQuality(filename);
-  const resLabel = { '4K':'🟣 4ᴋ', '1080p':'🔵 ғʜᴅ', '720p':'🟢 ʜᴅ', '576p':'⚫ sᴅ', '480p':'⚫ sᴅ' }[quality] || '';
-  const src      = extractSource(filename);
-
-  const line1 = `${provider} ⚡`;
-  const line2  = [resLabel, src].filter(Boolean).join(' · ');
-  const tags   = extractVisualTags(filename).join(' ');
-
-  return [line1, line2, tags].filter(Boolean).join('\n');
+function formatStreamName(filename = '', source = '', size, config = {}, addonName) {
+  const t = streamTemplates(config);
+  return formatter.formatStream(t.name, t.description, filename, source, size, { addonName }).name;
 }
 
 /**
@@ -954,38 +989,28 @@ function formatStreamName(filename = '', source = '') {
  *   Line 3 → group (with 🇧🇷 if Brazilian group)
  *   Line 4 → filename in smallcaps
  */
-function formatStreamDesc(filename = '', size, source) {
-  const display   = filename.replace(/\.(mkv|mp4|avi|mov|ts|wmv|m4v|webm)$/i, '');
-  const sz        = size ? `💾 ${formatBytes(size)}` : '';
-  const codec     = extractCodec(filename);
-  const langStr   = extractAudio(filename);
-  const subs      = extractSubs(filename);
-  const group     = extractReleaseGroup(filename);
-  const isBR      = group && BR_GROUP_RE.test(group);
-
-  const lines = [];
-
-  // Line 1: size + codec
-  const infoRow = [sz, codec ? `⚙️ ${codec}` : ''].filter(Boolean).join('   ');
-  if (infoRow) lines.push(infoRow);
-
-  // Line 2: audio + subtitles
-  const audioRow = [
-    langStr ? `🔊 ${langStr}` : '',
-    subs    ? `💬 ${subs}`    : '',
-  ].filter(Boolean).join('   ');
-  if (audioRow) lines.push(audioRow);
-
-  // Line 3: group (BR flag for known groups)
-  if (group) {
-    const flag = isBR ? '🇧🇷 ' : '';
-    lines.push(`${flag}🫟 ${toSmallCaps(group)}`);
-  }
-
-  // Line 4: filename in smallcaps
-  if (display) lines.push(`✔️${toSmallCaps(display)}`);
-
-  return lines.join('\n');
+function formatStreamDesc(filename = '', size, source, config = {}, addonName) {
+  const t = streamTemplates(config);
+  return formatter.formatStream(t.name, t.description, filename, source, size, { addonName }).description;
 }
 
-module.exports = { buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas };
+// Reformat an external addon stream (Torrentio/Comet/Meteor/MediaFusion) with
+// the user's chosen format preset, using the raw filename the addon provides.
+// The source addon's name is shown in the badge/label (read from the stream's
+// `_sourceAddon` tag) so the user can tell WHERE a stream came from while
+// keeping the same chosen formatting. Streams without a usable filename are
+// returned untouched (nothing to parse).
+function reformatExternalStream(stream, source = 'torbox', config = {}) {
+  const fn = stream && stream.behaviorHints && stream.behaviorHints.filename;
+  if (!fn) return stream;
+  const size = Number(stream.behaviorHints && stream.behaviorHints.videoSize) || 0;
+  const addonName = (stream && stream._sourceAddon) || 'LeLibrary';
+  return {
+    ...stream,
+    _sourceAddon: undefined,
+    name: formatStreamName(fn, source, size, config, addonName),
+    description: formatStreamDesc(fn, size, source, config, addonName),
+  };
+}
+
+module.exports = { buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta };

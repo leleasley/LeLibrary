@@ -71,11 +71,24 @@ function renderLibraryView() {
       <button class="btn btn-secondary btn-sm" onclick="clearSelection()">Clear</button>
     </div>
 
-    <div class="duplicate-bar" id="duplicateBar" style="display:none">
-      <span id="dupeSummary" style="font-size:12px"></span>
+    <div class="dupe-panel" id="duplicateBar" style="display:none">
+      <div class="dupe-panel-header">
+        <div class="dupe-stats">
+          <div class="dupe-stat">
+            <span class="dupe-stat-num" id="dupeGroupCount">0</span>
+            <span class="dupe-stat-label">duplicate groups</span>
+          </div>
+          <div class="dupe-stat dupe-stat-warn">
+            <span class="dupe-stat-num" id="dupeExtraCount">0</span>
+            <span class="dupe-stat-label">extra copies</span>
+          </div>
+        </div>
+        <div class="dupe-panel-actions">
+          <button class="btn btn-danger btn-sm" onclick="deleteDuplicateExtras()">Delete Extra Copies</button>
+          <button class="btn btn-secondary btn-sm" onclick="clearDuplicateMode()">Cancel</button>
+        </div>
+      </div>
       <div id="dupeGroupList" class="dupe-group-list"></div>
-      <button class="btn btn-danger btn-sm" onclick="deleteDuplicateExtras()">Delete Extra Copies</button>
-      <button class="btn btn-secondary btn-sm" onclick="clearDuplicateMode()">Cancel</button>
     </div>
 
     <div class="search-bar">
@@ -440,7 +453,7 @@ async function deleteLibraryItem(item) {
     } else if (item.source === 'alldebrid') {
       await adDelete('/v4/magnet/delete/' + item.id, adKey);
     } else if (item.source === 'premiumize') {
-      await pmDelete('/transfer/delete/' + item.id, pmKey);
+      await pmDelete('/item/' + item.id, pmKey);
     } else {
       const path = item.source === 'torrent' ? '/torrents/' + item.id : '/usenet/' + item.id;
       await torboxDelete(path, tbKey);
@@ -474,7 +487,7 @@ async function deleteSelected(skipConfirm) {
       } else if (item.source === 'alldebrid') {
         await adDelete('/v4/magnet/delete/' + item.id, adKey);
       } else if (item.source === 'premiumize') {
-        await pmDelete('/transfer/delete/' + item.id, pmKey);
+        await pmDelete('/item/' + item.id, pmKey);
       } else {
         const path = item.source === 'torrent' ? '/torrents/' + item.id : '/usenet/' + item.id;
         await torboxDelete(path, tbKey);
@@ -582,17 +595,23 @@ function findDuplicates() {
   }
 
   const bar = document.getElementById('duplicateBar');
-  const summary = document.getElementById('dupeSummary');
-  if (bar) bar.style.display = 'flex';
-  if (summary) {
-    summary.innerHTML = `<strong style="color:var(--warning)">${Object.keys(dupeGroups).length}</strong> duplicate groups &middot; <strong style="color:var(--error)">${totalExtras}</strong> extra copies selected`;
-  }
+  const groupCountEl = document.getElementById('dupeGroupCount');
+  const extraCountEl = document.getElementById('dupeExtraCount');
+  if (bar) bar.style.display = 'block';
+  if (groupCountEl) groupCountEl.textContent = Object.keys(dupeGroups).length;
+  if (extraCountEl) extraCountEl.textContent = totalExtras;
   const list = document.getElementById('dupeGroupList');
   if (list) {
     list.innerHTML = Object.values(dupeGroups).map(g => `
       <div class="dupe-group">
-        <span class="dupe-group-title">${escHtml(g.title)}${g.year ? ` <span class="year">(${escHtml(g.year)})</span>` : ''}${g.type === 'series' ? ` <span class="badge badge-series">${g.season && g.episode ? `S${g.season}E${g.episode}` : g.season ? `Season ${g.season}` : 'Series'}</span>` : ''}</span>
-        <span class="dupe-group-count">${g.items.length} copies &middot; ${formatBytes(g.keepSize)} keep</span>
+        <div class="dupe-group-info">
+          <span class="dupe-group-title">${escHtml(g.title)}${g.year ? ` <span class="dupe-group-year">(${escHtml(g.year)})</span>` : ''}</span>
+          ${g.type === 'series' ? `<span class="badge badge-series">${g.season && g.episode ? `S${g.season}E${g.episode}` : g.season ? `Season ${g.season}` : 'Series'}</span>` : ''}
+        </div>
+        <div class="dupe-group-meta">
+          <span class="dupe-group-copies">${g.items.length} copies</span>
+          <span class="dupe-group-keep">${formatBytes(g.keepSize)} kept</span>
+        </div>
       </div>`).join('');
   }
   const btnDupes = document.getElementById('btnFindDupes');

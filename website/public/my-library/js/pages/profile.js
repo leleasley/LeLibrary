@@ -100,18 +100,24 @@ async function renderProfileView() {
     fetch('/api/torbox/user/subscriptions', { headers: { 'Authorization': 'Bearer ' + tbKey } })
       .then(r => r.json())
       .then(subData => {
+        console.log('[LeLibrary] TorBox subscriptions response:', JSON.stringify(subData, null, 2));
         if (!subData.success || !subData.data) return;
         const subs = Array.isArray(subData.data) ? subData.data : [subData.data];
         if (!subs.length) return;
         const info = document.getElementById('tbProfileInfo');
         if (!info) return;
-        const subHtml = subs.map(s => renderProfileInfo([
-          { label: 'Plan Name', value: escHtml(s.name || s.plan_name || 'N/A') },
-          { label: 'Status', value: escHtml(s.status || s.state || 'N/A') },
-          { label: 'Next Billing', value: escHtml(s.next_billing_at ? new Date(s.next_billing_at).toLocaleDateString() : 'N/A') },
-          { label: 'Expires', value: escHtml(s.expires_at ? new Date(s.expires_at).toLocaleDateString() : 'N/A') },
-          { label: 'Price', value: escHtml(s.amount ? '\u00A3' + (s.amount / 100).toFixed(2) : 'N/A') },
-        ])).join('');
+        const subHtml = subs.map(s => {
+          const nextBilling = s.next_billing_at || s.next_billing_date || s.renewal_date || s.renew_date || '';
+          const expires = s.expires_at || s.expiration_date || s.end_date || s.valid_until || '';
+          const amount = s.amount || s.price || s.cost || s.amount_paid || s.monthly_price || '';
+          return renderProfileInfo([
+            { label: 'Plan Name', value: escHtml(s.name || s.plan_name || s.plan || 'N/A') },
+            { label: 'Status', value: escHtml(s.status || s.state || 'N/A') },
+            { label: 'Next Billing', value: escHtml(nextBilling ? new Date(nextBilling).toLocaleDateString() : 'N/A') },
+            { label: 'Expires', value: escHtml(expires ? new Date(expires).toLocaleDateString() : 'N/A') },
+            { label: 'Price', value: escHtml(amount ? '\u00A3' + (Number(amount) / 100).toFixed(2) : 'N/A') },
+          ]);
+        }).join('');
         info.innerHTML += `<div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px"><div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">Subscription</div>${subHtml}</div>`;
       })
       .catch(() => {});

@@ -1,5 +1,37 @@
 # Changelog
 
+## [4.6.0]
+
+### Trending and Popular catalogues
+
+- **Trending and Popular rows are here**: new discovery catalogues powered by TMDB, with titles opening with their IMDb metadata
+- **Other stream addons can power these rows**: add Torrentio, Comet, Meteor or MediaFusion from the setup page and LeLibrary gathers their streams for Trending and Popular titles, so you get plenty of options even for titles you don't own
+- **Series in Trending and Popular find their streams again**: episodes are now routed by their IMDb id, so your stream addons (Torrentio, Comet, Meteor, MediaFusion) can answer even for shows you don't own
+- **Rich detail pages for Trending and Popular titles**: actors are clickable, trailers play and network links show up, while My Movies, My Shows and LeLibrary Collections stay clean
+- **Stream rows show where they came from**: every stream now carries its source addon's name (Torrentio, Comet and so on) while still using the formatting style you picked
+- **Cleaner stream lists**: the number of streams returned for a title is capped, and the odd "More from the saga" row no longer appears as a playable stream on mobile
+- **Your library stays untouched**: My Movies, My Series and LeLibrary Collections always use your own debrid copies, and none of the new stream addons are enabled by default
+- **LeLibrary Franchises is now LeLibrary Collections**: same feature, cleaner name
+- **Rename your catalogues**: use the Edit option in the Catalogues tab to give LeLibrary Collections, Trending or Popular a name you like
+- **Clear reinstall reminder**: when you add stream addons, you're prompted to save and re-add the addon to Stremio or Nuvio so the change takes effect
+
+### Custom stream formatting
+
+- **Style your stream rows**: pick a preset (LeLibrary, Torrentio, Torbox, Google Drive, Prism, Tamtaro and more) or write your own name and description template for how every stream appears in the player list
+- **Live preview while you pick**: see exactly how a stream will look as you tweak the template, before you install
+- **Your chosen style everywhere**: streams gathered from other addons are now reformatted with the preset you chose, so owned and external streams look consistent
+- **Formatting fixes**: several presets now render cleanly instead of showing broken bracket characters, and the preview updates live when you switch presets
+- **Stream Addons made clearer**: the optional stream addons section has its own heading and shows the Torrentio, Comet, Meteor and MediaFusion logos
+- **Finished steps turn green**: the setup wizard now marks each completed step so you always know what you have done
+
+### My Library improvements
+
+- **Duplicate detector redesigned**: the duplicate panel now shows large stat numbers at a glance, with each duplicate group on its own row showing the title, copy count and size kept, and stacks cleanly on mobile
+- **Release notes modal redesigned**: the What's New modal now renders bullet points and section headers properly instead of plain text, shows release dates, and opens with a smooth animation
+- **View Files scrolls properly**: the file list in the item modal now scrolls within the modal instead of overflowing off the screen, on both desktop and mobile
+- **TorBox subscription fields fixed**: the Profile page now correctly shows your next billing date, expiry and subscription price for TorBox accounts
+- **Premiumize scans your whole cloud**: files inside folders now show up in My Movies, My Series and the web library, including content organized into your own folder structure
+
 ## [4.5.2]
 
 ### AllDebrid library loads again

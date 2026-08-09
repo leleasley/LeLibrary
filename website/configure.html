@@ -358,9 +358,9 @@
     input::placeholder { color: var(--border2); }
 
     .field-label {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text);
       display: flex;
       align-items: center;
       gap: 6px;
@@ -1009,6 +1009,11 @@
     .step-btn:hover { border-color: var(--border2); color: var(--text); }
     .step-btn.active { border-color: var(--amber); color: var(--amber); background: var(--amber-glow); }
     .step-btn.active span { background: var(--amber); color: var(--bg); }
+    .step-btn.verifying { border-color: var(--amber); color: var(--amber); background: var(--amber-glow); animation: stepPulse 0.9s ease-in-out infinite; }
+    .step-btn.verifying span { background: var(--amber); color: var(--bg); }
+    .step-btn.verified { border-color: var(--success); color: var(--success); }
+    .step-btn.verified span { background: var(--success); color: var(--bg); }
+    @keyframes stepPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
 
     .step-panel { display: none; }
     .step-panel.visible { display: block; animation: stepIn 0.35s ease; }
@@ -1103,13 +1108,14 @@
     .coll-steps li { font-size: 0.82rem; color: var(--text); line-height: 1.5; }
     .coll-steps li b { color: var(--white); }
     .coll-note {
-      font-size: 0.76rem;
-      color: var(--muted);
+      font-size: 0.82rem;
+      color: var(--text);
+      font-weight: 600;
       line-height: 1.5;
-      background: var(--surface2);
-      border: 1px solid var(--border);
+      background: var(--amber-glow);
+      border: 1px solid rgba(245, 158, 11, 0.45);
       border-radius: 8px;
-      padding: 10px 14px;
+      padding: 12px 14px;
     }
 
     /* ── CONNECT WIDGET (Sign in with Stremio / Nuvio) ── */
@@ -1302,8 +1308,12 @@
       .step-nav .btn-main { max-width: none; width: 100%; }
       .step-nav #btnPrevStep { align-self: flex-start; }
       .connected-card { flex-wrap: wrap; }
+      /* Bigger template boxes on mobile */
+      #streamNameTemplate, #streamDescTemplate { min-height: 120px; font-size: 0.9rem; line-height: 1.5; }
+      .cat-option { flex-wrap: wrap; }
     }
   </style>
+  <script src="/formatter.js?v=6"></script>
 </head>
 <body>
 
@@ -1345,11 +1355,12 @@
       <div id="tab-setup" class="cfg-tab-pane">
 
             <div class="stepper">
-        <button class="step-btn active" data-step="1" type="button" onclick="goToStep(1)"><span>1</span>Providers</button>
-        <button class="step-btn" data-step="2" type="button" onclick="goToStep(2)"><span>2</span>Metadata</button>
-        <button class="step-btn" data-step="3" type="button" onclick="goToStep(3)"><span>3</span>Advanced</button>
-        <button class="step-btn" data-step="4" type="button" onclick="goToStep(4)"><span>4</span>Connect</button>
-        <button class="step-btn" data-step="5" type="button" onclick="goToStep(5)"><span>5</span>Preview</button>
+        <button class="step-btn active" data-step="1" type="button" onclick="advanceStep(1)"><span>1</span>Providers</button>
+        <button class="step-btn" data-step="2" type="button" onclick="advanceStep(2)"><span>2</span>Metadata</button>
+        <button class="step-btn" data-step="3" type="button" onclick="advanceStep(3)"><span>3</span>Streams</button>
+        <button class="step-btn" data-step="4" type="button" onclick="advanceStep(4)"><span>4</span>Advanced</button>
+        <button class="step-btn" data-step="5" type="button" onclick="advanceStep(5)"><span>5</span>Connect</button>
+        <button class="step-btn" data-step="6" type="button" onclick="advanceStep(6)"><span>6</span>Preview</button>
       </div>
 
 <div class="step-panel visible" id="panel-1">
@@ -1536,11 +1547,72 @@
             </div>
 
 <div class="step-panel" id="panel-3">
-<!-- STEP 3: ADVANCED SETTINGS -->
+<!-- STEP 3: STREAM FORMATTER -->
+      <div class="step">
+        <div class="step-head">
+          <div class="step-num">3</div>
+          <div>
+            <h2>Stream Format</h2>
+            <p>Customise how each stream looks in the player list.</p>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="field">
+            <div class="field-label">Preset</div>
+            <select id="streamPreset" onchange="onStreamPresetChange()">
+              <option value="lelibrary">LeLibrary</option>
+              <option value="torrentio">Torrentio</option>
+              <option value="torbox">Torbox</option>
+              <option value="gdrive">Google Drive</option>
+              <option value="lightgdrive">Light GDrive</option>
+              <option value="minimalisticgdrive">Minimalistic GDrive</option>
+              <option value="prism">Prism</option>
+              <option value="tamtaro">Tamtaro</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+
+          <div class="field" style="margin-top:12px">
+            <div class="field-label">Name Template</div>
+            <textarea id="streamNameTemplate" rows="3" spellcheck="false" style="font-family:var(--mono,monospace);font-size:0.82rem;resize:vertical;width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text)" oninput="updateStreamPreview()"></textarea>
+          </div>
+
+          <div class="field">
+            <div class="field-label">Description Template</div>
+            <textarea id="streamDescTemplate" rows="4" spellcheck="false" style="font-family:var(--mono,monospace);font-size:0.82rem;resize:vertical;width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text)" oninput="updateStreamPreview()"></textarea>
+          </div>
+
+          <div style="margin-top:8px;font-size:0.72rem;color:var(--muted)">
+            Variables: <code>{provider}</code> <code>{providerEmoji}</code> <code>{quality}</code> <code>{source}</code> <code>{codec}</code> <code>{audio}</code> <code>{visualTags}</code> <code>{size}</code> <code>{sub}</code> <code>{group}</code> <code>{filename}</code> <code>{type}</code>
+          </div>
+
+          <div style="margin-top:14px">
+            <div class="field-label" style="margin-bottom:8px">Preview</div>
+            <div id="streamPreview" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;min-height:80px;font-size:0.82rem">
+              <span style="color:var(--muted)">Select a template to see a preview</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="step-card" id="streamAddonsCard" style="margin-top:18px">
+          <h3 style="margin:0 0 4px 0;font-size:1.05rem;color:var(--white);display:flex;align-items:center;gap:8px">🎛️ Stream Addons <span class="beta">Optional</span></h3>
+          <p class="field-hint" style="margin:2px 0 12px 0">
+            Power the <strong>Trending</strong> and <strong>Popular</strong> catalogue rows by letting LeLibrary pull streams
+            from other addons. None are enabled by default. Your library rows (My Movies, My Series, LeLibrary Collections)
+            are <strong>never</strong> affected — they keep using your own debrid copies.
+          </p>
+          <div class="cat-options" id="streamAddonList"></div>
+        </div>
+      </div>
+    </div>
+
+<div class="step-panel" id="panel-4">
+<!-- STEP 4: ADVANCED SETTINGS -->
       <div class="step">
         <div class="collapsible-header" onclick="toggleSection(this)" style="padding:0;margin:0">
           <div class="step-head" style="margin:0;flex:1">
-            <div class="step-num">3</div>
+            <div class="step-num">4</div>
             <div>
               <h2>Advanced settings</h2>
               <p>Catalog names, poster art and custom streams — all optional.</p>
@@ -1549,21 +1621,8 @@
           <span class="collapse-arrow open" style="margin-right:16px">▸</span>
         </div>
         <div class="collapsible-body open">
-          <div class="field" style="margin-bottom:14px">
-            <div class="field-label">Movies catalog name</div>
-            <input type="text" id="catNameMovies" placeholder="🎬 My Movies" />
-          </div>
-          <div class="field" style="margin-bottom:14px">
-            <div class="field-label">Series catalog name</div>
-            <input type="text" id="catNameSeries" placeholder="📺 My Series" />
-          </div>
-          <div class="field" id="catNameAnimeField" style="margin-bottom:14px">
-            <div class="field-label">Anime catalog name</div>
-            <input type="text" id="catNameAnime" placeholder="🍥 LeLibrary Anime" />
-          </div>
-          <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;margin-bottom:16px">
-            <input type="checkbox" id="hideAnime" onchange="onHideAnimeChange()" /> Hide anime catalog
-          </label>
+          <!-- Catalogue names + hide anime moved to the Edit Catalogues tab -->
+          <input type="checkbox" id="hideAnime" style="display:none" />
 
           <div class="field" style="margin-bottom:14px">
             <div class="field-label">Poster Service</div>
@@ -1571,8 +1630,14 @@
               <option value="">None (TMDB default)</option>
               <option value="erdb">ERDB — EasyRatingsDB (ratings on posters)</option>
               <option value="rpdb">RPDB — Rating Poster DB (ratings on posters)</option>
+              <option value="betterposter">BetterPosters — btttr.cc artwork</option>
               <option value="fanart">Fanart.tv (high-res alternative art)</option>
             </select>
+          </div>
+
+          <div class="field" id="betterposterField" style="display:none;margin-bottom:14px">
+            <div class="field-label">BetterPosters</div>
+            <p class="field-hint" style="margin:0">Applies poster-default artwork from btttr.cc to detail pages. No key required — only titles that TMDB already maps to an IMDb id get the new poster; everything else keeps its normal art.</p>
           </div>
 
           <div class="field" id="erdbField" style="display:none;margin-bottom:14px">
@@ -1642,6 +1707,7 @@
 
           <!-- Custom Streams -->
           <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+            <div style="font-size:0.9rem;font-weight:700;color:var(--white);margin-bottom:6px">Custom Streams</div>
             <p class="field-hint" style="margin:0 0 12px 0">Inject your own direct stream URLs alongside debrid streams in Stremio.</p>
             <div id="customStreamsList"></div>
             <div class="field-row" style="grid-template-columns:2fr 3fr 1fr auto;align-items:end">
@@ -1670,8 +1736,8 @@
 
             </div>
 
-<div class="step-panel" id="panel-4">
-      <!-- STEP 4: CONNECT MEDIA PLAYER -->
+<div class="step-panel" id="panel-5">
+      <!-- STEP 5: CONNECT MEDIA PLAYER -->
       <div class="step">
         <div class="step-head">
           <div class="step-num">4</div>
@@ -1684,8 +1750,8 @@
       </div>
       </div>
 
-<div class="step-panel" id="panel-5">
-<!-- STEP 5: PREVIEW & INSTALL -->
+<div class="step-panel" id="panel-6">
+      <!-- STEP 6: PREVIEW & INSTALL -->
       <div class="step">
         <div class="step-head">
           <div class="step-num">5</div>
@@ -1720,32 +1786,36 @@
             <span class="arr">›</span>
           </button>
 
-          <a class="btn-main btn-stremio" id="btnDesktop" href="#">
+          <button class="btn-main btn-stremio" id="btnDesktop" type="button" onclick="pushAddonTo('stremio')" style="cursor:pointer;font-family:var(--font)">
             <div class="ico"><img src="/stremio.svg" alt="Stremio" style="width:20px;height:20px" /></div>
             <div class="txt">
-              <span>Install on Stremio (Desktop / Mobile)</span>
-              <small>Opens the app and installs the addon</small>
+              <span>Push to Stremio</span>
+              <small>Installs LeLibrary on your connected Stremio account</small>
             </div>
             <span class="arr">›</span>
-          </a>
+          </button>
 
-          <a class="btn-main btn-nuvio" id="btnNuvio" href="#" target="_blank" rel="noopener">
+          <button class="btn-main btn-nuvio" id="btnNuvio" type="button" onclick="pushAddonTo('nuvio')" style="cursor:pointer;font-family:var(--font)">
             <div class="ico"><img src="/nuvio.png" alt="Nuvio" style="width:20px;height:20px" /></div>
             <div class="txt">
-              <span>Install on Nuvio</span>
-              <small>Opens Nuvio app and installs the addon</small>
+              <span>Push to Nuvio</span>
+              <small>Installs LeLibrary on your connected Nuvio account</small>
             </div>
             <span class="arr">›</span>
-          </a>
+          </button>
 
           <a class="btn-main btn-outline" id="btnWeb" href="#" target="_blank" rel="noopener">
             <div class="ico"><img src="/stremio.svg" alt="Stremio" style="width:20px;height:20px" /></div>
             <div class="txt">
-              <span>Install via Stremio Web</span>
+              <span>Install manually via Stremio Web</span>
               <small>Use at web.stremio.com in the browser</small>
             </div>
             <span class="arr">›</span>
           </a>
+
+          <div id="pushNotConnectedHint" style="display:none;margin-top:4px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:8px;padding:10px 14px;font-size:0.78rem;color:var(--text);line-height:1.5;text-align:center">
+            You haven't configured Nuvio/Stremio. <a href="#" onclick="goToStep(5);return false" style="color:var(--amber)">Sign in</a> to be able to use the push to feature.
+          </div>
 
           <button class="btn-main btn-gen" id="btnRefresh" onclick="clearCache()" style="display:none;background:var(--surface2);color:var(--text);border:1px solid var(--border)">
             <div class="ico">🔄</div>
@@ -1781,7 +1851,7 @@
 
       <div class="step-nav">
         <button class="btn-copy-url" id="btnPrevStep" type="button" onclick="goToStep(currentStep-1)">← Back</button>
-        <button class="btn-main btn-gen" id="btnNextStep" type="button" onclick="goToStep(currentStep+1)">
+        <button class="btn-main btn-gen" id="btnNextStep" type="button" onclick="advanceStep(currentStep+1)">
           <div class="ico">›</div>
           <div class="txt"><span id="nextStepLabel">Next: Metadata</span><small>Continue to the next step</small></div>
         </button>
@@ -1831,51 +1901,26 @@
           </div>
 
           <div class="step-card">
-            <div class="field">
-              <div class="field-label">Your catalogues</div>
-              <div class="cat-options">
-                <label class="cat-option">
-                  <input type="checkbox" id="editCatFranchises" checked onchange="setCatOption('franchises', this.checked)" />
-                  <div class="co-info">
-                    <strong>LeLibrary Franchises</strong>
-                    <small>Your owned films grouped into franchises — each one becomes a folder of movies.</small>
-                  </div>
-                </label>
-                <label class="cat-option disabled">
-                  <input type="checkbox" id="editCatTrending" disabled />
-                  <div class="co-info">
-                    <strong>Trending</strong>
-                    <small>Trending titles from TMDB.</small>
-                  </div>
-                  <span class="co-coming">Coming soon</span>
-                </label>
-                <label class="cat-option disabled">
-                  <input type="checkbox" id="editCatPopular" disabled />
-                  <div class="co-info">
-                    <strong>Popular</strong>
-                    <small>Popular titles from TMDB.</small>
-                  </div>
-                  <span class="co-coming">Coming soon</span>
-                </label>
-                <label class="cat-option">
-                  <input type="checkbox" id="editHideFranchiseRows" checked onchange="setHideFranchiseRows(this.checked)" />
-                  <div class="co-info">
-                    <strong>Hide franchise rows from Home</strong>
-                    <small>Keep them available inside LeLibrary Franchises without duplicating every franchise on Home.</small>
-                  </div>
-                </label>
-              </div>
-            </div>
-
             <div class="coll-note">
               These control what's installed when you push from the Setup tab. Importing catalogues and collections
               from other addons (AIOmetadata, Nuvio.json, etc.) is coming soon.
             </div>
 
             <div class="coll-note">
-              <strong>Keeping collections up to date:</strong> new films added to a franchise you already have will appear
-              automatically (press refresh in Nuvio). A brand-new franchise needs a quick re-push from Step 5 to show up,
-              because that's the step that imports the collections file.
+              <strong>Collections stay up to date:</strong> new films added to a franchise you already own appear
+              automatically (Nuvio fetches the folder's catalog live). One <strong>LeLibrary Collections</strong> row
+              holds every franchise: in Nuvio it shows as folders, and in Stremio as a genre filter.
+              You can use emojis in any catalogue name.
+              <br /><br />When you add a <strong>brand-new franchise</strong> to your library, give it one quick re-push from the
+              Setup tab and its folder will appear in Nuvio.
+            </div>
+
+            <div class="field">
+              <div class="field-label">Your catalogues <small style="font-weight:400;color:var(--muted)">— use ↑ ↓ to reorder, ✎ to rename</small></div>
+              <div class="cat-options" id="catalogueList"></div>
+              <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;margin-top:12px">
+                <input type="checkbox" id="editHideAnime" onchange="toggleHideAnime(this.checked)" /> Hide anime catalogue
+              </label>
             </div>
 
             <button class="btn-main btn-gen" onclick="switchTab('setup'); goToPushStep()">
@@ -1936,22 +1981,22 @@
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:440px;width:90%;text-align:center">
       <div style="font-size:2rem;margin-bottom:12px">✅</div>
       <h2 style="font-size:1.1rem;margin:0 0 8px 0;color:var(--text)">Settings Saved</h2>
-      <p style="font-size:0.85rem;color:var(--muted);margin:0 0 20px 0;line-height:1.5">Your config token has changed.<br><strong style="color:var(--text)">Reinstall the addon</strong> in Stremio or Nuvio to apply your new settings.</p>
+      <p style="font-size:0.85rem;color:var(--muted);margin:0 0 20px 0;line-height:1.5" id="modalReinstallText">Your config token has changed.<br><strong style="color:var(--text)">Reinstall the addon</strong> in Stremio or Nuvio to apply your new settings.</p>
       <div style="display:flex;gap:6px;margin-bottom:16px;align-items:stretch">
         <div style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:0.75rem;word-break:break-all;text-align:left;color:var(--amber);max-height:60px;overflow-y:auto;display:flex;align-items:center;font-family:var(--mono,monospace);line-height:1.4" id="modalManifestUrl"></div>
         <button onclick="copyModalUrl()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;color:var(--text);cursor:pointer;font-size:0.8rem;white-space:nowrap;flex-shrink:0;transition:all 0.15s;font-family:var(--font)" onmouseover="this.style.borderColor='var(--amber)'" onmouseout="this.style.borderColor=''">Copy</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
-        <a id="modalReinstall" href="#" class="btn-main btn-stremio" style="text-decoration:none;justify-content:center">
+        <button id="modalReinstall" type="button" class="btn-main btn-stremio" style="cursor:pointer;font-family:var(--font);justify-content:center" onclick="closeReinstallModal();pushAddonTo('stremio')">
           <div class="ico"><img src="/stremio.svg" alt="Stremio" style="width:20px;height:20px" /></div>
-          <div class="txt"><span>Reinstall on Stremio</span></div>
+          <div class="txt"><span>Push to Stremio</span></div>
           <span class="arr">›</span>
-        </a>
-        <a id="modalReinstallNuvio" href="#" class="btn-main btn-nuvio" target="_blank" rel="noopener" style="text-decoration:none;justify-content:center">
+        </button>
+        <button id="modalReinstallNuvio" type="button" class="btn-main btn-nuvio" style="cursor:pointer;font-family:var(--font);justify-content:center" onclick="closeReinstallModal();pushAddonTo('nuvio')">
           <div class="ico"><img src="/nuvio.png" alt="Nuvio" style="width:20px;height:20px" /></div>
-          <div class="txt"><span>Reinstall on Nuvio</span></div>
+          <div class="txt"><span>Push to Nuvio</span></div>
           <span class="arr">›</span>
-        </a>
+        </button>
         <button class="btn-main" onclick="closeReinstallModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);justify-content:center;cursor:pointer;font-family:var(--font);font-size:0.85rem;padding:10px 20px;border-radius:8px">
           Close
         </button>
@@ -1992,6 +2037,91 @@
     let initialConfig = null;
     let customStreams = [];
     let hasExistingToken = false;
+
+    // Persist the heavy stream settings (addons + format) server-side in Redis
+    // keyed by the user's hash, so they survive reloads, device switches and
+    // re-pushes and keep the install token small. Fire-and-forget: the token
+    // itself is still saved normally, this is a supplement.
+    function saveConfigToServer(cfg) {
+      if (!cfg || typeof cfg !== 'object') return;
+      try {
+        fetch('/api/save-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ config: cfg }),
+        }).catch(() => {});
+      } catch { /* non-fatal */ }
+    }
+
+    // Build the TRIMMED config object that goes into the token (only
+    // non-default / non-empty values). Used by both generate() and the push
+    // flow so the token stays well under the 2048-char server limit — the full
+    // form state (getCurrentConfig) would blow past it for 4 providers.
+    function buildSavedConfig() {
+      const KEY_FIELD = { torbox: 'torboxApiKey', realdebrid: 'rdApiKey', alldebrid: 'adApiKey', premiumize: 'pmApiKey' };
+      const provider = document.getElementById('provider').value;
+      const tmdbApiKey = document.getElementById('tmdbApiKey').value.trim();
+      const rdCatalog = document.getElementById('rdCatalog').value;
+      const sortBy = document.getElementById('sortBy').value;
+      const lang = document.getElementById('lang').value;
+      const posterProvider = document.getElementById('posterProvider').value;
+      const erdbToken = document.getElementById('erdbToken').value.trim();
+      const rpdbKey = document.getElementById('rpdbKey').value.trim();
+      const fanartKey = document.getElementById('fanartKey').value.trim();
+      const omdbKey = document.getElementById('omdbKey').value.trim();
+      const enhanceBackground = document.getElementById('enhanceBackground').checked;
+      const enhanceLogo = document.getElementById('enhanceLogo').checked;
+      const hideAnime = document.getElementById('hideAnime').checked;
+
+      const cfg = { provider, tmdbApiKey, sortBy, lang, rdCatalog };
+      for (const id of getProviderSet()) {
+        const el = document.getElementById(KEY_FIELD[id]);
+        const key = (el && el.value.trim()) || '';
+        if (key) cfg[KEY_FIELD[id]] = key;
+      }
+      if (posterProvider) {
+        cfg.posterProvider = posterProvider;
+        if (posterProvider === 'erdb' && erdbToken) cfg.erdbToken = erdbToken;
+        else if (posterProvider === 'rpdb' && rpdbKey) cfg.rpdbKey = rpdbKey;
+        else if (posterProvider === 'fanart' && fanartKey) cfg.fanartKey = fanartKey;
+        if (posterProvider === 'erdb' || posterProvider === 'rpdb') {
+          cfg.enhanceBackground = enhanceBackground;
+          cfg.enhanceLogo = enhanceLogo;
+        }
+      }
+      if (omdbKey) cfg.omdbKey = omdbKey;
+      if (customStreams.length > 0) cfg.customStreams = customStreams;
+      if (catNames.movies && catNames.movies !== '🎬 My Movies') cfg.catNameMovies = catNames.movies;
+      if (catNames.series && catNames.series !== '📺 My Series') cfg.catNameSeries = catNames.series;
+      if (catNames.anime && catNames.anime !== '🍥 LeLibrary Anime') cfg.catNameAnime = catNames.anime;
+      if (hideAnime) cfg.hideAnime = true;
+      const streamPreset = document.getElementById('streamPreset').value;
+      const streamNameTemplate = document.getElementById('streamNameTemplate').value.trim();
+      const streamDescTemplate = document.getElementById('streamDescTemplate').value.trim();
+      if (streamPreset && streamPreset !== 'lelibrary') {
+        cfg.streamPreset = streamPreset;
+        if (streamPreset === 'custom') {
+          if (streamNameTemplate) cfg.streamNameTemplate = streamNameTemplate;
+          if (streamDescTemplate) cfg.streamDescTemplate = streamDescTemplate;
+        }
+      }
+      if (catSelection.trendingMovies) cfg.catalogTrendingMovies = true;
+      if (catSelection.trendingSeries) cfg.catalogTrendingSeries = true;
+      if (catSelection.popularMovies) cfg.catalogPopularMovies = true;
+      if (catSelection.popularSeries) cfg.catalogPopularSeries = true;
+      if (!catSelection.movies) cfg.catalogMovies = false;
+      if (!catSelection.series) cfg.catalogSeries = false;
+      if (!catSelection.anime) cfg.catalogAnime = false;
+      if (!catSelection.franchises) cfg.catalogFranchises = false;
+      if (catNames.trendingMovies && catNames.trendingMovies !== '🔥 Trending Movies') cfg.trendingMoviesName = catNames.trendingMovies;
+      if (catNames.trendingSeries && catNames.trendingSeries !== '🔥 Trending Series') cfg.trendingSeriesName = catNames.trendingSeries;
+      if (catNames.popularMovies && catNames.popularMovies !== '⭐ Popular Movies') cfg.popularMoviesName = catNames.popularMovies;
+      if (catNames.popularSeries && catNames.popularSeries !== '⭐ Popular Series') cfg.popularSeriesName = catNames.popularSeries;
+      if (catNames.franchises && catNames.franchises !== 'LeLibrary Collections') cfg.collectionsName = catNames.franchises;
+      if (catOrder && JSON.stringify(catOrder) !== JSON.stringify(DEFAULT_CAT_ORDER)) cfg.catalogOrder = catOrder.slice();
+      if (streamAddons.length > 0) cfg.streamAddons = streamAddons;
+      return cfg;
+    }
 
     const PROVIDER_META = {
       torbox: { label: 'TorBox', logo: '/provider-logos/torbox.png' },
@@ -2040,7 +2170,7 @@
       const tmdb = document.getElementById('tmdbApiKey').value.trim();
       document.getElementById('setupTmdb').textContent = !tmdb ? 'Not set' : looksLikeV4Token(tmdb) ? '⚠️ v4 — use v3' : '✓ Set';
 
-      const posters = { '': 'TMDB', erdb: 'ERDB', rpdb: 'RPDB', fanart: 'Fanart.tv' };
+      const posters = { '': 'TMDB', erdb: 'ERDB', rpdb: 'RPDB', betterposter: 'BetterPosters', fanart: 'Fanart.tv' };
       document.getElementById('setupPoster').textContent = posters[document.getElementById('posterProvider').value] || 'TMDB';
 
       document.getElementById('setupStreams').textContent = customStreams.length ? `${customStreams.length} added` : 'None';
@@ -2048,8 +2178,6 @@
     }
 
     function onHideAnimeChange() {
-      const hide = document.getElementById('hideAnime').checked;
-      document.getElementById('catNameAnimeField').style.display = hide ? 'none' : 'flex';
       checkChanged();
     }
 
@@ -2058,7 +2186,8 @@
       document.getElementById('erdbField').style.display = val === 'erdb' ? 'flex' : 'none';
       document.getElementById('rpdbField').style.display = val === 'rpdb' ? 'flex' : 'none';
       document.getElementById('fanartField').style.display = val === 'fanart' ? 'flex' : 'none';
-      document.getElementById('posterToggles').style.display = val && val !== 'fanart' ? 'flex' : 'none';
+      document.getElementById('betterposterField').style.display = val === 'betterposter' ? 'flex' : 'none';
+      document.getElementById('posterToggles').style.display = (val === 'erdb' || val === 'rpdb') ? 'flex' : 'none';
       updatePosterPreview();
       checkChanged();
     }
@@ -2071,7 +2200,7 @@
       }, label: 'ERDB' }, rpdb: { url: () => {
         const k = document.getElementById('rpdbKey').value.trim();
         return k ? `https://api.ratingposterdb.com/${encodeURIComponent(k)}/imdb/poster-default/tt0133093.jpg?fallback=true` : null;
-      }, label: 'RPDB' }, fanart: { url: () => null, label: 'Fanart.tv' } };
+      }, label: 'RPDB' }, betterposter: { url: () => 'https://btttr.cc/poster/imdb/poster-default/tt0114709.jpg', label: 'BetterPoster' }, fanart: { url: () => null, label: 'Fanart.tv' } };
       const s = samples[provider];
       let html;
       if (!provider) {
@@ -2129,10 +2258,28 @@
         enhanceBackground: document.getElementById('enhanceBackground').checked,
         enhanceLogo: document.getElementById('enhanceLogo').checked,
         customStreams: customStreams,
-        catNameMovies: document.getElementById('catNameMovies').value.trim(),
-        catNameSeries: document.getElementById('catNameSeries').value.trim(),
-        catNameAnime: document.getElementById('catNameAnime').value.trim(),
+        catNameMovies: catNames.movies,
+        catNameSeries: catNames.series,
+        catNameAnime: catNames.anime,
         hideAnime: document.getElementById('hideAnime').checked,
+        streamPreset: document.getElementById('streamPreset').value,
+        streamNameTemplate: document.getElementById('streamNameTemplate').value,
+        streamDescTemplate: document.getElementById('streamDescTemplate').value,
+        catalogTrendingMovies: catSelection.trendingMovies,
+        catalogTrendingSeries: catSelection.trendingSeries,
+        catalogPopularMovies: catSelection.popularMovies,
+        catalogPopularSeries: catSelection.popularSeries,
+        catalogMovies: catSelection.movies,
+        catalogSeries: catSelection.series,
+        catalogAnime: catSelection.anime,
+        catalogFranchises: catSelection.franchises,
+        trendingMoviesName: catNames.trendingMovies,
+        trendingSeriesName: catNames.trendingSeries,
+        popularMoviesName: catNames.popularMovies,
+        popularSeriesName: catNames.popularSeries,
+        collectionsName: catNames.franchises,
+        catalogOrder: catOrder.slice(),
+        streamAddons: streamAddons,
       };
     }
 
@@ -2157,17 +2304,37 @@
         a.catNameMovies === b.catNameMovies &&
         a.catNameSeries === b.catNameSeries &&
         a.catNameAnime === b.catNameAnime &&
-        a.hideAnime === b.hideAnime;
+        a.hideAnime === b.hideAnime &&
+        a.streamPreset === b.streamPreset &&
+        a.streamNameTemplate === b.streamNameTemplate &&
+        a.streamDescTemplate === b.streamDescTemplate &&
+        a.catalogTrendingMovies === b.catalogTrendingMovies &&
+        a.catalogTrendingSeries === b.catalogTrendingSeries &&
+        a.catalogPopularMovies === b.catalogPopularMovies &&
+        a.catalogPopularSeries === b.catalogPopularSeries &&
+        a.catalogMovies === b.catalogMovies &&
+        a.catalogSeries === b.catalogSeries &&
+        a.catalogAnime === b.catalogAnime &&
+        a.catalogFranchises === b.catalogFranchises &&
+        a.trendingMoviesName === b.trendingMoviesName &&
+        a.trendingSeriesName === b.trendingSeriesName &&
+        a.popularMoviesName === b.popularMoviesName &&
+        a.popularSeriesName === b.popularSeriesName &&
+        a.collectionsName === b.collectionsName &&
+        JSON.stringify(a.catalogOrder || []) === JSON.stringify(b.catalogOrder || []) &&
+        JSON.stringify(a.streamAddons || []) === JSON.stringify(b.streamAddons || []);
     }
 
     function checkChanged() {
       updateSetupSummary();
       if (typeof updateCataloguesUI === 'function') updateCataloguesUI();
+      if (typeof renderCataloguesOptions === 'function') renderCataloguesOptions();
       if (!initialConfig) return;
       const changed = !configsEqual(getCurrentConfig(), initialConfig);
       const btn = document.getElementById('btnGenerate');
       const banner = document.getElementById('unsavedBanner');
       banner.style.display = changed ? 'flex' : 'none';
+      updateInstallPushHint();
       if (hasExistingToken) {
         btn.style.display = changed ? '' : 'none';
       } else {
@@ -2387,7 +2554,7 @@
     }
 
     async function generate(opts = {}) {
-      const { skipVerify = false } = opts;
+      const { skipVerify = false, skipSave = false } = opts;
       const provider     = document.getElementById('provider').value;
       if (provider === 'none' || provider === '') { showToast('Select at least one provider'); return; }
       const providerSet  = getProviderSet();
@@ -2407,9 +2574,9 @@
       const omdbKey      = document.getElementById('omdbKey').value.trim();
       const enhanceBackground = document.getElementById('enhanceBackground').checked;
       const enhanceLogo  = document.getElementById('enhanceLogo').checked;
-      const catNameMovies = document.getElementById('catNameMovies').value.trim();
-      const catNameSeries = document.getElementById('catNameSeries').value.trim();
-      const catNameAnime  = document.getElementById('catNameAnime').value.trim();
+      const catNameMovies = catNames.movies;
+      const catNameSeries = catNames.series;
+      const catNameAnime  = catNames.anime;
       const hideAnime     = document.getElementById('hideAnime').checked;
 
       let valid = true;
@@ -2499,32 +2666,19 @@
         showToast('Keys validated ✓');
       }
 
-      const cfg = { provider, tmdbApiKey, sortBy, lang, rdCatalog };
-      for (const id of providerSet) {
-        const el = document.getElementById(KEY_FIELD[id]);
-        const key = (el && el.value.trim()) || '';
-        if (key) cfg[KEY_FIELD[id]] = key;
-      }
-      if (posterProvider) {
-        cfg.posterProvider = posterProvider;
-        if (posterProvider === 'erdb' && erdbToken) cfg.erdbToken = erdbToken;
-        else if (posterProvider === 'rpdb' && rpdbKey) cfg.rpdbKey = rpdbKey;
-        else if (posterProvider === 'fanart' && fanartKey) cfg.fanartKey = fanartKey;
-        if (posterProvider !== 'fanart') {
-          cfg.enhanceBackground = enhanceBackground;
-          cfg.enhanceLogo = enhanceLogo;
-        }
-      }
-      if (omdbKey) cfg.omdbKey = omdbKey;
-      if (customStreams.length > 0) cfg.customStreams = customStreams;
-      if (catNameMovies) cfg.catNameMovies = catNameMovies;
-      if (catNameSeries) cfg.catNameSeries = catNameSeries;
-      if (catNameAnime) cfg.catNameAnime = catNameAnime;
-      if (hideAnime) cfg.hideAnime = true;
+      const cfg = buildSavedConfig();
+      if (!skipSave) saveConfigToServer(cfg);
 
       const urls = buildUrls(cfg);
       lastUrls = urls;
       const { manifestUrl, stremioDeep, stremioWeb, nuvioDeep } = urls;
+
+      // For existing installs, "Save" updates the address bar to the NEW token
+      // so a refresh keeps these settings (previously the old token stayed in
+      // the URL and your changes were silently lost on reload).
+      if (hasExistingToken) {
+        try { history.replaceState(null, '', `${window.location.origin}/${urls.encoded}/configure`); } catch {}
+      }
 
       // Show the install links regardless (for both new and existing users)
       document.getElementById('manifestUrl').textContent = manifestUrl;
@@ -2539,22 +2693,26 @@
       if (hasExistingToken) {
         if (initialConfig && configsEqual(getCurrentConfig(), initialConfig)) {
           // No changes — just show links, no flashing, no modal
-          document.getElementById('modalReinstall').href = stremioDeep;
-          document.getElementById('modalReinstallNuvio').href = nuvioDeep;
           document.getElementById('modalManifestUrl').textContent = manifestUrl;
           btn.disabled = false;
           document.getElementById('genBtnTitle').textContent = 'Save';
           return;
         }
         // Changes detected — show modal
-        document.getElementById('modalReinstall').href = stremioDeep;
-        document.getElementById('modalReinstallNuvio').href = nuvioDeep;
         document.getElementById('modalManifestUrl').textContent = manifestUrl;
         initialConfig = getCurrentConfig();
         document.getElementById('unsavedBanner').style.display = 'none';
         document.getElementById('btnGenerate').style.display = 'none';
         btn.disabled = false;
         document.getElementById('genBtnTitle').textContent = 'Save';
+        if (streamAddons.length > 0) {
+          document.getElementById('modalReinstallText').innerHTML =
+            `You have configured ${streamAddons.length} stream addon${streamAddons.length > 1 ? 's' : ''}.<br>` +
+            `<strong style="color:var(--text)">Save, then re-add the addon to Stremio / Nuvio</strong> for these changes to apply.`;
+        } else {
+          document.getElementById('modalReinstallText').innerHTML =
+            `Your config token has changed.<br><strong style="color:var(--text)">Reinstall the addon</strong> in Stremio or Nuvio to apply your new settings.`;
+        }
         document.getElementById('reinstallModal').style.display = 'flex';
         return;
       }
@@ -2591,7 +2749,7 @@
     }
 
     function resetForm() {
-      ['torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'catNameMovies', 'catNameSeries', 'catNameAnime'].forEach(id => {
+      ['torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey'].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         el.value = '';
@@ -2626,7 +2784,7 @@
       goToStep(1);
     }
 
-    const APP_VERSION = '4.5.2';
+    const APP_VERSION = '4.6.0';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');
@@ -2657,6 +2815,7 @@
       document.getElementById('versionDisplay').textContent = `v${APP_VERSION}`;
       checkVersion();
       renderCataloguesOptions();
+      renderStreamAddons();
       renderConnectAll();
       goToStep(1);
       if (restoreConnect()) {
@@ -2703,21 +2862,83 @@
           customStreams = cfg.customStreams;
           renderCustomStreams();
         }
-        if (cfg.catNameMovies) document.getElementById('catNameMovies').value = cfg.catNameMovies;
-        if (cfg.catNameSeries) document.getElementById('catNameSeries').value = cfg.catNameSeries;
-        if (cfg.catNameAnime) document.getElementById('catNameAnime').value = cfg.catNameAnime;
+        if (cfg.catNameMovies) catNames.movies = cfg.catNameMovies;
+        if (cfg.catNameSeries) catNames.series = cfg.catNameSeries;
+        if (cfg.catNameAnime) catNames.anime = cfg.catNameAnime;
         if (cfg.hideAnime) {
           document.getElementById('hideAnime').checked = true;
-          document.getElementById('catNameAnimeField').style.display = 'none';
         }
-        setTimeout(() => generate({ skipVerify: true }), 100);
+        if (cfg.streamPreset) document.getElementById('streamPreset').value = cfg.streamPreset;
+        if (cfg.streamPreset === 'custom') {
+          if (cfg.streamNameTemplate) document.getElementById('streamNameTemplate').value = cfg.streamNameTemplate;
+          if (cfg.streamDescTemplate) document.getElementById('streamDescTemplate').value = cfg.streamDescTemplate;
+        } else {
+          onStreamPresetChange();
+        }
+        if (cfg.catalogTrending) catSelection.trending = true;
+        // Discovery rows tick individually; legacy catalogTrending/catalogPopular
+        // (both at once) still work for older tokens.
+        if (cfg.catalogTrendingMovies || cfg.catalogTrending) catSelection.trendingMovies = true;
+        if (cfg.catalogTrendingSeries || cfg.catalogTrending) catSelection.trendingSeries = true;
+        if (cfg.catalogPopularMovies || cfg.catalogPopular) catSelection.popularMovies = true;
+        if (cfg.catalogPopularSeries || cfg.catalogPopular) catSelection.popularSeries = true;
+        if (cfg.catalogMovies === false) catSelection.movies = false;
+        if (cfg.catalogSeries === false) catSelection.series = false;
+        if (cfg.catalogAnime === false) catSelection.anime = false;
+        if (cfg.catalogFranchises === false) catSelection.franchises = false;
+        // Catalogue names (Edit Catalogues) — per-catalogue fields with legacy
+        // single trendingName/popularName fallback.
+        if (cfg.trendingMoviesName) catNames.trendingMovies = cfg.trendingMoviesName;
+        else if (cfg.trendingName) catNames.trendingMovies = cfg.trendingName;
+        if (cfg.trendingSeriesName) catNames.trendingSeries = cfg.trendingSeriesName;
+        else if (cfg.trendingName) catNames.trendingSeries = cfg.trendingName;
+        if (cfg.popularMoviesName) catNames.popularMovies = cfg.popularMoviesName;
+        else if (cfg.popularName) catNames.popularMovies = cfg.popularName;
+        if (cfg.popularSeriesName) catNames.popularSeries = cfg.popularSeriesName;
+        else if (cfg.popularName) catNames.popularSeries = cfg.popularName;
+        if (cfg.collectionsName) catNames.franchises = cfg.collectionsName;
+        if (Array.isArray(cfg.catalogOrder) && cfg.catalogOrder.length) catOrder = cfg.catalogOrder.slice();
+        if (cfg.streamAddons && Array.isArray(cfg.streamAddons)) streamAddons = cfg.streamAddons;
+        renderCataloguesOptions();
+        renderStreamAddons();
+        updateStreamPreview();
+        setTimeout(() => generate({ skipVerify: true, skipSave: true }), 100);
         initialConfig = getCurrentConfig();
         if (hasToken) document.getElementById('btnGenerate').style.display = 'none';
+
+        // Pre-fill stream settings from the server-side store when the token
+        // itself lacks them (they're saved to Redis on every Save/Push).
+        if (hasToken) {
+          fetch('/api/config/' + encodeURIComponent(token))
+            .then(r => r.json().catch(() => null))
+            .then(stored => {
+              if (!stored || typeof stored !== 'object') return;
+              let applied = false;
+              if (Array.isArray(stored.streamAddons) && !streamAddonsTouched) { streamAddons = stored.streamAddons; applied = true; }
+              if (stored.streamPreset) {
+                document.getElementById('streamPreset').value = stored.streamPreset;
+                applied = true;
+              }
+              if (stored.streamPreset === 'custom') {
+                if (stored.streamNameTemplate) document.getElementById('streamNameTemplate').value = stored.streamNameTemplate;
+                if (stored.streamDescTemplate) document.getElementById('streamDescTemplate').value = stored.streamDescTemplate;
+              } else if (stored.streamPreset && FMT && FMT.presets[stored.streamPreset]) {
+                document.getElementById('streamNameTemplate').value = FMT.presets[stored.streamPreset].name;
+                document.getElementById('streamDescTemplate').value = FMT.presets[stored.streamPreset].description;
+              }
+              if (applied) {
+                renderStreamAddons();
+                updateStreamPreview();
+                initialConfig = getCurrentConfig();
+              }
+            })
+            .catch(() => {});
+        }
       }
       updateSetupSummary();
 
       // Watch for changes on all config fields
-      const watchIds = ['provider', 'torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'rdCatalog', 'sortBy', 'lang', 'posterProvider', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'catNameMovies', 'catNameSeries', 'catNameAnime'];
+      const watchIds = ['provider', 'torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'rdCatalog', 'sortBy', 'lang', 'posterProvider', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'streamPreset'];
       watchIds.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
@@ -2908,13 +3129,13 @@
     }
 
     // ── Step-by-step wizard navigation ──
-    const STEP_LABELS = { 1: 'Next: Metadata', 2: 'Next: Advanced', 3: 'Next: Connect', 4: 'Next: Preview & install', 5: '' };
+    const STEP_LABELS = { 1: 'Next: Metadata', 2: 'Next: Streams', 3: 'Next: Advanced', 4: 'Next: Connect', 5: 'Next: Preview & install', 6: '' };
     let currentStep = 1;
 
     function goToStep(n) {
-      n = Math.max(1, Math.min(5, n));
+      n = Math.max(1, Math.min(6, n));
       currentStep = n;
-      for (let i = 1; i <= 5; i++) {
+      for (let i = 1; i <= 6; i++) {
         const panel = document.getElementById('panel-' + i);
         if (panel) panel.classList.toggle('visible', i === n);
         const btn = document.querySelector('.step-btn[data-step="' + i + '"]');
@@ -2922,10 +3143,10 @@
       }
       document.getElementById('btnPrevStep').style.visibility = n > 1 ? 'visible' : 'hidden';
       const next = document.getElementById('btnNextStep');
-      next.style.display = n === 5 ? 'none' : '';
+      next.style.display = n === 6 ? 'none' : '';
       document.getElementById('nextStepLabel').textContent = STEP_LABELS[n] || 'Continue';
-      if (n === 4) renderConnectAll();
-      if (n === 5) {
+      if (n === 5) renderConnectAll();
+      if (n === 6) {
         renderConnectAll();
         maybeAutoGenerate();
       }
@@ -2940,7 +3161,108 @@
 
     // Go to the push step: Step 5 if connected, otherwise Step 4 (connect first)
     function goToPushStep() {
-      goToStep(connectState.platform ? 5 : 4);
+      goToStep(connectState.platform ? 6 : 5);
+    }
+
+    // Step navigation with in-place API-key verification. When advancing past
+    // the Providers step (1) the provider keys are checked, and past Metadata
+    // (2) the TMDB key is checked — a "Verifying…" state is shown on the step
+    // button, then fields turn green with a toast before the step changes.
+    // Going back is instant; keys we can't confirm (network blip) don't block.
+    function advanceStep(n) {
+      n = Math.max(1, Math.min(6, n));
+      if (n <= currentStep) { goToStep(n); return; }
+      // Provider → API key input id (KEY_FIELD elsewhere is function-scoped, so
+      // it's inlined here to avoid a reference error).
+      const KEY_FIELD = { torbox: 'torboxApiKey', realdebrid: 'rdApiKey', alldebrid: 'adApiKey', premiumize: 'pmApiKey' };
+      const checks = [];
+      if (currentStep === 1) {
+        for (const id of getProviderSet()) {
+          const el = document.getElementById(KEY_FIELD[id]);
+          if (el && el.value.trim()) checks.push({ service: id, key: el.value.trim(), el });
+        }
+      } else if (currentStep === 2) {
+        const el = document.getElementById('tmdbApiKey');
+        if (el && el.value.trim()) checks.push({ service: 'tmdb', key: el.value.trim(), el });
+      }
+      if (checks.length === 0) { goToStep(n); return; }
+      // Verify in the background and always land on the next step — a slow or
+      // unreachable key service must never leave the wizard stuck.
+      verifyKeysForAdvance(n, checks).catch(() => goToStep(n));
+    }
+
+    async function verifyKeysForAdvance(n, checks) {
+      const stepBtn = document.querySelector('.step-btn[data-step="' + currentStep + '"]');
+      const origStepHtml = stepBtn ? stepBtn.innerHTML : null;
+      const nextBtn = document.getElementById('btnNextStep');
+      const nextLabel = document.getElementById('nextStepLabel');
+      const nextSmall = nextBtn ? nextBtn.querySelector('small') : null;
+      const origLabel = nextLabel ? nextLabel.textContent : '';
+      const origSmall = nextSmall ? nextSmall.textContent : '';
+
+      if (stepBtn) {
+        stepBtn.classList.remove('active', 'verified');
+        stepBtn.classList.add('verifying');
+        stepBtn.innerHTML = '<span></span>Verifying…';
+      }
+      if (nextBtn) nextBtn.disabled = true;
+      if (nextLabel) nextLabel.textContent = 'Verifying keys…';
+      if (nextSmall) nextSmall.textContent = 'Checking your API keys — one moment';
+      showToast('Verifying your API keys…');
+
+      // Verify each key with a hard cap so a slow upstream (TorBox can take a
+      // few seconds) never leaves the wizard frozen.
+      let results;
+      try {
+        results = await Promise.all(checks.map(c =>
+          fetch('/api/verify/' + c.service, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: c.key }),
+            signal: AbortSignal.timeout(15000)
+          })
+            .then(r => r.json().catch(() => ({ networkError: true })))
+            .then(d => ({ ...c, d }))
+            .catch(() => ({ ...c, d: { networkError: true } }))
+        ));
+      } catch {
+        results = checks.map(c => ({ ...c, d: { networkError: true } }));
+      }
+
+      if (stepBtn) {
+        stepBtn.classList.remove('verifying');
+        if (origStepHtml) stepBtn.innerHTML = origStepHtml;
+        stepBtn.classList.add('active');
+      }
+      if (nextBtn) nextBtn.disabled = false;
+      if (nextLabel) nextLabel.textContent = origLabel;
+      if (nextSmall) nextSmall.textContent = origSmall;
+
+      let allOk = true;
+      let anyConfirmed = false;
+      for (const { el, d, service } of results) {
+        if (d.valid) {
+          el.classList.remove('invalid');
+          el.classList.add('verified');
+          anyConfirmed = true;
+        } else if (d.networkError) {
+          // Can't confirm — don't block the user on our own hiccup
+        } else if (d.needPin) {
+          // Premiumize device authorization — show the PIN modal, wait for it
+          showPinModal(d.pin || '', d.deviceUrl || 'https://www.premiumize.me/device', service);
+          return;
+        } else {
+          el.classList.add('invalid');
+          allOk = false;
+        }
+      }
+      if (allOk && anyConfirmed) {
+        if (stepBtn) stepBtn.classList.add('verified');
+        showToast('Keys validated ✓');
+      } else if (!allOk) {
+        showToast('Some keys could not be verified — check the marked fields');
+      }
+      goToStep(n);
     }
 
     // If the setup fields are already valid, generate the install links for them
@@ -2954,7 +3276,7 @@
 
     // Sidebar / mobile "Generate" buttons jump to the install step and generate
     function goGenerate() {
-      goToStep(5);
+      goToStep(6);
       generate();
     }
 
@@ -2980,11 +3302,26 @@
     };
 
     // Which catalogues the user wants pushed (shared by Step 5 and the Catalogues tab)
-    const catSelection = { franchises: true, trending: false, popular: false };
-    let hideFranchiseRows = (() => {
-      try { return localStorage.getItem('lelibrary_hide_franchise_rows') !== 'false'; }
-      catch { return true; }
-    })();
+    const catSelection = { franchises: true, trendingMovies: false, trendingSeries: false, popularMovies: false, popularSeries: false, movies: true, series: true, anime: true };
+    // Renameable display names for each catalogue (stored in the config token)
+    const catNames = {
+      trendingMovies: '🔥 Trending Movies',
+      trendingSeries: '🔥 Trending Series',
+      popularMovies: '⭐ Popular Movies',
+      popularSeries: '⭐ Popular Series',
+      movies: '🎬 My Movies',
+      series: '📺 My Series',
+      anime: '🍥 LeLibrary Anime',
+      franchises: 'LeLibrary Collections',
+    };
+    // Default order of catalogue rows in the Edit Catalogues tab + manifest.
+    const DEFAULT_CAT_ORDER = ['trendingMovies', 'trendingSeries', 'popularMovies', 'popularSeries', 'movies', 'series', 'anime', 'franchises'];
+    let catOrder = DEFAULT_CAT_ORDER.slice();
+    // External stream addons the user has enabled (Trending/Popular only)
+    let streamAddons = [];
+    // Set once the user clicks an addon checkbox — the async server-side restore
+    // must not clobber a selection made while the settings were still loading.
+    let streamAddonsTouched = false;
 
     function persistConnect() {
       try {
@@ -3033,53 +3370,178 @@
       return true;
     }
 
-    function catOptionsHTML(prefix) {
-      return `
-        <div class="cat-options">
-          <label class="cat-option">
-            <input type="checkbox" id="${prefix}-catFranchises" ${catSelection.franchises ? 'checked' : ''} onchange="setCatOption('franchises', this.checked)" />
-            <div class="co-info">
-              <strong>LeLibrary Franchises</strong>
-              <small>Your owned films grouped into franchises — each one becomes a folder of movies.</small>
-            </div>
-          </label>
-          <label class="cat-option disabled">
-            <input type="checkbox" id="${prefix}-catTrending" disabled />
-            <div class="co-info"><strong>Trending</strong><small>Trending titles from TMDB.</small></div>
-            <span class="co-coming">Coming soon</span>
-          </label>
-          <label class="cat-option disabled">
-            <input type="checkbox" id="${prefix}-catPopular" disabled />
-            <div class="co-info"><strong>Popular</strong><small>Popular titles from TMDB.</small></div>
-            <span class="co-coming">Coming soon</span>
-          </label>
-        </div>`;
-    }
-
     // Keep the Step 5 and Catalogues-tab checkboxes in sync
+    const CATALOGUE_META = {
+      trendingMovies: { desc: 'Trending movies from TMDB, backed by other stream addons.', enable: 'trendingMovies' },
+      trendingSeries: { desc: 'Trending series from TMDB, backed by other stream addons.', enable: 'trendingSeries' },
+      popularMovies:  { desc: 'Popular movies from TMDB, backed by other stream addons.',  enable: 'popularMovies' },
+      popularSeries:  { desc: 'Popular series from TMDB, backed by other stream addons.',  enable: 'popularSeries' },
+      movies:   { desc: 'Your owned movies.', enable: 'movies' },
+      series:   { desc: 'Your owned series.', enable: 'series' },
+      anime:    { desc: 'Your owned anime.', enable: 'anime' },
+      franchises: { desc: 'One collections row: every franchise you own, as folders in Nuvio and a genre filter in Stremio.', enable: 'franchises' },
+    };
+
     function setCatOption(key, checked) {
       catSelection[key] = checked;
-      const ids = {
-        franchises: ['catFranchises', 'editCatFranchises'],
-        trending:   ['catTrending',   'editCatTrending'],
-        popular:    ['catPopular',    'editCatPopular'],
-      }[key] || [];
-      for (const id of ids) {
-        const el = document.getElementById(id);
-        if (el && el.checked !== checked) el.checked = checked;
-      }
+      renderCataloguesOptions();
+      checkChanged();
+    }
+
+    function moveCatalogue(key, dir) {
+      const i = catOrder.indexOf(key);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= catOrder.length) return;
+      catOrder.splice(i, 1);
+      catOrder.splice(j, 0, key);
+      renderCataloguesOptions();
+      checkChanged();
+    }
+
+    function toggleHideAnime(checked) {
+      const adv = document.getElementById('hideAnime');
+      if (adv) adv.checked = checked;
+      renderCataloguesOptions();
+      checkChanged();
     }
 
     function renderCataloguesOptions() {
-      const el = document.getElementById('editCatFranchises');
-      if (el) el.checked = catSelection.franchises;
-      const hideRows = document.getElementById('editHideFranchiseRows');
-      if (hideRows) hideRows.checked = hideFranchiseRows;
+      const list = document.getElementById('catalogueList');
+      if (!list) return;
+      const hideAnime = !!(document.getElementById('hideAnime') && document.getElementById('hideAnime').checked);
+      const rows = [];
+      catOrder.forEach((key, i) => {
+        const meta = CATALOGUE_META[key] || {};
+        if (key === 'anime' && hideAnime) return;
+        const enabled = meta.enable ? !!catSelection[meta.enable] : true;
+        rows.push(`
+          <div class="cat-option" style="align-items:center;flex-wrap:wrap">
+            <div style="display:flex;flex-direction:column;gap:2px;margin-right:4px;flex-shrink:0">
+              <button type="button" class="btn-copy-url" onclick="moveCatalogue('${key}',-1)" ${i === 0 ? 'disabled style="opacity:0.3"' : ''} title="Move up">↑</button>
+              <button type="button" class="btn-copy-url" onclick="moveCatalogue('${key}',1)" ${i === catOrder.length - 1 ? 'disabled style="opacity:0.3"' : ''} title="Move down">↓</button>
+            </div>
+            ${meta.enable
+              ? `<input type="checkbox" id="editCat-${key}" ${enabled ? 'checked' : ''} onchange="setCatOption('${meta.enable}', this.checked)" />`
+              : '<input type="checkbox" checked disabled style="opacity:0.5" />'}
+            <div class="co-info">
+              <strong>${escHtml(catNames[key] || key)}</strong>
+              <small>${meta.desc || ''}</small>
+            </div>
+            <button class="btn-copy-url" type="button" onclick="editCatalogueName('${key}')" title="Rename">✎ Rename</button>
+          </div>`);
+      });
+      list.innerHTML = rows.join('');
+      // Re-apply drag index to the fresh DOM.
+      list._dragIndex = -1;
+      // Sync the standalone "Hide anime" toggle with the Advanced-step state.
+      const ha = document.getElementById('editHideAnime');
+      if (ha && ha.checked !== hideAnime) ha.checked = hideAnime;
+      // Keep the older per-row checkbox ids alive for code that still references them.
+      const syncId = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val; };
+      syncId('editCatFranchises', catSelection.franchises);
+      syncId('editCatTrendingMovies', catSelection.trendingMovies);
+      syncId('editCatTrendingSeries', catSelection.trendingSeries);
+      syncId('editCatPopularMovies', catSelection.popularMovies);
+      syncId('editCatPopularSeries', catSelection.popularSeries);
+      syncId('editCatMovies', catSelection.movies);
+      syncId('editCatSeries', catSelection.series);
+      syncId('editCatAnime', catSelection.anime);
+      for (const [id, name] of [['editCatFranchisesTitle', catNames.franchises], ['editCatTrendingTitle', catNames.trending], ['editCatPopularTitle', catNames.popular], ['editCatMoviesTitle', catNames.movies], ['editCatSeriesTitle', catNames.series], ['editCatAnimeTitle', catNames.anime]]) {
+        const t = document.getElementById(id);
+        if (t) t.textContent = name;
+      }
     }
 
-    function setHideFranchiseRows(enabled) {
-      hideFranchiseRows = !!enabled;
-      try { localStorage.setItem('lelibrary_hide_franchise_rows', String(hideFranchiseRows)); } catch {}
+    // Rename a catalogue — prompt for the new display name and sync every
+    // checkbox/title that shows it (Step 5 + Catalogues tab).
+    // Rename a catalogue — inline modal with a real input (prompt() can mangle
+    // emojis on some devices). Emojis are fully supported in catalogue names.
+    function editCatalogueName(key) {
+      const current = catNames[key] || '';
+      const label = catNames[key] || key;
+      const existing = document.getElementById('renameModal');
+      if (existing) existing.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = 'renameModal';
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1200;display:flex;align-items:center;justify-content:center';
+      overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+      overlay.innerHTML = `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:400px;width:92%;text-align:center">
+          <h3 style="margin:0 0 6px 0;color:var(--white);font-size:1rem">Rename "${escHtml(current || label)}"</h3>
+          <p style="color:var(--muted);font-size:0.78rem;margin:0 0 14px 0">Emojis welcome.</p>
+          <input id="renameInput" type="text" value="${escHtml(current || label)}" autofocus maxlength="40"
+            style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.95rem;font-family:var(--font);box-sizing:border-box"
+            onkeydown="if(event.key==='Enter'){saveRename('${key}');} if(event.key==='Escape'){this.closest('#renameModal').remove();}" />
+          <div style="display:flex;gap:8px;margin-top:16px">
+            <button type="button" style="flex:1;padding:9px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer" onclick="this.closest('#renameModal').remove()">Cancel</button>
+            <button type="button" style="flex:1;padding:9px;border-radius:8px;border:1px solid var(--amber);background:var(--amber-glow);color:var(--amber);cursor:pointer;font-weight:600" onclick="saveRename('${key}')">Save</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const input = document.getElementById('renameInput');
+      if (input) { input.focus(); input.select(); }
+    }
+
+    function saveRename(key) {
+      const input = document.getElementById('renameInput');
+      if (!input) return;
+      const trimmed = input.value.trim();
+      if (!trimmed) { input.focus(); return; }
+      catNames[key] = trimmed;
+      const modal = document.getElementById('renameModal');
+      if (modal) modal.remove();
+      renderCataloguesOptions();
+      checkChanged();
+      showToast('Catalogue renamed — remember to save and re-push');
+    }
+
+    // ── Stream Addons (Trending/Popular only) ──
+    const STREAM_ADDONS = [
+      { id: 'torrentio',    name: 'Torrentio',    logo: 'https://cdn.brandfetch.io/idmo5AU-sJ/w/204/h/185/theme/dark/logo.png?c=1dxbfHSJFAPEGdCLU4o5B', desc: 'Torrent + debrid streams from a wide provider network.' },
+      { id: 'comet',        name: 'Comet',        logo: 'https://raw.githubusercontent.com/g0ldyy/comet/refs/heads/main/comet/assets/icon.png', desc: "Stremio's fast torrent/debrid stream addon." },
+      { id: 'meteor',       name: 'Meteor',       logo: 'https://meteorfortheweebs.midnightignite.me/static/icon.png', desc: 'Torrent + debrid streams with usenet support.' },
+      { id: 'mediafusion',  name: 'MediaFusion',  logo: 'https://raw.githubusercontent.com/mhdzumair/MediaFusion/refs/heads/main/resources/images/mediafusion_logo.png', desc: 'Universal streams for movies, series and anime.' },
+    ];
+
+    function toggleStreamAddon(id, checked) {
+      streamAddonsTouched = true;
+      if (checked) {
+        if (!streamAddons.includes(id)) streamAddons.push(id);
+      } else {
+        streamAddons = streamAddons.filter(x => x !== id);
+      }
+      renderStreamAddons();
+      checkChanged();
+    }
+
+    function renderStreamAddons() {
+      const list = document.getElementById('streamAddonList');
+      if (!list) return;
+      list.innerHTML = STREAM_ADDONS.map(a => `
+        <label class="cat-option" style="align-items:center">
+          <input type="checkbox" id="addon-${a.id}" ${streamAddons.includes(a.id) ? 'checked' : ''} onchange="toggleStreamAddon('${a.id}', this.checked)" />
+          <img src="${escHtml(a.logo)}" alt="${escHtml(a.name)}" loading="lazy"
+            style="width:34px;height:34px;border-radius:8px;object-fit:contain;background:rgba(255,255,255,0.06);padding:4px;flex-shrink:0"
+            onerror="this.style.display='none'" />
+          <div class="co-info">
+            <strong>${a.name}</strong>
+            <small>${a.desc}</small>
+          </div>
+        </label>`).join('');
+      const enabledCount = streamAddons.length;
+      const card = document.getElementById('streamAddonsCard');
+      if (card) {
+        const existing = card.querySelector('.streamAddonsStatus');
+        if (existing) existing.remove();
+        if (enabledCount > 0) {
+          const badge = document.createElement('div');
+          badge.className = 'streamAddonsStatus coll-note';
+          badge.style.cssText = 'margin-top:10px;font-size:0.78rem;color:var(--success)';
+          badge.textContent = `${enabledCount} stream addon${enabledCount > 1 ? 's' : ''} enabled — they power Trending/Popular streams only.`;
+          card.appendChild(badge);
+        }
+      }
     }
 
     function connectWidgetHTML(s) {
@@ -3158,6 +3620,7 @@
     function renderConnectAll() {
       renderConnectStep();
       renderInstallPush();
+      updateInstallPushHint();
     }
 
     // Step 4: the sign-in boxes, or a connected card if signed in
@@ -3201,8 +3664,8 @@
               <div style="flex:1">
                 <strong style="color:var(--white);font-size:0.9rem">Finish the Setup tab first</strong>
                 <p style="font-size:0.82rem;color:var(--text);line-height:1.5;margin-top:6px">
-                  You're trying to add <strong>LeLibrary Franchises</strong>, but no Debrid providers or TMDB key are set up yet.
-                  Franchises are built from your own library, so we need those before we can configure them.
+                  You're trying to add <strong>LeLibrary Collections</strong>, but no Debrid providers or TMDB key are set up yet.
+                  Collections are built from your own library, so we need those before we can configure them.
                 </p>
               </div>
             </div>
@@ -3240,7 +3703,7 @@
       updateCataloguesUI();
     }
 
-    // Guard: LeLibrary Franchises are built from your own library, so a debrid
+    // Guard: LeLibrary Collections are built from your own library, so a debrid
     // provider + TMDB key must be set on the Setup tab before we can push them.
     function setupComplete() {
       const provider = document.getElementById('provider').value;
@@ -3420,88 +3883,11 @@
       return connectState.nuvioProfiles;
     }
 
-    // Nuvio keeps Home-row visibility separately from Collections. Disable the
-    // dynamic franchise rows there, while leaving the same manifest catalogs
-    // available to the LeLibrary Franchises collection folders.
-    async function syncNuvioHomeRows(token, profileId, manifest, hide = true, collectionId = '') {
-      const franchiseCatalogs = (manifest?.catalogs || []).filter(c =>
-        String(c?.id || '').startsWith('torbox-collection-')
-      );
-      if (franchiseCatalogs.length === 0) return 0;
-
-      const platform = 'home_catalog_shared';
-      const pulled = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_home_catalog_settings', {
-        p_profile_id: profileId,
-        p_platform: platform,
-      });
-      const row = Array.isArray(pulled) ? pulled[0] : pulled;
-      const settings = row?.settings_json && typeof row.settings_json === 'object'
-        ? row.settings_json
-        : {};
-      const items = Array.isArray(settings.items) ? settings.items.slice() : [];
-      const byKey = new Map(items.map(item => {
-        const key = item.key || `${item.addon_id || ''}:${item.type || ''}:${item.catalog_id || ''}`;
-        return [key, item];
-      }));
-      let nextOrder = items.reduce((max, item) => Math.max(max, Number(item.order) || 0), -1) + 1;
-
-      for (const catalog of franchiseCatalogs) {
-        const key = `${manifest.id}:${catalog.type}:${catalog.id}`;
-        const existing = byKey.get(key) || {};
-        byKey.set(key, {
-          ...existing,
-          addon_id: manifest.id,
-          type: catalog.type,
-          catalog_id: catalog.id,
-          enabled: !hide,
-          order: existing.order == null ? nextOrder++ : existing.order,
-          custom_title: existing.custom_title || '',
-          is_collection: false,
-          collection_id: existing.collection_id || '',
-          key,
-        });
-      }
-
-      if (collectionId) {
-        const key = `collection_${collectionId}`;
-        const existing = byKey.get(key) || {};
-        const libraryOrders = Array.from(byKey.values())
-          .filter(item => item.addon_id === manifest.id && /-(movies|series)$/.test(String(item.catalog_id || '')))
-          .map(item => Number(item.order))
-          .filter(Number.isFinite);
-        const targetOrder = libraryOrders.length ? Math.min(...libraryOrders) - 1 : (existing.order ?? 0);
-        byKey.set(key, {
-          ...existing,
-          addon_id: '',
-          type: '',
-          catalog_id: '',
-          enabled: true,
-          // Keep it available without pinning it permanently. Place it just
-          // before this addon's My Movies/My Series rows.
-          order: targetOrder,
-          custom_title: existing.custom_title || '',
-          is_collection: true,
-          collection_id: collectionId,
-          key,
-        });
-      }
-
-      await nuvioRpc(token, '/rest/v1/rpc/sync_push_home_catalog_settings', {
-        p_profile_id: profileId,
-        p_platform: platform,
-        p_settings_json: {
-          show_catalog_type: settings.show_catalog_type !== false,
-          hide_unreleased_content: settings.hide_unreleased_content === true,
-          items: Array.from(byKey.values()).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0)),
-        },
-        p_origin_client_id: nuvioOriginClientId(),
-      });
-      return franchiseCatalogs.length;
-    }
-
-    // Remove only old LeLibrary collection data from another profile. Other
-    // user collections are preserved, and this repairs copies created by the
-    // earlier account-wide push behavior.
+    // Remove old LeLibrary collection data from another profile. Other user
+    // collections are preserved, and this repairs copies created by the earlier
+    // account-wide push behavior. The collections part always runs (so profiles
+    // that don't use the primary's addons never keep stale LeLibrary folders);
+    // the home-row cleanup is best-effort and needs the manifest.
     async function removeLeLibraryFromNuvioProfile(token, profileId, manifest) {
       const collectionId = 'collection-lelibrary-franchises';
       try {
@@ -3524,37 +3910,110 @@
           }
         }
 
-        const platform = 'home_catalog_shared';
-        const homePulled = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_home_catalog_settings', {
-          p_profile_id: profileId,
-          p_platform: platform,
-        });
-        const homeRow = Array.isArray(homePulled) ? homePulled[0] : homePulled;
-        const settings = homeRow?.settings_json && typeof homeRow.settings_json === 'object'
-          ? homeRow.settings_json
-          : {};
-        const items = Array.isArray(settings.items) ? settings.items : [];
-        const filteredItems = items.filter(item => {
-          const catalog = String(item.catalog_id || '');
-          const itemKey = String(item.key || '');
-          return !(item.collection_id === collectionId ||
-            itemKey === `collection_${collectionId}` ||
-            (item.addon_id && item.addon_id === manifest.id && catalog.startsWith('torbox-collection-')));
-        });
-        if (filteredItems.length !== items.length) {
-          await nuvioRpc(token, '/rest/v1/rpc/sync_push_home_catalog_settings', {
+        if (manifest && manifest.id) {
+          const platform = 'home_catalog_shared';
+          const homePulled = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_home_catalog_settings', {
             p_profile_id: profileId,
             p_platform: platform,
-            p_settings_json: {
-              show_catalog_type: settings.show_catalog_type !== false,
-              hide_unreleased_content: settings.hide_unreleased_content === true,
-              items: filteredItems,
-            },
-            p_origin_client_id: nuvioOriginClientId(),
           });
+          const homeRow = Array.isArray(homePulled) ? homePulled[0] : homePulled;
+          const settings = homeRow?.settings_json && typeof homeRow.settings_json === 'object'
+            ? homeRow.settings_json
+            : {};
+          const items = Array.isArray(settings.items) ? settings.items : [];
+          const filteredItems = items.filter(item => {
+            const catalog = String(item.catalog_id || '');
+            const itemKey = String(item.key || '');
+            return !(item.collection_id === collectionId ||
+              itemKey === `collection_${collectionId}` ||
+              (item.addon_id && item.addon_id === manifest.id &&
+                (catalog === 'torbox-collections' || catalog.startsWith('torbox-collection-'))));
+          });
+          if (filteredItems.length !== items.length) {
+            await nuvioRpc(token, '/rest/v1/rpc/sync_push_home_catalog_settings', {
+              p_profile_id: profileId,
+              p_platform: platform,
+              p_settings_json: {
+                show_catalog_type: settings.show_catalog_type !== false,
+                hide_unreleased_content: settings.hide_unreleased_content === true,
+                items: filteredItems,
+              },
+              p_origin_client_id: nuvioOriginClientId(),
+            });
+          }
         }
       } catch (err) {
         console.warn(`[Push] Could not clean old LeLibrary data from Nuvio profile ${profileId}:`, err.message);
+      }
+    }
+
+    // Order Nuvio's Home rows to match the user's catalogue order in the
+    // Edit Catalogues tab (manifest order reflects it), with the collections
+    // row hidden (it renders as the pinned "LeLibrary Collections" collection).
+    // Nuvio keeps its own saved home-catalog order, so manifest order alone
+    // isn't enough — this pushes the settings NuvioWeb reads (platform
+    // 'home_catalog_shared').
+    async function syncNuvioHomeOrder(token, profileId, manifest) {
+      try {
+        if (!manifest || !Array.isArray(manifest.catalogs)) return;
+        const platform = 'home_catalog_shared';
+        const pulled = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_home_catalog_settings', {
+          p_profile_id: profileId,
+          p_platform: platform,
+        });
+        const row = Array.isArray(pulled) ? pulled[0] : pulled;
+        const settings = row?.settings_json && typeof row.settings_json === 'object'
+          ? row.settings_json
+          : {};
+        const items = Array.isArray(settings.items) ? settings.items.slice() : [];
+        const byKey = new Map(items.map(item => {
+          const key = item.key || `${item.addon_id}:${item.type}:${item.catalog_id}`;
+          return [key, item];
+        }));
+
+        let order = 0;
+        for (const catalog of manifest.catalogs) {
+          const key = `${manifest.id}:${catalog.type}:${catalog.id}`;
+          const existing = byKey.get(key) || {};
+          const isFranchise = String(catalog.id || '') === 'torbox-collections' ||
+            String(catalog.id || '').startsWith('torbox-collection-');
+          byKey.set(key, {
+            ...existing,
+            addon_id: manifest.id,
+            type: catalog.type,
+            catalog_id: catalog.id,
+            enabled: !isFranchise,
+            order: isFranchise ? (Number(existing.order) || 999) : order++,
+            custom_title: existing.custom_title || '',
+            is_collection: false,
+            collection_id: existing.collection_id || '',
+            key,
+          });
+        }
+
+        // Drop stale rows left over from older pushes (e.g. the removed
+        // per-franchise catalogs, or the old "LeLibrary Collections" series
+        // catalog) so they can't linger on Home.
+        const manifestCatalogKeys = new Set(manifest.catalogs.map(c => `${manifest.id}:${c.type}:${c.id}`));
+        for (const [key, item] of byKey) {
+          if (item && item.addon_id === manifest.id && !manifestCatalogKeys.has(key) && item.is_collection !== true) {
+            byKey.delete(key);
+          }
+        }
+
+        await nuvioRpc(token, '/rest/v1/rpc/sync_push_home_catalog_settings', {
+          p_profile_id: profileId,
+          p_platform: platform,
+          p_settings_json: {
+            show_catalog_type: settings.show_catalog_type !== false,
+            hide_unreleased_content: settings.hide_unreleased_content === true,
+            items: Array.from(byKey.values()).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0)),
+          },
+          p_origin_client_id: nuvioOriginClientId(),
+        });
+        console.log('[Push] Nuvio Home order synced to Edit Catalogues order');
+      } catch (err) {
+        console.warn('[Push] Could not sync Nuvio Home order:', err.message);
       }
     }
 
@@ -3601,10 +4060,13 @@
 
     // ── Push catalogues (replaces all addons, with backup list) ──
     function ensureManifestUrl() {
-      if (lastUrls) return lastUrls;
+      // Always rebuild from the CURRENT form state — never reuse a stale URL
+      // from an earlier generate(), or ticking a catalogue after that would be
+      // silently dropped from the pushed token. Uses the trimmed config so the
+      // token stays under the server's 2048-char limit.
       const provider = document.getElementById('provider').value;
       if (!provider || provider === 'none') return null;
-      try { return buildUrls(getCurrentConfig()); } catch { return null; }
+      try { return buildUrls(buildSavedConfig()); } catch { return null; }
     }
 
     // Show the replaced addons with their names (fetched from each manifest when
@@ -3653,8 +4115,6 @@
         document.getElementById('setupGuard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         return;
       }
-      const urls = ensureManifestUrl();
-      if (!urls) { showToast('Fill in your providers and keys on the Setup tab first'); return; }
       const btn = document.getElementById('btnPushCatalogues');
       const label = document.getElementById('pushCataloguesLabel');
       const small = document.getElementById('pushCataloguesSmall');
@@ -3662,12 +4122,34 @@
       const origLabel = label.textContent;
       const origSmall = small.textContent;
       btn.disabled = true;
-      label.textContent = 'Pushing…';
+
+      // 1) Save the config: build the token URL from the current form (pushing
+      //    always saves, even if the user never pressed "Save").
+      label.textContent = 'Saving config…';
+      small.textContent = 'Building your configuration';
+      await new Promise(r => setTimeout(r, 400));
+      const urls = ensureManifestUrl();
+      if (!urls) {
+        btn.disabled = false;
+        label.textContent = origLabel;
+        small.textContent = origSmall;
+        showToast('Fill in your providers and keys on the Setup tab first');
+        return;
+      }
+      // Point the address bar at the freshly-saved token so a refresh keeps it.
+      try { history.replaceState(null, '', `${window.location.origin}/${urls.encoded}/configure`); } catch {}
+      // Persist stream settings server-side too (fire and forget).
+      saveConfigToServer(buildSavedConfig());
+
+      // 2) Push to the platform.
+      label.textContent = 'Now pushing…';
+      small.textContent = 'Installing LeLibrary on your ' + (connectState.platform === 'stremio' ? 'Stremio' : 'Nuvio') + ' account';
+      await new Promise(r => setTimeout(r, 400));
+
       try {
-        // Warm the collections build BEFORE the addon is installed. The manifest
-        // that Stremio/Nuvio fetch needs to advertise the per-franchise catalogs,
-        // and the folder contents need to exist — otherwise folders show
-        // "No Items Found". The collections.json route builds synchronously when empty.
+        // Warm the collections build BEFORE the addon is installed. The folders'
+        // contents need to exist — otherwise Nuvio folders show "No Items Found".
+        // The collections.json route builds synchronously when empty.
         small.textContent = 'Building your catalogues…';
         let warmedCollections = null;
         try {
@@ -3772,17 +4254,14 @@
           }
           // Give Nuvio a moment to process the new addon before pushing collections
           await new Promise(r => setTimeout(r, 1500));
-          let homeRowsHidden = false;
           let manifestForNuvio = null;
           try {
             manifestForNuvio = await fetch(urls.manifestUrl, { signal: AbortSignal.timeout(10000) }).then(r => r.json());
-            await syncNuvioHomeRows(connectState.nuvioToken, profileIndex, manifestForNuvio, hideFranchiseRows);
-            homeRowsHidden = hideFranchiseRows;
           } catch (err) {
-            console.warn('[Push] Could not sync Nuvio Home-row visibility:', err.message);
+            console.warn('[Push] Could not fetch the Nuvio manifest:', err.message);
           }
           if (catSelection.franchises) {
-            small.textContent = 'Importing your LeLibrary Franchises…';
+            small.textContent = 'Importing your LeLibrary Collections…';
             const collections = Array.isArray(warmedCollections) ? warmedCollections : [];
             if (Array.isArray(collections) && collections.length > 0) {
               // Preserve other collections on this profile. Replace only the
@@ -3808,23 +4287,17 @@
                 p_collections_json: mergedCollections,
                 p_origin_client_id: nuvioOriginClientId(),
               });
-              try {
-                if (!manifestForNuvio) {
-                  manifestForNuvio = await fetch(urls.manifestUrl, { signal: AbortSignal.timeout(10000) }).then(r => r.json());
-                }
-                await syncNuvioHomeRows(connectState.nuvioToken, profileIndex, manifestForNuvio, hideFranchiseRows, leLibraryId);
-              } catch (err) {
-                console.warn('[Push] Could not update the LeLibrary collection Home order:', err.message);
-              }
-              if (manifestForNuvio) {
-                await Promise.all(connectState.nuvioProfiles
-                  .filter(p => p.profile_index !== profileIndex)
-                  .map(p => removeLeLibraryFromNuvioProfile(connectState.nuvioToken, p.profile_index, manifestForNuvio)));
-              }
+              // Clean stale LeLibrary collections from every other profile so
+              // the "LeLibrary Collections" collection only lives on the profile
+              // the user just pushed to. Profiles that use the primary profile's
+              // addons still read their own per-profile collections, so this
+              // respects the "Use primary addons" toggle. Home-row cleanup is
+              // also done when the manifest is available (best effort).
+              await Promise.all(connectState.nuvioProfiles
+                .filter(p => p.profile_index !== profileIndex)
+                .map(p => removeLeLibraryFromNuvioProfile(connectState.nuvioToken, p.profile_index, manifestForNuvio)));
               status.style.color = 'var(--success)';
-              status.textContent = homeRowsHidden
-                ? 'Installed — catalogues imported and franchise Home rows hidden. Please refresh Nuvio.'
-                : 'Installed — all catalogues have been imported. Please refresh Nuvio.';
+              status.textContent = 'Installed — collections imported. New films appear automatically; a brand-new franchise just needs one more quick re-push to add its folder. Please refresh Nuvio.';
             } else {
               status.style.color = 'var(--success)';
               status.textContent = 'Installed. Your catalogues will appear once your library has been scanned.';
@@ -3833,9 +4306,23 @@
             status.style.color = 'var(--success)';
             status.textContent = 'Installed — all catalogues have been imported. Please refresh Nuvio.';
           }
+          // Sync Nuvio's Home row order to the Edit Catalogues order (and drop
+          // stale/disabled LeLibrary rows) regardless of the franchises toggle.
+          if (manifestForNuvio) {
+            await syncNuvioHomeOrder(connectState.nuvioToken, profileIndex, manifestForNuvio);
+          }
           renderBackupList(backup);
         }
-        showToast('Pushed to your ' + (connectState.platform === 'stremio' ? 'Stremio' : 'Nuvio') + ' account ✓');
+        // The push saved the config — clear the "unsaved changes" state so the
+        // Save button and warning disappear (no point asking again). It returns
+        // automatically if the user edits something else.
+        initialConfig = getCurrentConfig();
+        document.getElementById('unsavedBanner').style.display = 'none';
+        document.getElementById('btnGenerate').style.display = 'none';
+        const pushToast = connectState.platform === 'stremio'
+          ? 'Pushed to Stremio ✓ New franchise rows appear automatically'
+          : 'Pushed to Nuvio ✓ Re-push once when you add a brand-new franchise';
+        showToast(pushToast);
       } catch (err) {
         if (/session does not exist|invalid.*token|expired|jwt/i.test(err.message)) {
           showToast('Session expired — reconnect', 'error');
@@ -3851,6 +4338,89 @@
         small.textContent = origSmall;
       }
     }
+
+    // ── Install-section "Push to X" buttons ────────────────────────────────
+    // The Step-6 install buttons push straight to the connected platform,
+    // reusing the same pushCatalogues() flow as the Catalogues tab. If the
+    // platform isn't connected, point the user at the Connect step instead.
+    async function pushAddonTo(platform) {
+      const plat = platform === 'nuvio' ? 'Nuvio' : 'Stremio';
+      if (connectState.platform !== platform) {
+        updateInstallPushHint();
+        showToast(`You haven't configured ${plat}. Sign in to be able to use the push to feature`, 'error');
+        goToStep(5); // Step 4 panel holds the sign-in boxes
+        return;
+      }
+      goToStep(6); // renders the push panel before pushCatalogues() reads it
+      await pushCatalogues();
+    }
+
+    // The "You haven't configured Nuvio/Stremio. Sign in…" note only shows next
+    // to the install buttons while they're visible and no platform is connected.
+    function updateInstallPushHint() {
+      const hint = document.getElementById('pushNotConnectedHint');
+      if (!hint) return;
+      const btn = document.getElementById('btnNuvio');
+      const visible = btn && btn.classList.contains('show') && btn.style.display !== 'none';
+      hint.style.display = (visible && !connectState.platform) ? '' : 'none';
+    }
+
+    // ── Stream formatter ───────────────────────────────────────────────────
+    // Presets and template engine come from /formatter.js (window.LeFormatter),
+    // the same engine the addon uses server-side.
+    const FMT = (typeof window !== 'undefined' && window.LeFormatter) || null;
+
+    const PRESET_LABELS = {
+      lelibrary: 'LeLibrary', torrentio: 'Torrentio', torbox: 'Torbox',
+      gdrive: 'Google Drive', lightgdrive: 'Light GDrive',
+      minimalisticgdrive: 'Minimalistic GDrive', prism: 'Prism', tamtaro: 'Tamtaro',
+    };
+
+    function onStreamPresetChange() {
+      const preset = document.getElementById('streamPreset').value;
+      if (preset === 'custom') {
+        // Start Custom with empty boxes, not the previous preset.
+        document.getElementById('streamNameTemplate').value = '';
+        document.getElementById('streamDescTemplate').value = '';
+      } else if (FMT && FMT.presets[preset]) {
+        document.getElementById('streamNameTemplate').value = FMT.presets[preset].name;
+        document.getElementById('streamDescTemplate').value = FMT.presets[preset].description;
+      }
+      updateStreamPreview();
+      checkChanged();
+    }
+
+    function updateStreamPreview() {
+      const nameT = document.getElementById('streamNameTemplate').value;
+      const descT = document.getElementById('streamDescTemplate').value;
+      const el = document.getElementById('streamPreview');
+      if (!FMT) {
+        el.innerHTML = '<span style="color:var(--muted)">Formatter engine failed to load — hard refresh to retry</span>';
+        return;
+      }
+      // Sample stream for the live preview. The textareas hold the selected
+      // preset's (or custom) templates, so the preview reflects the choice.
+      const ctx = FMT.buildLeContext('Toy.Story.2.1999.2160p.BluRay.HEVC.TrueHD.7.1.Atmos-FRDS', 'torbox', 2630000000);
+      const name = FMT.render(nameT, ctx);
+      const desc = FMT.render(descT, ctx);
+      el.innerHTML = '<div style="color:var(--white);font-weight:600;margin-bottom:6px;white-space:pre-line">' + escHtml(name) + '</div>'
+        + '<div style="color:var(--muted);white-space:pre-line;font-size:0.78rem">' + escHtml(desc) + '</div>';
+    }
+
+    function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+    // ── Step completion tracking ───────────────────────────────────────────
+    const completedSteps = new Set();
+    const originalGoToStep = goToStep;
+    goToStep = function(n) {
+      if (n > currentStep && currentStep >= 1) completedSteps.add(currentStep);
+      originalGoToStep(n);
+      // Mark completed step buttons green
+      for (const s of completedSteps) {
+        const btn = document.querySelector('.step-btn[data-step="' + s + '"]');
+        if (btn) btn.classList.add('verified');
+      }
+    };
 
   </script>
 </body>

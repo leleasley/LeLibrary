@@ -249,6 +249,12 @@ function pmLooksGeneric(name) {
   return words.length > 0 && words.every(w => PM_GENERIC_TOKENS.has(w));
 }
 
+// "Season 1", "Temporada 1", "S01" — the tell-tale sign a folder is a show
+// container (its subfolders are seasons) rather than a catch-all category.
+function pmIsSeasonLike(name) {
+  return /\b(?:season|temporada)\s*\d+\b/i.test(name) || /\b\d+[aªº°]\s*temporada\b/i.test(name) || /\b[Ss]\d{1,2}(?!\s*[Ee])/.test(name);
+}
+
 // Short-lived session cache for the flat file list (seeded by the library
 // load, reused by "view files" so we don't re-request the whole cloud per item).
 let _pmListAll = { key: null, at: 0, files: null };
@@ -276,7 +282,7 @@ async function pmLoadLibrary(apiKey) {
     const files = r.files || [];
     if (files.length) {
       pmSeedListAll(apiKey, files);
-      return { items: pmGroupCloudFiles(files) };
+      return { items: pmFilesToItems(files) };
     }
   } catch (err) {
     if (err.needPin) throw err; // let the PIN modal flow handle it
@@ -318,7 +324,10 @@ function pmTreeToItems(node, depth) {
   const directVideos = node.children.filter(c => c.type === 'file' && pmIsVideoFile(c.name));
   if (directVideos.length === 0 && !node.children.some(c => c.type === 'folder')) return [];
   const name = node.name || '';
-  if (directVideos.length > 0 || pmLooksMediaLike(name) || (!pmLooksGeneric(name) && guessMediaInfo(name)) || depth >= 4) {
+  const subFolders = node.children.filter(c => c.type === 'folder');
+  const hasSeasonSubfolders = subFolders.some(c => pmIsSeasonLike(c.name));
+  const parsesAsTitle = !pmLooksGeneric(name) && guessMediaInfo(name);
+  if (directVideos.length > 0 || pmLooksMediaLike(name) || (hasSeasonSubfolders && parsesAsTitle) || depth >= 4) {
     return [{
       id: pmItemIdForFolderId(node.id),
       name, filename: name,
@@ -434,7 +443,20 @@ function pmGroupDescend(items, files, prefixParts, depth) {
   const isDirect = f => (f.path || '').split('/').length === prefixParts.length + 1;
   const hasDirectVideo = files.some(f => isDirect(f) && pmIsVideoFile(f.name || ''));
 
-  if (hasDirectVideo || pmLooksMediaLike(name) || (!pmLooksGeneric(name) && guessMediaInfo(name)) || depth >= 4) {
+  // A folder is a content row when it directly holds video files, its name has
+  // strong media signals, or its subfolders are seasons (a show container like
+  // "Breaking.Bad/Season 1/..."). A name that merely *parses* as a title is NOT
+  // enough — catch-all categories ("Classic Films", "4K Collection") parse too
+  // and would swallow every movie inside them.
+  const nextSegs = new Set();
+  for (const f of files) {
+    const parts = (f.path || '').split('/');
+    if (parts.length > prefixParts.length + 1) nextSegs.add(parts[prefixParts.length]);
+  }
+  const hasSeasonSubfolders = [...nextSegs].some(s => pmIsSeasonLike(s));
+  const parsesAsTitle = !pmLooksGeneric(name) && guessMediaInfo(name);
+
+  if (hasDirectVideo || pmLooksMediaLike(name) || (hasSeasonSubfolders && parsesAsTitle) || depth >= 4) {
     items.push(pmMakeFolderItem(prefixParts.join('/'), name, files));
     return;
   }
@@ -446,6 +468,43 @@ function pmGroupDescend(items, files, prefixParts, depth) {
     next.get(seg).push(f);
   }
   for (const [seg, sf] of next) pmGroupDescend(items, sf, [...prefixParts, seg], depth + 1);
+}
+
+// Make every video file its own library entry (the addon's normal movie/show
+// matching sorts them into My Movies / My Shows). Generic file names fall back
+// to the nearest media-like parent folder name.
+function pmBestDisplayName(f) {
+  const raw = f.name || '';
+  const fname = raw.replace(/\.[^.]+$/, '');
+  if (pmLooksMediaLike(fname) && guessMediaInfo(fname)) return fname;
+  const parts = (f.path || raw || '').split('/');
+  parts.pop(); // drop the file name
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const seg = parts[i] || '';
+    if (pmIsSeasonLike(seg)) continue; // "Season 1" is structural, not content
+    if (pmLooksMediaLike(seg) || (!pmLooksGeneric(seg) && guessMediaInfo(seg))) return seg;
+  }
+  return fname || (parts[parts.length - 1] || '');
+}
+
+function pmFilesToItems(files) {
+  const items = [];
+  for (const f of files) {
+    if (!pmIsVideoFile(f.name || '')) continue;
+    const name = pmBestDisplayName(f);
+    if (!name) continue;
+    items.push({
+      id: pmItemIdForFile(f.id),
+      name, filename: name,
+      source: 'premiumize',
+      download_state: 'completed',
+      download_finished: true,
+      progress: 1,
+      size: f.size || 0,
+      created_at: f.created_at ? new Date(f.created_at * 1000).toISOString() : undefined,
+    });
+  }
+  return items;
 }
 
 async function pmDelete(path, apiKey) {

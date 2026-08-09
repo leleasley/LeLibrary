@@ -2784,7 +2784,7 @@
       goToStep(1);
     }
 
-    const APP_VERSION = '4.6.1';
+    const APP_VERSION = '4.6.2';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');
@@ -3883,6 +3883,16 @@
       return connectState.nuvioProfiles;
     }
 
+    // Nuvio's sync_* RPCs return json columns (settings_json, collections_json)
+    // as either a parsed object or a JSON string — accept both.
+    function parseNuvioJson(value, fallback) {
+      if (value && typeof value === 'object') return value;
+      if (typeof value === 'string') {
+        try { return JSON.parse(value); } catch { return fallback; }
+      }
+      return fallback;
+    }
+
     // Remove old LeLibrary collection data from another profile. Other user
     // collections are preserved, and this repairs copies created by the earlier
     // account-wide push behavior. The collections part always runs (so profiles
@@ -3917,9 +3927,7 @@
             p_platform: platform,
           });
           const homeRow = Array.isArray(homePulled) ? homePulled[0] : homePulled;
-          const settings = homeRow?.settings_json && typeof homeRow.settings_json === 'object'
-            ? homeRow.settings_json
-            : {};
+          const settings = parseNuvioJson(homeRow?.settings_json, {});
           const items = Array.isArray(settings.items) ? settings.items : [];
           const filteredItems = items.filter(item => {
             const catalog = String(item.catalog_id || '');
@@ -3962,9 +3970,7 @@
           p_platform: platform,
         });
         const row = Array.isArray(pulled) ? pulled[0] : pulled;
-        const settings = row?.settings_json && typeof row.settings_json === 'object'
-          ? row.settings_json
-          : {};
+        const settings = parseNuvioJson(row?.settings_json, {});
         const items = Array.isArray(settings.items) ? settings.items.slice() : [];
         const byKey = new Map(items.map(item => {
           const key = item.key || `${item.addon_id}:${item.type}:${item.catalog_id}`;

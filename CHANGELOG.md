@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.6.2]
+
+### Your other Nuvio catalogues stay put
+
+- **Pushing LeLibrary no longer clears your other catalogues**: the Home rows from your other Nuvio addons (Torrentio, AIOMetadata and so on) are now preserved when you push or re-push
+
 ## [4.6.1]
 
 ### Cast photos in your library

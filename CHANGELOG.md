@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.6.5]
+
+### Premiumize scans everything, every time
+
+- **Nothing in your Premiumize cloud is missed anymore**: if the cloud scan and transfer list both come up empty, LeLibrary now walks your folders directly (the same way dedicated Premiumize addons do), so manually-organised files always appear in your library
+
 ## [4.6.4]
 
 ### Premiumize library reliability

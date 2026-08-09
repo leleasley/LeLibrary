@@ -266,6 +266,35 @@ function pmSeedListAll(apiKey, files) {
   _pmListAll = { key: apiKey, at: Date.now(), files: files || [] };
 }
 
+// Load the Premiumize library: prefer /item/listall (whole cloud, incl.
+// manually-organised content). If it comes back empty (flaky endpoint for this
+// account), fall back to /transfer/list rows so the library is never empty.
+async function pmLoadLibrary(apiKey) {
+  try {
+    const r = await pmGet('/item/listall', apiKey);
+    const files = r.files || [];
+    if (files.length) {
+      pmSeedListAll(apiKey, files);
+      return { items: pmGroupCloudFiles(files) };
+    }
+  } catch (err) {
+    if (err.needPin) throw err; // let the PIN modal flow handle it
+  }
+  const tr = await pmGet('/transfer/list', apiKey);
+  const transfers = tr.data?.transfers || tr.transfers || [];
+  return {
+    items: transfers
+      .filter(t => t.status === 'finished' || t.status === 'seeding')
+      .map(t => ({
+        id: String(t.id), name: t.name || '', filename: t.name || '',
+        source: 'premiumize',
+        download_state: t.status === 'seeding' ? 'seeding' : 'completed',
+        download_finished: true, progress: 1,
+      }))
+      .filter(i => i.name),
+  };
+}
+
 function pmEncodePath(s) {
   try { return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
   catch { return ''; }
@@ -621,7 +650,7 @@ async function loadLibraryFromProviders() {
     torboxKey ? torboxGet('/usenet/mylist', torboxKey) : Promise.resolve([]),
     rdKey ? rdGet('/torrents', rdKey) : Promise.resolve([]),
     adKey ? adPost('/v4.1/magnet/status', { ids: 'all' }, adKey) : Promise.resolve(null),
-    pmKey ? pmGet('/item/listall', pmKey) : Promise.resolve(null),
+    pmKey ? pmLoadLibrary(pmKey) : Promise.resolve(null),
   ]);
 
   const torrents = results[0];
@@ -688,9 +717,8 @@ async function loadLibraryFromProviders() {
       });
     }
   }
-  if (pmTransfers.status === 'fulfilled' && pmTransfers.value?.files) {
-    pmSeedListAll(pmKey, pmTransfers.value.files);
-    items = items.concat(pmGroupCloudFiles(pmTransfers.value.files));
+  if (pmTransfers.status === 'fulfilled' && Array.isArray(pmTransfers.value?.items)) {
+    items = items.concat(pmTransfers.value.items);
   }
 
   return items.filter(i => {

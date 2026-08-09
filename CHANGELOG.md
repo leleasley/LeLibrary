@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.6.4]
+
+### Premiumize library reliability
+
+- **Your Premiumize library no longer disappears**: if the full-cloud scan comes back empty for your account, LeLibrary now falls back to listing your transfers with everything inside their folders, so your library always shows your content
+- **Deeper folder scanning**: files nested several folders deep inside a transfer are now found
+
 ## [4.6.3]
 
 ### Premiumize scans your folders properly

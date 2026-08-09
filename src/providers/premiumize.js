@@ -9,6 +9,10 @@ const PM_BASE = 'https://www.premiumize.me/api';
 // authorization for a key used from a new IP.
 async function pmRequest(apiKey, method, path, params = {}, form = {}) {
   const headers = { Authorization: `Bearer ${apiKey}` };
+  // Premiumize also accepts the API key as an `apikey` query param (what
+  // StremThru/AIOStreams send); sending it alongside the Bearer header
+  // guarantees compatibility with every auth path.
+  params.apikey = apiKey;
   try {
     const opts = { headers, timeout: 30000, validateStatus: s => s < 500 };
     if (method === 'GET') {
@@ -57,7 +61,10 @@ async function pmListAllFiles(apiKey) {
   const hit = listAllCache.get(apiKey);
   if (hit && now - hit.at < LISTALL_TTL) return hit.files;
   const { data, error } = await pmRequest(apiKey, 'GET', '/item/listall');
-  if (error || !Array.isArray(data?.files)) return [];
+  if (error || !Array.isArray(data?.files)) {
+    console.warn(`[Premiumize] /item/listall failed: ${error || 'unexpected response'}`);
+    return [];
+  }
   listAllCache.set(apiKey, { at: now, files: data.files });
   return data.files;
 }
@@ -214,10 +221,45 @@ function pmGroupDescend(items, files, prefixParts, depth) {
   }
 }
 
+// Build library rows from finished/seeding transfers (transfer/list). Each
+// transfer becomes a row; its files are resolved lazily via a deep recursive
+// /folder/list walk. This is the battle-tested approach AIOStreams/StremThru
+// use, so it works even when /item/listall is flaky for an account.
+async function pmTransferItems(apiKey) {
+  const { data, error } = await pmRequest(apiKey, 'GET', '/transfer/list');
+  if (error || !Array.isArray(data?.transfers)) {
+    console.warn(`[Premiumize] /transfer/list failed: ${error || 'unexpected response'}`);
+    return [];
+  }
+  return data.transfers
+    .filter(t => t.status === 'finished' || t.status === 'seeding')
+    .map(t => ({
+      id:                String(t.id),
+      name:              t.name || '',
+      filename:          t.name || '',
+      source:            'premiumize',
+      download_state:    t.status === 'seeding' ? 'seeding' : 'completed',
+      download_finished: true,
+      progress:          1,
+    }))
+    .filter(i => i.name);
+}
+
 async function getPremiumizeDownloads(apiKey) {
+  // /item/listall covers the whole cloud (including manually-organised content
+  // that never went through a transfer). When it returns files, use it. If it
+  // returns nothing (erroring or empty for the account), fall back to the
+  // transfer list so a flaky /item/listall can never empty someone's library.
   const files = await pmListAllFiles(apiKey);
-  const items = pmGroupCloudFiles(files);
-  console.log(`[Premiumize] Downloads: ${items.length} items (from ${files.length} cloud files)`);
+  if (files.length > 0) {
+    const items = pmGroupCloudFiles(files);
+    if (items.length > 0) {
+      console.log(`[Premiumize] Downloads: ${items.length} items (from ${files.length} cloud files)`);
+      return items;
+    }
+  }
+  const items = await pmTransferItems(apiKey);
+  console.log(`[Premiumize] Downloads (transfer fallback): ${items.length} items`);
   return items;
 }
 
@@ -243,7 +285,8 @@ async function listTransferFiles(apiKey, transferId) {
 }
 
 // Walk a folder recursively collecting file entries (used by the legacy
-// transfer-id path; new ids resolve straight from the listall scan).
+// transfer-id path; new ids resolve straight from the listall scan). The depth
+// cap is only a safety net — StremThru/AIOStreams walk folders to any depth.
 async function listFolderFiles(apiKey, folderId, depth = 0) {
   const { data, error } = await pmRequest(apiKey, 'GET', '/folder/list', { id: folderId });
   if (error || !Array.isArray(data?.content)) return [];
@@ -251,7 +294,7 @@ async function listFolderFiles(apiKey, folderId, depth = 0) {
   for (const c of data.content) {
     if (c.type === 'file') {
       files.push({ id: String(c.id), name: c.name || '', size: c.size || 0, link: c.link || null });
-    } else if (c.type === 'folder' && depth < 4) {
+    } else if (c.type === 'folder' && depth < 12) {
       files = files.concat(await listFolderFiles(apiKey, c.id, depth + 1));
     }
   }

@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.6.1]
+
+### Cast photos in your library
+
+- **Actors now show on your library titles**: My Movies, My Shows and LeLibrary Collections detail pages now show the cast with their photos, just like the Trending and Popular rows
+
 ## [4.6.0]
 
 ### Trending and Popular catalogues

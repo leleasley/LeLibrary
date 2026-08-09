@@ -534,14 +534,14 @@ async function buildMeta(tmdbId, type, tmdbApiKey, lang, config = {}, enhance = 
 
   await enhanceMeta(meta, enhance);
 
-  // Owned library / franchise metas (torbox:) stay minimal — trailers, the
-  // clickable cast and the network/production links are a Popular/Trending
+  // Owned library / franchise metas (torbox:) keep the clickable cast (with
+  // photos) so My Movies / My Shows show the actors, but stay otherwise
+  // minimal: trailers and the network/production links are a Popular/Trending
   // (tt:) discovery feature, so only discovery metas carry them. This keeps
   // My Movies / My Shows / LeLibrary Collections items clean while the
   // IMDB-linked discovery rows stay rich and interactive.
   if (meta && filterOwnedEpisodes) {
     delete meta.trailerStreams;
-    if (meta.app_extras) delete meta.app_extras.cast;
     if (Array.isArray(meta.links)) {
       meta.links = meta.links.filter(l => l && l.category === 'imdb');
     }

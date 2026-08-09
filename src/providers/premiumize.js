@@ -140,6 +140,12 @@ function pmLooksGeneric(name) {
   return words.length > 0 && words.every(w => PM_GENERIC_TOKENS.has(w));
 }
 
+// "Season 1", "Temporada 1", "S01" — the tell-tale sign a folder is a show
+// container (its subfolders are seasons) rather than a catch-all category.
+function pmIsSeasonLike(name) {
+  return /\b(?:season|temporada)\s*\d+\b/i.test(name) || /\b\d+[aªº°]\s*temporada\b/i.test(name) || /\b[Ss]\d{1,2}(?!\s*[Ee])/.test(name);
+}
+
 function pmMakeFolderItem(groupPath, name, files) {
   return {
     id:                pmItemIdForFolder(groupPath),
@@ -208,13 +214,26 @@ function pmGroupDescend(items, files, prefixParts, depth) {
   const isDirect = f => (f.path || '').split('/').length === prefixParts.length + 1;
   const hasDirectVideo = files.some(f => isDirect(f) && isPmVideoFile(f.name || ''));
 
-  if (hasDirectVideo || pmLooksMediaLike(name) || (!pmLooksGeneric(name) && guessMediaInfo(name)) || depth >= 4) {
+  // A folder is a content row when it directly holds video files, its name has
+  // strong media signals, or its subfolders are seasons (a show container like
+  // "Breaking.Bad/Season 1/..."). A name that merely *parses* as a title is NOT
+  // enough — catch-all categories ("Classic Films", "4K Collection") parse too
+  // and would swallow every movie inside them.
+  const nextSegs = new Set();
+  for (const f of files) {
+    const parts = (f.path || '').split('/');
+    if (parts.length > prefixParts.length + 1) nextSegs.add(parts[prefixParts.length]);
+  }
+  const hasSeasonSubfolders = [...nextSegs].some(s => pmIsSeasonLike(s));
+  const parsesAsTitle = !pmLooksGeneric(name) && guessMediaInfo(name);
+
+  if (hasDirectVideo || pmLooksMediaLike(name) || (hasSeasonSubfolders && parsesAsTitle) || depth >= 4) {
     items.push(pmMakeFolderItem(prefixParts.join('/'), name, files));
     return;
   }
 
-  // Descend: group by the next path segment so a non-media parent ("My Files")
-  // doesn't swallow its content into one useless item.
+  // Descend: group by the next path segment so a non-media parent ("My Files",
+  // "Classic Films", ...) doesn't swallow its content into one useless item.
   const next = new Map();
   for (const f of files) {
     const parts = (f.path || '').split('/');
@@ -279,14 +298,18 @@ async function pmWalkFolder(apiKey, folderId, depth) {
 }
 
 // Turn the folder tree into library rows using the same media-likeness rules
-// as the listall grouping: a folder holding videos (directly, or via a parsed
-// media name) becomes a row; generic container folders are descended into.
+// as the listall grouping: a folder holding videos directly, or one whose
+// subfolders are seasons (a show container), becomes a row; catch-all category
+// folders are descended into so their content isn't swallowed.
 function pmTreeToItems(node, depth) {
   if (!node || node.type !== 'folder') return [];
   const directVideos = node.children.filter(c => c.type === 'file' && isPmVideoFile(c.name));
   if (directVideos.length === 0 && !node.children.some(c => c.type === 'folder')) return [];
   const name = node.name || '';
-  if (directVideos.length > 0 || pmLooksMediaLike(name) || (!pmLooksGeneric(name) && guessMediaInfo(name)) || depth >= 4) {
+  const subFolders = node.children.filter(c => c.type === 'folder');
+  const hasSeasonSubfolders = subFolders.some(c => pmIsSeasonLike(c.name));
+  const parsesAsTitle = !pmLooksGeneric(name) && guessMediaInfo(name);
+  if (directVideos.length > 0 || pmLooksMediaLike(name) || (hasSeasonSubfolders && parsesAsTitle) || depth >= 4) {
     return [{
       id:                pmItemIdForFolderId(node.id),
       name,
@@ -332,6 +355,48 @@ async function pmRootWalkItems(apiKey) {
   return items;
 }
 
+// ── File-based library items ──────────────────────────────────
+// The simplest, most reliable model (what the user asked for): walk into every
+// folder, pull out the video files, and make EACH video file a library entry.
+// The file names are real release names, so the addon's normal movie/show
+// matching puts movies in My Movies and shows in My Shows — no folder-name
+// guessing needed. When a file name is generic ("movie.mkv", "s01e01.mkv") the
+// nearest media-like parent folder name is used instead.
+function pmBestDisplayName(f) {
+  const raw = f.name || '';
+  const fname = raw.replace(/\.[^.]+$/, '');
+  if (pmLooksMediaLike(fname) && guessMediaInfo(fname)) return fname;
+  const parts = (f.path || raw || '').split('/');
+  parts.pop(); // drop the file name
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const seg = parts[i] || '';
+    if (pmIsSeasonLike(seg)) continue; // "Season 1" is structural, not content
+    if (pmLooksMediaLike(seg) || (!pmLooksGeneric(seg) && guessMediaInfo(seg))) return seg;
+  }
+  return fname || (parts[parts.length - 1] || '');
+}
+
+function pmFilesToItems(files) {
+  const items = [];
+  for (const f of files) {
+    if (!isPmVideoFile(f.name || '')) continue;
+    const name = pmBestDisplayName(f);
+    if (!name) continue;
+    items.push({
+      id:                pmItemIdForFile(f.id),
+      name,
+      filename:          name,
+      source:            'premiumize',
+      download_state:    'completed',
+      download_finished: true,
+      progress:          1,
+      size:              f.size || 0,
+      created_at:        f.created_at ? new Date(f.created_at * 1000).toISOString() : undefined,
+    });
+  }
+  return items;
+}
+
 async function getPremiumizeDownloads(apiKey) {
   // /item/listall covers the whole cloud (including manually-organised content
   // that never went through a transfer). When it returns files, use it. If it
@@ -340,7 +405,7 @@ async function getPremiumizeDownloads(apiKey) {
   // can never empty someone's library.
   const files = await pmListAllFiles(apiKey);
   if (files.length > 0) {
-    const items = pmGroupCloudFiles(files);
+    const items = pmFilesToItems(files);
     if (items.length > 0) {
       console.log(`[Premiumize] Downloads: ${items.length} items (from ${files.length} cloud files)`);
       return items;

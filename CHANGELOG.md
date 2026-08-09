@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.6.6]
+
+### Premiumize files now show up properly
+
+- **Everything inside your folders appears now**: instead of trying to guess titles from folder names, LeLibrary pulls out each video file and sorts it into My Movies or My Shows by its real name, so content inside category folders (4K, Classic Films, TV Shows and so on) finally shows up
+
 ## [4.6.5]
 
 ### Premiumize scans everything, every time

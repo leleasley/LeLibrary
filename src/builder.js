@@ -820,8 +820,8 @@ async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episo
     if (bingeKey) behaviorHints.bingeGroup = bingeKey;
     return {
       url,
-      name:        formatStreamName(fname, source, size, config),
-      description: formatStreamDesc(fname, size, source, config),
+      name:        formatStreamName(fname, source, size, config, undefined, { library: true }),
+      description: formatStreamDesc(fname, size, source, config, undefined, { library: true }),
       size,
       behaviorHints,
     };
@@ -979,9 +979,9 @@ function streamTemplates(config = {}) {
   };
 }
 
-function formatStreamName(filename = '', source = '', size, config = {}, addonName) {
+function formatStreamName(filename = '', source = '', size, config = {}, addonName, opts = {}) {
   const t = streamTemplates(config);
-  return formatter.formatStream(t.name, t.description, filename, source, size, { addonName }).name;
+  return formatter.formatStream(t.name, t.description, filename, source, size, { addonName, ...opts }).name;
 }
 
 /**
@@ -992,9 +992,9 @@ function formatStreamName(filename = '', source = '', size, config = {}, addonNa
  *   Line 3 → group (with 🇧🇷 if Brazilian group)
  *   Line 4 → filename in smallcaps
  */
-function formatStreamDesc(filename = '', size, source, config = {}, addonName) {
+function formatStreamDesc(filename = '', size, source, config = {}, addonName, opts = {}) {
   const t = streamTemplates(config);
-  return formatter.formatStream(t.name, t.description, filename, source, size, { addonName }).description;
+  return formatter.formatStream(t.name, t.description, filename, source, size, { addonName, ...opts }).description;
 }
 
 // Reformat an external addon stream (Torrentio/Comet/Meteor/MediaFusion) with
@@ -1008,17 +1008,18 @@ function reformatExternalStream(stream, source = 'torbox', config = {}) {
   if (!fn) return stream;
   const size = Number(stream.behaviorHints && stream.behaviorHints.videoSize) || 0;
   const addonName = (stream && stream._sourceAddon) || 'LeLibrary';
-  // The formatter's service badge must reflect WHERE the stream came from (the
-  // external addon), not the user's own debrid provider. `_sourceAddonId`
-  // carries the addon id (e.g. "torrentio") so the badge shows "[TR+]"
-  // instead of a misleading "[TB+]".
-  const src = (stream && stream._sourceAddonId) || source;
+  // The badge reflects the user's DEBRID PROVIDER (`source`, e.g. "[TB]" for
+  // TorBox), matching how owned streams are labelled — so every stream shows
+  // the same [TB]/[RD]/[AD]/[PM] badge regardless of which addon supplied it.
+  // The addon's NAME still appears next to it (e.g. "[TB] Comet").
+  const src = source;
+  const isOwned = stream && stream._owned === true;
   return {
     ...stream,
     _sourceAddon: undefined,
     _sourceAddonId: undefined,
-    name: formatStreamName(fn, src, size, config, addonName),
-    description: formatStreamDesc(fn, size, src, config, addonName),
+    name: formatStreamName(fn, src, size, config, addonName, { library: isOwned }),
+    description: formatStreamDesc(fn, size, src, config, addonName, { library: isOwned }),
   };
 }
 

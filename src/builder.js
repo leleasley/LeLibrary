@@ -89,13 +89,14 @@ function buildRpdbUrl(key, idType, posterType, mediaId) {
   return `https://api.ratingposterdb.com/${key}/${idType}/${posterType}/${mediaId}.jpg?fallback=true`;
 }
 
-// BetterPoster (btttr.cc) serves poster-default artwork keyed by the title's
-// IMDb id. The id is a byproduct of TMDB's external_ids that getMetadata
-// already fetches — it is never used for matching. Poster-only: no backdrops
-// or logos.
-function buildBetterPosterUrl(imdbId) {
+// BetterPoster (btttr.cc) serves poster artwork keyed by the title's IMDb id,
+// matching the format the BetterPosters addon uses (movie|tv/{imdb}/auto~gr).
+// The id is a byproduct of TMDB's external_ids that getMetadata already
+// fetches — it is never used for matching. Poster-only: no backdrops or logos.
+function buildBetterPosterUrl(imdbId, type) {
   if (!imdbId) return null;
-  return `https://btttr.cc/poster/imdb/poster-default/${String(imdbId).toLowerCase()}.jpg`;
+  const t = (type === 'series' || type === 'anime') ? 'tv' : 'movie';
+  return `https://btttr.cc/poster/${t}/${String(imdbId).toLowerCase()}/auto~gr.png`;
 }
 
 async function getOmdbRatings(apiKey, imdbId) {
@@ -566,7 +567,8 @@ async function enhanceMeta(meta, enhance = {}) {
     if (enhanceBackground) meta.background = buildRpdbUrl(rpdbKey, 'imdb', 'backdrop-default', imdbId);
     if (enhanceLogo) meta.logo = buildRpdbUrl(rpdbKey, 'imdb', 'logo-default', imdbId);
   } else if (posterProvider === 'betterposter' && imdbId) {
-    meta.poster = buildBetterPosterUrl(imdbId);
+    meta.poster = buildBetterPosterUrl(imdbId, meta.type);
+    meta.posterShape = 'poster';
   } else if (fanartKey && meta.tmdbId) {
     const tmdbType = meta.type === 'movie' ? 'movie' : 'tv';
     const art = await getFanartArt(fanartKey, meta.tmdbId, tmdbType).catch(() => null);

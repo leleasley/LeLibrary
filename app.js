@@ -27,6 +27,32 @@ try { REGISTRY = require('./src/registry'); } catch (e) { /* self-hosted build *
 
 const http  = require('http');
 const https = require('https');
+
+// Simple per-IP rate limiter for the config-store routes. (This is a tiny copy
+// of the one in website/index.js so the addon core doesn't depend on the
+// private website file to guard these endpoints.)
+const rateLimitBuckets = new Map();
+function rateLimit({ windowMs = 60000, max = 30 } = {}) {
+  return (req, res, next) => {
+    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    const now = Date.now();
+    let bucket = rateLimitBuckets.get(ip);
+    if (!bucket || now - bucket.start > windowMs) {
+      bucket = { start: now, count: 0 };
+      rateLimitBuckets.set(ip, bucket);
+    }
+    bucket.count++;
+    if (bucket.count > max) {
+      return res.status(429).json({ error: 'Rate limit exceeded. Please slow down.' });
+    }
+    next();
+  };
+}
+setInterval(() => {
+  const cutoff = Date.now() - 120000;
+  for (const [ip, b] of rateLimitBuckets) { if (b.start < cutoff) rateLimitBuckets.delete(ip); }
+}, 300000);
+
 // Reuse TCP/TLS connections to provider APIs (TorBox, Real-Debrid, TMDB).
 // axios opens a brand-new connection per request by default and each TLS
 // handshake can cost 100ms–1s depending on the provider — keep-alive makes the
@@ -82,6 +108,38 @@ app.use((req, res, next) => {
 
 // ── Website routes (landing, configure, library, discover, proxies) ──
 if (createWebRoutes) app.use(createWebRoutes(decodeConfig));
+
+// ── Server-side config store (stream settings) ──
+// Lives HERE (git-tracked, auto-deployed) rather than in the private
+// website/index.js so the addon never depends on a manually-synced file for
+// the custom formatter / stream addon settings to work. The configure page
+// saves the heavy stream settings keyed by the user's stable hash; the addon
+// merges them back on every stream/meta request.
+app.post('/api/save-config', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) => {
+  try {
+    const config = req.body && req.body.config;
+    if (!config || typeof config !== 'object') return res.status(400).json({ error: 'Missing config' });
+    const userKey = await require('./src/configstore').saveStreamSettings(config);
+    if (!userKey) return res.status(400).json({ error: 'Config has no usable API keys' });
+    res.json({ ok: true, userKey });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Return the server-side stream settings for a token's user so the configure
+// form can pre-fill them even when the token itself is missing them.
+app.get('/api/config/:token', async (req, res) => {
+  const config = decodeConfig(req.params.token);
+  if (!config) return res.status(400).json({ error: 'Invalid token' });
+  try {
+    const userKey = providers.getUserKey(config);
+    const stored = userKey ? await require('./src/configstore').loadStreamSettings(userKey) : null;
+    res.json(stored || null);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ── Addon core routes ───────────────────────────────────────────────
 
@@ -247,7 +305,7 @@ function getLogoUrl(baseUrl) {
 function getBaseManifest(baseUrl) {
   const manifest = {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-    version: '4.6.7',
+    version: '4.6.8',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -337,9 +395,13 @@ function getConfiguredManifest(baseUrl, config = {}) {
 
   // ── Assemble in the user's catalogue order ──
   const DEFAULT_ORDER = ['trendingMovies','trendingSeries','popularMovies','popularSeries','movies','series','anime','franchises'];
-  const order = Array.isArray(config.catalogOrder) && config.catalogOrder.length
-    ? config.catalogOrder
-    : DEFAULT_ORDER;
+  const orderRaw = Array.isArray(config.catalogOrder) && config.catalogOrder.length
+    ? config.catalogOrder.slice()
+    : DEFAULT_ORDER.slice();
+  const order = [...orderRaw];
+  for (const k of DEFAULT_ORDER) {
+    if (!order.includes(k)) order.push(k);
+  }
   const seen = new Set();
 
   for (const key of order) {
@@ -364,7 +426,7 @@ function getConfiguredManifest(baseUrl, config = {}) {
 
   return {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-    version: '4.6.7',
+    version: '4.6.8',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -386,7 +448,7 @@ app.get('/health', async (req, res) => {
   res.json({
     status: 'ok',
     cache: stats,
-    version: '4.6.7',
+    version: '4.6.8',
   });
 });
 

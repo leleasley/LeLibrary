@@ -1050,7 +1050,7 @@
         regexMatched: null,
         seadex: false,
         seadexBest: false,
-        library: true,
+        library: !!opts.library,
         preloading: false,
         idMatched: false,
       },

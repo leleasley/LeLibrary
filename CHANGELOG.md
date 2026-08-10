@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.6.9]
+
+### BetterPosters look right now
+
+- **BetterPosters artwork displays properly**: posters now use the same smart-tag format as the BetterPosters addon and declare the correct poster shape, so they show at full size instead of getting squashed or cropped
+
 ## [4.6.8]
 
 ### Custom formatter settings stored reliably

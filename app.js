@@ -217,7 +217,11 @@ async function buildAndCacheForConfig(token, config) {
 
   console.log(`[Cache] Refresh for ...${token.slice(-8)} (${lang}) providers=${active.join(',')}`);
   try {
-    const downloads = await providers.fetchDownloads(config);
+    // Always fetch FRESH for the background rebuild (it must detect library
+    // changes) but seed the Redis downloads cache so the discovery stream path
+    // can answer the owned-bridge without re-hitting TorBox.
+    const downloads = await providers.fetchDownloads(config, { useCache: false });
+    await providers.setCachedDownloads(config, downloads);
     const newHash   = hashDownloads(downloads);
     const hashKey   = cache.makeKey('dlhash', userKey);
     const oldHash   = await cache.get(hashKey);

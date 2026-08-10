@@ -2,16 +2,54 @@
 
 ## [4.7.0]
 
-### Stream Filters & Sorting (Trending / Popular)
+### Setup wizard redesign
 
-- **Tame your stream list**: on the Trending and Popular rows you can now filter the external addon streams that show up — minimum and maximum resolution, minimum file size, cached-only, and hide low-quality CAM/TS releases
-- **Sort streams your way**: pick how the list is ordered — cached first, by quality, by size, or a combination
-- **Duplicate streams collapsed**: identical files from different addons are deduplicated, keeping your own copy first
-- **Your library copy is always kept**: filters apply to the stream addons only, never to the files you already own
+- **Proper 6-step setup wizard**: Providers, Metadata, Filters, Catalogues, Streams & Look, Install — no more tabs
+- **Left step rail**: numbered dots with titles and descriptions, done steps turn green with a checkmark, current step glows amber
+- **Progress header**: "Step X of 6" with a thin amber progress bar that fills as you go
+- **Mobile step rail**: collapses to compact numbered dots in a single row on small screens
+- **Back / Continue buttons**: fixed under each step, Back is hidden on step 1
+
+### Filters & Preferences (new step)
+
+- **Resolution filtering**: tick the resolutions you want to see (4K, 2K, 1080p, 720p, etc.) and unticked ones are hidden entirely
+- **Preferred resolution order**: drag to reorder. When sorting by quality, streams at the top are preferred
+- **Auto-sync**: unticking a resolution removes it from the preference order; re-ticking adds it back at the bottom
+- **Quality & Source filters**: include/exclude by quality tags (BluRay, WEB-DL, CAM, etc.) and sources
+- **Audio & HDR filters**: include/exclude by video codecs, HDR tags and audio formats
+- **Size & Cache**: min/max file size, cached-only toggle
+- **Max streams per title**: slider from 10 to 65, default 35
+
+### Stream speed & reliability
+
+- **No more stream caps**: external addons return all their streams, the resolution filter and total cap run after fetching so the best matching streams survive
+- **Faster discovery streams**: external addon responses settle after 3 working addons (or all done), so a slow or failing addon never holds up the response
+- **Downloads cached in Redis**: TorBox/Real-Debrid downloads are cached for 10 minutes so the discovery owned-bridge checks the cache instead of re-fetching from the provider every time
+- **IMDb to TMDB mapping cached**: the lookup is cached for 30 days so discovery titles load near-instantly on repeat visits
+- **Discovery owned-bridge skips the slow TMDB fallback**: when you click a discovery title, the owned-check only consults cached downloads and matches, never triggers the expensive per-candidate TMDB search
+- **Comet config cleaned**: removed extra fields that caused different stream results
+
+### Catalogues
+
+- **Drag to reorder**: grab the handle and drag catalogue rows to reorder them (works on desktop and mobile with touch)
+- **Pin Collections default off**: the "Pin LeLibrary Collections to top" checkbox is unchecked by default for new users
+
+### Stream format & sorting
+
+- **Owned first, then size**: default sort is now "owned first, then size" — your library copy is always first, external streams sorted by largest
+- **1440p / 2K detected**: stream quality detection now recognises 1440p/2K files, ranked between 4K and 1080p
+- **Resolution labels use proper names**: filter chips show "4K" and "2K" instead of raw "2160p" / "1440p"
+- **Old tokens migrated**: existing config tokens with old resolution labels are automatically updated on load
 
 ### More reliable settings
 
-- **Your stream settings live on our servers now**: custom streams and your stream addon choices are stored server-side instead of being crammed into the install link, so the link stays short and can never break
+- **Stream addons saved in the token**: addon choices are now embedded in the install token itself, so external streams survive a Redis flush or expiry
+- **Your stream settings also live on our servers**: custom templates and addon choices are stored server-side as a supplement
+
+### Fixes
+
+- **Progress header updates on step change**: the step title and progress bar now update correctly when navigating between steps
+- **Catalogue reorder persists**: the reorder guard prevents recursive re-renders from resetting the list
 
 ## [4.6.10]
 

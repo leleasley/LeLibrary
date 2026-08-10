@@ -983,6 +983,12 @@
       realdebrid: { id: 'realdebrid', shortName: 'RD', name: 'Real-Debrid' },
       alldebrid: { id: 'alldebrid', shortName: 'AD', name: 'AllDebrid' },
       premiumize: { id: 'premiumize', shortName: 'PM', name: 'Premiumize' },
+      // External stream addons (Trending/Popular discovery rows) — the badge
+      // reflects the addon the stream came from, not the user's debrid provider.
+      torrentio:   { id: 'torrentio',   shortName: 'TR', name: 'Torrentio' },
+      comet:       { id: 'comet',       shortName: 'CM', name: 'Comet' },
+      meteor:      { id: 'meteor',      shortName: 'ME', name: 'Meteor' },
+      mediafusion: { id: 'mediafusion', shortName: 'MF', name: 'MediaFusion' },
     }[source] || { id: 'torbox', shortName: 'TB', name: 'TorBox' };
 
     const emptyLists = { languages, subtitles, languageEmojis, subtitleEmojis };

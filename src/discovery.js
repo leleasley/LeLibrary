@@ -128,10 +128,13 @@ function applyStreamFilters(streams, filters = {}) {
 
     if (cachedOnly && streamIsCached(stream) === false) return false;
 
-    // Resolution filter — match against both raw and normalized values
+    // Resolution filter — match against both raw and normalized values.
+    // When a filter is set, streams with NO detectable resolution are dropped
+    // too (the 💩Unknown rows): the user asked for specific resolutions, so
+    // an unidentifiable file is noise.
     if (resAllowed.length > 0) {
       const streamRes = normalizeRes(q);
-      if (streamRes && !resAllowed.includes(streamRes)) return false;
+      if (!streamRes || !resAllowed.includes(streamRes)) return false;
     }
 
     return true;

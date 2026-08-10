@@ -855,13 +855,7 @@
                   <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text);cursor:pointer;margin-top:14px">
                     <input type="checkbox" id="filterCachedOnly" onchange="checkChanged()" /> Cached only (hide uncached debrid results)
                   </label>
-                  <div class="field" style="margin-top:14px">
-                    <div class="field-label">Max streams per title <span style="font-weight:400;color:var(--muted);font-size:0.7rem;margin-left:6px">default 35 · max 65</span></div>
-                    <div style="display:flex;align-items:center;gap:10px">
-                      <input type="range" id="filterMaxStreams" min="10" max="65" value="35" oninput="document.getElementById('filterMaxStreamsVal').textContent=this.value;checkChanged()" style="flex:1;accent-color:var(--amber)" />
-                      <span id="filterMaxStreamsVal" style="font-size:0.85rem;font-weight:700;color:var(--amber);min-width:28px;text-align:right">35</span>
-                    </div>
-                  </div>
+
                 </div>
               </div>
             </div>
@@ -1327,8 +1321,6 @@
       const fMinSize = parseFloat(document.getElementById('filterMinSize')?.value) || 0;
       const fMaxSize = parseFloat(document.getElementById('filterMaxSize')?.value) || 0;
       if (fMinSize > 0) cfg.filterMinSize = fMinSize;
-      const fMaxStreams = parseInt(document.getElementById('filterMaxStreams')?.value) || 35;
-      if (fMaxStreams !== 35) cfg.filterMaxStreams = fMaxStreams;
       if (fMaxSize > 0) cfg.filterMaxSize = fMaxSize;
       if (document.getElementById('filterCachedOnly')?.checked) cfg.filterCachedOnly = true;
       // Stream addons go IN THE TOKEN too (not just Redis) so external streams
@@ -2154,7 +2146,6 @@
         if (cfg.filterHdr && Array.isArray(cfg.filterHdr)) filterState.hdr = new Set(cfg.filterHdr);
         if (cfg.filterAudio && Array.isArray(cfg.filterAudio)) filterState.audio = new Set(cfg.filterAudio);
         if (cfg.filterMinSize) document.getElementById('filterMinSize').value = cfg.filterMinSize;
-        if (cfg.filterMaxStreams) { document.getElementById('filterMaxStreams').value = cfg.filterMaxStreams; document.getElementById('filterMaxStreamsVal').textContent = cfg.filterMaxStreams; }
         if (cfg.filterMaxSize) document.getElementById('filterMaxSize').value = cfg.filterMaxSize;
         if (cfg.filterCachedOnly) document.getElementById('filterCachedOnly').checked = true;
         renderAllFilterChips();
@@ -2198,7 +2189,7 @@
       updateSetupSummary();
 
       // Watch for changes on all config fields
-      const watchIds = ['provider', 'torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'rdCatalog', 'sortBy', 'lang', 'posterProvider', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'streamPreset', 'filterMinSize', 'filterMaxSize', 'filterCachedOnly', 'filterMaxStreams'];
+      const watchIds = ['provider', 'torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'rdCatalog', 'sortBy', 'lang', 'posterProvider', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'streamPreset', 'filterMinSize', 'filterMaxSize', 'filterCachedOnly'];
       watchIds.forEach(id => {
         const el = document.getElementById(id);
         if (el) {

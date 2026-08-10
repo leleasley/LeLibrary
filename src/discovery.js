@@ -62,18 +62,22 @@ async function buildDiscoveryStreams({ config, tmdbApiKey, type, id, lang, custo
   // invalidates cached streams instead of serving stale names for the TTL.
   const fmtFp = ':' + hashShort([config.streamPreset || '', config.streamNameTemplate || '', config.streamDescTemplate || ''].join('|'));
 
-  // Owned bridge: the user's library copy whenever stream addons are on, so
-  // owned discovery titles keep their own file listed first.
-  let ownedStreams = [];
-  if (externalAddons.length > 0) {
-    const ownedKey = cache.makeKey('stream', type, tmdbId, season || '', episode || '', userKey + fmtFp);
-    const ownedHit = await cache.get(ownedKey);
-    if (ownedHit) {
-      ownedStreams = ownedHit.streams || [];
-    } else {
-      ownedStreams = await buildStreams(config, tmdbApiKey, type, tmdbId, season, episode, lang, customStreams, userKey);
-      await cache.set(ownedKey, { streams: ownedStreams }, ownedStreams.length > 0 ? TTL_STREAM : 60);
-    }
+  // Owned bridge: the user's library copy is ALWAYS listed first for a tt: id,
+  // even when no external stream addons are configured. This is what makes
+  // LeLibrary appear as a source for titles opened from ANY addon's catalog
+  // (not just LeLibrary's own discovery rows) — a plain IMDb id from another
+  // catalog is indistinguishable here from one of our own rows. (v4.6.0
+  // accidentally gated this behind externalAddons.length > 0, dropping
+  // LeLibrary from every external title's stream list for users without
+  // stream addons configured — see regressions/4.6.0-tt-owned-bridge.)
+  const ownedKey = cache.makeKey('stream', type, tmdbId, season || '', episode || '', userKey + fmtFp);
+  const ownedHit  = await cache.get(ownedKey);
+  let ownedStreams;
+  if (ownedHit) {
+    ownedStreams = ownedHit.streams || [];
+  } else {
+    ownedStreams = await buildStreams(config, tmdbApiKey, type, tmdbId, season, episode, lang, customStreams, userKey);
+    await cache.set(ownedKey, { streams: ownedStreams }, ownedStreams.length > 0 ? TTL_STREAM : 60);
   }
 
   // No external addons configured — only the owned copy can answer.

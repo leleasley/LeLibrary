@@ -241,10 +241,8 @@ async function buildDiscoveryStreams({ config, tmdbApiKey, type, id, lang, custo
   // needs to see ALL resolutions to pick the right ones (e.g. 1080p when 4K
   // is excluded). The total cap is applied AFTER filtering.
   const externalFiltered = applyStreamFilters(allExternal, filters);
-  // Total cap: user-configurable, defaults to 35, max 65. Applied AFTER
-  // resolution filter so the best matching streams survive, not just the first.
-  const totalCap = Math.min(Math.max(parseInt(config?.filterMaxStreams) || 35, 10), 65);
-  const externalCapped = externalFiltered.slice(0, totalCap);
+  // No total cap: the resolution filter is the only gate, matching AIOStreams.
+  const externalCapped = externalFiltered;
   const providerSrc = providers.activeProviders(config)[0] || 'torbox';
   const externalFmt = externalCapped.map(s => reformatExternalStream(s, providerSrc, config));
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.6.7]
+
+### Custom formatter install links fixed
+
+- **Custom formatter links work again**: a long custom stream template no longer breaks your install link. Templates are now stored server-side instead of being squeezed into the URL, so the install link stays short and installs cleanly
+
 ## [4.6.6]
 
 ### Premiumize files now show up properly

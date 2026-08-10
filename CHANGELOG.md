@@ -4,7 +4,7 @@
 
 ### Setup wizard redesign
 
-- **Proper 6-step setup wizard**: Providers, Metadata, Filters, Catalogues, Streams & Look, Install — no more tabs
+- **Proper 6-step setup wizard**: Providers, Metadata, Filters, Catalogues, Streams & Look, Install, no more tabs
 - **Left step rail**: numbered dots with titles and descriptions, done steps turn green with a checkmark, current step glows amber
 - **Progress header**: "Step X of 6" with a thin amber progress bar that fills as you go
 - **Mobile step rail**: collapses to compact numbered dots in a single row on small screens
@@ -36,7 +36,7 @@
 
 ### Stream format & sorting
 
-- **Owned first, then size**: default sort is now "owned first, then size" — your library copy is always first, external streams sorted by largest
+- **Owned first, then size**: default sort is now "owned first, then size", your library copy is always first, external streams sorted by largest
 - **1440p / 2K detected**: stream quality detection now recognises 1440p/2K files, ranked between 4K and 1080p
 - **Resolution labels use proper names**: filter chips show "4K" and "2K" instead of raw "2160p" / "1440p"
 - **Old tokens migrated**: existing config tokens with old resolution labels are automatically updated on load

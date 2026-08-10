@@ -1,5 +1,18 @@
 # Changelog
 
+## [4.7.0]
+
+### Stream Filters & Sorting (Trending / Popular)
+
+- **Tame your stream list**: on the Trending and Popular rows you can now filter the external addon streams that show up — minimum and maximum resolution, minimum file size, cached-only, and hide low-quality CAM/TS releases
+- **Sort streams your way**: pick how the list is ordered — cached first, by quality, by size, or a combination
+- **Duplicate streams collapsed**: identical files from different addons are deduplicated, keeping your own copy first
+- **Your library copy is always kept**: filters apply to the stream addons only, never to the files you already own
+
+### More reliable settings
+
+- **Your stream settings live on our servers now**: custom streams and your stream addon choices are stored server-side instead of being crammed into the install link, so the link stays short and can never break
+
 ## [4.6.10]
 
 ### Stream badges show where they came from

@@ -1604,6 +1604,58 @@
           </p>
           <div class="cat-options" id="streamAddonList"></div>
         </div>
+
+        <div class="step-card" id="streamFiltersCard" style="margin-top:18px">
+          <h3 style="margin:0 0 4px 0;font-size:1.05rem;color:var(--white);display:flex;align-items:center;gap:8px">🧹 Stream Filters &amp; Sorting <span class="beta">Optional</span></h3>
+          <p class="field-hint" style="margin:2px 0 12px 0">
+            Tame the external addon noise on the <strong>Trending</strong> and <strong>Popular</strong> rows.
+            Filters apply to the stream addons only — your own library copies are always kept.
+          </p>
+
+          <div class="field">
+            <div class="field-label">Sort</div>
+            <select id="streamSort" onchange="checkChanged()">
+              <option value="">Default (owned first)</option>
+              <option value="cached-quality">Cached first, then quality</option>
+              <option value="quality">Quality, then size</option>
+              <option value="size">Size</option>
+              <option value="cached-size">Cached first, then size</option>
+            </select>
+          </div>
+
+          <div class="field" style="margin-top:12px">
+            <div class="field-label">Resolution range</div>
+            <div style="display:flex;gap:10px;align-items:center">
+              <select id="streamMinQuality" onchange="checkChanged()">
+                <option value="">Any min</option>
+                <option value="1080p">1080p+</option>
+                <option value="720p">720p+</option>
+                <option value="480p">480p+</option>
+              </select>
+              <span style="color:var(--muted)">to</span>
+              <select id="streamMaxQuality" onchange="checkChanged()">
+                <option value="">Any max</option>
+                <option value="4K">Up to 4K</option>
+                <option value="1080p">Up to 1080p</option>
+                <option value="720p">Up to 720p</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field" style="margin-top:12px">
+            <div class="field-label">Minimum size (GB)</div>
+            <input type="number" id="streamMinSizeGB" min="0" step="0.5" placeholder="0" oninput="checkChanged()" style="width:120px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text)" />
+          </div>
+
+          <div style="display:flex;gap:18px;margin-top:12px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text);cursor:pointer">
+              <input type="checkbox" id="streamCachedOnly" onchange="checkChanged()" /> Cached only
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text);cursor:pointer">
+              <input type="checkbox" id="streamExcludeLow" onchange="checkChanged()" /> Hide CAM / TS / screeners
+            </label>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -2047,9 +2099,11 @@
     // itself is still saved normally, this is a supplement.
     function saveConfigToServer(cfg) {
       if (!cfg || typeof cfg !== 'object') return;
-      // The install token intentionally omits the custom formatter templates
-      // (they'd blow up the URL). Re-add them here so the server-side store
-      // still has them for the addon to merge back in.
+      // The install token intentionally omits the heavy/variable stream settings
+      // (custom formatter templates, custom streams, stream addons) — they'd
+      // blow up the URL. Re-add them here so the server-side store has them for
+      // the addon to merge back in. Always set them (even empty) so clearing
+      // sticks.
       const serverCfg = { ...cfg };
       if (document.getElementById('streamPreset')?.value === 'custom') {
         const nameT = document.getElementById('streamNameTemplate')?.value.trim();
@@ -2057,6 +2111,8 @@
         if (nameT) serverCfg.streamNameTemplate = nameT;
         if (descT) serverCfg.streamDescTemplate = descT;
       }
+      serverCfg.customStreams = customStreams;
+      serverCfg.streamAddons = streamAddons;
       try {
         fetch('/api/save-config', {
           method: 'POST',
@@ -2103,7 +2159,6 @@
         }
       }
       if (omdbKey) cfg.omdbKey = omdbKey;
-      if (customStreams.length > 0) cfg.customStreams = customStreams;
       if (catNames.movies && catNames.movies !== '🎬 My Movies') cfg.catNameMovies = catNames.movies;
       if (catNames.series && catNames.series !== '📺 My Series') cfg.catNameSeries = catNames.series;
       if (catNames.anime && catNames.anime !== '🍥 LeLibrary Anime') cfg.catNameAnime = catNames.anime;
@@ -2115,6 +2170,19 @@
         // a long custom formatter can't blow up the install URL.
         cfg.streamPreset = streamPreset;
       }
+      // Streams 2.0 — discovery filter + sort settings (small, stays in token)
+      const streamSort = document.getElementById('streamSort')?.value;
+      if (streamSort) cfg.streamSort = streamSort;
+      const streamFilters = {};
+      const sminQ = document.getElementById('streamMinQuality')?.value;
+      const smaxQ = document.getElementById('streamMaxQuality')?.value;
+      const sminGB = parseFloat(document.getElementById('streamMinSizeGB')?.value) || 0;
+      if (sminQ) streamFilters.minQuality = sminQ;
+      if (smaxQ) streamFilters.maxQuality = smaxQ;
+      if (sminGB > 0) streamFilters.minSizeGB = sminGB;
+      if (document.getElementById('streamCachedOnly')?.checked) streamFilters.cachedOnly = true;
+      if (document.getElementById('streamExcludeLow')?.checked) streamFilters.excludeQualities = ['CAM', 'TS'];
+      if (Object.keys(streamFilters).length) cfg.streamFilters = streamFilters;
       if (catSelection.trendingMovies) cfg.catalogTrendingMovies = true;
       if (catSelection.trendingSeries) cfg.catalogTrendingSeries = true;
       if (catSelection.popularMovies) cfg.catalogPopularMovies = true;
@@ -2130,7 +2198,6 @@
       if (catNames.popularSeries && catNames.popularSeries !== '⭐ Popular Series') cfg.popularSeriesName = catNames.popularSeries;
       if (catNames.franchises && catNames.franchises !== 'LeLibrary Collections') cfg.collectionsName = catNames.franchises;
       if (catOrder && JSON.stringify(catOrder) !== JSON.stringify(DEFAULT_CAT_ORDER)) cfg.catalogOrder = catOrder.slice();
-      if (streamAddons.length > 0) cfg.streamAddons = streamAddons;
       return cfg;
     }
 
@@ -2276,6 +2343,14 @@
         streamPreset: document.getElementById('streamPreset').value,
         streamNameTemplate: document.getElementById('streamNameTemplate').value,
         streamDescTemplate: document.getElementById('streamDescTemplate').value,
+        streamSort: document.getElementById('streamSort')?.value || '',
+        streamFilters: {
+          minQuality: document.getElementById('streamMinQuality')?.value || '',
+          maxQuality: document.getElementById('streamMaxQuality')?.value || '',
+          minSizeGB: parseFloat(document.getElementById('streamMinSizeGB')?.value) || 0,
+          cachedOnly: !!(document.getElementById('streamCachedOnly') && document.getElementById('streamCachedOnly').checked),
+          excludeLow: !!(document.getElementById('streamExcludeLow') && document.getElementById('streamExcludeLow').checked),
+        },
         catalogTrendingMovies: catSelection.trendingMovies,
         catalogTrendingSeries: catSelection.trendingSeries,
         catalogPopularMovies: catSelection.popularMovies,
@@ -2797,7 +2872,7 @@
       goToStep(1);
     }
 
-    const APP_VERSION = '4.6.10';
+    const APP_VERSION = '4.7.0';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');
@@ -2891,6 +2966,14 @@
         } else {
           onStreamPresetChange();
         }
+        // Streams 2.0 — restore filter + sort settings
+        if (cfg.streamSort) document.getElementById('streamSort').value = cfg.streamSort;
+        const sf = (cfg.streamFilters && typeof cfg.streamFilters === 'object') ? cfg.streamFilters : {};
+        if (sf.minQuality) document.getElementById('streamMinQuality').value = sf.minQuality;
+        if (sf.maxQuality) document.getElementById('streamMaxQuality').value = sf.maxQuality;
+        if (sf.minSizeGB) document.getElementById('streamMinSizeGB').value = sf.minSizeGB;
+        if (sf.cachedOnly) document.getElementById('streamCachedOnly').checked = true;
+        if (Array.isArray(sf.excludeQualities) && sf.excludeQualities.length) document.getElementById('streamExcludeLow').checked = true;
         if (cfg.catalogTrending) catSelection.trending = true;
         // Discovery rows tick individually; legacy catalogTrending/catalogPopular
         // (both at once) still work for older tokens.
@@ -2936,6 +3019,7 @@
               if (!stored || typeof stored !== 'object') return;
               let applied = false;
               if (Array.isArray(stored.streamAddons) && !streamAddonsTouched) { streamAddons = stored.streamAddons; applied = true; }
+              if (Array.isArray(stored.customStreams) && stored.customStreams.length) { customStreams = stored.customStreams; applied = true; }
               if (stored.streamPreset) {
                 document.getElementById('streamPreset').value = stored.streamPreset;
                 applied = true;

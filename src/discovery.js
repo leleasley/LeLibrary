@@ -13,7 +13,7 @@ const cache = require('./cache');
 const providers = require('./providers');
 const { getMetadata, getTrending, getPopular, imdbToTmdb } = require('./tmdb');
 const { buildStreams, reformatExternalStream, enhanceMeta } = require('./builder');
-const { fetchExternalStreams, dedupeStreams } = require('./streamAddons');
+const { fetchExternalStreams } = require('./streamAddons');
 
 const TTL_CATALOG = parseInt(process.env.CACHE_TTL_CATALOG) || 3600;
 const TTL_STREAM  = parseInt(process.env.CACHE_TTL_STREAM)  || 600;
@@ -47,6 +47,120 @@ async function buildDiscoveryMeta({ tmdbApiKey, tmdbId, type, lang, enhance = {}
   return meta;
 }
 
+// ── Streams 2.0 (discovery only) ──────────────────────────────────────────
+// Filters tame the external addon noise; dedup collapses identical files
+// (owned copy preferred); sort reorders the final list. Config comes from the
+// user's settings: config.streamFilters ({ minQuality, maxQuality, minSizeGB,
+// cachedOnly, excludeQualities }) and config.streamSort ('', 'cached-quality',
+// 'quality', 'size', 'cached-size').
+
+const QUALITY_ORDER = { '4k': 4, '1080p': 3, '720p': 2, '576p': 1, '480p': 1 };
+
+function streamQuality(name = '') {
+  const u = String(name || '').toUpperCase();
+  if (/\b(2160P|4K|UHD)\b/.test(u)) return '4K';
+  if (/\b1080P\b/.test(u)) return '1080p';
+  if (/\b720P\b/.test(u)) return '720p';
+  if (/\b576P\b/.test(u)) return '576p';
+  if (/\b480P\b/.test(u)) return '480p';
+  return '';
+}
+
+// CAM / TS / screener family — the low-quality releases users exclude.
+function streamQualityType(name = '') {
+  const u = String(name || '').toUpperCase();
+  if (/\b(CAM|CAMRIP|HDCAM|TELECINE|TELESYNC|TS|HDTS)\b/.test(u)) return 'CAM';
+  if (/\b(SCREENER|DVDSCR|WEBSCR|R5|R6)\b/.test(u)) return 'SCR';
+  return '';
+}
+
+function streamFilename(stream) {
+  return (stream && stream.behaviorHints && stream.behaviorHints.filename)
+    || stream.name || '';
+}
+
+function streamSize(stream) {
+  return Number(stream && (stream.size || (stream.behaviorHints && stream.behaviorHints.videoSize))) || 0;
+}
+
+// Owned copies are always instantly available; external addons mark cached
+// streams in their own way (⚡/✅/CACHED vs ⏳/⬇/UNCACHED). Unknown → keep.
+function streamIsCached(stream) {
+  if (stream && stream._owned === true) return true;
+  if (stream && stream.isCached === true) return true;
+  if (stream && stream.isCached === false) return false;
+  const n = String(streamFilename(stream) || '').toUpperCase();
+  if (/\b(⚡|✅|INSTANT|CACHED)\b/.test(n)) return true;
+  if (/\b(⏳|⬇|UNCACHED|NOT.*CACHED)\b/.test(n)) return false;
+  return null;
+}
+
+function applyStreamFilters(streams, filters = {}) {
+  if (!Array.isArray(streams) || streams.length === 0) return streams;
+  const minQ = String(filters.minQuality || '').toLowerCase();
+  const maxQ = String(filters.maxQuality || '').toLowerCase();
+  const minBytes = (Number(filters.minSizeGB) || 0) * 1024 * 1024 * 1024;
+  const cachedOnly = !!filters.cachedOnly;
+  const exclude = (Array.isArray(filters.excludeQualities) ? filters.excludeQualities : [])
+    .map(s => String(s).toUpperCase());
+
+  return streams.filter(stream => {
+    const fname = streamFilename(stream);
+    const q = streamQuality(fname).toLowerCase();
+
+    const size = streamSize(stream);
+    if (minBytes && size < minBytes) return false;
+
+    if (minQ && (QUALITY_ORDER[q] || 0) < (QUALITY_ORDER[minQ] || 0)) return false;
+    if (maxQ && (QUALITY_ORDER[q] || 99) > (QUALITY_ORDER[maxQ] || 99)) return false;
+
+    const qtype = streamQualityType(fname);
+    if (qtype && exclude.includes(qtype)) return false;
+
+    if (cachedOnly && streamIsCached(stream) === false) return false;
+
+    return true;
+  });
+}
+
+// Dedup by url / infohash / name, plus same-size (identical file from another
+// addon) — preferring the earlier stream, so the owned copy wins.
+function dedupeStreamsV2(streams) {
+  const seen = new Set();
+  const seenSize = new Map();
+  const out = [];
+  for (const s of streams) {
+    if (!s || typeof s !== 'object') continue;
+    const key = s.infoHash || s.url || s.name || '';
+    if (key && seen.has(key)) continue;
+    const size = streamSize(s);
+    if (size > 0) {
+      if (seenSize.has(size)) continue;
+      seenSize.set(size, true);
+    }
+    if (key) seen.add(key);
+    out.push(s);
+  }
+  return out;
+}
+
+function applyStreamSort(streams, sort = 'cached-quality') {
+  const key = sort || 'cached-quality';
+  const q = s => QUALITY_ORDER[streamQuality(streamFilename(s)).toLowerCase()] || 0;
+  const sz = s => streamSize(s);
+  const cached = s => (streamIsCached(s) === true ? 1 : 0);
+  return streams.slice().sort((a, b) => {
+    if (key === 'quality') { const d = q(b) - q(a); return d !== 0 ? d : sz(b) - sz(a); }
+    if (key === 'size') return sz(b) - sz(a);
+    if (key === 'cached-size') { const d = cached(b) - cached(a); return d !== 0 ? d : sz(b) - sz(a); }
+    // cached-quality (default)
+    const d = cached(b) - cached(a);
+    if (d !== 0) return d;
+    const dq = q(b) - q(a);
+    return dq !== 0 ? dq : sz(b) - sz(a);
+  });
+}
+
 // Streams for a tt: id — the owned library copy first (owned bridge), then the
 // enabled external addons. Returns { streams, ownedCount, externalCount }.
 async function buildDiscoveryStreams({ config, tmdbApiKey, type, id, lang, customStreams, userKey, externalAddons }) {
@@ -58,18 +172,16 @@ async function buildDiscoveryStreams({ config, tmdbApiKey, type, id, lang, custo
   if (!mapped) return { streams: [], ownedCount: 0, externalCount: 0 };
   const tmdbId = mapped.tmdbId;
 
-  // Include the stream-format fingerprint so changing the preset/templates
-  // invalidates cached streams instead of serving stale names for the TTL.
-  const fmtFp = ':' + hashShort([config.streamPreset || '', config.streamNameTemplate || '', config.streamDescTemplate || ''].join('|'));
+  const filters = (config && typeof config.streamFilters === 'object') ? config.streamFilters : {};
+  const sortKey = (config && config.streamSort) || '';
 
-  // Owned bridge: the user's library copy is ALWAYS listed first for a tt: id,
-  // even when no external stream addons are configured. This is what makes
-  // LeLibrary appear as a source for titles opened from ANY addon's catalog
-  // (not just LeLibrary's own discovery rows) — a plain IMDb id from another
-  // catalog is indistinguishable here from one of our own rows. (v4.6.0
-  // accidentally gated this behind externalAddons.length > 0, dropping
-  // LeLibrary from every external title's stream list for users without
-  // stream addons configured — see regressions/4.6.0-tt-owned-bridge.)
+  // Include the stream-format + filter/sort fingerprint so changing the preset,
+  // templates, filters or sort invalidates cached streams for the TTL.
+  const fmtFp = ':' + hashShort([config.streamPreset || '', config.streamNameTemplate || '', config.streamDescTemplate || '', JSON.stringify(filters), sortKey].join('|'));
+
+  // Owned bridge: the user's library copy is ALWAYS listed for a tt: id, even
+  // when no external stream addons are configured. (v4.6.0 accidentally gated
+  // this behind externalAddons.length > 0 — see regressions/4.6.0.)
   const ownedKey = cache.makeKey('stream', type, tmdbId, season || '', episode || '', userKey + fmtFp);
   const ownedHit  = await cache.get(ownedKey);
   let ownedStreams;
@@ -86,13 +198,19 @@ async function buildDiscoveryStreams({ config, tmdbApiKey, type, id, lang, custo
   }
 
   const external = await fetchExternalStreams(externalAddons, config, type, id);
-  // Reformat the external addon streams with the user's chosen preset so a
-  // Torrentio/Comet/Meteor/MediaFusion stream doesn't keep its own format —
-  // the user picks the look, not the source addon. Streams without a raw
-  // filename are left as the addon returned them.
+
+  // Tag owned streams so dedup prefers them and they're always "cached".
+  const ownedTagged = (ownedStreams || []).map(s => ({ ...s, _owned: true }));
+
+  // Filter the external noise BEFORE reformatting (raw size + filename still
+  // available). Owned copies are always kept — filters tame the addons, never
+  // hide your own file.
+  const externalFiltered = applyStreamFilters(external, filters);
   const providerSrc = providers.activeProviders(config)[0] || 'torbox';
-  const externalFmt = external.map(s => reformatExternalStream(s, providerSrc, config));
-  const streams = dedupeStreams([...(ownedStreams || []), ...externalFmt]);
+  const externalFmt = externalFiltered.map(s => reformatExternalStream(s, providerSrc, config));
+
+  let streams = dedupeStreamsV2([...ownedTagged, ...externalFmt]);
+  if (sortKey) streams = applyStreamSort(streams, sortKey);
 
   return { streams, ownedCount: ownedStreams.length, externalCount: external.length };
 }

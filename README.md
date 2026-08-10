@@ -5,7 +5,7 @@
 <h1 align="center">LeLibrary</h1>
 
 <p align="center">
-  <strong>Your TorBox & Real-Debrid library. Actually organized.</strong><br>
+  <strong>Your TorBox, Real-Debrid, AllDebrid & Premiumize library. Actually organized.</strong><br>
   <sub>A Stremio & Nuvio addon + web UI that smart-groups your library, enriches it with TMDB metadata, and makes it feel like a real streaming service.</sub>
 </p>
 
@@ -27,13 +27,13 @@
 
 ## The Problem
 
-You add a series to your TorBox or Real-Debrid library. Now you've got 14 posters for the same show — one per file. No grouping, no season structure, no metadata. Just a wall of filenames.
+You add a series to your TorBox, Real-Debrid, AllDebrid or Premiumize library. Now you've got 14 posters for the same show — one per file. No grouping, no season structure, no metadata. Just a wall of filenames.
 
 That drove me crazy. So I built LeLibrary.
 
 ## The Solution
 
-LeLibrary smart-groups your TorBox and Real-Debrid downloads into proper series with seasons and episodes, enriches everything with TMDB metadata, and serves it as a clean Stremio/Nuvio addon — plus a full web UI to browse and manage your library.
+LeLibrary smart-groups your debrid downloads into proper series with seasons and episodes, enriches everything with TMDB metadata, and serves it as a clean Stremio/Nuvio addon — plus a full web UI to browse and manage your library.
 
 **One addon. One library. No duplicates.**
 
@@ -41,7 +41,7 @@ LeLibrary smart-groups your TorBox and Real-Debrid downloads into proper series 
 
 ## Addon Core
 
-A Stremio/Nuvio addon that turns raw TorBox and Real-Debrid downloads into a browsable catalog with full TMDB metadata.
+A Stremio/Nuvio addon that turns raw TorBox, Real-Debrid, AllDebrid and Premiumize downloads into a browsable catalog with full TMDB metadata.
 
 ### What it does
 
@@ -50,15 +50,17 @@ A Stremio/Nuvio addon that turns raw TorBox and Real-Debrid downloads into a bro
 - **Enriches everything** with TMDB metadata — posters, backdrops, ratings, cast, trailers
 - **Detects anime** via TMDB (Japanese original language + Animation genre)
 - **Shows only what you own** — no phantom episodes
-- **Formats streams** with quality, codec, HDR, audio, size, and release group
+- **Formats streams** with quality, codec, HDR, audio, size, and release group — fully customisable presets or your own template
+- **Trending & Popular discovery rows** — TMDB-powered, optionally backed by external stream addons (Torrentio, Comet, Meteor, MediaFusion)
+- **LeLibrary Collections** — each franchise you own becomes a folder of plain movies
 - **Plays directly** from the CDN
-- Optional **poster enhancement** via ERDB, RPDB, or Fanart.tv — ratings badges, high-res art
+- Optional **poster enhancement** via ERDB, RPDB, BetterPosters or Fanart.tv — ratings badges, high-res art
 - Optional **ratings enrichment** from OMDB — IMDb, Rotten Tomatoes & Metacritic scores
 - Optional **custom streams** — inject your own stream URLs alongside debrid results
 
 ### Catalogs
 
-Movies, Series, and Anime appear as separate Stremio catalogs. Torrents, Usenet, and Real-Debrid are all supported. Choose to merge providers or keep them in separate catalogs.
+Movies, Series, and Anime appear as separate Stremio catalogs, plus the Trending/Popular discovery rows and LeLibrary Collections. Torrents, Usenet, Real-Debrid, AllDebrid and Premiumize are all supported. Choose to merge providers or keep them in separate catalogs.
 
 ### Cache system
 
@@ -114,14 +116,15 @@ The server provides only thin CORS proxies for APIs that block cross-origin requ
 
 ### Provider Support
 
-Choose **TorBox only**, **Real-Debrid only**, or **Both** from the config page. Catalog modes let you merge all items or keep each provider separate.
+Choose any combination of **TorBox, Real-Debrid, AllDebrid and Premiumize** from the config page. Catalog modes let you merge all items or keep each provider separate.
 
 ### Security
 
 API keys are encrypted in `localStorage` using Web Crypto API (AES-256-GCM with PBKDF2, 100k iterations). The encryption password is stored in `sessionStorage` (cleared when browser closes) — you re-enter it once per browser session. Keys are only ever decrypted in memory and never written to `localStorage` in any form.
 
 **What goes where:**
-- **API keys**: encoded in the addon URL (base64 JSON with `provider`, `torboxApiKey`, `rdApiKey`, `tmdbApiKey`, plus optional `erdbToken`, `rpdbKey`, `omdbKey`, `fanartKey`, `customStreams`) — sent to the server only when Stremio/Nuvio fetches your library, never stored in a database or logged
+- **API keys**: encoded in the addon URL (base64 JSON with `provider`, `torboxApiKey`, `rdApiKey`, `tmdbApiKey`, plus optional poster/rating tokens) — sent to the server only when Stremio/Nuvio fetches your library, never stored in a database or logged
+- **Heavy stream settings** (custom formatter templates, custom streams, stream addon choices): saved server-side in Redis keyed by your account hash, and merged back by the addon on every request — this keeps the install URL short and means nothing can break it. These are stream settings only, never API keys
 - **Configure page**: the `/configure` page has no server-side auth — anyone with the URL can access it. No tracking, analytics, or third-party requests.
 
 ### Push to Stremio / Nuvio (Beta)
@@ -132,7 +135,7 @@ Push lives at the very end of the configure flow as **Step 5: "Push to your acco
 
 **Nuvio** — email + password sign-in. It shows a loading state, then loads your **Nuvio profiles** into a dropdown so you can pick which profile to install on.
 
-The push **replaces every addon** currently on the account (keeps your home screen clean) and shows a **backup list of your previous addon URLs** at the end so you can reinstall them manually if needed. The normal install links from Step 4 remain available.
+The push **adds or updates only LeLibrary** — all your other addons are preserved (a backup list of your previous addon URLs is still shown at the end). The normal install links from Step 4 remain available.
 
 Stremio flow:
 

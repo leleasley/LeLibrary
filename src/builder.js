@@ -822,6 +822,7 @@ async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episo
       url,
       name:        formatStreamName(fname, source, size, config),
       description: formatStreamDesc(fname, size, source, config),
+      size,
       behaviorHints,
     };
   });

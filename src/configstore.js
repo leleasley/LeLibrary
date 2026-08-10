@@ -14,7 +14,7 @@
 const cache = require('./cache');
 const { getUserKey } = require('./providers');
 
-const STREAM_FIELDS = ['streamAddons', 'streamPreset', 'streamNameTemplate', 'streamDescTemplate'];
+const STREAM_FIELDS = ['streamAddons', 'streamPreset', 'streamNameTemplate', 'streamDescTemplate', 'customStreams'];
 const CONFIG_TTL = 60 * 60 * 24 * 90; // 90 days, refreshed on every save
 
 function storeKey(userKey) {

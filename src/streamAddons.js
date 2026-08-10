@@ -235,10 +235,12 @@ async function fetchAddonStreams(addonId, config, type, ttId) {
     const streams = res.data?.streams;
     if (!Array.isArray(streams) || streams.length === 0) return [];
     // Tag each stream with its source addon so reformatting can show WHERE it
-    // came from; capped per addon to the best few (addons sort best-first).
+    // came from (name for display, id for the formatter's service badge);
+    // capped per addon to the best few (addons sort best-first).
     return streams.slice(0, MAX_STREAMS_PER_ADDON).map(s => ({
       ...s,
       _sourceAddon: addon.name,
+      _sourceAddonId: addonId,
       name: s.name ? `${s.name}` : addon.name,
       description: s.description ? `${s.description}\n⚡ ${addon.name}` : `⚡ ${addon.name}`,
     }));

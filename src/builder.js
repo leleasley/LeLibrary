@@ -1007,11 +1007,17 @@ function reformatExternalStream(stream, source = 'torbox', config = {}) {
   if (!fn) return stream;
   const size = Number(stream.behaviorHints && stream.behaviorHints.videoSize) || 0;
   const addonName = (stream && stream._sourceAddon) || 'LeLibrary';
+  // The formatter's service badge must reflect WHERE the stream came from (the
+  // external addon), not the user's own debrid provider. `_sourceAddonId`
+  // carries the addon id (e.g. "torrentio") so the badge shows "[TR+]"
+  // instead of a misleading "[TB+]".
+  const src = (stream && stream._sourceAddonId) || source;
   return {
     ...stream,
     _sourceAddon: undefined,
-    name: formatStreamName(fn, source, size, config, addonName),
-    description: formatStreamDesc(fn, size, source, config, addonName),
+    _sourceAddonId: undefined,
+    name: formatStreamName(fn, src, size, config, addonName),
+    description: formatStreamDesc(fn, size, src, config, addonName),
   };
 }
 

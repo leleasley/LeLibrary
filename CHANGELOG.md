@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.6.10]
+
+### Stream badges show where they came from
+
+- **External streams now show their real source**: a Torrentio stream gets a [TR+] badge, Comet [CM+], Meteor [ME+] and MediaFusion [MF+], instead of wrongly showing your own debrid provider's badge. At a glance you can now tell where each discovery stream actually comes from
+
 ## [4.6.9]
 
 ### BetterPosters look right now

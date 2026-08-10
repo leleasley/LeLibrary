@@ -2047,11 +2047,21 @@
     // itself is still saved normally, this is a supplement.
     function saveConfigToServer(cfg) {
       if (!cfg || typeof cfg !== 'object') return;
+      // The install token intentionally omits the custom formatter templates
+      // (they'd blow up the URL). Re-add them here so the server-side store
+      // still has them for the addon to merge back in.
+      const serverCfg = { ...cfg };
+      if (document.getElementById('streamPreset')?.value === 'custom') {
+        const nameT = document.getElementById('streamNameTemplate')?.value.trim();
+        const descT = document.getElementById('streamDescTemplate')?.value.trim();
+        if (nameT) serverCfg.streamNameTemplate = nameT;
+        if (descT) serverCfg.streamDescTemplate = descT;
+      }
       try {
         fetch('/api/save-config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ config: cfg }),
+          body: JSON.stringify({ config: serverCfg }),
         }).catch(() => {});
       } catch { /* non-fatal */ }
     }
@@ -2099,14 +2109,11 @@
       if (catNames.anime && catNames.anime !== '🍥 LeLibrary Anime') cfg.catNameAnime = catNames.anime;
       if (hideAnime) cfg.hideAnime = true;
       const streamPreset = document.getElementById('streamPreset').value;
-      const streamNameTemplate = document.getElementById('streamNameTemplate').value.trim();
-      const streamDescTemplate = document.getElementById('streamDescTemplate').value.trim();
       if (streamPreset && streamPreset !== 'lelibrary') {
+        // Only the preset id goes in the token — the custom templates are saved
+        // server-side (see saveConfigToServer) and merged back by the addon, so
+        // a long custom formatter can't blow up the install URL.
         cfg.streamPreset = streamPreset;
-        if (streamPreset === 'custom') {
-          if (streamNameTemplate) cfg.streamNameTemplate = streamNameTemplate;
-          if (streamDescTemplate) cfg.streamDescTemplate = streamDescTemplate;
-        }
       }
       if (catSelection.trendingMovies) cfg.catalogTrendingMovies = true;
       if (catSelection.trendingSeries) cfg.catalogTrendingSeries = true;
@@ -2791,7 +2798,7 @@
       goToStep(1);
     }
 
-    const APP_VERSION = '4.6.6';
+    const APP_VERSION = '4.6.7';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');

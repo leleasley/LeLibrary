@@ -1155,7 +1155,9 @@ app.get('/:token/stream/:type/:id.json', async (req, res) => {
     // ── tt: id + stream addons → owned copy first, then external addons ──
     if (id.startsWith('tt')) {
       const addonFp = ':' + hashShort(externalAddons.slice().sort().join(','));
-      const discKey = cache.makeKey('stream', type, id, '', '', userKey + addonFp);
+      // Include the format fingerprint so changing the stream preset/templates
+      // invalidates cached discovery streams instead of serving the old format.
+      const discKey = cache.makeKey('stream', type, id, '', '', userKey + addonFp + fmtFp);
       const cached  = await cache.get(discKey);
       if (cached) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');

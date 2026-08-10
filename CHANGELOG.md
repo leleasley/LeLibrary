@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.6.8]
+
+### Custom formatter settings stored reliably
+
+- **Your custom stream formatting always applies now**: the formatter templates and stream addon settings are stored server-side instead of being squeezed into the install link, so a long custom template can't break your install link and your formatting shows up every time
+
 ## [4.6.7]
 
 ### Custom formatter install links fixed

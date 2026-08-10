@@ -2341,7 +2341,6 @@
     function checkChanged() {
       updateSetupSummary();
       if (typeof updateCataloguesUI === 'function') updateCataloguesUI();
-      if (typeof renderCataloguesOptions === 'function') renderCataloguesOptions();
       if (!initialConfig) return;
       const changed = !configsEqual(getCurrentConfig(), initialConfig);
       const btn = document.getElementById('btnGenerate');
@@ -2798,7 +2797,7 @@
       goToStep(1);
     }
 
-    const APP_VERSION = '4.6.7';
+    const APP_VERSION = '4.6.8';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');
@@ -2914,7 +2913,12 @@
         if (cfg.popularSeriesName) catNames.popularSeries = cfg.popularSeriesName;
         else if (cfg.popularName) catNames.popularSeries = cfg.popularName;
         if (cfg.collectionsName) catNames.franchises = cfg.collectionsName;
-        if (Array.isArray(cfg.catalogOrder) && cfg.catalogOrder.length) catOrder = cfg.catalogOrder.slice();
+        if (Array.isArray(cfg.catalogOrder) && cfg.catalogOrder.length) {
+          catOrder = cfg.catalogOrder.slice();
+          for (const k of DEFAULT_CAT_ORDER) {
+            if (!catOrder.includes(k)) catOrder.push(k);
+          }
+        }
         if (cfg.streamAddons && Array.isArray(cfg.streamAddons)) streamAddons = cfg.streamAddons;
         renderCataloguesOptions();
         renderStreamAddons();
@@ -4000,13 +4004,14 @@
           const existing = byKey.get(key) || {};
           const isFranchise = String(catalog.id || '') === 'torbox-collections' ||
             String(catalog.id || '').startsWith('torbox-collection-');
+          const currentOrder = order++;
           byKey.set(key, {
             ...existing,
             addon_id: manifest.id,
             type: catalog.type,
             catalog_id: catalog.id,
             enabled: !isFranchise,
-            order: isFranchise ? (Number(existing.order) || 999) : order++,
+            order: isFranchise ? (Number(existing.order) || 999) : currentOrder,
             custom_title: existing.custom_title || '',
             is_collection: false,
             collection_id: existing.collection_id || '',
@@ -4304,7 +4309,15 @@
                 ...collections.filter(c => c?.id !== leLibraryId),
               ];
               const leLibraryCollection = collections.find(c => c?.id === leLibraryId);
-              if (leLibraryCollection) mergedCollections.push(leLibraryCollection);
+              if (leLibraryCollection) {
+                const franchiseIdx = catOrder.indexOf('franchises');
+                const moviesIdx = catOrder.indexOf('movies');
+                if (franchiseIdx === 0 || (franchiseIdx !== -1 && moviesIdx !== -1 && franchiseIdx < moviesIdx)) {
+                  mergedCollections.unshift(leLibraryCollection);
+                } else {
+                  mergedCollections.push(leLibraryCollection);
+                }
+              }
               await nuvioRpc(connectState.nuvioToken, '/rest/v1/rpc/sync_push_collections', {
                 p_profile_id: profileIndex,
                 p_collections_json: mergedCollections,

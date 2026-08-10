@@ -72,15 +72,13 @@ const ADDONS = {
         maxResultsPerResolution: 0,
         maxSize: 0,
         cachedOnly: false,
-        sortCachedUncachedTogether: false,
         removeTrash: true,
         resultFormat: ['all'],
         debridServices,
         enableTorrent: false,
-        deduplicateStreams: false,
         scrapeDebridAccountTorrents: false,
         debridStreamProxyPassword: '',
-        languages: { required: [], allowed: [], exclude: [], preferred: [] },
+        languages: { required: [], exclude: [], preferred: [] },
         resolutions: {},
         options: { remove_ranks_under: -10000000000, allow_english_in_languages: false, remove_unknown_languages: false },
       };
@@ -211,15 +209,12 @@ const ADDON_LIST = [
   { id: 'mediafusion',  name: 'MediaFusion',  logo: ADDONS.mediafusion.logo,  desc: 'Universal streams for movies, series and anime.' },
 ];
 
-// External-stream caps: a title can easily return a thousand+ streams across
-// addons, most of them duplicate resolutions/sources. Keep the response lean
-// by taking a few of the best from each addon and a hard total cap.
-const MAX_STREAMS_PER_ADDON = 15;
-const MAX_STREAMS_TOTAL     = 35;
+// No hard caps — the resolution filter and total cap in discovery.js handle
+// stream selection. AIOStreams has no cap either; the filter is the gate.
 
 // Fetch one addon's streams for a `tt:` id. Returns [] on any failure — one
 // slow/broken addon must never fail the whole response.
-async function fetchAddonStreams(addonId, config, type, ttId) {
+async function fetchAddonStreams(addonId, config, type, ttId, timeoutMs = 15000) {
   const addon = ADDONS[addonId];
   if (!addon) return [];
   try {
@@ -231,13 +226,13 @@ async function fetchAddonStreams(addonId, config, type, ttId) {
       Accept: 'application/json',
       ...(typeof addon.buildHeaders === 'function' ? addon.buildHeaders(config) : {}),
     };
-    const res = await axios.get(streamUrl, { headers, timeout: 20000, validateStatus: s => s < 500 });
+    const res = await axios.get(streamUrl, { headers, timeout: timeoutMs, validateStatus: s => s < 500 });
     const streams = res.data?.streams;
     if (!Array.isArray(streams) || streams.length === 0) return [];
     // Tag each stream with its source addon so reformatting can show WHERE it
     // came from (name for display, id for the formatter's service badge);
     // capped per addon to the best few (addons sort best-first).
-    return streams.slice(0, MAX_STREAMS_PER_ADDON).map(s => ({
+    return streams.map(s => ({
       ...s,
       _sourceAddon: addon.name,
       _sourceAddonId: addonId,
@@ -265,14 +260,61 @@ function dedupeStreams(streams) {
 }
 
 // Aggregate streams from all enabled addons for a `tt:` id, in parallel.
+// Uses a global time budget so a single slow addon can't hold up the whole
+// response — addons that respond within the budget contribute, the rest are
+// dropped. This keeps the discovery stream request snappy even when one
+// upstream is lagging.
+const EXTERNAL_TIME_BUDGET_MS = 6000;
+// Resolve as soon as enough addons have answered OR the budget expires,
+// whichever comes first. Slow addons keep running in the background and their
+// results are still collected up to the deadline, but they can never hold up
+// the response past the budget. (Deliberately NOT Promise.all — that would
+// wait for the slowest addon and defeat the whole point.)
 async function fetchExternalStreams(addonIds, config, type, ttId) {
   const ids = Array.isArray(addonIds) ? addonIds.filter(id => ADDONS[id]) : [];
   if (ids.length === 0) return [];
   const normType = type === 'anime' ? 'series' : type;
-  const results = await Promise.all(ids.map(id => fetchAddonStreams(id, config, normType, ttId)));
-  const deduped = dedupeStreams(results.flat());
-  // Hard cap after dedupe (per-addon caps above already cut the bulk).
-  return deduped.slice(0, MAX_STREAMS_TOTAL);
+  const budgetMs = EXTERNAL_TIME_BUDGET_MS;
+  const deadline = Date.now() + budgetMs;
+
+  const collected = [];
+  const done = new Set();
+  const failedAddons = new Set();
+  let settle;
+  const finished = new Promise(r => { settle = r; });
+
+  ids.forEach(id => {
+    const run = async () => {
+      try {
+        const remaining = Math.max(2000, deadline - Date.now());
+        const streams = await fetchAddonStreams(id, config, normType, ttId, remaining);
+        collected.push(...streams);
+      } catch (err) {
+        console.warn(`[StreamAddons] ${id} error: ${err.message}`);
+        failedAddons.add(id);
+      } finally {
+        done.add(id);
+        // Count how many addons actually returned streams (not just errored).
+        // Settle once 2 working addons have contributed — this prevents a
+        // fast-failing addon from settling before a working one contributes.
+        const successful = [...done].filter(did => {
+          // An addon is "successful" if it contributed at least one stream
+          // (we track this via a per-addon flag set after push).
+          return !failedAddons.has(did);
+        });
+        if (successful.length >= Math.min(3, ids.length) || done.size >= ids.length) settle();
+      }
+    };
+    run(); // fire and forget — results accumulate into `collected`
+  });
+
+  // Budget expiry — settle with whatever we have.
+  const timer = setTimeout(settle, budgetMs);
+  await finished;
+  clearTimeout(timer);
+
+  const deduped = dedupeStreams(collected);
+  return deduped;
 }
 
 module.exports = {

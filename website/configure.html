@@ -44,1093 +44,283 @@
       overflow-x: hidden;
     }
 
-    /* Keep every scrollable/flex/grid child from forcing the page wider than the
-       viewport (min-width: auto is the classic horizontal-scroll-on-mobile bug). */
-    .form-area, .sidebar, #setupContent, .stepper, .step-panel, .step-card,
-    .connect-grid, .connect-box, .input-row, .input-row input, .url-box, .url-box span,
-    .connected-card, .cat-options, .cat-option, .backup-list, .preview-panel,
-    .provider-grid, .provider-card, .field, .field-row, .actions { min-width: 0; }
+    .form-area, .sidebar, .wizard-wrap, .wizard-body, .wizard-nav, .step-btn,
+    .step-panel, .step-card, .connect-grid, .connect-box, .input-row, .input-row input,
+    .url-box, .url-box span, .connected-card, .cat-options, .cat-option, .backup-list,
+    .preview-panel, .provider-grid, .provider-card, .field, .field-row, .actions { min-width: 0; }
 
     /* ── TOP BAR ── */
     .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 clamp(16px, 4vw, 40px);
-      height: 56px;
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
-      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 clamp(16px, 4vw, 40px); height: 56px;
+      border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0;
     }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      text-decoration: none;
-      color: var(--white);
-    }
-
-    .brand img {
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
-    }
-
-    .brand-name {
-      font-size: 0.9rem;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-    }
-
-    .topbar-right {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .topbar-link {
-      font-size: 0.78rem;
-      color: var(--muted);
-      text-decoration: none;
-      transition: color 0.2s;
-    }
+    .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--white); }
+    .brand img { width: 28px; height: 28px; border-radius: 6px; }
+    .brand-name { font-size: 0.9rem; font-weight: 700; letter-spacing: -0.01em; }
+    .topbar-right { display: flex; align-items: center; gap: 16px; }
+    .topbar-link { font-size: 0.78rem; color: var(--muted); text-decoration: none; transition: color 0.2s; }
     .topbar-link:hover { color: var(--text); }
-
     .reset-link {
-      font-size: 0.72rem;
-      color: var(--muted);
-      background: none;
-      border: 1px solid var(--border);
-      padding: 5px 12px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-family: var(--font);
-      font-weight: 500;
-      transition: all 0.2s;
+      font-size: 0.72rem; color: var(--muted); background: none; border: 1px solid var(--border);
+      padding: 5px 12px; border-radius: 6px; cursor: pointer; font-family: var(--font);
+      font-weight: 500; transition: all 0.2s;
     }
     .reset-link:hover { border-color: var(--error); color: var(--error); }
 
     /* ── MAIN LAYOUT ── */
-    .main {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 1fr 380px;
-      overflow: hidden;
-    }
+    .main { flex: 1; display: grid; grid-template-columns: 1fr 380px; overflow: hidden; }
+    .form-area { padding: clamp(32px, 5vw, 56px); overflow-y: auto; display: flex; flex-direction: column; gap: 0; }
 
-    /* ── LEFT: FORM ── */
-    .form-area {
-      padding: clamp(24px, 4vw, 48px);
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 26px;
-    }
+    /* ── WIZARD LAYOUT ── */
+    .wizard-wrap { display: grid; grid-template-columns: 220px 1fr; gap: 44px; align-items: start; }
 
-    .form-header h1 {
-      font-size: 1.6rem;
-      font-weight: 700;
-      color: var(--white);
-      letter-spacing: -0.02em;
-      margin-bottom: 6px;
-    }
-
-    .form-header p {
-      font-size: 0.88rem;
-      color: var(--muted);
-      line-height: 1.5;
-      max-width: 620px;
-    }
-
-    .form-header p strong { color: var(--text); font-weight: 600; }
-
-    /* ── STEPS ── */
-    .step {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-
-    .step-head {
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
-    }
-
-    .step-num {
-      width: 28px;
-      height: 28px;
-      border-radius: 8px;
-      background: var(--amber-glow);
-      border: 1px solid rgba(245, 158, 11, 0.25);
-      color: var(--amber);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 0.85rem;
-      flex-shrink: 0;
-      margin-top: 2px;
-    }
-
-    .step-head h2 {
-      font-size: 1.05rem;
-      font-weight: 700;
-      color: var(--white);
-      letter-spacing: -0.01em;
-      margin-bottom: 2px;
-    }
-
-    .step-head p {
-      font-size: 0.78rem;
-      color: var(--muted);
-      line-height: 1.45;
-    }
-
-    .step-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-
-    /* ── PROVIDER CARDS ── */
-    .provider-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      align-items: start;
-    }
-
-    .provider-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      overflow: hidden;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    .provider-card.active {
-      border-color: var(--amber);
-      box-shadow: 0 0 0 1px var(--amber), 0 6px 24px rgba(245, 158, 11, 0.08);
-    }
-
-    .pc-head {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 14px;
-      cursor: pointer;
-      user-select: none;
-    }
-    .pc-head:hover { background: var(--surface2); }
-
-    .pc-head img {
-      width: 34px;
-      height: 34px;
-      border-radius: 6px;
-      object-fit: contain;
-      flex-shrink: 0;
-      background: rgba(255, 255, 255, 0.04);
-      padding: 2px;
-    }
-
-    .pc-info { flex: 1; min-width: 0; }
-    .pc-info strong { display: block; color: var(--white); font-size: 0.9rem; }
-    .pc-info small { display: block; color: var(--muted); font-size: 0.7rem; margin-top: 1px; }
-
-    .pc-check {
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      border: 2px solid var(--border2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.7rem;
-      font-weight: 700;
-      color: transparent;
-      transition: all 0.2s;
-      flex-shrink: 0;
-    }
-    .provider-card.active .pc-check {
-      background: var(--amber);
-      border-color: var(--amber);
-      color: var(--bg);
-    }
-
-    .pc-body {
-      display: none;
-      flex-direction: column;
-      gap: 10px;
-      padding: 12px 14px 14px;
-      border-top: 1px solid var(--border);
-    }
-
-    .pc-referral {
-      font-size: 0.75rem;
-      color: var(--muted);
-    }
-    .pc-referral a { color: var(--amber); text-decoration: none; font-weight: 600; }
-    .pc-referral a:hover { text-decoration: underline; }
-
-    /* Shared small notice */
-    .url-warning {
-      background: rgba(239, 68, 68, 0.08);
-      border: 1px solid rgba(239, 68, 68, 0.2);
-      border-radius: 8px;
-      padding: 10px 14px;
-      font-size: 0.78rem;
-      color: var(--text);
-      line-height: 1.5;
-      text-align: center;
-    }
-
-    /* Sections */
-    .form-section {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .section-title {
-      font-size: 0.68rem;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
-    .adv {
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: var(--surface);
-      overflow: hidden;
-    }
-
-    .collapsible-header {
-      cursor: pointer;
-      user-select: none;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 16px;
-      border: none;
-      border-radius: 0;
-      transition: color 0.2s;
-    }
-    .collapsible-header:hover .section-title { color: var(--text); }
-    .collapse-arrow {
-      font-size: 1rem;
-      transition: transform 0.2s, color 0.2s;
-      color: var(--muted);
-      line-height: 1;
-    }
-    .collapse-arrow.open { transform: rotate(90deg); color: var(--amber); }
-    .collapsible-body {
-      display: none;
-      padding: 0 16px 18px;
-    }
-    .collapsible-body.open { display: block; }
-
-    .field { display: flex; flex-direction: column; gap: 6px; }
-
-    input[type="text"], input[type="password"], input[type="number"], input[type="email"], input[type="url"] {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 14px;
-      color: var(--text);
-      font-size: 0.85rem;
-      font-family: var(--font);
-      outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
-      width: 100%;
-      box-sizing: border-box;
-    }
-    input[type="text"]:focus, input[type="password"]:focus, input[type="number"]:focus, input[type="email"]:focus, input[type="url"]:focus {
-      border-color: var(--amber);
-      box-shadow: 0 0 0 3px var(--amber-glow);
-    }
-    input::placeholder { color: var(--border2); }
-
-    .field-label {
-      font-size: 0.82rem;
-      font-weight: 700;
-      color: var(--text);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .field-label .req { color: var(--amber); font-size: 0.8rem; }
-
-    .field-label a {
-      margin-left: auto;
-      font-size: 0.68rem;
-      color: var(--amber);
-      text-decoration: none;
-      font-weight: 500;
-    }
-    .field-label a:hover { text-decoration: underline; }
-
-    .input-row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .input-row input {
-      flex: 1;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 14px;
-      color: var(--text);
-      font-size: 0.85rem;
-      font-family: var(--mono);
-      outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-
-    .input-row input:focus {
-      border-color: var(--amber);
-      box-shadow: 0 0 0 3px var(--amber-glow);
-    }
-
-    .input-row input.invalid {
-      border-color: var(--error);
-      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
-    }
-
-    .input-row input::placeholder { color: var(--border2); }
-
-    .btn-verify {
-      width: 36px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 0.85rem;
-      color: var(--text);
-      transition: all 0.15s;
-      flex-shrink: 0;
-    }
-
-    /* ── PIN modal (Premiumize device authorization) ── */
-    .pin-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 300; padding: 16px;
-    }
-    .pin-box {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 10px; max-width: 420px; width: 100%;
-      padding: 20px; text-align: center;
-    }
-    .pin-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-    .pin-header h3 { font-size: 1rem; margin: 0; }
-    .pin-close { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; }
-    .pin-box p { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
-    .pin-code {
-      font-family: var(--mono, monospace); font-size: 1.5rem; font-weight: 700;
-      letter-spacing: 0.15em; color: var(--amber);
-      background: var(--surface2); border: 1px dashed var(--border2);
-      border-radius: 8px; padding: 14px; margin: 14px 0;
-    }
-    .pin-box .btn { width: 100%; margin-bottom: 10px; }
-    .pin-status { min-height: 1.2em; color: var(--error); }
-    .btn-verify:hover { border-color: var(--amber); color: var(--amber); }
-    .btn-verify:disabled { opacity: 0.4; cursor: wait; }
-    .btn-verify.verified { background: rgba(52, 211, 153, 0.15); border-color: #34d399; color: #34d399; }
-    .btn-verify.failed { background: rgba(239, 68, 68, 0.15); border-color: #ef4444; color: #ef4444; }
-
-    .btn-icon {
-      width: 40px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      cursor: pointer;
-      color: var(--muted);
-      font-size: 0.9rem;
-      transition: all 0.2s;
-      flex-shrink: 0;
-    }
-    .btn-icon:hover { color: var(--text); border-color: var(--border2); }
-
-    .field-hint {
-      font-size: 0.7rem;
-      color: var(--muted);
-      line-height: 1.4;
-    }
-    .field-hint a {
-      color: var(--amber);
-      text-decoration: none;
-      font-weight: 500;
-    }
-    .field-hint a:hover { text-decoration: underline; }
-
-    .field-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-
-    select {
-      width: 100%;
-      background: var(--bg);
-      border: 2px solid var(--border2);
-      border-radius: 8px;
-      padding: 10px 36px 10px 14px;
-      color: var(--text);
-      font-size: 0.85rem;
-      font-family: var(--font);
-      outline: none;
-      appearance: none;
-      -webkit-appearance: none;
-      cursor: pointer;
-      transition: border-color 0.2s;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 12px center;
-      background-size: 14px;
-    }
-    select:focus { border-color: var(--amber); }
-    select option { background: var(--surface2); }
-
-    /* Actions */
-    .actions {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      padding-top: 8px;
-    }
-
-    .btn-main {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 14px 18px;
-      border-radius: 10px;
-      font-weight: 700;
-      font-size: 0.9rem;
-      cursor: pointer;
-      border: none;
-      width: 100%;
-      transition: all 0.2s;
-      font-family: var(--font);
-      text-decoration: none;
-    }
-
-    .btn-main:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    .btn-main .ico {
-      width: 36px;
-      height: 36px;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1rem;
-      flex-shrink: 0;
-    }
-
-    .btn-main .txt { flex: 1; text-align: left; }
-    .btn-main .txt small { display: block; font-size: 0.68rem; font-weight: 400; opacity: 0.7; margin-top: 2px; }
-    .btn-main .arr { opacity: 0.5; font-size: 1.1rem; }
-
-    .btn-gen {
-      background: var(--amber);
-      color: var(--bg);
-    }
-    .btn-gen:hover:not(:disabled) {
-      background: var(--amber-dim);
-      box-shadow: 0 4px 24px rgba(245, 158, 11, 0.3);
-      transform: translateY(-1px);
-    }
-    .btn-gen .ico { background: rgba(0, 0, 0, 0.15); }
-
-    .btn-stremio {
-      background: linear-gradient(135deg, #f59e0b, #b45309);
-      color: var(--bg);
-      display: none;
-    }
-    .btn-stremio.show { display: flex; }
-    .btn-stremio:hover { box-shadow: 0 4px 24px rgba(245, 158, 11, 0.3); transform: translateY(-1px); }
-    .btn-stremio .ico { background: rgba(0, 0, 0, 0.12); }
-
-    .btn-outline {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text);
-      display: none;
-    }
-    .btn-outline.show { display: flex; }
-    .btn-outline:hover { border-color: var(--amber); background: var(--amber-glow); transform: translateY(-1px); }
-    .btn-outline .ico { background: var(--amber-glow); }
-
-    .btn-nuvio {
-      background: linear-gradient(135deg, #7c3aed, #4f46e5);
-      color: #fff;
-      display: none;
-    }
-    .btn-nuvio.show { display: flex; }
-    .btn-nuvio:hover { box-shadow: 0 4px 24px rgba(124, 58, 237, 0.35); transform: translateY(-1px); }
-    .btn-nuvio .ico { background: rgba(255,255,255,0.12); }
-
-    .url-box {
-      display: none;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 14px;
-      align-items: center;
-      gap: 10px;
-    }
-    .url-box.show { display: flex; }
-
-    .url-box span {
-      flex: 1;
-      font-family: var(--mono);
-      font-size: 0.68rem;
-      color: var(--amber);
-      word-break: break-all;
-    }
-
-    .btn-copy-url {
-      background: none;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--muted);
-      cursor: pointer;
-      padding: 5px 12px;
-      font-size: 0.72rem;
-      font-family: var(--font);
-      font-weight: 600;
-      white-space: nowrap;
-      transition: all 0.2s;
-    }
-    .btn-copy-url:hover { border-color: var(--amber); color: var(--amber); }
-    .btn-copy-url.copied { border-color: var(--success); color: var(--success); }
-
-    /* Preview */
-    .preview-wrap {
-      margin-top: 8px;
-    }
-
-    .preview-btn {
-      width: 100%;
-      background: none;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 14px;
-      color: var(--muted);
-      font-size: 0.72rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-family: var(--font);
-      transition: all 0.2s;
-    }
-    .preview-btn:hover { border-color: var(--amber); color: var(--text); }
-    .preview-btn .arr { transition: transform 0.25s; }
-    .preview-btn.open .arr { transform: rotate(90deg); }
-
-    .preview-panel {
-      display: none;
-      margin-top: 10px;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      overflow: hidden;
-    }
-    .preview-panel.open { display: block; }
-
-    .preview-head {
-      padding: 8px 14px;
-      background: var(--amber-glow);
-      border-bottom: 1px solid var(--border);
-      font-size: 0.65rem;
-      color: var(--muted);
-    }
-
-    .stream-row {
-      display: flex;
-      gap: 12px;
-      padding: 10px 14px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-    }
-    .stream-row:last-child { border-bottom: none; }
-
-    .stream-label {
-      min-width: 100px;
-      max-width: 100px;
-      font-size: 0.65rem;
-      line-height: 1.5;
-      white-space: pre-line;
-      color: var(--text);
-      font-weight: 600;
-    }
-
-    .stream-detail {
-      flex: 1;
-      font-size: 0.62rem;
-      line-height: 1.6;
-      white-space: pre-line;
-      color: var(--muted);
-    }
-
-    .preview-footer {
-      padding: 6px 14px;
-      font-size: 0.6rem;
-      color: var(--muted);
-      border-top: 1px solid var(--border);
-      text-align: center;
-      background: rgba(0, 0, 0, 0.2);
-    }
-
-    /* Info cards (privacy / how it works) */
-    .info-card {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 14px 16px;
-      margin-bottom: 10px;
-    }
-    .info-card:last-child { margin-bottom: 0; }
-
-    .info-card h4 {
-      font-size: 0.85rem;
-      font-weight: 700;
-      color: var(--white);
-      margin-bottom: 8px;
-    }
-
-    .info-card p {
-      font-size: 0.78rem;
-      color: var(--muted);
-      line-height: 1.55;
-    }
-
-    .info-list {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-top: 4px;
-    }
-
-    .info-list li {
-      font-size: 0.75rem;
-      color: var(--muted);
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      line-height: 1.4;
-    }
-
-    .info-list li::before {
-      content: '';
-      width: 5px;
-      height: 5px;
-      border-radius: 50%;
-      background: var(--amber);
-      margin-top: 6px;
-      flex-shrink: 0;
-    }
-
-    /* ── SIDEBAR / YOUR SETUP ── */
-    .sidebar {
-      background: var(--surface);
-      border-left: 1px solid var(--border);
-      padding: 24px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 24px;
-    }
-
-    .setup-panel {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 18px;
-    }
-
-    .setup-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .setup-head h3 {
-      font-size: 0.72rem;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
-    .setup-count {
-      font-size: 0.7rem;
-      color: var(--amber);
-      font-weight: 600;
-      background: var(--amber-glow);
-      border: 1px solid rgba(245, 158, 11, 0.2);
-      border-radius: 20px;
-      padding: 2px 10px;
-    }
-
-    .setup-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 4px 10px 4px 5px;
-      font-size: 0.72rem;
-      font-weight: 600;
-      color: var(--text);
-    }
-    .chip img { width: 16px; height: 16px; border-radius: 3px; object-fit: contain; }
-    .chip.dim { color: var(--border2); font-weight: 400; }
-
-    .setup-rows {
-      display: flex;
-      flex-direction: column;
-      border-top: 1px solid var(--border);
-    }
-
-    .setup-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 9px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 0.78rem;
-    }
-    .setup-row:last-child { border-bottom: none; }
-    .setup-row span { color: var(--muted); }
-    .setup-row strong { color: var(--text); font-weight: 600; text-align: right; }
-
-    .btn-primary-sm {
-      width: 100%;
-      background: var(--amber);
-      color: var(--bg);
-      border: none;
-      border-radius: 10px;
-      padding: 12px 16px;
-      font-weight: 700;
-      font-size: 0.85rem;
-      cursor: pointer;
-      font-family: var(--font);
-      transition: all 0.2s;
-    }
-    .btn-primary-sm:hover { background: var(--amber-dim); box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3); }
-
-    .setup-privacy {
-      font-size: 0.7rem;
-      color: var(--muted);
-      line-height: 1.5;
-      text-align: center;
-    }
-
-    .sidebar-section h3 {
-      font-size: 0.68rem;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 12px;
-    }
-
-    /* Privacy section (visible) */
-    .privacy-section {
-      border-top: 1px solid var(--border);
-      padding-top: 20px;
-    }
-
-    .privacy-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-    }
-
-    @media (max-width: 860px) {
-      .privacy-grid { grid-template-columns: 1fr; }
-    }
-
-    /* Footer */
-    .form-footer {
-      margin-top: auto;
-      padding-top: 20px;
-      border-top: 1px solid var(--border);
-      text-align: center;
-    }
-
-    .form-footer p {
-      font-size: 0.75rem;
-      color: var(--muted);
-      margin-bottom: 10px;
-    }
-    .form-footer a { color: var(--amber); text-decoration: none; font-weight: 600; }
-    .form-footer a:hover { text-decoration: underline; }
-
-    .gh-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      color: var(--white);
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-decoration: none;
-      font-family: var(--font);
-      transition: all 0.2s;
-    }
-    .gh-btn:hover { border-color: var(--amber); }
-
-    .gh-icon {
-      width: 16px;
-      height: 16px;
-      fill: currentColor;
-    }
-
-    .gh-star {
-      color: var(--amber);
-      font-size: 0.85rem;
-    }
-
-    .copyright {
-      font-size: 0.68rem;
-      color: var(--muted);
-      margin-top: 12px;
-    }
-
-    /* Toast */
-    .toast {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: var(--surface2);
-      border: 1px solid var(--success);
-      border-radius: 8px;
-      padding: 10px 16px;
-      font-size: 0.82rem;
-      color: var(--success);
-      opacity: 0;
-      transform: translateY(8px);
-      transition: all 0.25s;
-      pointer-events: none;
-      z-index: 100;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    }
-    .toast.show { opacity: 1; transform: translateY(0); }
-
-    @media (max-width: 860px) {
-      .main { grid-template-columns: 1fr; overflow: visible; }
-      .sidebar { display: none; }
-      .form-area { padding: 24px 20px; overflow: visible; }
-      .topbar-right .topbar-link { display: none; }
-      .sidebar-poster-preview { display: none; }
-    }
-
-    @media (min-width: 861px) {
-      .mobile-poster-preview { display: none; }
-    }
-
-    /* ── STEPPER (page-by-page setup) ── */
-    .stepper {
-      display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      padding-bottom: 10px;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 24px;
-      scrollbar-width: thin;
-    }
+    /* Left step rail */
+    .wizard-nav { position: sticky; top: 0; display: flex; flex-direction: column; gap: 2px; padding-bottom: 8px; }
     .step-btn {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: none;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      padding: 7px 14px;
-      color: var(--muted);
-      font-family: var(--font);
-      font-size: 0.78rem;
-      font-weight: 600;
-      white-space: nowrap;
-      cursor: pointer;
-      transition: all 0.2s;
-      flex-shrink: 0;
+      display: flex; align-items: flex-start; gap: 12px; width: 100%; position: relative;
+      background: none; border: 1px solid transparent; border-radius: 12px;
+      padding: 10px 12px; color: var(--muted); font-family: var(--font);
+      font-size: 0.78rem; font-weight: 600; text-align: left; cursor: pointer;
+      transition: all 0.2s; flex-shrink: 0;
     }
-    .step-btn span {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: var(--surface2);
-      color: var(--muted);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.68rem;
-      font-weight: 700;
-      transition: all 0.2s;
+    .step-btn:hover { background: var(--surface2); }
+    .step-btn.active { background: var(--amber-glow); border-color: rgba(245, 158, 11, 0.25); }
+    .step-btn.verifying { animation: stepPulse 0.9s ease-in-out infinite; }
+    .step-btn.verified .step-num { background: var(--success); border-color: var(--success); color: var(--bg); }
+    .step-btn.verified .step-title { color: var(--success); }
+    .step-btn .step-num {
+      width: 28px; height: 28px; border-radius: 9px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--muted); display: flex; align-items: center; justify-content: center;
+      font-size: 0.78rem; font-weight: 700; transition: all 0.2s; flex-shrink: 0; margin-top: 1px;
     }
-    .step-btn:hover { border-color: var(--border2); color: var(--text); }
-    .step-btn.active { border-color: var(--amber); color: var(--amber); background: var(--amber-glow); }
-    .step-btn.active span { background: var(--amber); color: var(--bg); }
-    .step-btn.verifying { border-color: var(--amber); color: var(--amber); background: var(--amber-glow); animation: stepPulse 0.9s ease-in-out infinite; }
-    .step-btn.verifying span { background: var(--amber); color: var(--bg); }
-    .step-btn.verified { border-color: var(--success); color: var(--success); }
-    .step-btn.verified span { background: var(--success); color: var(--bg); }
+    .step-btn.active .step-num { background: var(--amber); border-color: var(--amber); color: var(--bg); box-shadow: 0 0 12px rgba(245,158,11,0.3); }
+    .step-btn.verifying .step-num { background: var(--amber); border-color: var(--amber); color: var(--bg); }
+    .step-label { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .step-title { font-size: 0.82rem; font-weight: 700; color: var(--white); letter-spacing: -0.01em; }
+    .step-btn:not(.active):not(.verified) .step-title { color: var(--muted); }
+    .step-desc { font-size: 0.68rem; color: var(--muted); line-height: 1.35; font-weight: 400; }
+    .step-opt {
+      align-self: flex-start; font-size: 0.55rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--border2); background: var(--surface2);
+      border: 1px solid var(--border); padding: 1px 6px; border-radius: 999px; margin-top: 3px;
+    }
+
+    /* Connector lines */
+    .step-btn:not(:last-child)::after {
+      content: ''; position: absolute; left: 25px; top: 40px; width: 2px;
+      height: calc(100% - 16px); background: var(--border); border-radius: 1px;
+    }
+    .step-btn.verified::after { background: var(--success); }
+
+    /* Progress header */
+    .wizard-progress {
+      display: flex; align-items: center; gap: 14px; margin-bottom: 24px;
+      padding-bottom: 16px; border-bottom: 1px solid var(--border);
+    }
+    .wp-text {
+      font-size: 0.72rem; font-weight: 700; color: var(--amber); white-space: nowrap;
+      letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    .wp-title { color: var(--muted); font-weight: 500; text-transform: none; }
+    .wp-bar { flex: 1; height: 5px; border-radius: 3px; background: var(--surface2); overflow: hidden; min-width: 60px; }
+    .wp-bar-fill {
+      height: 100%; width: 0%; border-radius: 3px;
+      background: linear-gradient(90deg, var(--amber), #fbbf24); transition: width 0.4s ease;
+    }
+
     @keyframes stepPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
 
     .step-panel { display: none; }
     .step-panel.visible { display: block; animation: stepIn 0.35s ease; }
-    @keyframes stepIn {
-      from { opacity: 0; transform: translateY(12px); }
-      to   { opacity: 1; transform: none; }
-    }
+    @keyframes stepIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
+    /* ── STEP NAV ── */
     .step-nav {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 6px;
-      padding-top: 18px;
-      border-top: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 8px; padding-top: 18px; border-top: 1px solid var(--border);
     }
     .step-nav .btn-main { max-width: 260px; }
     .step-nav #btnPrevStep { visibility: hidden; }
 
-    /* ── CONFIGURE TABS (Setup | Collections) ── */
-    .cfg-tabs {
-      display: flex;
-      gap: 8px;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 0;
-      margin-bottom: 4px;
+    /* ── SHARED COMPONENTS ── */
+    .step-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 22px; display: flex; flex-direction: column; gap: 16px;
     }
-    .cfg-tab {
-      background: none;
-      border: none;
-      border-bottom: 2px solid transparent;
-      color: var(--muted);
-      font-family: var(--font);
-      font-size: 0.9rem;
-      font-weight: 600;
-      padding: 10px 16px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      transition: color 0.2s, border-color 0.2s;
+    .step { display: flex; flex-direction: column; gap: 14px; }
+    .step-head { display: flex; gap: 12px; align-items: flex-start; }
+    .step-head h2 { font-size: 1.05rem; font-weight: 700; color: var(--white); letter-spacing: -0.01em; margin-bottom: 2px; }
+    .step-head p { font-size: 0.78rem; color: var(--muted); line-height: 1.45; }
+
+    /* Provider cards */
+    .provider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+    .provider-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      overflow: hidden; transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .cfg-tab:hover { color: var(--text); }
-    .cfg-tab.active { color: var(--amber); border-bottom-color: var(--amber); }
-    .beta {
-      background: var(--amber-glow);
-      border: 1px solid rgba(245, 158, 11, 0.35);
-      color: var(--amber);
-      font-size: 0.6rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      padding: 2px 7px;
-      border-radius: 999px;
+    .provider-card.active { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber), 0 6px 24px rgba(245, 158, 11, 0.08); }
+    .pc-head { display: flex; align-items: center; gap: 12px; padding: 14px; cursor: pointer; user-select: none; }
+    .pc-head:hover { background: var(--surface2); }
+    .pc-head img { width: 34px; height: 34px; border-radius: 6px; object-fit: contain; flex-shrink: 0; background: rgba(255,255,255,0.04); padding: 2px; }
+    .pc-info { flex: 1; min-width: 0; }
+    .pc-info strong { display: block; color: var(--white); font-size: 0.9rem; }
+    .pc-info small { display: block; color: var(--muted); font-size: 0.7rem; margin-top: 1px; }
+    .pc-check {
+      width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border2);
+      display: flex; align-items: center; justify-content: center; font-size: 0.7rem;
+      font-weight: 700; color: transparent; transition: all 0.2s; flex-shrink: 0;
+    }
+    .provider-card.active .pc-check { background: var(--amber); border-color: var(--amber); color: var(--bg); }
+    .pc-body { display: none; flex-direction: column; gap: 10px; padding: 12px 14px 14px; border-top: 1px solid var(--border); }
+    .pc-referral { font-size: 0.75rem; color: var(--muted); }
+    .pc-referral a { color: var(--amber); text-decoration: none; font-weight: 600; }
+    .pc-referral a:hover { text-decoration: underline; }
+
+    .url-warning {
+      background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2);
+      border-radius: 8px; padding: 10px 14px; font-size: 0.78rem; color: var(--text);
+      line-height: 1.5; text-align: center;
     }
 
-    /* ── STREMIO PUSH (Beta) ── */
-    .mode-pills { display: flex; gap: 8px; flex-wrap: wrap; }
-    .mode-pill {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 14px;
-      color: var(--muted);
-      font-family: var(--font);
-      font-size: 0.78rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
+    /* Fields */
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    input[type="text"], input[type="password"], input[type="number"], input[type="email"], input[type="url"] {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 14px; color: var(--text); font-size: 0.85rem; font-family: var(--font);
+      outline: none; transition: border-color 0.2s, box-shadow 0.2s; width: 100%; box-sizing: border-box;
     }
-    .mode-pill.active { border-color: var(--amber); color: var(--amber); background: var(--amber-glow); }
+    input[type="text"]:focus, input[type="password"]:focus, input[type="number"]:focus, input[type="email"]:focus, input[type="url"]:focus {
+      border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow);
+    }
+    input::placeholder { color: var(--border2); }
+    .field-label { font-size: 0.82rem; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px; }
+    .field-label .req { color: var(--amber); font-size: 0.8rem; }
+    .field-label a { margin-left: auto; font-size: 0.68rem; color: var(--amber); text-decoration: none; font-weight: 500; }
+    .field-label a:hover { text-decoration: underline; }
+    .input-row { display: flex; gap: 8px; align-items: center; }
+    .input-row input {
+      flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 14px; color: var(--text); font-size: 0.85rem; font-family: var(--mono);
+      outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .input-row input:focus { border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
+    .input-row input.invalid { border-color: var(--error); box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15); }
+    .input-row input::placeholder { color: var(--border2); }
+    .field-hint { font-size: 0.7rem; color: var(--muted); line-height: 1.4; }
+    .field-hint a { color: var(--amber); text-decoration: none; font-weight: 500; }
+    .field-hint a:hover { text-decoration: underline; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
-    .acc-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
+    select {
+      width: 100%; background: var(--bg); border: 2px solid var(--border2); border-radius: 8px;
+      padding: 10px 36px 10px 14px; color: var(--text); font-size: 0.85rem; font-family: var(--font);
+      outline: none; appearance: none; -webkit-appearance: none; cursor: pointer; transition: border-color 0.2s;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 12px center; background-size: 14px;
     }
-    .acc-row img {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background: var(--surface2);
-    }
-    .acc-row .acc-info { flex: 1; min-width: 0; }
-    .acc-row .acc-info strong { display: block; color: var(--white); font-size: 0.9rem; }
-    .acc-row .acc-info small { color: var(--muted); font-size: 0.72rem; word-break: break-all; }
-    .acc-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    .acc-actions .btn-main { flex: 1; min-width: 200px; }
+    select:focus { border-color: var(--amber); }
+    select option { background: var(--surface2); }
 
-    /* Collections tab */
-    .coll-steps { padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }
-    .coll-steps li { font-size: 0.82rem; color: var(--text); line-height: 1.5; }
-    .coll-steps li b { color: var(--white); }
-    .coll-note {
-      font-size: 0.82rem;
-      color: var(--text);
-      font-weight: 600;
-      line-height: 1.5;
-      background: var(--amber-glow);
-      border: 1px solid rgba(245, 158, 11, 0.45);
-      border-radius: 8px;
-      padding: 12px 14px;
+    /* Buttons */
+    .btn-verify {
+      width: 36px; display: flex; align-items: center; justify-content: center;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      cursor: pointer; font-size: 0.85rem; color: var(--text); transition: all 0.15s; flex-shrink: 0;
     }
+    .btn-verify:hover { border-color: var(--amber); color: var(--amber); }
+    .btn-verify:disabled { opacity: 0.4; cursor: wait; }
+    .btn-verify.verified { background: rgba(52, 211, 153, 0.15); border-color: #34d399; color: #34d399; }
+    .btn-verify.failed { background: rgba(239, 68, 68, 0.15); border-color: #ef4444; color: #ef4444; }
+    .btn-icon {
+      width: 40px; display: flex; align-items: center; justify-content: center;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      cursor: pointer; color: var(--muted); font-size: 0.9rem; transition: all 0.2s; flex-shrink: 0;
+    }
+    .btn-icon:hover { color: var(--text); border-color: var(--border2); }
+    .btn-main {
+      display: flex; align-items: center; gap: 12px; padding: 14px 18px;
+      border-radius: 10px; font-weight: 700; font-size: 0.9rem; cursor: pointer;
+      border: none; width: 100%; transition: all 0.2s; font-family: var(--font); text-decoration: none;
+    }
+    .btn-main:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-main .ico { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+    .btn-main .txt { flex: 1; text-align: left; }
+    .btn-main .txt small { display: block; font-size: 0.68rem; font-weight: 400; opacity: 0.7; margin-top: 2px; }
+    .btn-main .arr { opacity: 0.5; font-size: 1.1rem; }
+    .btn-gen { background: var(--amber); color: var(--bg); }
+    .btn-gen:hover:not(:disabled) { background: var(--amber-dim); box-shadow: 0 4px 24px rgba(245, 158, 11, 0.3); transform: translateY(-1px); }
+    .btn-gen .ico { background: rgba(0, 0, 0, 0.15); }
+    .btn-stremio { background: linear-gradient(135deg, #f59e0b, #b45309); color: var(--bg); display: none; }
+    .btn-stremio.show { display: flex; }
+    .btn-stremio:hover { box-shadow: 0 4px 24px rgba(245, 158, 11, 0.3); transform: translateY(-1px); }
+    .btn-stremio .ico { background: rgba(0, 0, 0, 0.12); }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); display: none; }
+    .btn-outline.show { display: flex; }
+    .btn-outline:hover { border-color: var(--amber); background: var(--amber-glow); transform: translateY(-1px); }
+    .btn-outline .ico { background: var(--amber-glow); }
+    .btn-nuvio { background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; display: none; }
+    .btn-nuvio.show { display: flex; }
+    .btn-nuvio:hover { box-shadow: 0 4px 24px rgba(124, 58, 237, 0.35); transform: translateY(-1px); }
+    .btn-nuvio .ico { background: rgba(255,255,255,0.12); }
+    .btn-copy-url {
+      background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--muted);
+      cursor: pointer; padding: 5px 12px; font-size: 0.72rem; font-family: var(--font);
+      font-weight: 600; white-space: nowrap; transition: all 0.2s;
+    }
+    .btn-copy-url:hover { border-color: var(--amber); color: var(--amber); }
+    .btn-copy-url.copied { border-color: var(--success); color: var(--success); }
+    .btn-main .ico.spin { animation: icoSpin 0.7s linear infinite; }
+    @keyframes icoSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-    /* ── CONNECT WIDGET (Sign in with Stremio / Nuvio) ── */
+    /* URL box */
+    .url-box { display: none; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; align-items: center; gap: 10px; }
+    .url-box.show { display: flex; }
+    .url-box span { flex: 1; font-family: var(--mono); font-size: 0.68rem; color: var(--amber); word-break: break-all; }
+
+    /* Collapsible cards */
+    .coll-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      overflow: hidden; margin-bottom: 12px;
+    }
+    .coll-card:last-child { margin-bottom: 0; }
+    .coll-header {
+      cursor: pointer; user-select: none; display: flex; align-items: center;
+      justify-content: space-between; padding: 14px 16px; transition: background 0.15s;
+    }
+    .coll-header:hover { background: var(--surface2); }
+    .coll-header-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .coll-header-left .coll-icon { font-size: 1.1rem; flex-shrink: 0; }
+    .coll-header-left .coll-label { font-size: 0.88rem; font-weight: 700; color: var(--white); }
+    .coll-header-left .coll-sub { font-size: 0.7rem; color: var(--muted); margin-left: 4px; }
+    .coll-arrow { font-size: 1rem; transition: transform 0.2s, color 0.2s; color: var(--muted); line-height: 1; flex-shrink: 0; }
+    .coll-arrow.open { transform: rotate(90deg); color: var(--amber); }
+    .coll-body { display: none; padding: 0 16px 18px; }
+    .coll-body.open { display: block; }
+    .coll-body .field { margin-bottom: 12px; }
+    .coll-body .field:last-child { margin-bottom: 0; }
+
+    /* Catalogue list */
+    .cat-options { display: flex; flex-direction: column; gap: 8px; }
+    .cat-option {
+      display: flex; align-items: center; gap: 12px; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+      cursor: pointer; transition: border-color 0.2s;
+    }
+    .cat-option:hover { border-color: var(--border2); }
+    .cat-option input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--amber); flex-shrink: 0; }
+    .cat-option .co-info { flex: 1; min-width: 0; }
+    .cat-option .co-info strong { color: var(--white); font-size: 0.86rem; display: block; }
+    .cat-option .co-info small { color: var(--muted); font-size: 0.72rem; line-height: 1.4; display: block; }
+    .cat-option .co-coming { font-size: 0.62rem; color: var(--amber); border: 1px solid rgba(245,158,11,0.35); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+
+    /* Connect / Install */
     .connect-widget { display: flex; flex-direction: column; gap: 12px; }
     .connect-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    @media (max-width: 640px) { .connect-grid { grid-template-columns: 1fr; } }
     .connect-box {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      transition: border-color 0.2s, box-shadow 0.2s;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 18px; display: flex; flex-direction: column; gap: 10px; transition: border-color 0.2s, box-shadow 0.2s;
     }
     .connect-box:hover { border-color: var(--border2); }
     .connect-box .cb-head { display: flex; align-items: center; gap: 12px; }
@@ -1138,181 +328,270 @@
     .connect-box .cb-head h3 { color: var(--white); font-size: 0.95rem; }
     .connect-box .cb-head p { color: var(--muted); font-size: 0.72rem; }
     .connect-box .connect-form { display: flex; flex-direction: column; gap: 10px; }
-
-    .btn-main .ico.spin { animation: icoSpin 0.7s linear infinite; }
-    @keyframes icoSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-    .connect-profile-ok {
-      background: rgba(34, 197, 94, 0.08);
-      border: 1px solid rgba(34, 197, 94, 0.25);
-      border-radius: 8px;
-      padding: 8px 12px;
-      font-size: 0.82rem;
-      color: var(--success);
-    }
-    .connect-profile-ok strong { color: var(--white); }
-    .connect-skip {
-      align-self: center;
-      background: none;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--muted);
-      font-family: var(--font);
-      font-size: 0.8rem;
-      font-weight: 600;
-      cursor: pointer;
-      padding: 9px 24px;
-      transition: all 0.2s;
-      margin-top: 2px;
-    }
-    .connect-skip:hover { color: var(--text); border-color: var(--border2); }
-
-    /* ── QUICK CONNECT OVERLAY (modal on first load) ── */
-    /* Connect takes over the left column (top bar + sidebar stay visible) */
-    #setupContent {
-      display: flex;
-      flex-direction: column;
-      gap: 26px;
-    }
-
-    #connectStep .connect-widget, #installPush .connect-widget { animation: connectIn 0.3s ease; }
-    @keyframes connectIn {
-      from { opacity: 0; transform: translateY(10px) scale(0.98); }
-      to   { opacity: 1; transform: none; }
-    }
-
     .connect-intro {
-      font-size: 0.85rem;
-      color: var(--text);
-      line-height: 1.55;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 14px 16px;
+      font-size: 0.85rem; color: var(--text); line-height: 1.55; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px;
     }
     .connect-intro strong { color: var(--white); }
     .connect-intro .ci-sub { display: block; color: var(--muted); font-size: 0.78rem; margin-top: 4px; }
+    .connect-note { font-size: 0.74rem; color: var(--muted); line-height: 1.5; }
     .connect-note.warn { color: var(--amber); }
-    .connect-note {
-      font-size: 0.74rem;
-      color: var(--muted);
-      line-height: 1.5;
-    }
     .connected-card {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 14px 18px;
+      display: flex; align-items: center; gap: 12px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px;
     }
     .connected-card .cc-info { flex: 1; min-width: 0; }
     .connected-card .cc-info strong { color: var(--white); font-size: 0.9rem; display: block; }
     .connected-card .cc-info small { color: var(--muted); font-size: 0.72rem; }
+    .connect-profile-ok {
+      background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25);
+      border-radius: 8px; padding: 8px 12px; font-size: 0.82rem; color: var(--success);
+    }
+    .connect-profile-ok strong { color: var(--white); }
 
-    /* Catalogue options */
-    .cat-options { display: flex; flex-direction: column; gap: 8px; }
-    .cat-option {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 14px;
-      cursor: pointer;
-      transition: border-color 0.2s;
+    /* Preview */
+    .preview-wrap { margin-top: 8px; }
+    .preview-btn {
+      width: 100%; background: none; border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 14px; color: var(--muted); font-size: 0.72rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between; font-family: var(--font); transition: all 0.2s;
     }
-    .cat-option:hover { border-color: var(--border2); }
-    .cat-option input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
-      accent-color: var(--amber);
-      flex-shrink: 0;
+    .preview-btn:hover { border-color: var(--amber); color: var(--text); }
+    .preview-btn .arr { transition: transform 0.25s; }
+    .preview-btn.open .arr { transform: rotate(90deg); }
+    .preview-panel {
+      display: none; margin-top: 10px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; overflow: hidden;
     }
-    .cat-option .co-info { flex: 1; min-width: 0; }
-    .cat-option .co-info strong { color: var(--white); font-size: 0.86rem; display: block; }
-    .cat-option .co-info small { color: var(--muted); font-size: 0.72rem; line-height: 1.4; display: block; }
-    .cat-option .co-coming { font-size: 0.62rem; color: var(--amber); border: 1px solid rgba(245,158,11,0.35); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
-    .cat-option.disabled { opacity: 0.55; cursor: not-allowed; }
-    .cat-option.disabled:hover { border-color: var(--border); }
+    .preview-panel.open { display: block; }
+    .preview-head { padding: 8px 14px; background: var(--amber-glow); border-bottom: 1px solid var(--border); font-size: 0.65rem; color: var(--muted); }
+    .stream-row { display: flex; gap: 12px; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .stream-row:last-child { border-bottom: none; }
+    .stream-label { min-width: 100px; max-width: 100px; font-size: 0.65rem; line-height: 1.5; white-space: pre-line; color: var(--text); font-weight: 600; }
+    .stream-detail { flex: 1; font-size: 0.62rem; line-height: 1.6; white-space: pre-line; color: var(--muted); }
+    .preview-footer { padding: 6px 14px; font-size: 0.6rem; color: var(--muted); border-top: 1px solid var(--border); text-align: center; background: rgba(0,0,0,0.2); }
+
+    /* Info cards */
+    .info-card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+    .info-card:last-child { margin-bottom: 0; }
+    .info-card h4 { font-size: 0.85rem; font-weight: 700; color: var(--white); margin-bottom: 8px; }
+    .info-card p { font-size: 0.78rem; color: var(--muted); line-height: 1.55; }
+    .info-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+    .info-list li { font-size: 0.75rem; color: var(--muted); display: flex; align-items: flex-start; gap: 8px; line-height: 1.4; }
+    .info-list li::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--amber); margin-top: 6px; flex-shrink: 0; }
+    .coll-note {
+      font-size: 0.82rem; color: var(--text); font-weight: 600; line-height: 1.5;
+      background: var(--amber-glow); border: 1px solid rgba(245, 158, 11, 0.45); border-radius: 8px; padding: 12px 14px;
+    }
+
+    /* Beta tag */
+    .beta {
+      background: var(--amber-glow); border: 1px solid rgba(245, 158, 11, 0.35);
+      color: var(--amber); font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; padding: 2px 7px; border-radius: 999px;
+    }
 
     /* Backup list */
-    .backup-list {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      max-height: 200px;
-      overflow-y: auto;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 12px;
-    }
-    .backup-list .bl-item {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 10px;
-    }
+    .backup-list { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+    .backup-list .bl-item { display: flex; flex-direction: column; gap: 4px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
     .backup-list .bl-top { display: flex; align-items: center; gap: 8px; }
-    .backup-list .bl-name {
-      font-size: 0.78rem;
-      font-weight: 600;
-      color: var(--white);
-      font-family: var(--font);
-      flex: 1;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .backup-list .bl-url {
-      font-family: var(--mono);
-      font-size: 0.62rem;
-      color: var(--muted);
-      word-break: break-all;
-      line-height: 1.4;
-    }
+    .backup-list .bl-name { font-size: 0.78rem; font-weight: 600; color: var(--white); font-family: var(--font); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .backup-list .bl-url { font-family: var(--mono); font-size: 0.62rem; color: var(--muted); word-break: break-all; line-height: 1.4; }
     .backup-list .bl-empty { color: var(--border2); font-size: 0.72rem; }
 
+    /* Sidebar */
+    .sidebar { background: var(--surface); border-left: 1px solid var(--border); padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 24px; }
+    .setup-panel { display: flex; flex-direction: column; gap: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 14px; padding: 18px; }
+    .setup-head { display: flex; align-items: center; justify-content: space-between; }
+    .setup-head h3 { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+    .setup-count { font-size: 0.7rem; color: var(--amber); font-weight: 600; background: var(--amber-glow); border: 1px solid rgba(245,158,11,0.2); border-radius: 20px; padding: 2px 10px; }
+    .setup-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px 4px 5px; font-size: 0.72rem; font-weight: 600; color: var(--text); }
+    .chip img { width: 16px; height: 16px; border-radius: 3px; object-fit: contain; }
+    .chip.dim { color: var(--border2); font-weight: 400; }
+    .setup-rows { display: flex; flex-direction: column; border-top: 1px solid var(--border); }
+    .setup-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 0.78rem; }
+    .setup-row:last-child { border-bottom: none; }
+    .setup-row span { color: var(--muted); }
+    .setup-row strong { color: var(--text); font-weight: 600; text-align: right; }
+    .btn-primary-sm { width: 100%; background: var(--amber); color: var(--bg); border: none; border-radius: 10px; padding: 12px 16px; font-weight: 700; font-size: 0.85rem; cursor: pointer; font-family: var(--font); transition: all 0.2s; }
+    .btn-primary-sm:hover { background: var(--amber-dim); box-shadow: 0 4px 20px rgba(245,158,11,0.3); }
+    .setup-privacy { font-size: 0.7rem; color: var(--muted); line-height: 1.5; text-align: center; }
+    .sidebar-section h3 { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+    .privacy-section { border-top: 1px solid var(--border); padding-top: 20px; }
+    .privacy-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+
+    /* Footer */
+    .form-footer { margin-top: auto; padding-top: 20px; border-top: 1px solid var(--border); text-align: center; }
+    .form-footer p { font-size: 0.75rem; color: var(--muted); margin-bottom: 10px; }
+    .form-footer a { color: var(--amber); text-decoration: none; font-weight: 600; }
+    .form-footer a:hover { text-decoration: underline; }
+    .gh-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); color: var(--white); padding: 8px 16px; border-radius: 8px; font-size: 0.75rem; font-weight: 600; text-decoration: none; font-family: var(--font); transition: all 0.2s; }
+    .gh-btn:hover { border-color: var(--amber); }
+    .gh-icon { width: 16px; height: 16px; fill: currentColor; }
+    .gh-star { color: var(--amber); font-size: 0.85rem; }
+    .copyright { font-size: 0.68rem; color: var(--muted); margin-top: 12px; }
+
+    /* Toast */
+    .toast { position: fixed; bottom: 20px; right: 20px; background: var(--surface2); border: 1px solid var(--success); border-radius: 8px; padding: 10px 16px; font-size: 0.82rem; color: var(--success); opacity: 0; transform: translateY(8px); transition: all 0.25s; pointer-events: none; z-index: 100; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* PIN modal */
+    .pin-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 300; padding: 16px; }
+    .pin-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; max-width: 420px; width: 100%; padding: 20px; text-align: center; }
+    .pin-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .pin-header h3 { font-size: 1rem; margin: 0; }
+    .pin-close { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; }
+    .pin-box p { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+    .pin-code { font-family: var(--mono, monospace); font-size: 1.5rem; font-weight: 700; letter-spacing: 0.15em; color: var(--amber); background: var(--surface2); border: 1px dashed var(--border2); border-radius: 8px; padding: 14px; margin: 14px 0; }
+    .pin-box .btn { width: 100%; margin-bottom: 10px; }
+    .pin-status { min-height: 1.2em; color: var(--error); }
+
+    /* Reinstall modal */
+    #reinstallModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+
+    /* ── MOBILE ── */
+    @media (max-width: 860px) {
+      .main { grid-template-columns: 1fr; overflow: visible; }
+      .sidebar { display: none; }
+      .form-area { padding: 24px 20px; overflow: visible; }
+      .topbar-right .topbar-link { display: none; }
+      .connect-grid { grid-template-columns: 1fr; }
+      .privacy-grid { grid-template-columns: 1fr; }
+      .wizard-wrap { gap: 20px; }
+      .wizard-progress { margin-bottom: 16px; padding-bottom: 12px; }
+      .wp-text { font-size: 0.65rem; }
+      .wp-title { font-size: 0.75rem; }
+      .step-head h2 { font-size: 0.95rem; }
+      .step-head p { font-size: 0.75rem; }
+    }
+    @media (min-width: 861px) { .mobile-poster-preview { display: none; } }
+
+    /* ── Mobile: compact step strip ── */
     @media (max-width: 480px) {
-      .topbar { padding: 0 16px; height: 50px; }
+      .topbar { padding: 0 12px; height: 44px; }
+      .topbar-right { gap: 10px; }
+      .reset-link { font-size: 0.68rem; padding: 4px 10px; }
       body { padding: 0; }
       .main { overflow: visible; }
-      .form-area {
-        padding: 20px 16px;
-        gap: 20px;
-        overflow: visible;
-        min-height: calc(100vh - 50px);
-      }
-      .form-header h1 { font-size: 1.3rem; }
-      .form-header p { font-size: 0.82rem; }
-      .field-row { grid-template-columns: 1fr; }
-      .provider-grid { grid-template-columns: 1fr; }
-      .pc-body { padding-bottom: 14px; }
-      .input-row input { font-size: 0.82rem; padding: 10px 12px; }
-      .btn-main { padding: 14px 16px; font-size: 0.85rem; }
-      .btn-main .ico { width: 34px; height: 34px; }
-      .url-box { flex-wrap: wrap; }
-      .url-box span { min-width: 0; }
+      .form-area { padding: 16px 14px; gap: 0; overflow: visible; min-height: calc(100vh - 44px); }
 
-      /* Wizard on small screens */
-      .stepper { gap: 6px; margin-bottom: 18px; }
-      .step-btn { padding: 6px 10px; font-size: 0.72rem; }
-      .step-btn span { width: 18px; height: 18px; font-size: 0.62rem; }
-      .step-nav { flex-direction: column-reverse; gap: 10px; }
+      /* Header: tighter */
+      .form-header { margin-bottom: 12px !important; }
+      .form-header h1 { font-size: 1.2rem !important; margin-bottom: 4px !important; }
+      .form-header p { font-size: 0.78rem !important; line-height: 1.4 !important; }
+
+      /* Wizard rail: compact numbered dots */
+      .wizard-wrap { grid-template-columns: 1fr; gap: 12px; }
+      .wizard-nav {
+        position: static; display: flex; flex-direction: row; align-items: center;
+        justify-content: center; gap: 6px; padding: 0;
+      }
+      .wizard-nav .step-btn {
+        display: flex; align-items: center; justify-content: center;
+        padding: 0; min-width: 0; flex: 0 0 auto;
+        background: none; border: none; border-radius: 50%;
+        width: 32px; height: 32px;
+      }
+      .wizard-nav .step-btn .step-num {
+        width: 28px; height: 28px; font-size: 0.72rem; font-weight: 700;
+        border-radius: 50%; transition: all 0.3s;
+        background: var(--surface2); border: 1.5px solid var(--border2); color: var(--muted);
+      }
+      .wizard-nav .step-btn.active .step-num {
+        background: var(--amber); border-color: var(--amber); color: var(--bg);
+        box-shadow: 0 0 0 3px var(--amber-glow), 0 0 12px rgba(245,158,11,0.25);
+      }
+      .wizard-nav .step-btn.verified .step-num {
+        background: var(--success); border-color: var(--success); color: var(--bg);
+      }
+      .wizard-nav .step-btn::after { display: none !important; }
+      .wizard-nav .step-btn::before { display: none !important; }
+      .wizard-nav .step-label { display: none; }
+      /* Thin line connectors between dots */
+      .wizard-nav .step-dot-line {
+        width: 12px; height: 2px; background: var(--border2); border-radius: 1px; flex-shrink: 0;
+      }
+      .wizard-nav .step-dot-line.done { background: var(--success); }
+
+      /* Progress bar: slimmer */
+      .wizard-progress { gap: 10px; margin-bottom: 14px; padding-bottom: 10px; }
+      .wp-text { font-size: 0.6rem; letter-spacing: 0.03em; }
+      .wp-title { font-size: 0.7rem; }
+      .wp-bar { height: 3px; }
+
+      /* Step content: tighter */
+      .step-head { gap: 8px; }
+      .step-head h2 { font-size: 0.9rem; margin-bottom: 1px; }
+      .step-head p { font-size: 0.72rem; }
+      .step-card { padding: 14px; gap: 10px; border-radius: 10px; }
+
+      /* Fields: compact */
+      .field-row { grid-template-columns: 1fr; }
+      .provider-grid { grid-template-columns: 1fr; gap: 8px; }
+      .pc-head { padding: 10px 12px; gap: 10px; }
+      .pc-head img { width: 28px; height: 28px; }
+      .pc-body { padding: 10px 12px 12px; }
+      .pc-info strong { font-size: 0.82rem; }
+      .pc-info small { font-size: 0.65rem; }
+
+      input[type="text"], input[type="password"], input[type="number"], input[type="email"], input[type="url"] {
+        padding: 8px 12px; font-size: 0.82rem;
+      }
+      .input-row { gap: 6px; }
+      .input-row input { font-size: 0.82rem; padding: 8px 12px; }
+      .field-label { font-size: 0.78rem; }
+      .field-hint { font-size: 0.65rem; }
+      select { padding: 8px 32px 8px 12px; font-size: 0.82rem; }
+
+      /* Buttons: compact */
+      .btn-main { padding: 11px 14px; font-size: 0.82rem; border-radius: 8px; }
+      .btn-main .ico { width: 30px; height: 30px; border-radius: 6px; font-size: 0.9rem; }
+      .btn-main .txt small { font-size: 0.62rem; }
+      .btn-verify { width: 32px; height: 32px; font-size: 0.78rem; }
+      .btn-icon { width: 34px; height: 34px; font-size: 0.82rem; }
+      .btn-copy-url { padding: 4px 10px; font-size: 0.68rem; }
+
+      /* URL box */
+      .url-box { flex-wrap: wrap; padding: 8px 12px; gap: 8px; }
+      .url-box span { min-width: 0; font-size: 0.62rem; }
+
+      /* Step nav: stack */
+      .step-nav { flex-direction: column-reverse; gap: 8px; padding-top: 14px; }
       .step-nav .btn-main { max-width: none; width: 100%; }
-      .step-nav #btnPrevStep { align-self: flex-start; }
-      .connected-card { flex-wrap: wrap; }
-      /* Bigger template boxes on mobile */
-      #streamNameTemplate, #streamDescTemplate { min-height: 120px; font-size: 0.9rem; line-height: 1.5; }
-      .cat-option { flex-wrap: wrap; }
-    }
-  </style>
+      .step-nav #btnPrevStep { align-self: flex-start; visibility: visible; font-size: 0.78rem; padding: 6px 14px; }
+
+      /* Collapsible cards: tighter */
+      .coll-card { border-radius: 10px; margin-bottom: 8px; }
+      .coll-header { padding: 10px 14px; }
+      .coll-header-left .coll-label { font-size: 0.82rem; }
+      .coll-header-left .coll-sub { font-size: 0.65rem; }
+      .coll-body { padding: 0 14px 14px; }
+
+      /* Catalogue options */
+      .cat-option { padding: 10px 12px; gap: 8px; }
+      .cat-option .co-info strong { font-size: 0.8rem; }
+      .cat-option .co-info small { font-size: 0.65rem; }
+
+      /* Connected card */
+      .connected-card { padding: 12px 14px; }
+
+      /* Textarea */
+      #streamNameTemplate, #streamDescTemplate { min-height: 80px; font-size: 0.82rem; line-height: 1.4; }
+
+      /* Info cards */
+      .info-card { padding: 12px 14px; }
+      .info-card h4 { font-size: 0.8rem; margin-bottom: 6px; }
+      .info-list li { font-size: 0.7rem; }
+
+      /* Privacy */
+      .privacy-section { padding-top: 16px; }
+
+      /* Footer */
+      .form-footer { padding-top: 16px; }
+      .form-footer p { font-size: 0.7rem; }
+    }  </style>
   <script src="/formatter.js?v=6"></script>
 </head>
 <body>
@@ -1341,669 +620,513 @@
   <div class="main">
     <!-- LEFT: FORM -->
     <div class="form-area">
-      <div id="setupContent">
-      <div class="form-header">
-        <h1>Set up your addon</h1>
-        <p>Add your debrid providers and a TMDB key, then install straight into Stremio or Nuvio. Your keys are <strong>encoded in the addon URL</strong> — never stored or logged.</p>
+            <div id="setupContent">
+      <div class="form-header" style="margin-bottom:24px">
+        <h1 style="font-size:1.6rem;font-weight:700;color:var(--white);letter-spacing:-0.02em;margin-bottom:6px">Set up your addon</h1>
+        <p style="font-size:0.88rem;color:var(--muted);line-height:1.5;max-width:620px">Add your debrid providers and a TMDB key, then install straight into Stremio or Nuvio. Your keys are <strong style="color:var(--text);font-weight:600">encoded in the addon URL</strong> — never stored or logged.</p>
       </div>
 
-      <div class="cfg-tabs">
-        <button class="cfg-tab active" id="tabBtn-setup" type="button" onclick="switchTab('setup')">Setup</button>
-        <button class="cfg-tab" id="tabBtn-catalogues" type="button" onclick="switchTab('catalogues')">Catalogues <span class="beta">Beta</span></button>
-      </div>
+      <div class="wizard-wrap">
+        <nav class="wizard-nav" id="wizardNav">
+          <button class="step-btn active" data-step="1" type="button" onclick="advanceStep(1)"><span class="step-num">1</span><div class="step-label"><span class="step-title">Providers</span><span class="step-desc">Debrid accounts</span></div></button>
+          <div class="step-dot-line"></div>
+          <button class="step-btn" data-step="2" type="button" onclick="advanceStep(2)"><span class="step-num">2</span><div class="step-label"><span class="step-title">Metadata</span><span class="step-desc">TMDB + language</span></div></button>
+          <div class="step-dot-line"></div>
+          <button class="step-btn" data-step="3" type="button" onclick="advanceStep(3)"><span class="step-num">3</span><div class="step-label"><span class="step-title">Filters</span><span class="step-desc">Resolution & quality</span><span class="step-opt">optional</span></div></button>
+          <div class="step-dot-line"></div>
+          <button class="step-btn" data-step="4" type="button" onclick="advanceStep(4)"><span class="step-num">4</span><div class="step-label"><span class="step-title">Catalogues</span><span class="step-desc">Row selection</span></div></button>
+          <div class="step-dot-line"></div>
+          <button class="step-btn" data-step="5" type="button" onclick="advanceStep(5)"><span class="step-num">5</span><div class="step-label"><span class="step-title">Streams & Look</span><span class="step-desc">Format + extras</span><span class="step-opt">optional</span></div></button>
+          <div class="step-dot-line"></div>
+          <button class="step-btn" data-step="6" type="button" onclick="advanceStep(6)"><span class="step-num">6</span><div class="step-label"><span class="step-title">Install</span><span class="step-desc">Push or links</span></div></button>
+        </nav>
 
-      <div id="tab-setup" class="cfg-tab-pane">
-
-            <div class="stepper">
-        <button class="step-btn active" data-step="1" type="button" onclick="advanceStep(1)"><span>1</span>Providers</button>
-        <button class="step-btn" data-step="2" type="button" onclick="advanceStep(2)"><span>2</span>Metadata</button>
-        <button class="step-btn" data-step="3" type="button" onclick="advanceStep(3)"><span>3</span>Streams</button>
-        <button class="step-btn" data-step="4" type="button" onclick="advanceStep(4)"><span>4</span>Advanced</button>
-        <button class="step-btn" data-step="5" type="button" onclick="advanceStep(5)"><span>5</span>Connect</button>
-        <button class="step-btn" data-step="6" type="button" onclick="advanceStep(6)"><span>6</span>Preview</button>
-      </div>
-
-<div class="step-panel visible" id="panel-1">
-<!-- STEP 1: PROVIDERS -->
-      <div class="step">
-        <div class="step-head">
-          <div class="step-num">1</div>
-          <div>
-            <h2>Choose your providers</h2>
-            <p>Pick one or both — your library is pulled from whichever you enable.</p>
+        <div class="wizard-body">
+          <div class="wizard-progress">
+            <span class="wp-text" id="stepProgressText">Step 1 of 6</span>
+            <span class="wp-title" id="stepProgressTitle">Providers</span>
+            <div class="wp-bar"><div class="wp-bar-fill" id="stepProgressFill"></div></div>
           </div>
-        </div>
 
-        <div class="provider-grid">
-          <div class="provider-card" id="tbCard">
-            <div class="pc-head" onclick="toggleProviderCard('torbox')">
-              <img src="/provider-logos/torbox.png" alt="TorBox" />
-              <div class="pc-info">
-                <strong>TorBox</strong>
-                <small>Torrents + Usenet</small>
+          <!-- STEP 1: PROVIDERS -->
+          <div class="step-panel visible" id="panel-1">
+            <div class="step">
+              <div class="step-head"><div><h2>Choose your providers</h2><p>Pick one or more — your library is pulled from whichever you enable.</p></div></div>
+              <div class="provider-grid">
+                <div class="provider-card" id="tbCard">
+                  <div class="pc-head" onclick="toggleProviderCard('torbox')">
+                    <img src="/provider-logos/torbox.png" alt="TorBox" />
+                    <div class="pc-info"><strong>TorBox</strong><small>Torrents + Usenet</small></div>
+                    <span class="pc-check">✓</span>
+                  </div>
+                  <div class="pc-body" id="tbKeyField" style="display:none">
+                    <div class="field-label">TorBox API Key <span class="req" id="tbReq">*</span><a href="https://torbox.app/settings" target="_blank">Get key →</a></div>
+                    <div class="input-row">
+                      <input type="password" id="torboxApiKey" placeholder="tb-xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+                      <button class="btn-icon" type="button" onclick="toggleVis('torboxApiKey',this)" aria-label="Show/hide">👁</button>
+                      <button class="btn-verify" type="button" onclick="verifyKey('torbox')" id="verifyTorbox" title="Verify key">✓</button>
+                    </div>
+                    <p class="pc-referral">No TorBox account? <a href="https://torbox.app/subscription?referral=fba69dd3-9611-4e43-a505-87190b4db7fb" target="_blank">Sign up — referral applied ↗</a></p>
+                  </div>
+                </div>
+                <div class="provider-card" id="rdCard">
+                  <div class="pc-head" onclick="toggleProviderCard('realdebrid')">
+                    <img src="/provider-logos/realdebrid.svg" alt="Real-Debrid" />
+                    <div class="pc-info"><strong>Real-Debrid</strong><small>Torrents</small></div>
+                    <span class="pc-check">✓</span>
+                  </div>
+                  <div class="pc-body" id="rdKeyField" style="display:none">
+                    <div class="field-label">Real-Debrid API Key <span class="req" id="rdReq">*</span><a href="https://real-debrid.com/?id=14493200" target="_blank">Get key →</a></div>
+                    <div class="input-row">
+                      <input type="password" id="rdApiKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+                      <button class="btn-icon" type="button" onclick="toggleVis('rdApiKey',this)" aria-label="Show/hide">👁</button>
+                      <button class="btn-verify" type="button" onclick="verifyKey('realdebrid')" id="verifyRealdebrid" title="Verify key">✓</button>
+                    </div>
+                    <p class="pc-referral">No Real-Debrid account? <a href="https://real-debrid.com/?id=14493200" target="_blank">Sign up — referral applied ↗</a></p>
+                  </div>
+                </div>
+                <div class="provider-card" id="adCard">
+                  <div class="pc-head" onclick="toggleProviderCard('alldebrid')">
+                    <img src="/provider-logos/alldebrid.png" alt="AllDebrid" />
+                    <div class="pc-info"><strong>AllDebrid</strong><small>Torrents</small></div>
+                    <span class="pc-check">✓</span>
+                  </div>
+                  <div class="pc-body" id="adKeyField" style="display:none">
+                    <div class="field-label">AllDebrid API Key <span class="req" id="adReq">*</span><a href="https://alldebrid.com/apikeys" target="_blank">Get key →</a></div>
+                    <div class="input-row">
+                      <input type="password" id="adApiKey" placeholder="Your AllDebrid API key" autocomplete="off" />
+                      <button class="btn-icon" type="button" onclick="toggleVis('adApiKey',this)" aria-label="Show/hide">👁</button>
+                      <button class="btn-verify" type="button" onclick="verifyKey('alldebrid')" id="verifyAlldebrid" title="Verify key">✓</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="provider-card" id="pmCard">
+                  <div class="pc-head" onclick="toggleProviderCard('premiumize')">
+                    <img src="/provider-logos/premiumize.svg" alt="Premiumize" />
+                    <div class="pc-info"><strong>Premiumize</strong><small>Torrents + Usenet</small></div>
+                    <span class="pc-check">✓</span>
+                  </div>
+                  <div class="pc-body" id="pmKeyField" style="display:none">
+                    <div class="field-label">Premiumize API Key <span class="req" id="pmReq">*</span><a href="https://www.premiumize.me/account" target="_blank">Get key →</a></div>
+                    <div class="input-row">
+                      <input type="password" id="pmApiKey" placeholder="Your Premiumize API key" autocomplete="off" />
+                      <button class="btn-icon" type="button" onclick="toggleVis('pmApiKey',this)" aria-label="Show/hide">👁</button>
+                      <button class="btn-verify" type="button" onclick="verifyKey('premiumize')" id="verifyPremiumize" title="Verify key">✓</button>
+                    </div>
+                    <p class="pc-referral">First use from a new IP asks you to authorize — we'll show you the PIN.</p>
+                  </div>
+                </div>
               </div>
-              <span class="pc-check">✓</span>
-            </div>
-            <div class="pc-body" id="tbKeyField" style="display:none">
-              <div class="field-label">
-                TorBox API Key <span class="req" id="tbReq">*</span>
-                <a href="https://torbox.app/settings" target="_blank">Get key →</a>
-              </div>
-              <div class="input-row">
-                <input type="password" id="torboxApiKey" placeholder="tb-xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
-                <button class="btn-icon" type="button" onclick="toggleVis('torboxApiKey',this)" aria-label="Show/hide">👁</button>
-                <button class="btn-verify" type="button" onclick="verifyKey('torbox')" id="verifyTorbox" title="Verify key">✓</button>
-              </div>
-              <p class="pc-referral">No TorBox account? <a href="https://torbox.app/subscription?referral=fba69dd3-9611-4e43-a505-87190b4db7fb" target="_blank">Sign up — referral applied ↗</a></p>
-            </div>
-          </div>
-
-          <div class="provider-card" id="rdCard">
-            <div class="pc-head" onclick="toggleProviderCard('realdebrid')">
-              <img src="/provider-logos/realdebrid.svg" alt="Real-Debrid" />
-              <div class="pc-info">
-                <strong>Real-Debrid</strong>
-                <small>Torrents</small>
-              </div>
-              <span class="pc-check">✓</span>
-            </div>
-            <div class="pc-body" id="rdKeyField" style="display:none">
-              <div class="field-label">
-                Real-Debrid API Key <span class="req" id="rdReq">*</span>
-                <a href="https://real-debrid.com/?id=14493200" target="_blank">Get key →</a>
-              </div>
-              <div class="input-row">
-                <input type="password" id="rdApiKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
-                <button class="btn-icon" type="button" onclick="toggleVis('rdApiKey',this)" aria-label="Show/hide">👁</button>
-                <button class="btn-verify" type="button" onclick="verifyKey('realdebrid')" id="verifyRealdebrid" title="Verify key">✓</button>
-              </div>
-              <p class="pc-referral">No Real-Debrid account? <a href="https://real-debrid.com/?id=14493200" target="_blank">Sign up — referral applied ↗</a></p>
-            </div>
-          </div>
-
-          <div class="provider-card" id="adCard">
-            <div class="pc-head" onclick="toggleProviderCard('alldebrid')">
-              <img src="/provider-logos/alldebrid.png" alt="AllDebrid" />
-              <div class="pc-info">
-                <strong>AllDebrid</strong>
-                <small>Torrents</small>
-              </div>
-              <span class="pc-check">✓</span>
-            </div>
-            <div class="pc-body" id="adKeyField" style="display:none">
-              <div class="field-label">
-                AllDebrid API Key <span class="req" id="adReq">*</span>
-                <a href="https://alldebrid.com/apikeys" target="_blank">Get key →</a>
-              </div>
-              <div class="input-row">
-                <input type="password" id="adApiKey" placeholder="Your AllDebrid API key" autocomplete="off" />
-                <button class="btn-icon" type="button" onclick="toggleVis('adApiKey',this)" aria-label="Show/hide">👁</button>
-                <button class="btn-verify" type="button" onclick="verifyKey('alldebrid')" id="verifyAlldebrid" title="Verify key">✓</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="provider-card" id="pmCard">
-            <div class="pc-head" onclick="toggleProviderCard('premiumize')">
-              <img src="/provider-logos/premiumize.svg" alt="Premiumize" />
-              <div class="pc-info">
-                <strong>Premiumize</strong>
-                <small>Torrents + Usenet</small>
-              </div>
-              <span class="pc-check">✓</span>
-            </div>
-            <div class="pc-body" id="pmKeyField" style="display:none">
-              <div class="field-label">
-                Premiumize API Key <span class="req" id="pmReq">*</span>
-                <a href="https://www.premiumize.me/account" target="_blank">Get key →</a>
-              </div>
-              <div class="input-row">
-                <input type="password" id="pmApiKey" placeholder="Your Premiumize API key" autocomplete="off" />
-                <button class="btn-icon" type="button" onclick="toggleVis('pmApiKey',this)" aria-label="Show/hide">👁</button>
-                <button class="btn-verify" type="button" onclick="verifyKey('premiumize')" id="verifyPremiumize" title="Verify key">✓</button>
-              </div>
-              <p class="pc-referral">First use from a new IP asks you to authorize — we'll show you the PIN.</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Source of truth for the JS (provider select) -->
-        <!-- Source of truth for the JS: a hidden input so it can hold any
-             provider combination ('alldebrid', 'torbox,alldebrid,premiumize', …).
-             A <select> can only hold values that match an <option>, which broke
-             the new providers. -->
-        <input type="hidden" id="provider" />
-
-        <div class="step-card" id="catalogModeSection" style="display:none">
-          <div class="field-label">Catalog mode</div>
-          <select id="rdCatalog">
-            <option value="merge">Merge providers into one library</option>
-            <option value="separate">Separate catalog per provider</option>
-          </select>
-          <p class="field-hint">Merge shows one combined library; separate keeps each provider in its own catalog row in Stremio/Nuvio.</p>
-        </div>
-
-        <div class="url-warning">Protect this page — anyone with the URL can access your configuration.</div>
-      </div>
-
-            </div>
-
-<div class="step-panel" id="panel-2">
-<!-- STEP 2: METADATA -->
-      <div class="step">
-        <div class="step-head">
-          <div class="step-num">2</div>
-          <div>
-            <h2>Metadata</h2>
-            <p>TMDB powers your posters, ratings and detail pages.</p>
-          </div>
-        </div>
-
-        <div class="step-card">
-          <div class="field">
-            <div class="field-label">
-              TMDB API Key <span class="req">*</span>
-              <a href="https://www.themoviedb.org/settings/api" target="_blank">Get key →</a>
-            </div>
-            <div class="input-row">
-              <input type="password" id="tmdbApiKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
-              <button class="btn-icon" type="button" onclick="toggleVis('tmdbApiKey',this)" aria-label="Show/hide">👁</button>
-              <button class="btn-verify" type="button" onclick="verifyKey('tmdb')" id="verifyTmdb" title="Verify key">✓</button>
-            </div>
-            <p class="field-hint">Copy <strong style="color:var(--text)">API Key (v3)</strong> from your TMDB account settings — a 32-character string.</p>
-            <div class="url-warning" id="tmdbV4Warning" style="display:none">
-              ⚠️ That looks like a TMDB <strong>v4 Read Access Token</strong>, not the v3 API key.
-              v4 tokens expire, which makes the addon stop working. Use your <strong>v3 API key</strong> instead
-              (TMDB → Account Settings → API → API Key (v3)).
-            </div>
-          </div>
-
-          <div class="field-row">
-            <div class="field">
-              <div class="field-label">Language</div>
-              <select id="lang">
-                <option value="en-US" selected>English</option>
-                <option value="pt-BR">PT-BR</option>
-                <option value="pt-PT">PT-PT</option>
-                <option value="es-ES">Espanol</option>
-                <option value="fr-FR">Francais</option>
-                <option value="de-DE">Deutsch</option>
-                <option value="it-IT">Italiano</option>
-                <option value="ja-JP">Japanese</option>
-              </select>
-            </div>
-            <div class="field">
-              <div class="field-label">Sort by</div>
-              <select id="sortBy">
-                <option value="data_adicao">Date added</option>
-                <option value="data_lancamento">Release date</option>
-                <option value="titulo">Title (A-Z)</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-
-            </div>
-
-<div class="step-panel" id="panel-3">
-<!-- STEP 3: STREAM FORMATTER -->
-      <div class="step">
-        <div class="step-head">
-          <div class="step-num">3</div>
-          <div>
-            <h2>Stream Format</h2>
-            <p>Customise how each stream looks in the player list.</p>
-          </div>
-        </div>
-
-        <div class="step-card">
-          <div class="field">
-            <div class="field-label">Preset</div>
-            <select id="streamPreset" onchange="onStreamPresetChange()">
-              <option value="lelibrary">LeLibrary</option>
-              <option value="torrentio">Torrentio</option>
-              <option value="torbox">Torbox</option>
-              <option value="gdrive">Google Drive</option>
-              <option value="lightgdrive">Light GDrive</option>
-              <option value="minimalisticgdrive">Minimalistic GDrive</option>
-              <option value="prism">Prism</option>
-              <option value="tamtaro">Tamtaro</option>
-              <option value="custom">Custom</option>
-            </select>
-          </div>
-
-          <div class="field" style="margin-top:12px">
-            <div class="field-label">Name Template</div>
-            <textarea id="streamNameTemplate" rows="3" spellcheck="false" style="font-family:var(--mono,monospace);font-size:0.82rem;resize:vertical;width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text)" oninput="updateStreamPreview()"></textarea>
-          </div>
-
-          <div class="field">
-            <div class="field-label">Description Template</div>
-            <textarea id="streamDescTemplate" rows="4" spellcheck="false" style="font-family:var(--mono,monospace);font-size:0.82rem;resize:vertical;width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text)" oninput="updateStreamPreview()"></textarea>
-          </div>
-
-          <div style="margin-top:8px;font-size:0.72rem;color:var(--muted)">
-            Variables: <code>{provider}</code> <code>{providerEmoji}</code> <code>{quality}</code> <code>{source}</code> <code>{codec}</code> <code>{audio}</code> <code>{visualTags}</code> <code>{size}</code> <code>{sub}</code> <code>{group}</code> <code>{filename}</code> <code>{type}</code>
-          </div>
-
-          <div style="margin-top:14px">
-            <div class="field-label" style="margin-bottom:8px">Preview</div>
-            <div id="streamPreview" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;min-height:80px;font-size:0.82rem">
-              <span style="color:var(--muted)">Select a template to see a preview</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="step-card" id="streamAddonsCard" style="margin-top:18px">
-          <h3 style="margin:0 0 4px 0;font-size:1.05rem;color:var(--white);display:flex;align-items:center;gap:8px">🎛️ Stream Addons <span class="beta">Optional</span></h3>
-          <p class="field-hint" style="margin:2px 0 12px 0">
-            Power the <strong>Trending</strong> and <strong>Popular</strong> catalogue rows by letting LeLibrary pull streams
-            from other addons. None are enabled by default. Your library rows (My Movies, My Series, LeLibrary Collections)
-            are <strong>never</strong> affected — they keep using your own debrid copies.
-          </p>
-          <div class="cat-options" id="streamAddonList"></div>
-        </div>
-
-        <div class="step-card" id="streamFiltersCard" style="margin-top:18px">
-          <h3 style="margin:0 0 4px 0;font-size:1.05rem;color:var(--white);display:flex;align-items:center;gap:8px">🧹 Stream Filters &amp; Sorting <span class="beta">Optional</span></h3>
-          <p class="field-hint" style="margin:2px 0 12px 0">
-            Tame the external addon noise on the <strong>Trending</strong> and <strong>Popular</strong> rows.
-            Filters apply to the stream addons only — your own library copies are always kept.
-          </p>
-
-          <div class="field">
-            <div class="field-label">Sort</div>
-            <select id="streamSort" onchange="checkChanged()">
-              <option value="">Default (owned first)</option>
-              <option value="cached-quality">Cached first, then quality</option>
-              <option value="quality">Quality, then size</option>
-              <option value="size">Size</option>
-              <option value="cached-size">Cached first, then size</option>
-            </select>
-          </div>
-
-          <div class="field" style="margin-top:12px">
-            <div class="field-label">Resolution range</div>
-            <div style="display:flex;gap:10px;align-items:center">
-              <select id="streamMinQuality" onchange="checkChanged()">
-                <option value="">Any min</option>
-                <option value="1080p">1080p+</option>
-                <option value="720p">720p+</option>
-                <option value="480p">480p+</option>
-              </select>
-              <span style="color:var(--muted)">to</span>
-              <select id="streamMaxQuality" onchange="checkChanged()">
-                <option value="">Any max</option>
-                <option value="4K">Up to 4K</option>
-                <option value="1080p">Up to 1080p</option>
-                <option value="720p">Up to 720p</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="field" style="margin-top:12px">
-            <div class="field-label">Minimum size (GB)</div>
-            <input type="number" id="streamMinSizeGB" min="0" step="0.5" placeholder="0" oninput="checkChanged()" style="width:120px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text)" />
-          </div>
-
-          <div style="display:flex;gap:18px;margin-top:12px;flex-wrap:wrap">
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text);cursor:pointer">
-              <input type="checkbox" id="streamCachedOnly" onchange="checkChanged()" /> Cached only
-            </label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text);cursor:pointer">
-              <input type="checkbox" id="streamExcludeLow" onchange="checkChanged()" /> Hide CAM / TS / screeners
-            </label>
-          </div>
-        </div>
-      </div>
-    </div>
-
-<div class="step-panel" id="panel-4">
-<!-- STEP 4: ADVANCED SETTINGS -->
-      <div class="step">
-        <div class="collapsible-header" onclick="toggleSection(this)" style="padding:0;margin:0">
-          <div class="step-head" style="margin:0;flex:1">
-            <div class="step-num">4</div>
-            <div>
-              <h2>Advanced settings</h2>
-              <p>Catalog names, poster art and custom streams — all optional.</p>
-            </div>
-          </div>
-          <span class="collapse-arrow open" style="margin-right:16px">▸</span>
-        </div>
-        <div class="collapsible-body open">
-          <!-- Catalogue names + hide anime moved to the Edit Catalogues tab -->
-          <input type="checkbox" id="hideAnime" style="display:none" />
-
-          <div class="field" style="margin-bottom:14px">
-            <div class="field-label">Poster Service</div>
-            <select id="posterProvider" onchange="onPosterChange()">
-              <option value="">None (TMDB default)</option>
-              <option value="erdb">ERDB — EasyRatingsDB (ratings on posters)</option>
-              <option value="rpdb">RPDB — Rating Poster DB (ratings on posters)</option>
-              <option value="betterposter">BetterPosters — btttr.cc artwork</option>
-              <option value="fanart">Fanart.tv (high-res alternative art)</option>
-            </select>
-          </div>
-
-          <div class="field" id="betterposterField" style="display:none;margin-bottom:14px">
-            <div class="field-label">BetterPosters</div>
-            <p class="field-hint" style="margin:0">Applies poster-default artwork from btttr.cc to detail pages. No key required — only titles that TMDB already maps to an IMDb id get the new poster; everything else keeps its normal art.</p>
-          </div>
-
-          <div class="field" id="erdbField" style="display:none;margin-bottom:14px">
-            <div class="field-label">
-              ERDB Token <a href="https://easyratingsdb.com/configurator" target="_blank">Get token →</a>
-            </div>
-            <div class="input-row">
-              <input type="password" id="erdbToken" placeholder="Tk-xxxxxxxxxxxxxxxxxxx" autocomplete="off" />
-              <button class="btn-icon" type="button" onclick="toggleVis('erdbToken',this)" aria-label="Show/hide">👁</button>
-              <button class="btn-verify" type="button" onclick="verifyKey('erdb')" id="verifyErdb" title="Verify token">✓</button>
-            </div>
-            <p class="field-hint">Create a token at <a href="https://easyratingsdb.com/configurator" target="_blank">easyratingsdb.com/configurator</a></p>
-          </div>
-
-          <div class="field" id="rpdbField" style="display:none;margin-bottom:14px">
-            <div class="field-label">
-              RPDB API Key <a href="https://ratingposterdb.com/" target="_blank">Get key →</a>
-            </div>
-            <div class="input-row">
-              <input type="password" id="rpdbKey" placeholder="t1-xxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
-              <button class="btn-icon" type="button" onclick="toggleVis('rpdbKey',this)" aria-label="Show/hide">👁</button>
-              <button class="btn-verify" type="button" onclick="verifyKey('rpdb')" id="verifyRpdb" title="Verify key">✓</button>
-            </div>
-            <p class="field-hint">Available via <a href="https://www.patreon.com/rpdb" target="_blank">Patreon</a>. Supports IMDb, RT & Metacritic ratings on posters.</p>
-          </div>
-
-          <div class="field" id="fanartField" style="display:none;margin-bottom:14px">
-            <div class="field-label">
-              Fanart.tv API Key <a href="https://fanart.tv/" target="_blank">Get key →</a>
-            </div>
-            <div class="input-row">
-              <input type="password" id="fanartKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
-              <button class="btn-icon" type="button" onclick="toggleVis('fanartKey',this)" aria-label="Show/hide">👁</button>
-              <button class="btn-verify" type="button" onclick="verifyKey('fanart')" id="verifyFanart" title="Verify key">✓</button>
-            </div>
-          </div>
-
-          <div class="field-row" id="posterToggles" style="display:none;margin-bottom:16px">
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer">
-              <input type="checkbox" id="enhanceBackground" checked /> Enhance backgrounds
-            </label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer">
-              <input type="checkbox" id="enhanceLogo" /> Enhance logos
-            </label>
-          </div>
-
-          <!-- OMDB inside Poster section -->
-          <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
-            <div class="field-label" style="margin-bottom:6px">Supplemental Ratings</div>
-            <div class="field">
-              <div class="input-row">
-                <input type="password" id="omdbKey" placeholder="OMDB API key" autocomplete="off" />
-                <button class="btn-icon" type="button" onclick="toggleVis('omdbKey',this)" aria-label="Show/hide">👁</button>
-                <button class="btn-verify" type="button" onclick="verifyKey('omdb')" id="verifyOmdb" title="Verify key">✓</button>
-              </div>
-              <p class="field-hint">Adds IMDb, Rotten Tomatoes &amp; Metacritic scores to detail pages (not rendered on poster images). Get a free key at <a href="https://www.omdbapi.com/apikey.aspx" target="_blank">omdbapi.com</a> — 1,000 req/day.</p>
-            </div>
-          </div>
-
-          <!-- Poster Preview (mobile) -->
-          <div class="mobile-poster-preview" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);text-align:center">
-            <div class="field-label" style="margin-bottom:8px;justify-content:center">Poster Preview</div>
-            <div id="mobilePosterPreview" style="min-height:100px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--border2);font-size:0.78rem">
-              <span>Select a poster service above<br>to see a live preview</span>
-            </div>
-          </div>
-
-          <!-- Custom Streams -->
-          <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
-            <div style="font-size:0.9rem;font-weight:700;color:var(--white);margin-bottom:6px">Custom Streams</div>
-            <p class="field-hint" style="margin:0 0 12px 0">Inject your own direct stream URLs alongside debrid streams in Stremio.</p>
-            <div id="customStreamsList"></div>
-            <div class="field-row" style="grid-template-columns:2fr 3fr 1fr auto;align-items:end">
-              <div class="field" style="gap:2px">
-                <div class="field-label" style="font-size:0.75rem">Name</div>
-                <input type="text" id="csName" placeholder="My Plex" />
-              </div>
-              <div class="field" style="gap:2px">
-                <div class="field-label" style="font-size:0.75rem">URL</div>
-                <input type="text" id="csUrl" placeholder="https://..." />
-              </div>
-              <div class="field" style="gap:2px">
-                <div class="field-label" style="font-size:0.75rem">Type</div>
-                <select id="csType">
-                  <option value="*">All</option>
-                  <option value="movie">Movies</option>
-                  <option value="series">Series</option>
+              <input type="hidden" id="provider" />
+              <div class="step-card" id="catalogModeSection" style="display:none">
+                <div class="field-label">Catalog mode</div>
+                <select id="rdCatalog">
+                  <option value="merge">Merge providers into one library</option>
+                  <option value="separate">Separate catalog per provider</option>
                 </select>
+                <p class="field-hint">Merge shows one combined library; separate keeps each provider in its own catalog row.</p>
               </div>
-              <button class="btn-main" type="button" onclick="addCustomStream()" style="padding:8px 16px;font-size:0.82rem;white-space:nowrap">+ Add</button>
-            </div>
-            <div id="csEmpty" style="text-align:center;padding:16px;color:var(--border2);font-size:0.85rem">No custom streams added yet.</div>
-          </div>
-        </div>
-      </div>
-
-            </div>
-
-<div class="step-panel" id="panel-5">
-      <!-- STEP 5: CONNECT MEDIA PLAYER -->
-      <div class="step">
-        <div class="step-head">
-          <div class="step-num">4</div>
-          <div>
-            <h2>Connect your media player</h2>
-            <p>Optional — connect Stremio or Nuvio to push LeLibrary straight in. Skip this and go straight to Step 5 to install with links instead.</p>
-          </div>
-        </div>
-        <div id="connectStep"></div>
-      </div>
-      </div>
-
-<div class="step-panel" id="panel-6">
-      <!-- STEP 6: PREVIEW & INSTALL -->
-      <div class="step">
-        <div class="step-head">
-          <div class="step-num">5</div>
-          <div>
-            <h2>Preview & install</h2>
-            <p>Push straight to your connected account, or generate the links to install manually.</p>
-          </div>
-        </div>
-
-        <!-- Push panel (rendered by JS when connected) -->
-        <div id="installPush"></div>
-
-        <!-- Manual install (always available) -->
-        <div class="step-card">
-          <div class="field-label" style="margin-bottom:6px">Install manually</div>
-          <div class="coll-note" style="margin-bottom:14px">
-            <strong>Note:</strong> your categories and your library are installed by the <strong>Push to</strong> option above.
-            If no catalogues are selected, feel free to use the options below.
-          </div>
-
-        <div id="unsavedBanner" style="display:none;background:rgba(245,158,11,0.12);border:1px solid var(--amber);border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:0.85rem;color:var(--amber);align-items:center;gap:8px">
-          <span style="font-size:1.1rem">⚠️</span> You have unsaved changes
-        </div>
-
-        <div class="actions">
-          <button class="btn-main btn-gen" id="btnGenerate" onclick="generate()">
-            <div class="ico">⚡</div>
-            <div class="txt">
-              <span id="genBtnTitle">Generate install links</span>
-              <small>Create links with your keys</small>
-            </div>
-            <span class="arr">›</span>
-          </button>
-
-          <button class="btn-main btn-stremio" id="btnDesktop" type="button" onclick="pushAddonTo('stremio')" style="cursor:pointer;font-family:var(--font)">
-            <div class="ico"><img src="/stremio.svg" alt="Stremio" style="width:20px;height:20px" /></div>
-            <div class="txt">
-              <span>Push to Stremio</span>
-              <small>Installs LeLibrary on your connected Stremio account</small>
-            </div>
-            <span class="arr">›</span>
-          </button>
-
-          <button class="btn-main btn-nuvio" id="btnNuvio" type="button" onclick="pushAddonTo('nuvio')" style="cursor:pointer;font-family:var(--font)">
-            <div class="ico"><img src="/nuvio.png" alt="Nuvio" style="width:20px;height:20px" /></div>
-            <div class="txt">
-              <span>Push to Nuvio</span>
-              <small>Installs LeLibrary on your connected Nuvio account</small>
-            </div>
-            <span class="arr">›</span>
-          </button>
-
-          <a class="btn-main btn-outline" id="btnWeb" href="#" target="_blank" rel="noopener">
-            <div class="ico"><img src="/stremio.svg" alt="Stremio" style="width:20px;height:20px" /></div>
-            <div class="txt">
-              <span>Install manually via Stremio Web</span>
-              <small>Use at web.stremio.com in the browser</small>
-            </div>
-            <span class="arr">›</span>
-          </a>
-
-          <div id="pushNotConnectedHint" style="display:none;margin-top:4px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:8px;padding:10px 14px;font-size:0.78rem;color:var(--text);line-height:1.5;text-align:center">
-            You haven't configured Nuvio/Stremio. <a href="#" onclick="goToStep(5);return false" style="color:var(--amber)">Sign in</a> to be able to use the push to feature.
-          </div>
-
-          <button class="btn-main btn-gen" id="btnRefresh" onclick="clearCache()" style="display:none;background:var(--surface2);color:var(--text);border:1px solid var(--border)">
-            <div class="ico">🔄</div>
-            <div class="txt">
-              <span>Refresh catalog</span>
-              <small>Clears server cache — then refresh in Stremio or Nuvio</small>
-            </div>
-            <span class="arr">›</span>
-          </button>
-
-          <div class="url-box" id="urlRow">
-            <span id="manifestUrl"></span>
-            <button class="btn-copy-url" onclick="copyUrl(this)">Copy</button>
-          </div>
-        </div>
-
-        <!-- Preview -->
-        <div class="preview-wrap">
-          <button class="preview-btn" id="previewToggle" onclick="togglePreview()">
-            <span>Streams Preview</span>
-            <span class="arr">›</span>
-          </button>
-          <div class="preview-panel" id="previewBody">
-            <div class="preview-head">Example of how streams appear in Stremio</div>
-            <div id="previewCards"></div>
-            <div class="preview-footer">Actual streams depend on the files in your TorBox / Real-Debrid account</div>
-          </div>
-        </div>
-        </div><!-- /step-card manual install -->
-      </div>
-
-            </div>
-
-      <div class="step-nav">
-        <button class="btn-copy-url" id="btnPrevStep" type="button" onclick="goToStep(currentStep-1)">← Back</button>
-        <button class="btn-main btn-gen" id="btnNextStep" type="button" onclick="advanceStep(currentStep+1)">
-          <div class="ico">›</div>
-          <div class="txt"><span id="nextStepLabel">Next: Metadata</span><small>Continue to the next step</small></div>
-        </button>
-      </div>
-
-<!-- PRIVACY & HOW IT WORKS (visible) -->
-      <div class="privacy-section">
-        <div class="privacy-grid">
-          <div class="info-card">
-            <h4>How LeLibrary works</h4>
-            <ul class="info-list">
-              <li>Reads your enabled debrid downloads and groups episodes into series</li>
-              <li>Fetches TMDB metadata for posters, ratings and detail pages</li>
-              <li>Serves it all as a Stremio / Nuvio addon — Movies, Series and Anime</li>
-            </ul>
-          </div>
-          <div class="info-card">
-            <h4>Your privacy</h4>
-            <ul class="info-list">
-              <li>API keys are encoded in the addon URL — sent to the server only when Stremio fetches your library</li>
-              <li>Keys are never stored in a database or logged</li>
-              <li>No tracking, analytics, or third-party requests</li>
-            </ul>
-          </div>
-          <div class="info-card">
-            <h4>Requirements</h4>
-            <ul class="info-list">
-              <li>A TorBox and/or Real-Debrid account with downloads</li>
-              <li>A free TMDB API key</li>
-              <li style="color:var(--border2);font-size:0.78rem">Poster/Ratings/Stream enhancements are all optional</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      </div><!-- /tab-setup -->
-
-      <!-- CATALOGUES TAB (BETA) — edit what gets pushed, no push here -->
-      <div id="tab-catalogues" class="cfg-tab-pane" style="display:none">
-        <div class="step">
-          <div class="step-head">
-            <div class="step-num">★</div>
-            <div>
-              <h2>Edit Catalogues <span class="beta">Beta</span></h2>
-              <p>Choose which catalogues get installed. Importing collections from other addons is coming soon.</p>
+              <div class="url-warning">Protect this page — anyone with the URL can access your configuration.</div>
             </div>
           </div>
 
-          <div class="step-card">
-            <div class="coll-note">
-              These control what's installed when you push from the Setup tab. Importing catalogues and collections
-              from other addons (AIOmetadata, Nuvio.json, etc.) is coming soon.
+          <!-- STEP 2: METADATA -->
+          <div class="step-panel" id="panel-2">
+            <div class="step">
+              <div class="step-head"><div><h2>Metadata</h2><p>TMDB powers your posters, ratings and detail pages.</p></div></div>
+              <div class="step-card">
+                <div class="field">
+                  <div class="field-label">TMDB API Key <span class="req">*</span><a href="https://www.themoviedb.org/settings/api" target="_blank">Get key →</a></div>
+                  <div class="input-row">
+                    <input type="password" id="tmdbApiKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+                    <button class="btn-icon" type="button" onclick="toggleVis('tmdbApiKey',this)" aria-label="Show/hide">👁</button>
+                    <button class="btn-verify" type="button" onclick="verifyKey('tmdb')" id="verifyTmdb" title="Verify key">✓</button>
+                  </div>
+                  <p class="field-hint">Copy <strong style="color:var(--text)">API Key (v3)</strong> from your TMDB account settings — a 32-character string.</p>
+                  <div class="url-warning" id="tmdbV4Warning" style="display:none">⚠️ That looks like a TMDB <strong>v4 Read Access Token</strong>, not the v3 API key. v4 tokens expire. Use your <strong>v3 API key</strong> instead.</div>
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <div class="field-label">Language</div>
+                    <select id="lang">
+                      <option value="en-US" selected>English</option>
+                      <option value="pt-BR">PT-BR</option>
+                      <option value="pt-PT">PT-PT</option>
+                      <option value="es-ES">Espanol</option>
+                      <option value="fr-FR">Francais</option>
+                      <option value="de-DE">Deutsch</option>
+                      <option value="it-IT">Italiano</option>
+                      <option value="ja-JP">Japanese</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <div class="field-label">Sort by</div>
+                    <select id="sortBy">
+                      <option value="data_adicao">Date added</option>
+                      <option value="data_lancamento">Release date</option>
+                      <option value="titulo">Title (A-Z)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
             </div>
+          </div>
 
-            <div class="coll-note">
-              <strong>Collections stay up to date:</strong> new films added to a franchise you already own appear
-              automatically (Nuvio fetches the folder's catalog live). One <strong>LeLibrary Collections</strong> row
-              holds every franchise: in Nuvio it shows as folders, and in Stremio as a genre filter.
-              You can use emojis in any catalogue name.
-              <br /><br />When you add a <strong>brand-new franchise</strong> to your library, give it one quick re-push from the
-              Setup tab and its folder will appear in Nuvio.
+
+          <!-- STEP 3: FILTERS & PREFERENCES -->
+          <div class="step-panel" id="panel-3">
+            <div class="step">
+              <div class="step-head"><div><h2>Filters & Preferences</h2><p>Control which streams appear and in what order. All optional.</p></div></div>
+
+              <div class="coll-card">
+                <div class="coll-header" onclick="toggleCollCard(this)">
+                  <div class="coll-header-left"><span class="coll-icon">📺</span><span class="coll-label">Resolution</span><span class="coll-sub">Include, exclude & preference order</span></div>
+                  <span class="coll-arrow open">▸</span>
+                </div>
+                <div class="coll-body open">
+                  <div class="field">
+                    <div class="field-label">Included resolutions</div>
+                    <p class="field-hint" style="margin:0 0 10px 0">Tick the resolutions you want to see. Unticked resolutions are hidden entirely.</p>
+                    <div id="resolutionInclude" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+                  </div>
+                  <div class="field" style="margin-top:16px">
+                    <div class="field-label">Preferred resolution order</div>
+                    <p class="field-hint" style="margin:0 0 10px 0">Drag to reorder. When sorting by quality, streams at the top are preferred.</p>
+                    <div id="resolutionPreference" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="coll-card">
+                <div class="coll-header" onclick="toggleCollCard(this)">
+                  <div class="coll-header-left"><span class="coll-icon">🎬</span><span class="coll-label">Quality & Source</span><span class="coll-sub">BluRay, WEB-DL, CAM...</span></div>
+                  <span class="coll-arrow">▸</span>
+                </div>
+                <div class="coll-body">
+                  <div class="field">
+                    <div class="field-label">Included quality tags</div>
+                    <p class="field-hint" style="margin:0 0 10px 0">Tick the quality tags you want. Unticked tags are hidden.</p>
+                    <div id="qualityInclude" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+                  </div>
+                  <div class="field" style="margin-top:14px">
+                    <div class="field-label">Included sources</div>
+                    <div id="sourceInclude" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="coll-card">
+                <div class="coll-header" onclick="toggleCollCard(this)">
+                  <div class="coll-header-left"><span class="coll-icon">🔊</span><span class="coll-label">Audio & HDR</span><span class="coll-sub">Codec, channels, Dolby Vision</span></div>
+                  <span class="coll-arrow">▸</span>
+                </div>
+                <div class="coll-body">
+                  <div class="field">
+                    <div class="field-label">Included video codecs</div>
+                    <div id="codecInclude" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+                  </div>
+                  <div class="field" style="margin-top:14px">
+                    <div class="field-label">Included HDR tags</div>
+                    <div id="hdrInclude" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+                  </div>
+                  <div class="field" style="margin-top:14px">
+                    <div class="field-label">Included audio formats</div>
+                    <div id="audioInclude" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="coll-card">
+                <div class="coll-header" onclick="toggleCollCard(this)">
+                  <div class="coll-header-left"><span class="coll-icon">📏</span><span class="coll-label">Size & Cache</span><span class="coll-sub">File size, cached only</span></div>
+                  <span class="coll-arrow">▸</span>
+                </div>
+                <div class="coll-body">
+                  <div class="field-row">
+                    <div class="field">
+                      <div class="field-label">Minimum file size (GB)</div>
+                      <input type="number" id="filterMinSize" min="0" step="0.5" placeholder="0" oninput="checkChanged()" style="width:120px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text)" />
+                    </div>
+                    <div class="field">
+                      <div class="field-label">Maximum file size (GB)</div>
+                      <input type="number" id="filterMaxSize" min="0" step="0.5" placeholder="No limit" oninput="checkChanged()" style="width:120px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text)" />
+                    </div>
+                  </div>
+                  <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text);cursor:pointer;margin-top:14px">
+                    <input type="checkbox" id="filterCachedOnly" onchange="checkChanged()" /> Cached only (hide uncached debrid results)
+                  </label>
+                  <div class="field" style="margin-top:14px">
+                    <div class="field-label">Max streams per title <span style="font-weight:400;color:var(--muted);font-size:0.7rem;margin-left:6px">default 35 · max 65</span></div>
+                    <div style="display:flex;align-items:center;gap:10px">
+                      <input type="range" id="filterMaxStreams" min="10" max="65" value="35" oninput="document.getElementById('filterMaxStreamsVal').textContent=this.value;checkChanged()" style="flex:1;accent-color:var(--amber)" />
+                      <span id="filterMaxStreamsVal" style="font-size:0.85rem;font-weight:700;color:var(--amber);min-width:28px;text-align:right">35</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
+          </div>
 
-            <div class="field">
-              <div class="field-label">Your catalogues <small style="font-weight:400;color:var(--muted)">— use ↑ ↓ to reorder, ✎ to rename</small></div>
-              <div class="cat-options" id="catalogueList"></div>
-              <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;margin-top:12px">
-                <input type="checkbox" id="editHideAnime" onchange="toggleHideAnime(this.checked)" /> Hide anime catalogue
-              </label>
-              <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;margin-top:8px">
-                <input type="checkbox" id="pinCollections" onchange="checkChanged()" /> Pin LeLibrary Collections to top (Nuvio)
-              </label>
+          <!-- STEP 3: CATALOGUES -->
+          <div class="step-panel" id="panel-4">
+            <div class="step">
+              <div class="step-head"><div><h2>Edit Catalogues <span class="beta">Beta</span></h2><p>Choose which catalogues get installed. Reorder with arrows, rename with ✎.</p></div></div>
+              <div class="step-card">
+                <div class="coll-note">
+                  <strong>Collections stay up to date:</strong> new films added to a franchise you already own appear automatically. One <strong>LeLibrary Collections</strong> row holds every franchise: in Nuvio it shows as folders, and in Stremio as a genre filter.
+                  <br /><br />When you add a <strong>brand-new franchise</strong> to your library, give it one quick re-push from the Install step and its folder will appear in Nuvio.
+                </div>
+                <div class="field">
+                  <div class="field-label">Your catalogues <small style="font-weight:400;color:var(--muted)">— use ↑ ↓ to reorder, ✎ to rename</small></div>
+                  <div class="cat-options" id="catalogueList"></div>
+                  <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;margin-top:12px">
+                    <input type="checkbox" id="editHideAnime" onchange="toggleHideAnime(this.checked)" /> Hide anime catalogue
+                  </label>
+                  <input type="checkbox" id="hideAnime" style="display:none" />
+                  <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;margin-top:8px">
+                    <input type="checkbox" id="pinCollections" onchange="checkChanged()" /> Pin LeLibrary Collections to top (Nuvio)
+                  </label>
+                </div>
+              </div>
             </div>
+          </div>
 
-            <button class="btn-main btn-gen" onclick="switchTab('setup'); goToPushStep()">
-              <div class="ico">⚡</div>
-              <div class="txt"><span>Continue to push</span><small>Connect or push to Stremio / Nuvio</small></div>
-              <span class="arr">›</span>
+          <!-- STEP 4: STREAMS & LOOK -->
+          <div class="step-panel" id="panel-5">
+            <div class="step">
+              <div class="step-head"><div><h2>Streams & Look</h2><p>Stream format, addons, posters and custom streams — all optional.</p></div></div>
+
+              <div class="coll-card">
+                <div class="coll-header" onclick="toggleCollCard(this)">
+                  <div class="coll-header-left"><span class="coll-icon">🎨</span><span class="coll-label">Stream format</span><span class="coll-sub">LeLibrary preset</span></div>
+                  <span class="coll-arrow open">▸</span>
+                </div>
+                <div class="coll-body open">
+                  <div class="field">
+                    <div class="field-label">Preset</div>
+                    <select id="streamPreset" onchange="onStreamPresetChange()">
+                      <option value="lelibrary">LeLibrary</option>
+                      <option value="torrentio">Torrentio</option>
+                      <option value="torbox">Torbox</option>
+                      <option value="gdrive">Google Drive</option>
+                      <option value="lightgdrive">Light GDrive</option>
+                      <option value="minimalisticgdrive">Minimalistic GDrive</option>
+                      <option value="prism">Prism</option>
+                      <option value="tamtaro">Tamtaro</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <div class="field-label">Name Template</div>
+                    <textarea id="streamNameTemplate" rows="3" spellcheck="false" style="font-family:var(--mono,monospace);font-size:0.82rem;resize:vertical;width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text)" oninput="updateStreamPreview()"></textarea>
+                  </div>
+                  <div class="field">
+                    <div class="field-label">Description Template</div>
+                    <textarea id="streamDescTemplate" rows="4" spellcheck="false" style="font-family:var(--mono,monospace);font-size:0.82rem;resize:vertical;width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text)" oninput="updateStreamPreview()"></textarea>
+                  </div>
+                  <div style="margin-top:8px;font-size:0.72rem;color:var(--muted)">
+                    Variables: <code>{provider}</code> <code>{providerEmoji}</code> <code>{quality}</code> <code>{source}</code> <code>{codec}</code> <code>{audio}</code> <code>{visualTags}</code> <code>{size}</code> <code>{sub}</code> <code>{group}</code> <code>{filename}</code> <code>{type}</code>
+                  </div>
+                  <div style="margin-top:14px">
+                    <div class="field-label" style="margin-bottom:8px">Preview</div>
+                    <div id="streamPreview" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;min-height:80px;font-size:0.82rem">
+                      <span style="color:var(--muted)">Select a template to see a preview</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="coll-card">
+                <div class="coll-header" onclick="toggleCollCard(this)">
+                  <div class="coll-header-left"><span class="coll-icon">🎛️</span><span class="coll-label">Addons & Filters</span><span class="coll-sub">Trending/Popular streams</span></div>
+                  <span class="coll-arrow">▸</span>
+                </div>
+                <div class="coll-body">
+                  <div class="field" style="margin-bottom:14px">
+                    <div class="field-label" style="margin-bottom:4px">Stream Addons <span class="beta">Optional</span></div>
+                    <p class="field-hint" style="margin:0 0 12px 0">Power the <strong>Trending</strong> and <strong>Popular</strong> catalogue rows by letting LeLibrary pull streams from other addons. None are enabled by default. Your library rows are <strong>never</strong> affected.</p>
+                    <div class="cat-options" id="streamAddonList"></div>
+                  </div>
+
+                </div>
+              </div>
+
+              <div class="coll-card">
+                <div class="coll-header" onclick="toggleCollCard(this)">
+                  <div class="coll-header-left"><span class="coll-icon">🖼️</span><span class="coll-label">Posters & Ratings</span><span class="coll-sub">Artwork overlays</span></div>
+                  <span class="coll-arrow">▸</span>
+                </div>
+                <div class="coll-body">
+                  <div class="field" style="margin-bottom:14px">
+                    <div class="field-label">Poster Service</div>
+                    <select id="posterProvider" onchange="onPosterChange()">
+                      <option value="">None (TMDB default)</option>
+                      <option value="erdb">ERDB — EasyRatingsDB (ratings on posters)</option>
+                      <option value="rpdb">RPDB — Rating Poster DB (ratings on posters)</option>
+                      <option value="betterposter">BetterPosters — btttr.cc artwork</option>
+                      <option value="fanart">Fanart.tv (high-res alternative art)</option>
+                    </select>
+                  </div>
+                  <div class="field" id="betterposterField" style="display:none;margin-bottom:14px">
+                    <div class="field-label">BetterPosters</div>
+                    <p class="field-hint" style="margin:0">Applies poster-default artwork from btttr.cc to detail pages. No key required.</p>
+                  </div>
+                  <div class="field" id="erdbField" style="display:none;margin-bottom:14px">
+                    <div class="field-label">ERDB Token <a href="https://easyratingsdb.com/configurator" target="_blank">Get token →</a></div>
+                    <div class="input-row">
+                      <input type="password" id="erdbToken" placeholder="Tk-xxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+                      <button class="btn-icon" type="button" onclick="toggleVis('erdbToken',this)" aria-label="Show/hide">👁</button>
+                      <button class="btn-verify" type="button" onclick="verifyKey('erdb')" id="verifyErdb" title="Verify token">✓</button>
+                    </div>
+                  </div>
+                  <div class="field" id="rpdbField" style="display:none;margin-bottom:14px">
+                    <div class="field-label">RPDB API Key <a href="https://ratingposterdb.com/" target="_blank">Get key →</a></div>
+                    <div class="input-row">
+                      <input type="password" id="rpdbKey" placeholder="t1-xxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+                      <button class="btn-icon" type="button" onclick="toggleVis('rpdbKey',this)" aria-label="Show/hide">👁</button>
+                      <button class="btn-verify" type="button" onclick="verifyKey('rpdb')" id="verifyRpdb" title="Verify key">✓</button>
+                    </div>
+                  </div>
+                  <div class="field" id="fanartField" style="display:none;margin-bottom:14px">
+                    <div class="field-label">Fanart.tv API Key <a href="https://fanart.tv/" target="_blank">Get key →</a></div>
+                    <div class="input-row">
+                      <input type="password" id="fanartKey" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+                      <button class="btn-icon" type="button" onclick="toggleVis('fanartKey',this)" aria-label="Show/hide">👁</button>
+                      <button class="btn-verify" type="button" onclick="verifyKey('fanart')" id="verifyFanart" title="Verify key">✓</button>
+                    </div>
+                  </div>
+                  <div class="field-row" id="posterToggles" style="display:none;margin-bottom:16px">
+                    <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer"><input type="checkbox" id="enhanceBackground" checked /> Enhance backgrounds</label>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer"><input type="checkbox" id="enhanceLogo" /> Enhance logos</label>
+                  </div>
+                  <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+                    <div class="field-label" style="margin-bottom:6px">Supplemental Ratings</div>
+                    <div class="field">
+                      <div class="input-row">
+                        <input type="password" id="omdbKey" placeholder="OMDB API key" autocomplete="off" />
+                        <button class="btn-icon" type="button" onclick="toggleVis('omdbKey',this)" aria-label="Show/hide">👁</button>
+                        <button class="btn-verify" type="button" onclick="verifyKey('omdb')" id="verifyOmdb" title="Verify key">✓</button>
+                      </div>
+                      <p class="field-hint">Adds IMDb, Rotten Tomatoes & Metacritic scores to detail pages. Get a free key at <a href="https://www.omdbapi.com/apikey.aspx" target="_blank">omdbapi.com</a> — 1,000 req/day.</p>
+                    </div>
+                  </div>
+                  <div class="mobile-poster-preview" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);text-align:center">
+                    <div class="field-label" style="margin-bottom:8px;justify-content:center">Poster Preview</div>
+                    <div id="mobilePosterPreview" style="min-height:100px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--border2);font-size:0.78rem"><span>Select a poster service above<br>to see a live preview</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="coll-card">
+                <div class="coll-header" onclick="toggleCollCard(this)">
+                  <div class="coll-header-left"><span class="coll-icon">🔗</span><span class="coll-label">Custom Streams</span><span class="coll-sub">Inject direct URLs</span></div>
+                  <span class="coll-arrow">▸</span>
+                </div>
+                <div class="coll-body">
+                  <p class="field-hint" style="margin:0 0 12px 0">Inject your own direct stream URLs alongside debrid streams in Stremio.</p>
+                  <div id="customStreamsList"></div>
+                  <div class="field-row" style="grid-template-columns:2fr 3fr 1fr auto;align-items:end">
+                    <div class="field" style="gap:2px"><div class="field-label" style="font-size:0.75rem">Name</div><input type="text" id="csName" placeholder="My Plex" /></div>
+                    <div class="field" style="gap:2px"><div class="field-label" style="font-size:0.75rem">URL</div><input type="text" id="csUrl" placeholder="https://..." /></div>
+                    <div class="field" style="gap:2px"><div class="field-label" style="font-size:0.75rem">Type</div>
+                      <select id="csType"><option value="*">All</option><option value="movie">Movies</option><option value="series">Series</option></select>
+                    </div>
+                    <button class="btn-main" type="button" onclick="addCustomStream()" style="padding:8px 16px;font-size:0.82rem;white-space:nowrap">+ Add</button>
+                  </div>
+                  <div id="csEmpty" style="text-align:center;padding:16px;color:var(--border2);font-size:0.85rem">No custom streams added yet.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 5: INSTALL -->
+          <div class="step-panel" id="panel-6">
+            <div class="step">
+              <div class="step-head"><div><h2>Install</h2><p>Push straight to your connected account, or generate the links to install manually.</p></div></div>
+              <div id="installPush"></div>
+              <div class="step-card">
+                <div class="field-label" style="margin-bottom:6px">Install manually</div>
+                <div class="coll-note" style="margin-bottom:14px"><strong>Note:</strong> your categories and library are installed by the <strong>Push to</strong> option above. If no catalogues are selected, use the options below.</div>
+                <div id="unsavedBanner" style="display:none;background:rgba(245,158,11,0.12);border:1px solid var(--amber);border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:0.85rem;color:var(--amber);align-items:center;gap:8px">
+                  <span style="font-size:1.1rem">⚠️</span> You have unsaved changes
+                </div>
+                <div class="actions">
+                  <button class="btn-main btn-gen" id="btnGenerate" onclick="generate()">
+                    <div class="ico">⚡</div>
+                    <div class="txt"><span id="genBtnTitle">Generate install links</span><small>Create links with your keys</small></div>
+                    <span class="arr">›</span>
+                  </button>
+                  <button class="btn-main btn-stremio" id="btnDesktop" type="button" onclick="pushAddonTo('stremio')" style="cursor:pointer;font-family:var(--font)">
+                    <div class="ico"><img src="/stremio.svg" alt="Stremio" style="width:20px;height:20px" /></div>
+                    <div class="txt"><span>Push to Stremio</span><small>Installs LeLibrary on your connected Stremio account</small></div>
+                    <span class="arr">›</span>
+                  </button>
+                  <button class="btn-main btn-nuvio" id="btnNuvio" type="button" onclick="pushAddonTo('nuvio')" style="cursor:pointer;font-family:var(--font)">
+                    <div class="ico"><img src="/nuvio.png" alt="Nuvio" style="width:20px;height:20px" /></div>
+                    <div class="txt"><span>Push to Nuvio</span><small>Installs LeLibrary on your connected Nuvio account</small></div>
+                    <span class="arr">›</span>
+                  </button>
+                  <a class="btn-main btn-outline" id="btnWeb" href="#" target="_blank" rel="noopener">
+                    <div class="ico"><img src="/stremio.svg" alt="Stremio" style="width:20px;height:20px" /></div>
+                    <div class="txt"><span>Install manually via Stremio Web</span><small>Use at web.stremio.com in the browser</small></div>
+                    <span class="arr">›</span>
+                  </a>
+                  <div id="pushNotConnectedHint" style="display:none;margin-top:4px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:8px;padding:10px 14px;font-size:0.78rem;color:var(--text);line-height:1.5;text-align:center">
+                    You haven't configured Nuvio/Stremio. <a href="#" onclick="goToStep(6);return false" style="color:var(--amber)">Sign in</a> above to use the push feature.
+                  </div>
+                  <button class="btn-main btn-gen" id="btnRefresh" onclick="clearCache()" style="display:none;background:var(--surface2);color:var(--text);border:1px solid var(--border)">
+                    <div class="ico">🔄</div>
+                    <div class="txt"><span>Refresh catalog</span><small>Clears server cache — then refresh in Stremio or Nuvio</small></div>
+                    <span class="arr">›</span>
+                  </button>
+                  <div class="url-box" id="urlRow">
+                    <span id="manifestUrl"></span>
+                    <button class="btn-copy-url" onclick="copyUrl(this)">Copy</button>
+                  </div>
+                </div>
+                <div class="preview-wrap">
+                  <button class="preview-btn" id="previewToggle" onclick="togglePreview()">
+                    <span>Streams Preview</span><span class="arr">›</span>
+                  </button>
+                  <div class="preview-panel" id="previewBody">
+                    <div class="preview-head">Example of how streams appear in Stremio</div>
+                    <div id="previewCards"></div>
+                    <div class="preview-footer">Actual streams depend on the files in your TorBox / Real-Debrid account</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="step-nav">
+            <button class="btn-copy-url" id="btnPrevStep" type="button" onclick="goToStep(currentStep-1)">← Back</button>
+            <button class="btn-main btn-gen" id="btnNextStep" type="button" onclick="advanceStep(currentStep+1)">
+              <div class="ico">›</div>
+              <div class="txt"><span id="nextStepLabel">Next: Metadata</span><small>Continue to the next step</small></div>
             </button>
           </div>
+
+          <div class="privacy-section">
+            <div class="privacy-grid">
+              <div class="info-card"><h4>How LeLibrary works</h4><ul class="info-list"><li>Reads your enabled debrid downloads and groups episodes into series</li><li>Fetches TMDB metadata for posters, ratings and detail pages</li><li>Serves it all as a Stremio / Nuvio addon</li></ul></div>
+              <div class="info-card"><h4>Your privacy</h4><ul class="info-list"><li>API keys are encoded in the addon URL</li><li>Keys are never stored in a database or logged</li><li>No tracking, analytics, or third-party requests</li></ul></div>
+              <div class="info-card"><h4>Requirements</h4><ul class="info-list"><li>A TorBox and/or Real-Debrid account with downloads</li><li>A free TMDB API key</li><li style="color:var(--border2);font-size:0.78rem">Poster/Ratings/Stream enhancements are all optional</li></ul></div>
+            </div>
+          </div>
         </div>
       </div>
 
-      </div><!-- /setupContent -->
-
-      <!-- Footer -->
-      <div class="form-footer">
+      <div class="form-footer" style="margin-top:32px">
         <p>Want maximum speed and privacy? <a href="https://github.com/leleasley/LeLibrary" target="_blank">Self-host this addon</a></p>
         <a href="https://github.com/leleasley/LeLibrary" target="_blank" class="gh-btn"><span class="gh-star">★</span> Star on GitHub</a>
         <div class="copyright">LeLibrary &middot; Stremio + TorBox + TMDB</div>
       </div>
+      </div>
     </div>
 
-    <!-- RIGHT: YOUR SETUP -->
     <aside class="sidebar">
       <div class="setup-panel">
-        <div class="setup-head">
-          <h3>Your setup</h3>
-          <span class="setup-count" id="setupCount">0/2 providers</span>
-        </div>
+        <div class="setup-head"><h3>Your setup</h3><span class="setup-count" id="setupCount">0/2 providers</span></div>
         <div class="setup-chips" id="setupChips"><span class="chip dim">No provider set</span></div>
         <div class="setup-rows">
           <div class="setup-row"><span>Catalog mode</span><strong id="setupCatalogMode">—</strong></div>
@@ -2014,25 +1137,18 @@
         <button class="btn-primary-sm" id="btnGenerateSide" onclick="goGenerate()">Generate install links</button>
         <p class="setup-privacy">🔒 Keys are encoded in your addon URL and never logged.</p>
       </div>
-
-      <!-- Poster Preview (desktop) -->
       <div class="sidebar-section sidebar-poster-preview">
         <h3>Poster Preview</h3>
         <div class="info-card" style="text-align:center">
-          <div id="sidebarPosterPreview" style="min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--border2);font-size:0.78rem">
-            <span>Select a poster service above<br>to see a live preview</span>
-          </div>
+          <div id="sidebarPosterPreview" style="min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--border2);font-size:0.78rem"><span>Select a poster service above<br>to see a live preview</span></div>
         </div>
       </div>
     </aside>
   </div>
 
-  <!-- MOBILE STICKY INSTALL BAR -->
-
   <div class="toast" id="toast">Copied!</div>
 
-  <!-- Reinstall Modal -->
-  <div id="reinstallModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
+  <div id="reinstallModal">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:440px;width:90%;text-align:center">
       <div style="font-size:2rem;margin-bottom:12px">✅</div>
       <h2 style="font-size:1.1rem;margin:0 0 8px 0;color:var(--text)">Settings Saved</h2>
@@ -2042,19 +1158,15 @@
         <button onclick="copyModalUrl()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;color:var(--text);cursor:pointer;font-size:0.8rem;white-space:nowrap;flex-shrink:0;transition:all 0.15s;font-family:var(--font)" onmouseover="this.style.borderColor='var(--amber)'" onmouseout="this.style.borderColor=''">Copy</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
-        <button id="modalReinstall" type="button" class="btn-main btn-stremio" style="cursor:pointer;font-family:var(--font);justify-content:center" onclick="closeReinstallModal();pushAddonTo('stremio')">
+        <button id="modalReinstall" type="button" class="btn-main btn-stremio show" style="cursor:pointer;font-family:var(--font);justify-content:center" onclick="closeReinstallModal();pushAddonTo('stremio')">
           <div class="ico"><img src="/stremio.svg" alt="Stremio" style="width:20px;height:20px" /></div>
-          <div class="txt"><span>Push to Stremio</span></div>
-          <span class="arr">›</span>
+          <div class="txt"><span>Push to Stremio</span></div><span class="arr">›</span>
         </button>
-        <button id="modalReinstallNuvio" type="button" class="btn-main btn-nuvio" style="cursor:pointer;font-family:var(--font);justify-content:center" onclick="closeReinstallModal();pushAddonTo('nuvio')">
+        <button id="modalReinstallNuvio" type="button" class="btn-main btn-nuvio show" style="cursor:pointer;font-family:var(--font);justify-content:center" onclick="closeReinstallModal();pushAddonTo('nuvio')">
           <div class="ico"><img src="/nuvio.png" alt="Nuvio" style="width:20px;height:20px" /></div>
-          <div class="txt"><span>Push to Nuvio</span></div>
-          <span class="arr">›</span>
+          <div class="txt"><span>Push to Nuvio</span></div><span class="arr">›</span>
         </button>
-        <button class="btn-main" onclick="closeReinstallModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);justify-content:center;cursor:pointer;font-family:var(--font);font-size:0.85rem;padding:10px 20px;border-radius:8px">
-          Close
-        </button>
+        <button class="btn-main" onclick="closeReinstallModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);justify-content:center;cursor:pointer;font-family:var(--font);font-size:0.85rem;padding:10px 20px;border-radius:8px">Close</button>
       </div>
     </div>
   </div>
@@ -2198,6 +1310,30 @@
       if (catNames.popularSeries && catNames.popularSeries !== '⭐ Popular Series') cfg.popularSeriesName = catNames.popularSeries;
       if (catNames.franchises && catNames.franchises !== 'LeLibrary Collections') cfg.collectionsName = catNames.franchises;
       if (catOrder && JSON.stringify(catOrder) !== JSON.stringify(DEFAULT_CAT_ORDER)) cfg.catalogOrder = catOrder.slice();
+      // Filters & Preferences
+      const fResInc = [...filterState.resIncluded];
+      if (fResInc.length < ALL_RESOLUTIONS.length) cfg.filterResolutions = fResInc;
+      if (JSON.stringify(filterState.resolutions) !== JSON.stringify(ALL_RESOLUTIONS)) cfg.filterResOrder = filterState.resolutions.slice();
+      const fQualInc = [...filterState.qualities];
+      if (fQualInc.length < ALL_QUALITIES.length) cfg.filterQualities = fQualInc;
+      const fSrcInc = [...filterState.sources];
+      if (fSrcInc.length < ALL_SOURCES.length) cfg.filterSources = fSrcInc;
+      const fCodecInc = [...filterState.codecs];
+      if (fCodecInc.length < ALL_CODECS.length) cfg.filterCodecs = fCodecInc;
+      const fHdrInc = [...filterState.hdr];
+      if (fHdrInc.length < ALL_HDR.length) cfg.filterHdr = fHdrInc;
+      const fAudioInc = [...filterState.audio];
+      if (fAudioInc.length < ALL_AUDIO.length) cfg.filterAudio = fAudioInc;
+      const fMinSize = parseFloat(document.getElementById('filterMinSize')?.value) || 0;
+      const fMaxSize = parseFloat(document.getElementById('filterMaxSize')?.value) || 0;
+      if (fMinSize > 0) cfg.filterMinSize = fMinSize;
+      const fMaxStreams = parseInt(document.getElementById('filterMaxStreams')?.value) || 35;
+      if (fMaxStreams !== 35) cfg.filterMaxStreams = fMaxStreams;
+      if (fMaxSize > 0) cfg.filterMaxSize = fMaxSize;
+      if (document.getElementById('filterCachedOnly')?.checked) cfg.filterCachedOnly = true;
+      // Stream addons go IN THE TOKEN too (not just Redis) so external streams
+      // survive a Redis flush/expiry — small array, well under the size cap.
+      if (Array.isArray(streamAddons) && streamAddons.length > 0) cfg.streamAddons = streamAddons.slice();
       return cfg;
     }
 
@@ -2208,9 +1344,9 @@
       premiumize: { label: 'Premiumize', logo: '/provider-logos/premiumize.svg' },
     };
 
-    function toggleSection(header) {
+    function toggleCollCard(header) {
       const body = header.nextElementSibling;
-      const arrow = header.querySelector('.collapse-arrow');
+      const arrow = header.querySelector('.coll-arrow');
       if (body) body.classList.toggle('open');
       if (arrow) arrow.classList.toggle('open');
     }
@@ -2902,6 +2038,7 @@
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('versionDisplay').textContent = `v${APP_VERSION}`;
       checkVersion();
+      renderAllFilterChips();
       renderCataloguesOptions();
       renderStreamAddons();
       renderConnectAll();
@@ -3003,6 +2140,24 @@
           }
         }
         if (cfg.streamAddons && Array.isArray(cfg.streamAddons)) streamAddons = cfg.streamAddons;
+        // Restore Filters & Preferences
+        if (cfg.filterResolutions && Array.isArray(cfg.filterResolutions)) {
+          // Migrate old labels: 2160p→4K, 1440p→2K
+          const migrated = cfg.filterResolutions.map(r => r === '2160p' ? '4K' : r === '1440p' ? '2K' : r);
+          filterState.resIncluded = new Set(migrated);
+          filterState.resolutions = migrated.slice();
+          for (const r of ALL_RESOLUTIONS) { if (!filterState.resolutions.includes(r)) filterState.resolutions.push(r); }
+        }
+        if (cfg.filterQualities && Array.isArray(cfg.filterQualities)) filterState.qualities = new Set(cfg.filterQualities);
+        if (cfg.filterSources && Array.isArray(cfg.filterSources)) filterState.sources = new Set(cfg.filterSources);
+        if (cfg.filterCodecs && Array.isArray(cfg.filterCodecs)) filterState.codecs = new Set(cfg.filterCodecs);
+        if (cfg.filterHdr && Array.isArray(cfg.filterHdr)) filterState.hdr = new Set(cfg.filterHdr);
+        if (cfg.filterAudio && Array.isArray(cfg.filterAudio)) filterState.audio = new Set(cfg.filterAudio);
+        if (cfg.filterMinSize) document.getElementById('filterMinSize').value = cfg.filterMinSize;
+        if (cfg.filterMaxStreams) { document.getElementById('filterMaxStreams').value = cfg.filterMaxStreams; document.getElementById('filterMaxStreamsVal').textContent = cfg.filterMaxStreams; }
+        if (cfg.filterMaxSize) document.getElementById('filterMaxSize').value = cfg.filterMaxSize;
+        if (cfg.filterCachedOnly) document.getElementById('filterCachedOnly').checked = true;
+        renderAllFilterChips();
         renderCataloguesOptions();
         renderStreamAddons();
         updateStreamPreview();
@@ -3043,7 +2198,7 @@
       updateSetupSummary();
 
       // Watch for changes on all config fields
-      const watchIds = ['provider', 'torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'rdCatalog', 'sortBy', 'lang', 'posterProvider', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'streamPreset'];
+      const watchIds = ['provider', 'torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'rdCatalog', 'sortBy', 'lang', 'posterProvider', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'streamPreset', 'filterMinSize', 'filterMaxSize', 'filterCachedOnly', 'filterMaxStreams'];
       watchIds.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
@@ -3222,19 +2377,176 @@
     }
 
     // ── Configure tabs (Setup | Catalogues) ──
-    function switchTab(name) {
-      document.getElementById('tab-setup').style.display      = name === 'setup' ? '' : 'none';
-      document.getElementById('tab-catalogues').style.display = name === 'catalogues' ? '' : 'none';
-      document.getElementById('tabBtn-setup').classList.toggle('active', name === 'setup');
-      document.getElementById('tabBtn-catalogues').classList.toggle('active', name === 'catalogues');
-      if (name === 'setup') {
-        goToStep(currentStep);
-        renderConnectAll();
+    function toggleCollCard(header) {
+      const body = header.nextElementSibling;
+      const arrow = header.querySelector('.coll-arrow');
+      if (body) body.classList.toggle('open');
+      if (arrow) arrow.classList.toggle('open');
+    }
+    // Legacy alias — old code called toggleSection on a .collapsible-header
+    function toggleSection(header) { toggleCollCard(header); }
+    // Tabs removed — this is a no-op for backward compatibility
+    function switchTab() {}
+
+
+    // ── Filter preferences ──
+    const ALL_RESOLUTIONS = ['4K', '2K', '1080p', '720p', '480p', '360p', '240p'];
+    const ALL_QUALITIES = ['BluRay REMUX', 'BluRay', 'WEB-DL', 'WEBRip', 'HDRip', 'DVDRip', 'HDTV', 'CAM', 'TS', 'TC'];
+    const ALL_SOURCES = ['BluRay', 'WEB-DL', 'WEBRip', 'HDRip', 'DVDRip', 'HDTV', 'CAM', 'TS'];
+    const ALL_CODECS = ['AV1', 'HEVC', 'AVC', 'XviD'];
+    const ALL_HDR = ['Dolby Vision', 'HDR10+', 'HDR10', 'HDR', 'SDR'];
+    const ALL_AUDIO = ['TrueHD Atmos', 'TrueHD', 'DTS-HD MA', 'DTS-HD', 'DTS', 'Atmos', 'DD+ 5.1', 'DD 5.1', 'AAC', 'FLAC'];
+
+    const filterState = {
+      resolutions: ALL_RESOLUTIONS.slice(),    // ordered preference (top = most preferred)
+      resIncluded: new Set(ALL_RESOLUTIONS),   // which resolutions are enabled
+      qualities: new Set(ALL_QUALITIES),       // included quality tags
+      sources: new Set(ALL_SOURCES),           // included sources
+      codecs: new Set(ALL_CODECS),             // included codecs
+      hdr: new Set(ALL_HDR),                   // included HDR tags
+      audio: new Set(ALL_AUDIO),               // included audio formats
+    };
+
+    function renderFilterChips(containerId, items, includedSet, onChange) {
+      const el = document.getElementById(containerId);
+      if (!el) return;
+      el.innerHTML = items.map(item => {
+        const active = includedSet.has(item);
+        return `<button type="button" onclick="${onChange}('${item.replace(/'/g, "\'")}')"
+          style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border-radius:8px;font-size:0.78rem;font-weight:600;cursor:pointer;transition:all 0.15s;font-family:var(--font);border:1px solid ${active ? 'var(--amber)' : 'var(--border2)'};background:${active ? 'var(--amber-glow)' : 'var(--surface2)'};color:${active ? 'var(--amber)' : 'var(--muted)'}">${item}</button>`;
+      }).join('');
+    }
+
+    function toggleFilterItem(setName, item) {
+      const set = filterState[setName];
+      if (set.has(item)) set.delete(item); else set.add(item);
+      // For resolutions: auto-remove from preference order when unticked, re-add at end when ticked
+      if (setName === 'resIncluded') {
+        if (!set.has(item)) {
+          filterState.resolutions = filterState.resolutions.filter(r => r !== item);
+        } else if (!filterState.resolutions.includes(item)) {
+          filterState.resolutions.push(item);
+        }
       }
+      renderAllFilterChips();
+      checkChanged();
+    }
+
+    function renderAllFilterChips() {
+      renderFilterChips('resolutionInclude', ALL_RESOLUTIONS, filterState.resIncluded, 'toggleFilterItem.bind(null,\'resIncluded\')');
+      renderFilterChips('qualityInclude', ALL_QUALITIES, filterState.qualities, 'toggleFilterItem.bind(null,\'qualities\')');
+      renderFilterChips('sourceInclude', ALL_SOURCES, filterState.sources, 'toggleFilterItem.bind(null,\'sources\')');
+      renderFilterChips('codecInclude', ALL_CODECS, filterState.codecs, 'toggleFilterItem.bind(null,\'codecs\')');
+      renderFilterChips('hdrInclude', ALL_HDR, filterState.hdr, 'toggleFilterItem.bind(null,\'hdr\')');
+      renderFilterChips('audioInclude', ALL_AUDIO, filterState.audio, 'toggleFilterItem.bind(null,\'audio\')');
+      renderResolutionPreference();
+    }
+
+    function renderResolutionPreference() {
+      const el = document.getElementById('resolutionPreference');
+      if (!el) return;
+      el.innerHTML = filterState.resolutions.map((res, i) => {
+        const active = filterState.resIncluded.has(res);
+        return `<div class="res-chip" data-idx="${i}"
+          style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:8px;font-size:0.78rem;font-weight:600;cursor:grab;transition:all 0.15s;border:1px solid ${active ? 'var(--border2)' : 'var(--border)'};background:${active ? 'var(--surface2)' : 'var(--bg)'};color:${active ? 'var(--text)' : 'var(--border2)'};opacity:${active ? '1' : '0.4'};touch-action:none;user-select:none;-webkit-user-select:none;">
+          <span style="cursor:grab;opacity:0.5">⠿</span>${res}
+          <span style="font-size:0.7rem;opacity:0.4;margin-left:2px">#${i + 1}</span>
+        </div>`;
+      }).join('');
+      // Bind touch + mouse drag handlers
+      el.querySelectorAll('.res-chip').forEach(chip => {
+        chip.addEventListener('mousedown', resDragStart);
+        chip.addEventListener('touchstart', resDragStart, { passive: false });
+      });
+    }
+
+    // ── Unified touch + mouse reorder for resolution chips ──
+    let _resDragging = false;
+    let _resFromIdx = -1;
+    let _resOverIdx = -1;
+    let _resClone = null;
+    let _resStartY = 0;
+    let _resStartX = 0;
+
+    function resDragStart(e) {
+      const chip = e.target.closest('.res-chip');
+      if (!chip) return;
+      _resFromIdx = parseInt(chip.dataset.idx, 10);
+      _resDragging = true;
+      const touch = e.touches ? e.touches[0] : e;
+      _resStartX = touch.clientX;
+      _resStartY = touch.clientY;
+
+      // Create a floating clone for visual feedback
+      _resClone = chip.cloneNode(true);
+      _resClone.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;opacity:0.9;transform:scale(1.05);box-shadow:0 4px 16px rgba(0,0,0,0.4);transition:none;';
+      _resClone.style.left = (touch.clientX - 40) + 'px';
+      _resClone.style.top = (touch.clientY - 20) + 'px';
+      document.body.appendChild(_resClone);
+      chip.style.opacity = '0.3';
+
+      if (e.touches) e.preventDefault();
+      document.addEventListener('mousemove', resDragMove);
+      document.addEventListener('touchmove', resDragMove, { passive: false });
+      document.addEventListener('mouseup', resDragEnd);
+      document.addEventListener('touchend', resDragEnd);
+    }
+
+    function resDragMove(e) {
+      if (!_resDragging) return;
+      const touch = e.touches ? e.touches[0] : e;
+      if (_resClone) {
+        _resClone.style.left = (touch.clientX - 40) + 'px';
+        _resClone.style.top = (touch.clientY - 20) + 'px';
+      }
+
+      // Find which chip we're over
+      const el = document.getElementById('resolutionPreference');
+      if (!el) return;
+      const chips = el.querySelectorAll('.res-chip');
+      let foundIdx = -1;
+      chips.forEach(chip => {
+        const rect = chip.getBoundingClientRect();
+        if (touch.clientX >= rect.left && touch.clientX <= rect.right && touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+          foundIdx = parseInt(chip.dataset.idx, 10);
+        }
+      });
+      if (foundIdx !== -1 && foundIdx !== _resOverIdx) {
+        _resOverIdx = foundIdx;
+        chips.forEach(c => c.style.transform = '');
+        if (foundIdx !== _resFromIdx) {
+          chips[foundIdx > _resFromIdx ? foundIdx : foundIdx].style.transform = 'scale(1.05)';
+        }
+      }
+      if (e.touches) e.preventDefault();
+    }
+
+    function resDragEnd(e) {
+      if (!_resDragging) return;
+      _resDragging = false;
+      document.removeEventListener('mousemove', resDragMove);
+      document.removeEventListener('touchmove', resDragMove);
+      document.removeEventListener('mouseup', resDragEnd);
+      document.removeEventListener('touchend', resDragEnd);
+
+      if (_resClone) { _resClone.remove(); _resClone = null; }
+
+      // Reset all chip styles
+      const el = document.getElementById('resolutionPreference');
+      if (el) el.querySelectorAll('.res-chip').forEach(c => { c.style.opacity = ''; c.style.transform = ''; });
+
+      if (_resFromIdx >= 0 && _resOverIdx >= 0 && _resFromIdx !== _resOverIdx) {
+        const item = filterState.resolutions.splice(_resFromIdx, 1)[0];
+        filterState.resolutions.splice(_resOverIdx, 0, item);
+        renderResolutionPreference();
+        checkChanged();
+      }
+      _resFromIdx = -1;
+      _resOverIdx = -1;
     }
 
     // ── Step-by-step wizard navigation ──
-    const STEP_LABELS = { 1: 'Next: Metadata', 2: 'Next: Streams', 3: 'Next: Advanced', 4: 'Next: Connect', 5: 'Next: Preview & install', 6: '' };
+    const STEP_LABELS = { 1: 'Next: Metadata', 2: 'Next: Filters', 3: 'Next: Catalogues', 4: 'Next: Streams & Look', 5: 'Next: Install', 6: '' };
     let currentStep = 1;
 
     function goToStep(n) {
@@ -3246,12 +2558,20 @@
         const btn = document.querySelector('.step-btn[data-step="' + i + '"]');
         if (btn) btn.classList.toggle('active', i === n);
       }
+      // "How far you have left" — progress bar + step counter.
+      const STEP_TITLES = { 1: 'Providers', 2: 'Metadata', 3: 'Filters & Preferences', 4: 'Catalogues', 5: 'Streams & Look', 6: 'Install' };
+      const progText = document.getElementById('stepProgressText');
+      if (progText) progText.textContent = `Step ${n} of 6`;
+      const progTitle = document.getElementById('stepProgressTitle');
+      if (progTitle) progTitle.textContent = STEP_TITLES[n] || '';
+      const progFill = document.getElementById('stepProgressFill');
+      if (progFill) progFill.style.width = Math.round((n / 5) * 100) + '%';
       document.getElementById('btnPrevStep').style.visibility = n > 1 ? 'visible' : 'hidden';
       const next = document.getElementById('btnNextStep');
       next.style.display = n === 6 ? 'none' : '';
       document.getElementById('nextStepLabel').textContent = STEP_LABELS[n] || 'Continue';
-      if (n === 5) renderConnectAll();
-      if (n === 6) {
+      if (n === 6) renderConnectAll();
+      if (n === 5) {
         renderConnectAll();
         maybeAutoGenerate();
       }
@@ -3266,7 +2586,7 @@
 
     // Go to the push step: Step 5 if connected, otherwise Step 4 (connect first)
     function goToPushStep() {
-      goToStep(connectState.platform ? 6 : 5);
+      goToStep(5);
     }
 
     // Step navigation with in-place API-key verification. When advancing past
@@ -3381,7 +2701,7 @@
 
     // Sidebar / mobile "Generate" buttons jump to the install step and generate
     function goGenerate() {
-      goToStep(6);
+      goToStep(5);
       generate();
     }
 
@@ -3503,6 +2823,97 @@
       checkChanged();
     }
 
+    // ── Catalogue drag-to-reorder (touch + mouse) ──
+    let _catDragging = false;
+    let _catFromIdx = -1;
+    let _catClone = null;
+    let _catStartY = 0;
+    let _catMoved = false;
+    let _catDragEl = null;  // the actual DOM element being dragged
+
+    function catDragStart(e) {
+      const handle = e.target.closest('.cat-drag-handle');
+      if (!handle) return;
+      const item = handle.closest('.cat-drag-item');
+      if (!item) return;
+      _catFromIdx = parseInt(item.dataset.catIdx, 10);
+      _catDragEl = item;
+      _catDragging = true;
+      _catMoved = false;
+      const touch = e.touches ? e.touches[0] : e;
+      _catStartY = touch.clientY;
+      // Create floating clone
+      _catClone = item.cloneNode(true);
+      _catClone.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;opacity:0.9;transform:scale(1.02);box-shadow:0 4px 16px rgba(0,0,0,0.4);transition:none;width:' + item.offsetWidth + 'px;left:' + (item.getBoundingClientRect().left) + 'px;top:' + (touch.clientY - 20) + 'px;';
+      document.body.appendChild(_catClone);
+      item.style.opacity = '0.25';
+      item.style.transition = 'none';
+      if (e.touches) e.preventDefault();
+      document.addEventListener('mousemove', catDragMove, { passive: false });
+      document.addEventListener('touchmove', catDragMove, { passive: false });
+      document.addEventListener('mouseup', catDragEnd);
+      document.addEventListener('touchend', catDragEnd);
+    }
+
+    function catDragMove(e) {
+      if (!_catDragging) return;
+      e.preventDefault();
+      const touch = e.touches ? e.touches[0] : e;
+      const dy = Math.abs(touch.clientY - _catStartY);
+      if (dy > 5) _catMoved = true;
+      if (_catClone) _catClone.style.top = (touch.clientY - 20) + 'px';
+
+      // Find which item we're hovering over by pointer position
+      const list = document.getElementById('catalogueList');
+      if (!list) return;
+      const items = [...list.querySelectorAll('.cat-drag-item')];
+      let targetIdx = -1;
+      for (const el of items) {
+        const rect = el.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        if (touch.clientY < mid) { targetIdx = parseInt(el.dataset.catIdx, 10); break; }
+      }
+      if (targetIdx === -1) targetIdx = items.length - 1;
+      if (targetIdx === _catFromIdx) return;
+
+      // Swap in catOrder
+      const draggedKey = catOrder.splice(_catFromIdx, 1)[0];
+      catOrder.splice(targetIdx, 0, draggedKey);
+
+      // Swap DOM elements directly — no re-render, no event rebinding needed
+      const draggedEl = items.find(el => parseInt(el.dataset.catIdx, 10) === _catFromIdx)
+                     || items.find(el => el === _catDragEl);
+      const targetEl = items.find(el => parseInt(el.dataset.catIdx, 10) === targetIdx);
+      if (draggedEl && targetEl && draggedEl !== targetEl) {
+        if (targetIdx < _catFromIdx) {
+          targetEl.parentNode.insertBefore(draggedEl, targetEl);
+        } else {
+          targetEl.parentNode.insertBefore(draggedEl, targetEl.nextSibling);
+        }
+      }
+      // Update data-cat-idx on all items to match new catOrder
+      list.querySelectorAll('.cat-drag-item').forEach((el, i) => {
+        el.dataset.catIdx = i;
+        if (el === draggedEl) el.style.opacity = '0.25';
+      });
+      _catFromIdx = targetIdx;
+      _catDragEl = draggedEl;
+    }
+
+    function catDragEnd(e) {
+      if (!_catDragging) return;
+      _catDragging = false;
+      document.removeEventListener('mousemove', catDragMove);
+      document.removeEventListener('touchmove', catDragMove);
+      document.removeEventListener('mouseup', catDragEnd);
+      document.removeEventListener('touchend', catDragEnd);
+      if (_catClone) { _catClone.remove(); _catClone = null; }
+      if (_catDragEl) { _catDragEl.style.opacity = ''; _catDragEl.style.transition = ''; _catDragEl = null; }
+      if (_catMoved) checkChanged();
+      _catFromIdx = -1;
+      _catMoved = false;
+    }
+
     function toggleHideAnime(checked) {
       const adv = document.getElementById('hideAnime');
       if (adv) adv.checked = checked;
@@ -3510,7 +2921,13 @@
       checkChanged();
     }
 
+    let _renderingCatalogues = false;
     function renderCataloguesOptions() {
+      if (_renderingCatalogues) return;
+      _renderingCatalogues = true;
+      try { _renderCataloguesOptionsInner(); } finally { _renderingCatalogues = false; }
+    }
+    function _renderCataloguesOptionsInner() {
       const list = document.getElementById('catalogueList');
       if (!list) return;
       const hideAnime = !!(document.getElementById('hideAnime') && document.getElementById('hideAnime').checked);
@@ -3520,11 +2937,8 @@
         if (key === 'anime' && hideAnime) return;
         const enabled = meta.enable ? !!catSelection[meta.enable] : true;
         rows.push(`
-          <div class="cat-option" style="align-items:center;flex-wrap:wrap">
-            <div style="display:flex;flex-direction:column;gap:2px;margin-right:4px;flex-shrink:0">
-              <button type="button" class="btn-copy-url" onclick="moveCatalogue('${key}',-1)" ${i === 0 ? 'disabled style="opacity:0.3"' : ''} title="Move up">↑</button>
-              <button type="button" class="btn-copy-url" onclick="moveCatalogue('${key}',1)" ${i === catOrder.length - 1 ? 'disabled style="opacity:0.3"' : ''} title="Move down">↓</button>
-            </div>
+          <div class="cat-option cat-drag-item" data-cat-key="${key}" data-cat-idx="${i}" style="align-items:center;flex-wrap:wrap;touch-action:none;user-select:none;-webkit-user-select:none;">
+            <span class="cat-drag-handle" style="cursor:grab;opacity:0.4;font-size:0.9rem;flex-shrink:0;margin-right:2px;touch-action:none;">⠿</span>
             ${meta.enable
               ? `<input type="checkbox" id="editCat-${key}" ${enabled ? 'checked' : ''} onchange="setCatOption('${meta.enable}', this.checked)" />`
               : '<input type="checkbox" checked disabled style="opacity:0.5" />'}
@@ -3536,11 +2950,14 @@
           </div>`);
       });
       list.innerHTML = rows.join('');
-      // Re-apply drag index to the fresh DOM.
-      list._dragIndex = -1;
+      // Bind drag-to-reorder on handles only
+      list.querySelectorAll('.cat-drag-handle').forEach(handle => {
+        handle.addEventListener('mousedown', catDragStart);
+        handle.addEventListener('touchstart', catDragStart, { passive: false });
+      });
       // Sync the standalone "Hide anime" toggle with the Advanced-step state.
       const ha = document.getElementById('editHideAnime');
-      if (ha && ha.checked !== hideAnime) ha.checked = hideAnime;
+      if (ha && ha.checked !== hideAnime) { ha.checked = hideAnime; }
       // Keep the older per-row checkbox ids alive for code that still references them.
       const syncId = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val; };
       syncId('editCatFranchises', catSelection.franchises);
@@ -3723,14 +3140,13 @@
 
     // Render Step 4 (Connect) and Step 5 (Push panel)
     function renderConnectAll() {
-      renderConnectStep();
       renderInstallPush();
       updateInstallPushHint();
     }
 
     // Step 4: the sign-in boxes, or a connected card if signed in
     function renderConnectStep() {
-      const el = document.getElementById('connectStep');
+      const el = document.getElementById('installPush');
       if (!connectState.platform) {
         el.innerHTML = connectWidgetHTML('step');
         return;
@@ -3749,13 +3165,17 @@
           </div>
           <button class="btn-copy-url" type="button" onclick="disconnectConnect()">Disconnect</button>
         </div>
-        <p class="field-hint" style="margin-top:10px">You're all set — go to Step 5 to push LeLibrary to your account.</p>`;
+        <p class="field-hint" style="margin-top:10px">You're all set — push LeLibrary to your account below.</p>`;
     }
 
     // Step 5: the push panel (only rendered when connected)
     function renderInstallPush() {
       const el = document.getElementById('installPush');
-      if (!connectState.platform) { el.innerHTML = ''; return; }
+      // Always show the connect widget if not connected, otherwise show connected card
+      if (!connectState.platform) {
+        el.innerHTML = connectWidgetHTML('step');
+        return;
+      }
       const plat = connectState.platform === 'stremio' ? 'Stremio' : 'Nuvio';
       const profiles = connectState.nuvioProfiles
         .map(p => `<option value="${p.profile_index}" ${connectState.nuvioSelectedProfile === p.profile_index ? 'selected' : ''}>${escHtml(p.name)}</option>`)
@@ -3781,9 +3201,9 @@
               <select id="cataloguesProfile" onchange="connectState.nuvioSelectedProfile = parseInt(this.value,10) || null; persistConnect();">${profiles}</select>
               <p class="field-hint">Select the Nuvio profile to install LeLibrary on.</p>
             </div>
-            <button class="btn-main btn-outline" type="button" onclick="switchTab('catalogues')" style="margin-bottom:12px">
+            <button class="btn-main btn-outline show" type="button" onclick="goToStep(3)" style="margin-bottom:12px">
               <div class="ico">✏️</div>
-              <div class="txt"><span>Configure your catalogues here</span><small>Manage catalogues in the Catalogues tab, then come back and push</small></div>
+              <div class="txt"><span>Configure your catalogues here</span><small>Go to Catalogues step to reorder, rename, or toggle rows</small></div>
               <span class="arr">›</span>
             </button>
             <div class="url-warning">
@@ -4540,6 +3960,12 @@
         const btn = document.querySelector('.step-btn[data-step="' + s + '"]');
         if (btn) btn.classList.add('verified');
       }
+      // Color connector lines: line between step i and i+1 is green if step i is verified
+      const lines = document.querySelectorAll('.step-dot-line');
+      lines.forEach((line, idx) => {
+        const stepBtn = document.querySelector('.step-btn[data-step="' + (idx + 1) + '"]');
+        line.classList.toggle('done', stepBtn && stepBtn.classList.contains('verified'));
+      });
     };
 
   </script>

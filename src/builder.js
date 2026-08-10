@@ -593,7 +593,7 @@ async function enhanceMeta(meta, enhance = {}) {
   return meta;
 }
 
-async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episode, lang, customStreams, userKey = '') {
+async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episode, lang, customStreams, userKey = '', opts = {}) {
   // Try both indexes (series and anime) since ID is always torbox:series:X
   const possibleKeys = [
     `${userKey}:${type === 'anime' ? 'series' : type}:${tmdbId}`,
@@ -638,7 +638,7 @@ async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episo
       }
     }
 
-    if (entries.length === 0 && tmdbApiKey) {
+    if (entries.length === 0 && tmdbApiKey && !opts.skipTmdbFallback) {
       console.log(`[Stream] TMDB fallback...`);
       const tmdbType = type === 'movie' ? 'movie' : 'series';
       const candidates = (downloads || []).filter(item => {

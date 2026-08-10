@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const cache = require('../cache');
 const { getTorBoxDownloads, getTorBoxFiles, getTorBoxStreamLink } = require('../torbox');
 const { getRealDebridDownloads, getRealDebridFiles, getRealDebridStreamLink } = require('../realdebrid');
 const alldebrid = require('./alldebrid');
@@ -67,9 +68,41 @@ async function downloadsForProvider(config, id) {
   }
 }
 
+// Downloads cache key, scoped to the user so one user's library never leaks.
+// The in-memory index (tmdbindex) already caches per-user matches; this caches
+// the RAW provider downloads so the discovery owned-bridge can answer "does the
+// user own this?" without re-hitting TorBox/Real-Debrid on every tt: request.
+const DOWNLOADS_TTL = 10 * 60; // 10 minutes
+
+function downloadsCacheKey(config = {}) {
+  const userKey = getUserKey(config);
+  return userKey ? cache.makeKey('dlcache', userKey) : null;
+}
+
+async function getCachedDownloads(config = {}) {
+  const key = downloadsCacheKey(config);
+  if (!key) return null;
+  return cache.get(key);
+}
+
+async function setCachedDownloads(config = {}, downloads) {
+  const key = downloadsCacheKey(config);
+  if (!key) return;
+  await cache.set(key, downloads, DOWNLOADS_TTL);
+}
+
 // Fetch downloads from all active providers (or only the listed subset).
 // One provider failing must not empty the others.
-async function fetchDownloads(config = {}, { only = null } = {}) {
+// When `useCache` is true (default) and a fresh-enough copy exists in Redis,
+// it returns that instead of hitting the providers — the discovery owned-bridge
+// uses this so every tt: stream request doesn't re-fetch 500+ TorBox downloads.
+async function fetchDownloads(config = {}, { only = null, useCache = true } = {}) {
+  if (useCache) {
+    try {
+      const cached = await getCachedDownloads(config);
+      if (Array.isArray(cached)) return cached;
+    } catch { /* cache miss — fall through to live fetch */ }
+  }
   const list = only && only.length ? only : activeProviders(config);
   const results = [];
   await Promise.all(list.map(async id => {
@@ -79,6 +112,9 @@ async function fetchDownloads(config = {}, { only = null } = {}) {
       console.error(`[Providers] ${id} downloads failed (continuing): ${err.message}`);
     }
   }));
+  if (useCache) {
+    try { await setCachedDownloads(config, results); } catch { /* non-fatal */ }
+  }
   return results;
 }
 
@@ -117,6 +153,8 @@ module.exports = {
   activeProviders,
   getUserKey,
   fetchDownloads,
+  getCachedDownloads,
+  setCachedDownloads,
   downloadsFor,
   getFiles,
   getStreamLink,

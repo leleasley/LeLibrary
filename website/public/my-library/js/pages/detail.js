@@ -282,7 +282,6 @@ async function fetchTVSeasons(tmdbId) {
     searchSeason(1);
   } catch (e) {
     if (!detailIsCurrent()) return;
-    document.getElementById('autoSearchHint').style.display = 'block';
     autoSearchTorrents(_detailItem.title, _detailItem.year, _detailItem.id, _detailItem.mt, 1);
   }
 }
@@ -301,9 +300,6 @@ function searchSeason(num) {
   document.querySelectorAll('.season-btn').forEach(b => {
     b.classList.toggle('active', parseInt(b.textContent.replace('S', '')) === num);
   });
-  const seasonName = _detailSeasons.find(s => s.season_number === num)?.name || ('Season ' + num);
-  document.getElementById('autoSearchHint').style.display = 'block';
-  document.getElementById('autoSearchHint').textContent = 'Searching for ' + seasonName + '...';
   autoSearchTorrents(_detailItem.title, _detailItem.year, _detailItem.id, _detailItem.mt, num);
 }
 
@@ -410,13 +406,54 @@ async function handleBatchAdd(mode) {
 
 
 // ── Smart Search Query Builder ──────────────────────────────────
-function buildSearchQuery(title, year, mediaType, seasonNum) {
+// Returns an array of queries to maximise coverage across different
+// torrent naming conventions. Movies get a single query; TV seasons
+// get multiple parallel queries to catch season packs, episode
+// ranges, and alternative naming styles.
+function buildSearchQueries(title, year, mediaType, seasonNum) {
   let cleanTitle = title.replace(/[:\-]/g, ' ').replace(/\s+/g, ' ').trim();
-  let query = (year ? year + ' ' : '') + cleanTitle;
-  if (mediaType === 'tv' && seasonNum) {
-    query += ' S' + String(seasonNum).padStart(2, '0');
+
+  // Strip leading articles / noise so "The Walking Dead" also searches
+  // "Walking Dead S01" (many uploaders drop "The").
+  const strippedTitle = cleanTitle.replace(/^(the|a|an)\s+/i, '').trim();
+
+  // Abbreviated title: drop parenthetical suffixes like "Marvel's Agents of
+  // S.H.I.E.L.D. (2013)" → "Agents of SHIELD"
+  const abbrTitle = strippedTitle
+    .replace(/\([^)]*\)/g, '')
+    .replace(/['']/g, '')
+    .replace(/\bS\.?H\.?I\.?E\.?L\.?D\b/gi, 'SHIELD')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (mediaType !== 'tv' || !seasonNum) {
+    return [(year ? year + ' ' : '') + cleanTitle];
   }
-  return query;
+
+  const sn = String(seasonNum).padStart(2, '0');
+  const queries = new Set();
+
+  // Primary: "Year Title SNN" or "Title SNN"
+  queries.add((year ? year + ' ' : '') + cleanTitle + ' S' + sn);
+  // "Season N" variant (some uploaders spell it out)
+  queries.add((year ? year + ' ' : '') + cleanTitle + ' Season ' + seasonNum);
+  // Without year if we have one (catches uploaders who omit it)
+  if (year) {
+    queries.add(cleanTitle + ' S' + sn);
+    queries.add(cleanTitle + ' Season ' + seasonNum);
+  }
+  // Stripped title (drop "The"/"A"/"An") with SNN
+  if (strippedTitle !== cleanTitle) {
+    queries.add((year ? year + ' ' : '') + strippedTitle + ' S' + sn);
+    queries.add(strippedTitle + ' S' + sn);
+  }
+  // Abbreviated / simplified title
+  if (abbrTitle !== strippedTitle && abbrTitle !== cleanTitle) {
+    queries.add(abbrTitle + ' S' + sn);
+    queries.add(abbrTitle + ' Season ' + seasonNum);
+  }
+
+  return [...queries];
 }
 
 // ── Season episode analysis ─────────────────────────────────────
@@ -431,50 +468,114 @@ function currentSeasonEpisodeCount() {
 }
 
 // Episode numbers of the given season present in a torrent title (SxxExx / nxx).
+// Handles: S01E01, S01E01-E03, S01E01-S01E05, S01E01E02E03, 1x01, "Season 1",
+// "1x01-1x10", "101" (bare 3-digit), and comma-separated "S01E01,E02,E03".
 function extractEpisodeNums(title, seasonNum) {
   const sn = String(seasonNum).padStart(2, '0');
   const eps = new Set();
-  const patterns = [
-    new RegExp('\\bS' + sn + 'E(\\d{1,2})\\b', 'gi'),
-    new RegExp('\\b' + seasonNum + 'x(\\d{1,2})\\b', 'i'),
-    new RegExp('\\bseason\\s*' + seasonNum + '\\b', 'i'),
-  ];
-  for (const re of patterns) {
-    let m;
-    while ((m = re.exec(title)) !== null) {
-      if (m[1]) eps.add(parseInt(m[1], 10));
-      else eps.add(seasonNum); // "Season N" counts as a full pack signal
+
+  // S01E01 style (also catches S01E01E02E03 and S01E01-E03 ranges)
+  const sxxExxAll = [...title.matchAll(/\bS(\d{1,2})E(\d{1,2})(?:\s*[-–,]\s*(?:S\d{1,2})?E(\d{1,2}))?\b/gi)];
+  for (const m of sxxExxAll) {
+    const s = parseInt(m[1], 10);
+    if (s !== seasonNum) continue;
+    const e1 = parseInt(m[2], 10);
+    eps.add(e1);
+    if (m[3]) {
+      const e2 = parseInt(m[3], 10);
+      for (let e = e1; e <= e2; e++) eps.add(e);
     }
   }
+
+  // Comma-separated: S01E01,E02,E03
+  const commaEps = [...title.matchAll(/\bS(\d{1,2})E((?:\d{1,2}(?:\s*,\s*E?\d{1,2})+))\b/gi)];
+  for (const m of commaEps) {
+    const s = parseInt(m[1], 10);
+    if (s !== seasonNum) continue;
+    const parts = m[2].split(/[,\s]+/).map(p => parseInt(p.replace(/^E/i, ''), 10)).filter(n => !isNaN(n) && n > 0);
+    parts.forEach(e => eps.add(e));
+  }
+
+  // 1x01 style
+  const nxNN = [...title.matchAll(/\b(\d{1,2})x(\d{1,2})(?:\s*[-–]\s*(?:\d{1,2}x)?(\d{1,2}))?\b/gi)];
+  for (const m of nxNN) {
+    if (parseInt(m[1], 10) !== seasonNum) continue;
+    const e1 = parseInt(m[2], 10);
+    eps.add(e1);
+    if (m[3]) {
+      const e2 = parseInt(m[3], 10);
+      for (let e = e1; e <= e2; e++) eps.add(e);
+    }
+  }
+
+  // Bare 3-digit episode codes like "101" = S01E01, "112" = S01E12
+  // Must be preceded by a non-digit (or start) and followed by a non-digit
+  // (or end) to avoid matching years like "2024".
+  const bare3 = [...title.matchAll(/(?:^|[^0-9])(\d)(\d{2})(?:[^0-9]|$)/g)];
+  for (const m of bare3) {
+    if (parseInt(m[1], 10) === seasonNum) {
+      const e = parseInt(m[2], 10);
+      if (e >= 1 && e <= 99) eps.add(e);
+    }
+  }
+
+  // "Season N" / "Season N Complete" — counts as full-pack signal
+  if (new RegExp('\\bseason\\s*' + seasonNum + '\\b', 'i').test(title)) {
+    eps.add(seasonNum); // sentinel: caller interprets as "full pack"
+  }
+
   return [...eps].filter(n => n > 0).sort((a, b) => a - b);
 }
 
 // Is this torrent a complete-season (or multi-season) pack for the season?
-function isCompleteSeasonTorrent(title, seasonNum, expected) {
+function isCompleteSeasonTorrent(title, seasonNum, expected, preEps) {
   const sn = String(seasonNum).padStart(2, '0');
   const lower = title.toLowerCase();
-  const eps = extractEpisodeNums(title, seasonNum);
+  const eps = preEps || extractEpisodeNums(title, seasonNum);
 
-  // Explicit "S01 COMPLETE" / "Season 1 Complete" markers
-  if (new RegExp('\\b(s' + sn + '|season\\s*' + seasonNum + ')[^a-z0-9]{0,5}(complete|full|whole)\\b', 'i').test(lower)) return true;
-  // Explicit "S01E01-E10" or "S01E01-S01E10" ranges
-  const rm = title.match(new RegExp('\\bS' + sn + 'E(\\d{1,2})[^0-9]{1,8}(?:S' + sn + ')?E(\\d{1,2})\\b', 'i'));
-  if (rm) {
-    const start = parseInt(rm[1], 10), end = parseInt(rm[2], 10);
-    if (end - start + 1 >= Math.min(5, Math.max(1, expected))) return true;
+  // Explicit "S01 COMPLETE" / "Season 1 Complete" / "S01 Full" markers
+  if (new RegExp('\\b(s' + sn + '|season\\s*' + seasonNum + ')[^a-z0-9]{0,5}(complete|full|whole|pack)\\b', 'i').test(lower)) return true;
+
+  // Explicit "S01E01-E10" or "S01E01-S01E10" ranges spanning most of the season
+  const rangeMatches = [...title.matchAll(/\bS(\d{1,2})E(\d{1,2})\s*[-–~]\s*(?:S\d{1,2}\s*)?E(\d{1,2})\b/gi)];
+  for (const rm of rangeMatches) {
+    if (parseInt(rm[1], 10) !== seasonNum) continue;
+    const start = parseInt(rm[2], 10);
+    const end = parseInt(rm[3], 10);
+    const span = end - start + 1;
+    if (expected > 0 && span >= Math.min(3, expected)) return true;
+    if (span >= 5) return true; // heuristic: 5+ consecutive = likely pack
   }
-  // "Complete Series" / "All Seasons" (covers any season)
-  if (/\b(complete.?series|all seasons|entire.?series|full.?series)\b/i.test(lower)) return true;
+
+  // "Complete Series" / "All Seasons" / "Whole Series" / "Series Complete"
+  if (/\b(complete.?series|all seasons|entire.?series|full.?series|series.?complete|complete.?set)\b/i.test(lower)) return true;
+
+  // "Season 1-3" or "S01-S03" — multi-season pack covering this season
+  const multiSeason = lower.match(/\b(?:s|season\s*)(\d{1,2})\s*[-–~]\s*(?:s|season\s*)(\d{1,2})\b/);
+  if (multiSeason) {
+    const from = parseInt(multiSeason[1], 10);
+    const to = parseInt(multiSeason[2], 10);
+    if (seasonNum >= from && seasonNum <= to) return true;
+  }
+
+  // "1080p Complete" / "Bluray Complete" — generic quality+complete
+  if (/\b(complete|full|whole|pack)\b/i.test(lower) && /\b(bluray|web-?dl|webrip|remux|1080p|2160p|4k|hdtv)\b/i.test(lower)) return true;
+
   // A pack with enough distinct episodes to be the whole season
-  if (expected > 0 && eps.length >= Math.max(5, expected - 2)) return true;
+  // (exclude the sentinel "season N" entry from the count)
+  const realEps = eps.filter(e => e !== seasonNum);
+  if (expected > 0 && realEps.length >= Math.max(5, expected - 2)) return true;
+
   return false;
 }
 
 // Classify a torrent against the current season for the badge + batch add.
 function analyzeSeasonTorrent(t, seasonNum, expected) {
   const eps = extractEpisodeNums(t.title, seasonNum);
-  const isSingle = eps.length === 1;
-  const seasonPack = isCompleteSeasonTorrent(t.title, seasonNum, expected);
+  const seasonPack = isCompleteSeasonTorrent(t.title, seasonNum, expected, eps);
+  // Filter out the sentinel (the season number itself from "Season N" pattern)
+  const realEps = eps.filter(e => e !== seasonNum);
+  const isSingle = realEps.length === 1;
   return { eps, isSingle, seasonPack };
 }
 
@@ -498,38 +599,71 @@ function libraryHashSet() {
 function invalidateLibraryHashSet() { _libHashSet = null; }
 
 // ── Search Core (shared by auto + manual) ─────────────────────
-async function runTorrentSearch(query) {
+// Accepts a single query string or an array of queries. When given an
+// array every query is fired in parallel across all sources; results
+// are merged and deduped so the user sees the broadest possible set.
+async function runTorrentSearch(queries) {
   const grid = document.getElementById('torrentGrid');
   const loading = document.getElementById('torrentLoading');
   const hint = document.getElementById('autoSearchHint');
   if (!grid) return;
 
+  // Normalise: accept either a single string or an array
+  const queryList = Array.isArray(queries) ? queries : [queries];
+
   grid.innerHTML = '';
   loading.style.display = 'flex';
   if (hint) hint.style.display = 'none';
 
-  // Reflect the query in the editable search box
+  // Show the primary query in the editable search box
   const qInput = document.getElementById('torrentQuery');
-  if (qInput) qInput.value = query;
+  if (qInput) qInput.value = queryList[0];
+
+  // Update the hint to show what we're searching
+  updateSearchProgress(0, queryList.length, 'Preparing searches...');
 
   const torboxKey = App.keys.torboxKey;
 
-  const sources = [
-    { name: 'APIBay', fn: () => scrapeSource('apibay', query) },
-    { name: 'TorrentGalaxy', fn: () => scrapeSource('tgx', query) },
-    { name: 'BTDigg', fn: () => scrapeSource('btdigg', query) },
-    { name: 'Rutor', fn: () => scrapeSource('rutor', query) },
+  const sourceDefs = [
+    { name: 'APIBay', key: 'apibay' },
+    { name: 'TorrentGalaxy', key: 'tgx' },
+    { name: 'BTDigg', key: 'btdigg' },
+    { name: 'Rutor', key: 'rutor' },
   ];
 
-  const settled = await Promise.allSettled(sources.map(s => s.fn()));
-  if (!detailIsCurrent()) return;
-  _detailScrapeFailed = settled.length > 0 && settled.every(r => r.status === 'rejected');
-  let allResults = [];
-  settled.forEach(r => {
-    if (r.status === 'fulfilled' && Array.isArray(r.value)) {
-      allResults = allResults.concat(r.value);
+  // Fire all (source x query) combinations in parallel, tracking
+  // which ones complete so we can show live progress.
+  let completedCount = 0;
+  const totalJobs = sourceDefs.length * queryList.length;
+
+  const jobPromises = [];
+  for (const src of sourceDefs) {
+    for (const q of queryList) {
+      const job = scrapeSource(src.key, q)
+        .then(results => {
+          completedCount++;
+          updateSearchProgress(completedCount, totalJobs, src.name + ' done');
+          return results || [];
+        })
+        .catch(() => {
+          completedCount++;
+          updateSearchProgress(completedCount, totalJobs, src.name + ' done');
+          return [];
+        });
+      jobPromises.push(job);
     }
-  });
+  }
+
+  const allSets = await Promise.all(jobPromises);
+  if (!detailIsCurrent()) return;
+
+  _detailScrapeFailed = allSets.every(s => !s || !s.length);
+
+  // Flatten and deduplicate
+  let allResults = [];
+  for (const set of allSets) {
+    if (Array.isArray(set)) allResults = allResults.concat(set);
+  }
 
   const seen = new Set();
   const unique = allResults.filter(t => {
@@ -549,34 +683,57 @@ async function runTorrentSearch(query) {
   _detailResults = sortTorrentsByQuality(filtered);
 
   if (torboxKey && _detailResults.length > 0) {
+    updateSearchProgress(totalJobs, totalJobs, 'Checking TorBox cache...');
     await checkTorBoxCache(_detailResults, torboxKey);
   }
   if (!detailIsCurrent()) return;
 
   loading.style.display = 'none';
+  if (hint) hint.style.display = 'none';
 
   renderFromResults();
 }
 
+// Live progress indicator during search
+function updateSearchProgress(completed, total, lastSource) {
+  const hint = document.getElementById('autoSearchHint');
+  if (!hint) return;
+  if (completed === 0) {
+    hint.style.display = 'block';
+    hint.classList.add('searching');
+    hint.textContent = 'Searching ' + total + ' sources...';
+  } else if (completed < total) {
+    hint.style.display = 'block';
+    hint.classList.add('searching');
+    hint.textContent = 'Searched ' + completed + '/' + total + ' sources...';
+  } else {
+    hint.classList.remove('searching');
+    hint.style.display = 'none';
+  }
+}
+
 // ── Auto Search (on open) ──────────────────────────────────────
 async function autoSearchTorrents(title, year, tmdbId, mediaType, seasonNum) {
-  const query = buildSearchQuery(title, year, mediaType, seasonNum);
-  await runTorrentSearch(query);
+  const queries = buildSearchQueries(title, year, mediaType, seasonNum);
+  await runTorrentSearch(queries);
 }
 
 // ── Manual Search (editable query) ─────────────────────────────
 async function searchTorrents(title, tmdbId, mediaType, customQuery) {
   const seasonNum = mediaType === 'tv' ? _detailCurrentSeason : 1;
-  const query = (customQuery && customQuery.trim()) || buildSearchQuery(title, _detailItem?.year, mediaType, seasonNum);
-  await runTorrentSearch(query);
+  if (customQuery && customQuery.trim()) {
+    // User typed a custom query — use it as-is
+    await runTorrentSearch([customQuery.trim()]);
+  } else {
+    const queries = buildSearchQueries(title, _detailItem?.year, mediaType, seasonNum);
+    await runTorrentSearch(queries);
+  }
 }
 
 function manualTorrentSearch() {
   const input = document.getElementById('torrentQuery');
   const q = (input?.value || '').trim();
   if (!q || !_detailItem) return;
-  document.getElementById('autoSearchHint').style.display = 'block';
-  document.getElementById('autoSearchHint').textContent = 'Searching...';
   searchTorrents(_detailItem.title, _detailItem.id, _detailItem.mt, q);
 }
 
@@ -694,9 +851,15 @@ function renderTorrentCards(torrents, grid) {
     }
     if (isTv && seasonNum) {
       const { eps, seasonPack } = analyzeSeasonTorrent({ title: name }, seasonNum, expected);
-      if (eps.length === 1) return { label: 'E' + String(eps[0]).padStart(2, '0'), cls: 'badge-single' };
+      // Filter out the sentinel "season number" from the eps count
+      const realEps = eps.filter(e => e !== seasonNum);
+      if (seasonPack && realEps.length === 0) return { label: 'Full S' + String(seasonNum).padStart(2, '0'), cls: 'badge-full' };
       if (seasonPack) return { label: 'Full S' + String(seasonNum).padStart(2, '0'), cls: 'badge-full' };
-      if (eps.length > 1) return { label: eps.length + '/' + (expected || '?') + ' eps', cls: 'badge-partial' };
+      if (realEps.length === 1) return { label: 'E' + String(realEps[0]).padStart(2, '0'), cls: 'badge-single' };
+      if (realEps.length > 1) return { label: realEps.length + '/' + (expected || '?') + ' eps', cls: 'badge-partial' };
+      // Check for multi-season packs
+      const multiSeason = name.match(/\b(?:s|season\s*)(\d{1,2})\s*[-–~]\s*(?:s|season\s*)(\d{1,2})\b/i);
+      if (multiSeason) return { label: 'S' + multiSeason[1] + '-S' + multiSeason[2], cls: 'badge-full' };
       return { label: 'Single', cls: 'badge-single' };
     }
     return { label: 'Single', cls: 'badge-single' };

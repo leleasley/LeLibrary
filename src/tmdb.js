@@ -466,8 +466,9 @@ async function buildDiscoveryMetas(apiKey, items, lang, apiType) {
 }
 
 // TMDB trending (window = 'day' | 'week'). apiType = 'movie' | 'tv'.
-// Cached 24h. Defaults to 1 page (20 titles) — plenty for a home row, and each
-// title needs an external_ids call, so more pages means a much slower first load.
+// Cached 24h. Discovery requests DISCOVERY_PAGES pages (3 = ~60 titles);
+// each title needs an external_ids call, so more pages means a slower first
+// load (paid once, then cached for a day).
 async function getTrending(apiKey, apiType, lang = 'en-US', window = 'week', pages = 1) {
   const cacheKey = `disc:trending:${apiType}:${lang}:${window}:${pages}`;
   const cached = tmdbCache.get(cacheKey);
@@ -489,7 +490,8 @@ async function getTrending(apiKey, apiType, lang = 'en-US', window = 'week', pag
   }
 }
 
-// TMDB popular. apiType = 'movie' | 'tv'. Cached 24h. 1 page (~20 titles).
+// TMDB popular. apiType = 'movie' | 'tv'. Cached 24h. Discovery requests
+// DISCOVERY_PAGES pages (~60 titles).
 async function getPopular(apiKey, apiType, lang = 'en-US', pages = 1) {
   const cacheKey = `disc:popular:${apiType}:${lang}:${pages}`;
   const cached = tmdbCache.get(cacheKey);

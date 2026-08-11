@@ -316,7 +316,7 @@ function getLogoUrl(baseUrl) {
 function getBaseManifest(baseUrl) {
   const manifest = {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-    version: '4.8.0',
+    version: '4.8.1',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -371,9 +371,12 @@ function getConfiguredManifest(baseUrl, config = {}) {
       groups.push(...active.map(id => providers.PROVIDER_META[id].cat));
     }
     for (const prefix of groups) {
-      if (type === 'movies') pushLib(prefix, 'movies', catName('🎬 My Movies', catNameMovies));
-      else if (type === 'series') pushLib(prefix, 'series', catName('📺 My Series', catNameSeries));
-      else if (type === 'anime' && !hideAnime) pushLib(prefix, 'anime', catName('🍥 LeLibrary Anime', catNameAnime));
+      // In separate mode each provider gets its own row; tag the name so the
+      // rows are distinguishable (e.g. "My Movies [TB]" vs "My Movies [AD]").
+      const tag = separate && groups.length > 1 ? ` [${providers.PROVIDER_META[providers.providerByCat(prefix)].short}]` : '';
+      if (type === 'movies') pushLib(prefix, 'movies', catName('🎬 My Movies', catNameMovies) + tag);
+      else if (type === 'series') pushLib(prefix, 'series', catName('📺 My Series', catNameSeries) + tag);
+      else if (type === 'anime' && !hideAnime) pushLib(prefix, 'anime', catName('🍥 LeLibrary Anime', catNameAnime) + tag);
     }
   }
 
@@ -437,7 +440,7 @@ function getConfiguredManifest(baseUrl, config = {}) {
 
   return {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-    version: '4.8.0',
+    version: '4.8.1',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -459,7 +462,7 @@ app.get('/health', async (req, res) => {
   res.json({
     status: 'ok',
     cache: stats,
-    version: '4.8.0',
+    version: '4.8.1',
   });
 });
 

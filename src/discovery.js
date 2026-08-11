@@ -19,6 +19,11 @@ const { fetchExternalStreams } = require('./streamAddons');
 const TTL_CATALOG = parseInt(process.env.CACHE_TTL_CATALOG) || 3600;
 const TTL_STREAM  = parseInt(process.env.CACHE_TTL_STREAM)  || 600;
 
+// Pages of TMDB results per Trending/Popular row (20 titles per page).
+// More pages = longer first fetch (each title needs one external_ids call),
+// then cached 24h. 3 pages ≈ 60 titles per row.
+const DISCOVERY_PAGES = 3;
+
 function hashShort(s) {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
@@ -55,8 +60,8 @@ async function buildDiscoveryCatalog({ tmdbApiKey, kind, apiType, lang, userKey,
   let metas = await cache.get(discCacheKey);
   if (!Array.isArray(metas)) {
     metas = kind === 'trending'
-      ? await getTrending(tmdbApiKey, apiType, lang)
-      : await getPopular(tmdbApiKey, apiType, lang);
+      ? await getTrending(tmdbApiKey, apiType, lang, 'week', DISCOVERY_PAGES)
+      : await getPopular(tmdbApiKey, apiType, lang, DISCOVERY_PAGES);
     metas = await enhanceDiscoveryMetas(metas, enhance);
     await cache.set(discCacheKey, metas, TTL_CATALOG);
   }

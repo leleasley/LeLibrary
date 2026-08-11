@@ -1,5 +1,15 @@
 # Changelog
 
+## [4.8.1]
+
+### Trending & Popular
+
+- **Much longer Trending & Popular rows**: these rows now load up to three times more titles to browse (around 50 on the first page, with more coming in as you keep scrolling), instead of stopping after 20
+
+### My Library
+
+- **Tell your rows apart when using several providers**: if you keep your movies and series as separate rows per provider, each row now shows which provider it comes from, like "My Movies [TB]" for TorBox and "My Movies [AD]" for AllDebrid. Your custom row names are kept, the tag is just added at the end. Nothing changes when your rows are merged
+
 ## [4.8.0]
 
 ### Trending & Popular

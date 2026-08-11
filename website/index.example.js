@@ -1,54 +1,7 @@
-const path = require('path');
-const fs = require('fs');
-const express = require('express');
+// Public wrapper (self-hosters cloning the repo): no landing.html, so / just
+// redirects to the configure page. All functional routes live in the shared
+// git-tracked website/web-routes.js (copy this file to index.js if you want a
+// local private version).
+const createWebRoutes = require('./web-routes');
 
-const WEBSITE_DIR = path.resolve(__dirname);
-const PUBLIC_DIR = path.join(WEBSITE_DIR, 'public');
-
-function createWebRoutes(decodeConfig) {
-  const router = express.Router();
-  router.use(express.json());
-  router.use(express.urlencoded({ extended: true }));
-
-  router.get('/', (req, res) => {
-    res.redirect('/configure');
-  });
-
-  router.get('/configure', (req, res) => {
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.sendFile(path.join(WEBSITE_DIR, 'configure.html'));
-  });
-
-  router.get('/:token/configure', (req, res) => {
-    const config = decodeConfig(req.params.token);
-    if (!config) return res.status(400).send('Invalid token');
-
-    const html = fs.readFileSync(path.join(WEBSITE_DIR, 'configure.html'), 'utf8');
-    const safeJson = JSON.stringify(config)
-      .replace(/</g, '\\u003c')
-      .replace(/>/g, '\\u003e')
-      .replace(/\u2028/g, '\\u2028')
-      .replace(/\u2029/g, '\\u2029');
-    const injected = html.replace(
-      '</head>',
-      `<script>window.__INITIAL_CONFIG__ = ${safeJson}</script></head>`
-    );
-    res.setHeader('Cache-Control', 'no-cache');
-    res.send(injected);
-  });
-
-  router.get('/my-library', (req, res) => {
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.sendFile(path.join(PUBLIC_DIR, 'my-library', 'index.html'));
-  });
-
-  router.use(express.static(PUBLIC_DIR, {
-    maxAge: '30d',
-    etag: true,
-    immutable: true,
-  }));
-
-  return router;
-}
-
-module.exports = createWebRoutes;
+module.exports = (decodeConfig) => createWebRoutes(decodeConfig, { landing: false });

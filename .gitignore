@@ -1,6 +1,9 @@
 # AI session carry-over
 AGENTS.md
 
+# Local research/docs (not part of the public addon repo)
+Docs/
+
 # Sensitive credentials & config
 .env
 *.pem

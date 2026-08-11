@@ -838,7 +838,7 @@
       goToStep(1);
     }
 
-    const APP_VERSION = '4.7.0';
+    const APP_VERSION = '4.8.0';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');

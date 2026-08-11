@@ -3,7 +3,7 @@ const axios = require('axios');
 const { getTorBoxDownloads, getTorBoxStreamLink, getTorBoxFiles, isVideoFile, isJunkVideo } = require('./torbox');
 const { getRealDebridDownloads, getRealDebridFiles, getRealDebridStreamLink } = require('./realdebrid');
 const providers = require('./providers');
-const { searchMetadata, searchCandidates, getMetadata, findEpisodeByAirDate } = require('./tmdb');
+const { searchMetadata, searchCandidates, getMetadata, findEpisodeByAirDate, getImdbId } = require('./tmdb');
 const { guessMediaInfo } = require('./parser');
 const NodeCache = require('node-cache');
 // AIOStreams-compatible stream formatter engine (works in Node + browser).
@@ -366,6 +366,23 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
   const paginated = metas.slice(skip, skip + PAGE_SIZE);
   console.log(`[Catalog] Returning ${paginated.length} items (skip=${skip}, total=${metas.length})`);
 
+  // "Use Main Meta" mode (libraryIdMode === 'tt'): library rows carry plain
+  // tt: (IMDb) ids so clients route them through the rich discovery meta path
+  // (TMDB-built, like AIOStreams' metadata source) and external stream addons
+  // answer them. Rows keep their tmdbId so the owned index, saga links and
+  // poster providers keep working. Titles without an IMDb id are dropped (rare).
+  // torbox: mode pays nothing extra.
+  const ttMode = opts.libraryIdMode === 'tt';
+  if (ttMode) {
+    await pLimit(paginated.map(m => async () => {
+      if (!m || !m.tmdbId) return;
+      const apiType = m.catalogType === 'series' ? 'tv' : 'movie';
+      const imdbId = await getImdbId(tmdbApiKey, apiType, m.tmdbId).catch(() => null);
+      if (imdbId) m.id = imdbId; // plain tt{imdbId}, same shape as discovery rows
+      else m._drop = true;
+    }), 6);
+  }
+
   const { erdbToken, rpdbKey } = enhance;
   if (erdbToken || rpdbKey) {
     for (const m of paginated) {
@@ -379,8 +396,8 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
   }
 
   const output = paginated
-    .map(({ torboxItem, torboxItems, tmdbId, released, catalogType, isJapaneseAnimation, season, episode, ...rest }) => rest)
-    .filter(m => m.poster);
+    .map(({ torboxItem, torboxItems, tmdbId, released, catalogType, isJapaneseAnimation, season, episode, _drop, ...rest }) => rest)
+    .filter(m => m.poster && !m._drop);
 
   if (completion) return { metas: output, completion, _fresh: freshCount };
   return output;
@@ -1023,4 +1040,4 @@ function reformatExternalStream(stream, source = 'torbox', config = {}) {
   };
 }
 
-module.exports = { buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta };
+module.exports = { buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta, buildErdbUrl, buildRpdbUrl, buildBetterPosterUrl, getFanartArt };

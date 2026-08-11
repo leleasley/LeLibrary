@@ -175,7 +175,7 @@ async function fetchSeasonVideos(auth, tmdbId, season, lang, fallbackPoster, idB
 
 async function getMetadata(apiKey, tmdbId, type, lang = 'pt-BR', opts = {}) {
   const discovery = !!(opts && opts.discovery);
-  const cacheKey = `meta:${type}:${tmdbId}:${lang}:${discovery ? 'disc' : 'lib'}`;
+  const cacheKey = `meta2:${type}:${tmdbId}:${lang}:${discovery ? 'disc' : 'lib'}`;
   const cached = tmdbCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
@@ -183,15 +183,21 @@ async function getMetadata(apiKey, tmdbId, type, lang = 'pt-BR', opts = {}) {
   const auth = tmdbAuth(apiKey);
   const baseParams = { ...auth.params, language: lang };
 
-  const [detailRes, creditsRes, externalRes] = await Promise.allSettled([
+  const [detailRes, creditsRes, externalRes, extraRes] = await Promise.allSettled([
     axios.get(`${TMDB_BASE}${endpoint}`, { headers: auth.headers, params: { ...baseParams, append_to_response: 'videos,images' }, timeout: 10000 }),
     axios.get(`${TMDB_BASE}${endpoint}/credits`, { headers: auth.headers, params: baseParams, timeout: 8000 }),
     axios.get(`${TMDB_BASE}${endpoint}/external_ids`, { headers: auth.headers, params: auth.params, timeout: 8000 }),
+    // Movies: per-country release dates (certifications included). Series:
+    // per-country content ratings. Both feed the app_extras block below.
+    type === 'movie'
+      ? axios.get(`${TMDB_BASE}/movie/${tmdbId}/release_dates`, { headers: auth.headers, params: auth.params, timeout: 8000 })
+      : axios.get(`${TMDB_BASE}/tv/${tmdbId}/content_ratings`, { headers: auth.headers, params: auth.params, timeout: 8000 }),
   ]);
 
   const detail   = detailRes.status   === 'fulfilled' ? detailRes.value.data   : null;
   const credits  = creditsRes.status  === 'fulfilled' ? creditsRes.value.data  : null;
   const external = externalRes.status === 'fulfilled' ? externalRes.value.data : null;
+  const extra    = extraRes.status    === 'fulfilled' ? extraRes.value.data    : null;
   if (!detail) return null;
 
   const imdbId    = external?.imdb_id || null;
@@ -200,15 +206,36 @@ async function getMetadata(apiKey, tmdbId, type, lang = 'pt-BR', opts = {}) {
     ? (credits?.crew || []).filter(c => c.job === 'Director').map(c => c.name)
     : (detail.created_by || []).map(c => c.name);
 
-  // Nuvio cast with photos
-  const appExtras = {};
-  const richCast = (credits?.cast || []).slice(0, 50).map(c => ({
+  // Nuvio app_extras: cast/directors/writers with photos, plus release dates
+  // and certification — the same block AIOMetadata serves.
+  const person = c => ({
     id: c.id,
     name: c.name,
-    character: c.character || '',
+    character: c.character || c.job || '',
     photo: c.profile_path ? `${TMDB_IMAGE}/w185${c.profile_path}` : null,
-  }));
+  });
+  const appExtras = {};
+  const richCast = (credits?.cast || []).slice(0, 50).map(person);
   if (richCast.length > 0) appExtras.cast = richCast;
+  const richDirectors = type === 'movie'
+    ? (credits?.crew || []).filter(c => c.job === 'Director').map(person)
+    : (detail.created_by || []).map(person);
+  if (richDirectors.length > 0) appExtras.directors = richDirectors.slice(0, 20);
+  if (type === 'movie') {
+    const writerJobs = new Set(['Writer', 'Screenplay', 'Screenwriter', 'Story', 'Teleplay', 'Novel', 'Book', 'Original Story', 'Original Screenplay']);
+    const richWriters = (credits?.crew || []).filter(c => writerJobs.has(c.job)).map(person);
+    if (richWriters.length > 0) appExtras.writers = richWriters.slice(0, 20);
+  }
+  if (type === 'movie' && extra?.results && extra.results.length > 0) {
+    appExtras.releaseDates = extra; // TMDB release_dates envelope matches Nuvio's shape
+    const us = extra.results.find(r => r.iso_3166_1 === 'US') || extra.results.find(r => r.iso_3166_1 === langCode.toUpperCase()) || extra.results[0];
+    const cert = (us?.release_dates || []).find(d => d.certification && d.type === 3)
+      || (us?.release_dates || []).find(d => d.certification);
+    if (cert && cert.certification) appExtras.certification = cert.certification;
+  } else if (type !== 'movie' && Array.isArray(extra?.results) && extra.results.length > 0) {
+    const us = extra.results.find(r => r.iso_3166_1 === 'US') || extra.results.find(r => r.iso_3166_1 === langCode.toUpperCase()) || extra.results[0];
+    if (us && us.rating) appExtras.certification = us.rating;
+  }
 
   let poster     = detail.poster_path   ? `${TMDB_IMAGE}/w500${detail.poster_path}`    : null;
   let background = detail.backdrop_path ? `${TMDB_IMAGE}/w1280${detail.backdrop_path}` : null;
@@ -423,6 +450,7 @@ async function buildDiscoveryMetas(apiKey, items, lang, apiType) {
     const date = item.release_date || item.first_air_date || '';
     metas.push({
       id: imdbId, // plain tt: id so other stream addons answer this row
+      tmdbId: item.id, // tmdb-keyed providers (fanart) need this on the row
       type: apiType === 'movie' ? 'movie' : 'series',
       name,
       poster: item.poster_path ? `${TMDB_IMAGE}/w500${item.poster_path}` : null,
@@ -483,4 +511,4 @@ async function getPopular(apiKey, apiType, lang = 'en-US', pages = 1) {
   }
 }
 
-module.exports = { searchMetadata, searchCandidates, getMetadata, imdbToTmdb, findEpisodeByAirDate, titleScore, clearCaches, getTrending, getPopular };
+module.exports = { searchMetadata, searchCandidates, getMetadata, imdbToTmdb, findEpisodeByAirDate, titleScore, clearCaches, getTrending, getPopular, getImdbId };

@@ -208,7 +208,10 @@ function hashDownloads(downloads) {
 }
 
 async function buildAndCacheForConfig(token, config) {
-  const { tmdbApiKey, sortBy = 'data_adicao', lang = 'pt-BR', rdCatalog = 'merge', erdbToken, rpdbKey, hideAnime } = config;
+  // Merge server-side settings (incl. the libraryIdMode toggle) so the
+  // background rebuild matches what the on-demand route would serve.
+  config = await require('./src/configstore').mergeStoredConfig(config);
+  const { tmdbApiKey, sortBy = 'data_adicao', lang = 'pt-BR', rdCatalog = 'merge', erdbToken, rpdbKey, fanartKey, hideAnime, libraryIdMode } = config;
   if (!tmdbApiKey) return;
 
   const active = providers.activeProviders(config);
@@ -250,8 +253,8 @@ async function buildAndCacheForConfig(token, config) {
 
     await Promise.all(sources.flatMap(({ key, downloads: dl }) =>
       TYPES.map(async type => {
-        const metas    = await buildCatalog(dl, tmdbApiKey, type, sortBy, { skip: 0, search: '' }, lang, { erdbToken, rpdbKey }, { userKey, hideAnime });
-        const cacheKey = cache.makeKey('cat', key, type, sortBy, '', '0', userKey, lang, posterFp(config));
+        const metas    = await buildCatalog(dl, tmdbApiKey, type, sortBy, { skip: 0, search: '' }, lang, { erdbToken, rpdbKey }, { userKey, hideAnime, libraryIdMode });
+        const cacheKey = cache.makeKey('cat', key, type, sortBy, '', '0', userKey, lang, posterFp(config), libraryIdMode);
         await cache.set(cacheKey, { metas }, TTL_CATALOG);
         console.log(`[Cache] ${key}:${type} → ${metas.length} items`);
       })
@@ -266,18 +269,22 @@ async function buildAndCacheForConfig(token, config) {
 
     // Pre-warm Trending / Popular so their first on-screen load is instant
     // (each row needs per-title IMDb lookups, which is slow on a cold build).
-    const { getTrending, getPopular } = require('./src/tmdb');
+    // Uses buildDiscoveryCatalog so the cached rows carry this user's poster
+    // providers and are keyed by the poster fingerprint.
+    const { buildDiscoveryCatalog } = require('./src/discovery');
+    const discEnhance = { erdbToken, rpdbKey, fanartKey, posterProvider: config.posterProvider };
+    const discFp = posterFp(config);
     if (config.catalogTrending) {
       await Promise.allSettled([
-        getTrending(tmdbApiKey, 'movie', lang).then(m => cache.set(cache.makeKey('cat', 'discovery', 'trending', 'movie', lang, userKey), m, TTL_CATALOG)),
-        getTrending(tmdbApiKey, 'tv', lang).then(m => cache.set(cache.makeKey('cat', 'discovery', 'trending', 'tv', lang, userKey), m, TTL_CATALOG)),
+        buildDiscoveryCatalog({ tmdbApiKey, kind: 'trending', apiType: 'movie', lang, userKey, enhance: discEnhance, posterFp: discFp }),
+        buildDiscoveryCatalog({ tmdbApiKey, kind: 'trending', apiType: 'tv', lang, userKey, enhance: discEnhance, posterFp: discFp }),
       ]);
       console.log('[Cache] trending pre-warmed');
     }
     if (config.catalogPopular) {
       await Promise.allSettled([
-        getPopular(tmdbApiKey, 'movie', lang).then(m => cache.set(cache.makeKey('cat', 'discovery', 'popular', 'movie', lang, userKey), m, TTL_CATALOG)),
-        getPopular(tmdbApiKey, 'tv', lang).then(m => cache.set(cache.makeKey('cat', 'discovery', 'popular', 'tv', lang, userKey), m, TTL_CATALOG)),
+        buildDiscoveryCatalog({ tmdbApiKey, kind: 'popular', apiType: 'movie', lang, userKey, enhance: discEnhance, posterFp: discFp }),
+        buildDiscoveryCatalog({ tmdbApiKey, kind: 'popular', apiType: 'tv', lang, userKey, enhance: discEnhance, posterFp: discFp }),
       ]);
       console.log('[Cache] popular pre-warmed');
     }
@@ -309,7 +316,7 @@ function getLogoUrl(baseUrl) {
 function getBaseManifest(baseUrl) {
   const manifest = {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-    version: '4.7.0',
+    version: '4.8.0',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -430,7 +437,7 @@ function getConfiguredManifest(baseUrl, config = {}) {
 
   return {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-    version: '4.7.0',
+    version: '4.8.0',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -452,7 +459,7 @@ app.get('/health', async (req, res) => {
   res.json({
     status: 'ok',
     cache: stats,
-    version: '4.7.0',
+    version: '4.8.0',
   });
 });
 
@@ -605,10 +612,10 @@ app.get('/:token/nuvio-collections/manifest.json', handleNuvioProfile);
 app.get('/:token/nuvio-collections.json', handleNuvioProfile);
 
 async function handleCatalog(req, res) {
-  const config = decodeConfig(req.params.token);
+  const config = await require('./src/configstore').mergeStoredConfig(decodeConfig(req.params.token));
   if (!config) return res.json({ metas: [] });
 
-  const { tmdbApiKey, sortBy = 'data_adicao', lang = 'pt-BR', rdCatalog = 'merge', erdbToken, rpdbKey, hideAnime } = config;
+  const { tmdbApiKey, sortBy = 'data_adicao', lang = 'pt-BR', rdCatalog = 'merge', erdbToken, rpdbKey, fanartKey, posterProvider, hideAnime, libraryIdMode } = config;
   const active = providers.activeProviders(config);
   if (!tmdbApiKey || active.length === 0) return res.json({ metas: [] });
 
@@ -670,7 +677,7 @@ async function handleCatalog(req, res) {
 
     const filmMetas = (coll.videos || [])
       .map(v => ({
-        id: `torbox:movie:${v.id.split(':').pop()}`,
+        id: libraryIdMode === 'tt' && v.imdbId ? v.imdbId : `torbox:movie:${v.id.split(':').pop()}`,
         type: 'movie',
         name: v.title,
         poster: v.thumbnail ? v.thumbnail.replace('/w300', '/w500') : null,
@@ -701,7 +708,7 @@ async function handleCatalog(req, res) {
     const userKey  = providers.getUserKey(config);
     let paginated;
     try {
-      paginated = await buildDiscoveryCatalog({ tmdbApiKey, kind, apiType, lang, userKey, skip, search });
+      paginated = await buildDiscoveryCatalog({ tmdbApiKey, kind, apiType, lang, userKey, skip, search, enhance: { erdbToken, rpdbKey, fanartKey, posterProvider }, posterFp: posterFp(config) });
     } catch (err) {
       console.error(`[Discovery] ${kind} ${apiType} error:`, err.message);
       return res.json({ metas: [] });
@@ -761,7 +768,7 @@ async function handleCatalog(req, res) {
       if (genre && fname !== genre) continue;
       for (const v of (c.videos || [])) {
         filmMetas.push({
-          id: `torbox:movie:${v.id.split(':').pop()}`,
+          id: libraryIdMode === 'tt' && v.imdbId ? v.imdbId : `torbox:movie:${v.id.split(':').pop()}`,
           type: 'movie',
           name: v.title,
           poster: v.thumbnail ? v.thumbnail.replace('/w300', '/w500') : null,
@@ -846,7 +853,7 @@ async function handleCatalog(req, res) {
 
   const userKey  = providers.getUserKey(config);
   const catKey   = separate ? providers.PROVIDER_META[catalogProviderId].cat : 'merged';
-  const cacheKey = cache.makeKey('cat', catKey, type, sortBy, search, skip.toString(), userKey, lang, posterFp(config));
+  const cacheKey = cache.makeKey('cat', catKey, type, sortBy, search, skip.toString(), userKey, lang, posterFp(config), libraryIdMode);
   const cached   = await cache.get(cacheKey);
 
   if (cached) {
@@ -881,7 +888,7 @@ async function handleCatalog(req, res) {
     }
 
     // Progressive: return already-known items immediately, complete the rest in the background
-    const built = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey }, { progressive: true, userKey, hideAnime });
+    const built = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey }, { progressive: true, userKey, hideAnime, libraryIdMode });
     const isPartial = !!built.completion;
     const metas     = built.metas || built;
 
@@ -894,7 +901,7 @@ async function handleCatalog(req, res) {
       // Finish matching + rebuild full catalog in the background
       built.completion.then(async () => {
         try {
-          const full = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey }, { userKey, hideAnime });
+          const full = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey }, { userKey, hideAnime, libraryIdMode });
           const result = { metas: full };
           if (hashChanged) {
             await cache.set(hashKey, newHash, 7200);
@@ -1011,10 +1018,11 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
   }
 
   const userKey = providers.getUserKey(config);
-  // Discovery (tt:) metas keep the full TMDB episode list and a tt: response id,
+  // Discovery (tt:) metas are proxied from the TMDB metadata addon (the rich
+  // source Xperience/AIOStreams use) with the response id rewritten to tt:,
   // so they must not collide with the owned-filtered library/franchise metas.
   const discovery = !!ttId;
-  const cacheKey = cache.makeKey('meta', 'v2', `torbox:${type}:${tmdbId}`, discovery ? 'tt' : '', lang, userKey, posterFp(config));
+  const cacheKey = cache.makeKey('meta', 'v3', `torbox:${type}:${tmdbId}`, discovery ? 'tt' : '', lang, userKey, posterFp(config));
   const cached   = await cache.get(cacheKey);
 
   if (cached) {
@@ -1038,7 +1046,7 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
 
     const enhance = { erdbToken, rpdbKey, omdbKey, fanartKey, posterProvider: config.posterProvider, enhanceBackground, enhanceLogo };
     const meta   = discovery
-      ? await buildDiscoveryMeta({ tmdbApiKey, tmdbId, type, lang, enhance })
+      ? await buildDiscoveryMeta({ tmdbApiKey, tmdbId, type, lang, enhance, imdbId: ttId })
       : await buildMeta(tmdbId, type, tmdbApiKey, lang, config, enhance, userKey, !discovery);
     const result = { meta };
 

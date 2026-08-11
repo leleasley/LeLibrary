@@ -9,10 +9,11 @@
 //   • metas are rich (trailers, clickable cast, networks) with tt: episode ids
 //   • streams = owned-copy-first bridge, then external addon streams
 
+const axios = require('axios');
 const cache = require('./cache');
 const providers = require('./providers');
 const { getMetadata, getTrending, getPopular, imdbToTmdb } = require('./tmdb');
-const { buildStreams, reformatExternalStream, enhanceMeta } = require('./builder');
+const { buildStreams, reformatExternalStream, enhanceMeta, buildErdbUrl, buildRpdbUrl, buildBetterPosterUrl, getFanartArt } = require('./builder');
 const { fetchExternalStreams } = require('./streamAddons');
 
 const TTL_CATALOG = parseInt(process.env.CACHE_TTL_CATALOG) || 3600;
@@ -24,25 +25,88 @@ function hashShort(s) {
   return (h >>> 0).toString(36);
 }
 
-// Trending / Popular catalog rows (tt: ids). Cached per user + language.
-async function buildDiscoveryCatalog({ tmdbApiKey, kind, apiType, lang, userKey, skip = 0, search = '' }) {
-  const discCacheKey = cache.makeKey('cat', 'discovery', kind, apiType, lang, userKey);
+// Apply the user's configured poster providers (erdb/rpdb/betterposter/fanart)
+// to a discovery catalog row set. Rows carry plain tt: ids (= IMDb id), which
+// is all erdb/rpdb/betterposter need; fanart is TMDB-keyed and uses the row's
+// tmdbId. Mirrors enhanceMeta's precedence: erdb > rpdb > betterposter > fanart.
+async function enhanceDiscoveryMetas(metas, enhance = {}) {
+  if (!Array.isArray(metas) || metas.length === 0) return metas;
+  const { erdbToken, rpdbKey, fanartKey, posterProvider } = enhance;
+  if (!erdbToken && !rpdbKey && fanartKey === undefined && posterProvider !== 'betterposter') return metas;
+  return Promise.all(metas.map(async (m) => {
+    if (!m || typeof m !== 'object') return m;
+    const imdbId = typeof m.id === 'string' && m.id.startsWith('tt') ? m.id : null;
+    const type = m.type === 'movie' ? 'movie' : 'tv';
+    if (erdbToken && imdbId) return { ...m, poster: buildErdbUrl(erdbToken, 'poster', imdbId) };
+    if (rpdbKey && imdbId) return { ...m, poster: buildRpdbUrl(rpdbKey, 'imdb', 'poster-default', imdbId) };
+    if (posterProvider === 'betterposter' && imdbId) return { ...m, poster: buildBetterPosterUrl(imdbId, m.type), posterShape: 'poster' };
+    if (fanartKey && m.tmdbId) {
+      const art = await getFanartArt(fanartKey, m.tmdbId, type).catch(() => null);
+      if (art && art.poster) return { ...m, poster: art.poster };
+    }
+    return m;
+  }));
+}
+
+// Trending / Popular catalog rows (tt: ids). Cached per user + language +
+// poster fingerprint (so changing the poster provider refreshes the grid).
+async function buildDiscoveryCatalog({ tmdbApiKey, kind, apiType, lang, userKey, skip = 0, search = '', enhance = {}, posterFp = '' }) {
+  const discCacheKey = cache.makeKey('cat', 'discovery', kind, apiType, lang, userKey, posterFp);
   let metas = await cache.get(discCacheKey);
   if (!Array.isArray(metas)) {
     metas = kind === 'trending'
       ? await getTrending(tmdbApiKey, apiType, lang)
       : await getPopular(tmdbApiKey, apiType, lang);
+    metas = await enhanceDiscoveryMetas(metas, enhance);
     await cache.set(discCacheKey, metas, TTL_CATALOG);
   }
   if (search) metas = metas.filter(m => (m.name || '').toLowerCase().includes(search.toLowerCase()));
   return metas.slice(skip, skip + 50);
 }
 
-// Rich discovery meta for a tt: id: full TMDB episodes with tt:-based episode
-// ids, trailers, clickable cast and network links (no owned stripping).
-async function buildDiscoveryMeta({ tmdbApiKey, tmdbId, type, lang, enhance = {} }) {
-  const meta = await getMetadata(tmdbApiKey, tmdbId, type, lang, { discovery: true });
+// Proxy the TMDB metadata addon (mrcanelas/tmdb-addon, hosted at tmdb.elfhosted.com)
+// for all tt: metas. This is the exact rich metadata source Xperience serves:
+// app_extras.cast with actor photos, full credits, trailers and tt:-based
+// episode ids, plus imdb_id for scrobbling. Its default manifest is public, so
+// no per-user key is needed. Cached raw (shared across users) for 24h; the
+// app.js meta route re-caches per user with their poster providers layered on
+// top. Falls back to the TMDB-built meta if the addon is unreachable.
+const TMDB_ADDON_BASE = 'https://tmdb.elfhosted.com';
+const TMDB_ADDON_TTL  = 24 * 60 * 60;
+
+async function getTmdbAddonMeta(type, tmdbId) {
+  if (!tmdbId) return null;
+  const cacheKey = cache.makeKey('meta', 'tmdbaddon', type, tmdbId);
+  const hit = await cache.get(cacheKey);
+  if (hit) return hit;
+  const stremioType = type === 'movie' ? 'movie' : 'series';
+  try {
+    const res = await axios.get(`${TMDB_ADDON_BASE}/meta/${stremioType}/tmdb%3A${tmdbId}.json`, { timeout: 10000 });
+    const meta = res.data && res.data.meta;
+    if (!meta || !meta.id) return null;
+    await cache.set(cacheKey, meta, TMDB_ADDON_TTL);
+    return meta;
+  } catch (err) {
+    console.error(`[TmdbAddon] meta fetch failed for tmdb:${tmdbId}:`, err.message);
+    return null;
+  }
+}
+
+// Rich discovery meta for a tt: id. Served from the TMDB metadata addon (the
+// same source AIOStreams' tmdb preset and Xperience proxy), with the response
+// id rewritten back to tt: so external stream addons and scrobbling keep
+// working. The user's poster/rating providers are layered on top. TMDB build
+// is only the fallback when the addon is down.
+async function buildDiscoveryMeta({ tmdbApiKey, tmdbId, type, lang, enhance = {}, imdbId }) {
+  let meta = await getTmdbAddonMeta(type, tmdbId);
+  if (!meta) {
+    meta = await getMetadata(tmdbApiKey, tmdbId, type, lang, { discovery: true });
+  }
   if (!meta) return meta;
+  if (imdbId) meta.id = imdbId;
+  meta.imdbId = imdbId || meta.imdbId;
+  if (!meta.tmdbId) meta.tmdbId = tmdbId;
+  if (meta.poster && !meta.posterShape) meta.posterShape = 'poster';
   await enhanceMeta(meta, enhance);
   return meta;
 }

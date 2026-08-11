@@ -18,7 +18,7 @@
 
 const axios = require('axios');
 const NodeCache = require('node-cache');
-const { searchMetadata, titleScore } = require('./tmdb');
+const { searchMetadata, titleScore, getImdbId } = require('./tmdb');
 const { guessMediaInfo } = require('./parser');
 
 const detailCache = new NodeCache({ stdTTL: 86400, checkperiod: 3600 });
@@ -242,6 +242,13 @@ async function buildCollectionsCatalog(downloads, tmdbApiKey, lang = 'pt-BR', en
     const totalParts = coll ? coll.parts.length : c.movies.size;
     const ownedMovies = [...c.movies.values()];
     ownedMovies.sort((a, b) => (a.result.release_date || '9999').localeCompare(b.result.release_date || '9999'));
+    // IMDb ids for each owned film (cached): lets the "Use Main Meta" flat film
+    // catalog emit tt: rows so the films get the full main-metadata/external experience.
+    const imdbIds = await pLimit(ownedMovies.map(m => async () => {
+      const imdbId = await getImdbId(tmdbApiKey, 'movie', m.result.id).catch(() => null);
+      return { id: m.result.id, imdbId };
+    }), 6);
+    const imdbByTmdb = new Map(imdbIds.filter(x => x && x.imdbId).map(x => [String(x.id), x.imdbId]));
     const years = ownedMovies.map(m => (m.result.release_date || '').slice(0, 4)).filter(Boolean);
     const key = collectionKey(name, c.id);
     const genres = [...c.genres].slice(0, 6);
@@ -286,6 +293,7 @@ async function buildCollectionsCatalog(downloads, tmdbApiKey, lang = 'pt-BR', en
           id: `torbox:collection:${key}:${m.result.id}`,
           title: `${m.result.title || m.title}${year ? ` (${year})` : ''}`,
           tmdbId: m.result.id,
+          imdbId: imdbByTmdb.get(String(m.result.id)) || null,
           season: 1,
           episode: i + 1,
           released: m.result.release_date || undefined,

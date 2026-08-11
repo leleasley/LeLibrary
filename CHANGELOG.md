@@ -1,5 +1,26 @@
 # Changelog
 
+## [4.8.0]
+
+### Trending & Popular
+
+- **Your poster service now covers the Trending & Popular rows**: ERDB, RPDB, BetterPosters and Fanart.tv artwork now shows on the discovery catalog grids, not just on the title pages
+- **Discovery title pages now use the same rich metadata as Xperience and AIOStreams**: actor images, full cast, trailers, age ratings and episode lists all come through with your chosen posters and ratings on top
+- **Known note**: the IMDb metadata fetching is still being refined. The switch is in place and titles load through the rich metadata source; clickable actors and "More like this" polish is coming in a follow-up.
+
+### My Library
+
+- **Optional "main metadata" for your library**: a new setting in the setup (off by default) switches My Movies / My Shows / LeLibrary Collections from isolated TorBox ids to IMDb ids, so they load through the same metadata as every other title and external stream addons can contribute streams. When off (default), everything stays exactly as before: owned streams only, owned episodes only. Change it on the configure page, save, and it applies without re-pushing the install link
+- **Better torrent search for TV shows**: searching for a season now runs multiple queries in parallel (e.g. "Breaking Bad S01", "Breaking Bad Season 1", "Breaking Bad 2008 S01", and simplified title variants) instead of a single guess, catching more results across different torrent naming styles
+- **Faster search across all sources**: every query hits all 4 torrent sources at the same time, and all queries run in parallel, so even with multiple search variants the results come back quickly
+- **Live search progress**: a progress indicator now shows how many sources have been searched while results are loading
+- **Better season pack detection**: more patterns recognised for complete seasons, multi-season packs (S01-S03), and quality+complete combos (e.g. "1080p Full")
+- **Improved episode extraction**: now handles comma-separated episodes (S01E01,E02,E03), concatenated episodes (S01E01E02E03), 1x01-style ranges, and bare 3-digit codes (101 = S01E01)
+
+### Configure page
+
+- **"Unsaved changes" banner**: a small banner now stays visible at the bottom of the screen on mobile and desktop whenever you have changes you have not saved yet, with a quick "Review & Save" button that jumps to the Install step
+
 ## [4.7.0]
 
 ### Setup wizard redesign

@@ -15,6 +15,9 @@ const cache = require('./cache');
 const { getUserKey } = require('./providers');
 
 const STREAM_FIELDS = ['streamAddons', 'streamPreset', 'streamNameTemplate', 'streamDescTemplate', 'customStreams'];
+// Non-stream toggle fields that also live server-side so changing them needs no
+// re-push. Stored explicitly ('tt' or '') so unchecking clears the stored value.
+const TOGGLE_FIELDS = ['libraryIdMode'];
 const CONFIG_TTL = 60 * 60 * 24 * 90; // 90 days, refreshed on every save
 
 function storeKey(userKey) {
@@ -31,6 +34,10 @@ function streamSettings(config = {}) {
     if (v === undefined || v === null) continue;
     if (Array.isArray(v)) out[f] = v;
     else if (typeof v === 'string' && v) out[f] = v;
+  }
+  for (const f of TOGGLE_FIELDS) {
+    if (config[f] === undefined) continue;
+    out[f] = config[f] || '';
   }
   return out;
 }
@@ -67,11 +74,19 @@ async function mergeStoredConfig(config = {}) {
     const v = stored[f];
     if (v !== undefined && v !== null && v !== '') merged[f] = v;
   }
+  // Toggle fields: a stored value is authoritative once present ('tt' on,
+  // '' off) so the server-side switch can override an older pushed token.
+  for (const f of TOGGLE_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(stored, f)) continue;
+    if (stored[f] === 'tt') merged[f] = 'tt';
+    else delete merged[f];
+  }
   return merged;
 }
 
 module.exports = {
   STREAM_FIELDS,
+  TOGGLE_FIELDS,
   saveStreamSettings,
   loadStreamSettings,
   mergeStoredConfig,

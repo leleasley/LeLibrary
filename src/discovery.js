@@ -263,6 +263,21 @@ async function cachedImdbToTmdb(tmdbApiKey, imdbId) {
   return mapped;
 }
 
+// The discovery stream path depends on the format preset/templates AND the
+// discovery filters + sort order, so they all go into the cache-key fingerprint
+// (changing any of them must invalidate cached streams). Shared with app.js so
+// the cached-response key and the builder's fmtFp always agree.
+function discoveryStreamKeyParts(config = {}) {
+  const filters = (config && typeof config.streamFilters === 'object') ? { ...config.streamFilters } : {};
+  // Merge resolution + size + cache filters from the new Filters step
+  if (Array.isArray(config?.filterResolutions)) filters.resolutions = config.filterResolutions;
+  if (config?.filterMaxSize) filters.maxSizeGB = config.filterMaxSize;
+  if (config?.filterCachedOnly) filters.cachedOnly = true;
+  const sortKey = (config && config.streamSort) || 'owned-size';
+  const fmtFp = ':' + hashShort([config.streamPreset || '', config.streamNameTemplate || '', config.streamDescTemplate || '', JSON.stringify(filters), sortKey].join('|'));
+  return { filters, sortKey, fmtFp };
+}
+
 async function buildDiscoveryStreams({ config, tmdbApiKey, type, id, lang, customStreams, userKey, externalAddons }) {
   const parts = String(id).split(':');
   const imdbId = parts[0];
@@ -272,16 +287,7 @@ async function buildDiscoveryStreams({ config, tmdbApiKey, type, id, lang, custo
   if (!mapped) return { streams: [], ownedCount: 0, externalCount: 0 };
   const tmdbId = mapped.tmdbId;
 
-  const filters = (config && typeof config.streamFilters === 'object') ? { ...config.streamFilters } : {};
-  // Merge resolution + size + cache filters from the new Filters step
-  if (Array.isArray(config?.filterResolutions)) filters.resolutions = config.filterResolutions;
-  if (config?.filterMaxSize) filters.maxSizeGB = config.filterMaxSize;
-  if (config?.filterCachedOnly) filters.cachedOnly = true;
-  const sortKey = (config && config.streamSort) || 'owned-size';
-
-  // Include the stream-format + filter/sort fingerprint so changing the preset,
-  // templates, filters or sort invalidates cached streams for the TTL.
-  const fmtFp = ':' + hashShort([config.streamPreset || '', config.streamNameTemplate || '', config.streamDescTemplate || '', JSON.stringify(filters), sortKey].join('|'));
+  const { filters, sortKey, fmtFp } = discoveryStreamKeyParts(config);
 
   // Owned bridge: the user's library copy is ALWAYS listed for a tt: id, even
   // when no external stream addons are configured. (v4.6.0 accidentally gated
@@ -301,7 +307,8 @@ async function buildDiscoveryStreams({ config, tmdbApiKey, type, id, lang, custo
 
   // No external addons configured — only the owned copy can answer.
   if (externalAddons.length === 0) {
-    return { streams: ownedStreams, ownedCount: ownedStreams.length, externalCount: 0 };
+    const owned = sortKey ? applyStreamSort(ownedStreams, sortKey) : ownedStreams;
+    return { streams: owned, ownedCount: owned.length, externalCount: 0 };
   }
 
   const allExternal = await fetchExternalStreams(externalAddons, config, type, id);
@@ -324,4 +331,4 @@ async function buildDiscoveryStreams({ config, tmdbApiKey, type, id, lang, custo
   return { streams, ownedCount: ownedStreams.length, externalCount: allExternal.length };
 }
 
-module.exports = { buildDiscoveryCatalog, buildDiscoveryMeta, buildDiscoveryStreams };
+module.exports = { buildDiscoveryCatalog, buildDiscoveryMeta, buildDiscoveryStreams, discoveryStreamKeyParts };

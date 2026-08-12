@@ -284,9 +284,11 @@ async function refreshInBackground() {
     App.allItems = completed;
     buildLibraryIndex();
     cacheLibrary(completed);
-    // Re-render the dashboard so the user isn't left staring at stale counts.
-    // (Library/recent views are stateful, so leave them to the user's next visit.)
+    // Re-render the dashboard AND any browse/genre grid so "In Library" badges
+    // reflect freshly-loaded library items instead of the stale index.
     if (App.currentPage === 'dashboard') renderDashboard();
+    else if (App.currentPage === 'browse-movies' || App.currentPage === 'browse-series') renderBrowseView(App.currentPage === 'browse-movies' ? 'movies' : 'series');
+    else if (App.currentPage === 'genres') renderGenreView();
     // Tell the user when the cached count was out of date
     if (after !== before) showToast(`Updated to ${after} items`);
   } catch (e) {
@@ -334,25 +336,39 @@ async function useDifferentKeys() {
 }
 
 // ── Provider status ───────────────────────────────────────────
-function setPdot(el, status) {
-  el.classList.remove('op', 'deg', 'down', 'unknown');
-  el.classList.add(status === 'operational' ? 'op' : status === 'degraded' ? 'deg' : status === 'down' ? 'down' : 'unknown');
+function statusClass(s) {
+  return s === 'operational' ? 'op' : s === 'degraded' ? 'deg' : s === 'down' ? 'down' : 'unknown';
+}
+function statusLabel(s) {
+  return s === 'operational' ? 'Operational' : s === 'degraded' ? 'Degraded' : s === 'down' ? 'Down' : 'Unknown';
+}
+function renderStatusPill(data) {
+  const pills = document.querySelectorAll('.status-pill');
+  if (!pills.length) return;
+  const cls = data ? statusClass(data.overall) : 'unknown';
+  const total = data && Array.isArray(data.providers) ? data.providers.length : 4;
+  const up = data && Array.isArray(data.providers) ? data.providers.filter(p => p.status === 'operational').length : 0;
+  pills.forEach(pill => {
+    pill.classList.remove('op', 'deg', 'down', 'unknown');
+    pill.classList.add(cls);
+    const c = pill.querySelector('.status-pill-count');
+    if (c) c.textContent = data ? `${up}/${total}` : '\u2013';
+    pill.title = data && Array.isArray(data.providers)
+      ? data.providers.map(p => `${p.name}: ${statusLabel(p.status)}`).join(' \u00b7 ')
+      : 'Provider status';
+  });
 }
 
 async function fetchProviderStatus() {
   try {
-    const r = await fetch('/api/status', { signal: AbortSignal.timeout(15000) });
+    const r = await fetch('/api/status', { signal: AbortSignal.timeout(15000), cache: 'no-store' });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
-    if (Array.isArray(data.providers)) {
-      data.providers.forEach(p => {
-        document.querySelectorAll('.pdot[data-id="' + p.id + '"]').forEach(el => setPdot(el, p.status));
-      });
-    }
     window._lelibraryStatus = data;
+    renderStatusPill(data);
     return data;
   } catch (e) {
-    document.querySelectorAll('.pdot').forEach(el => setPdot(el, 'unknown'));
+    renderStatusPill(null);
     window._lelibraryStatus = null;
     return null;
   }

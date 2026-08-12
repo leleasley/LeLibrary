@@ -48,6 +48,39 @@
     .topbar-link { font-size: 0.78rem; color: var(--muted); text-decoration: none; transition: color 0.2s; }
     .topbar-link:hover { color: var(--text); }
 
+    /* Provider status pill in the topbar */
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 5px 12px;
+      background: var(--surface);
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .status-pill:hover { border-color: var(--muted); color: var(--text); }
+    .status-pill-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+    .status-pill-count { font-weight: 600; }
+    .status-pill.op { color: var(--success); border-color: rgba(34,197,94,0.35); }
+    .status-pill.op .status-pill-dot { background: var(--success); animation: pulse 2s ease-in-out infinite; }
+    .status-pill.deg { color: var(--amber); border-color: rgba(245,158,11,0.35); }
+    .status-pill.deg .status-pill-dot { background: var(--amber); animation: pulse 2s ease-in-out infinite; }
+    .status-pill.down { color: var(--error); border-color: rgba(239,68,68,0.35); }
+    .status-pill.down .status-pill-dot { background: var(--error); }
+    .status-pill.unknown { color: var(--muted); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
     /* Unsaved changes banner — fixed bar, mobile + desktop */
     #unsavedBanner {
       position: fixed; bottom: 0; left: 0; right: 0; z-index: 90;
@@ -461,6 +494,7 @@
       .sidebar { display: none; }
       .form-area { padding: 24px 20px; overflow: visible; }
       .topbar-right .topbar-link { display: none; }
+      .topbar-right .status-pill { display: inline-flex; }
       .connect-grid { grid-template-columns: 1fr; }
       .privacy-grid { grid-template-columns: 1fr; }
       .wizard-wrap { gap: 20px; }

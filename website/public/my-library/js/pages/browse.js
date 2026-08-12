@@ -68,6 +68,7 @@ async function loadSearchPage(query, page, replace) {
       const title = item.title || item.name || '';
       const year = (item.release_date || item.first_air_date || '').split('-')[0];
       const rating = item.vote_average ? item.vote_average.toFixed(1) : '';
+      const inLib = isInLibrary(title, year);
       const mt = item.media_type === 'tv' ? 'tv' : 'movie';
       const card = document.createElement('div');
       card.className = 'card';
@@ -77,6 +78,7 @@ async function loadSearchPage(query, page, replace) {
       card.onclick = () => openTMDBDetail({ id: item.id, mt, title, year, poster: item.poster_path, backdrop: item.backdrop_path, overview: item.overview || '', rating: item.vote_average || 0 });
       card.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); card.onclick(); } };
       card.innerHTML =
+        (inLib ? '<div class="card-badge">In Library</div>' : '') +
         `<img class="card-poster" src="https://image.tmdb.org/t/p/w342${item.poster_path}" alt="${escHtml(title)}" loading="lazy" />` +
         `<div class="card-info"><div class="card-title" title="${escHtml(title)}">${escHtml(title)}</div>` +
         `<div class="card-year">${year}${mt === 'tv' ? ' \u00B7 Series' : ''}</div>` +
@@ -233,7 +235,7 @@ async function loadBrowseSection(endpoint, page, replace) {
         const title = item.title || item.name || '';
         const year = (item.release_date || item.first_air_date || '').split('-')[0];
         const rating = item.vote_average ? item.vote_average.toFixed(1) : '';
-        const inLib = isInLibrary(title);
+        const inLib = isInLibrary(title, year);
         const inWatch = isInWatchlist(item.id, browseState.type === 'movies' ? 'movie' : 'tv');
         const mt = item.media_type || (browseState.type === 'movies' ? 'movie' : 'tv');
         const card = document.createElement('div');
@@ -257,7 +259,7 @@ async function loadBrowseSection(endpoint, page, replace) {
         const title = item.title || item.name || '';
         const year = (item.release_date || item.first_air_date || '').split('-')[0];
         const rating = item.vote_average ? item.vote_average.toFixed(1) : '';
-        const inLib = isInLibrary(title);
+        const inLib = isInLibrary(title, year);
         const mt = item.media_type || (browseState.type === 'movies' ? 'movie' : 'tv');
         const el = document.createElement('div');
         el.className = 'list-item';

@@ -709,13 +709,21 @@ async function scrapeSource(name, query) {
 }
 
 // ── Pre-computed library index ─────────────────────────────────
-// Built once on load so lookups are O(1)
-let _libNameSet = null;    // Set of normalized names for isInLibrary()
-let _libStats = null;      // { movieCount, seriesCount, totalSize }
+// Built once on load so lookups are O(1). Uses guessMediaInfo to extract the
+// clean title from each filename (dropping season/episode/quality/group noise),
+// so TMDB browse titles match exactly rather than by fragile substrings.
+let _libNameSet = null;      // Set of normalized clean titles (e.g. "spider man no way home")
+let _libRawNameSet = null;   // fallback Set of normalized raw names guessMediaInfo couldn't parse
+let _libStats = null;        // { movieCount, seriesCount, totalSize }
+
+function _normalizeTitle(s) {
+  return String(s || '').replace(/[.\-_]/g, ' ').toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+}
 
 function buildLibraryIndex() {
   const items = App.allItems || [];
   const nameSet = new Set();
+  const rawSet = new Set();
   let movieCount = 0, seriesCount = 0, totalSize = 0;
 
   for (let i = 0; i < items.length; i++) {
@@ -723,28 +731,42 @@ function buildLibraryIndex() {
     const name = item.name || item.filename || '';
     totalSize += item.size || 0;
 
-    // Add normalized name variants to set for fast lookup
-    const clean = name.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
-    if (clean) nameSet.add(clean);
+    const info = (() => {
+      try { return guessMediaInfo(name); } catch { return null; }
+    })();
+    if (info && info.title) {
+      const clean = _normalizeTitle(info.title);
+      if (clean) {
+        nameSet.add(clean);
+        if (info.year) nameSet.add(clean + ' ' + info.year);
+      }
+    } else {
+      // Unparseable name — keep the raw normalized form as a fallback.
+      const rawClean = _normalizeTitle(name);
+      if (rawClean) rawSet.add(rawClean);
+    }
 
-    // Count movies vs series
     if (isSeries(name)) seriesCount++;
     else movieCount++;
   }
 
   _libNameSet = nameSet;
+  _libRawNameSet = rawSet;
   _libStats = { movieCount, seriesCount, totalSize };
 }
 
-function isInLibrary(title) {
+function isInLibrary(title, year) {
+  if (!_libNameSet && App.allItems && App.allItems.length > 0) buildLibraryIndex(); // lazy, in case browse renders before load
   if (!_libNameSet) return false;
-  const clean = title.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+  const clean = _normalizeTitle(title);
   if (!clean) return false;
-  // O(1) lookup in Set
   if (_libNameSet.has(clean)) return true;
-  // Fallback: check substrings for partial matches (slower but rare)
-  for (const name of _libNameSet) {
-    if (name.includes(clean) || clean.includes(name)) return true;
+  if (year && _libNameSet.has(clean + ' ' + year)) return true;
+  // Fallback: raw filenames guessMediaInfo couldn't parse into a clean title.
+  if (_libRawNameSet) {
+    for (const name of _libRawNameSet) {
+      if (name.includes(clean) || clean.includes(name)) return true;
+    }
   }
   return false;
 }

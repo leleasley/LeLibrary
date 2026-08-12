@@ -6,6 +6,13 @@
     }
 
     function encodeConfig(cfg) {
+      // Compact token format (short field names, packed arrays, defaults
+      // dropped) — the server maps it back on decode. See token-map.js.
+      if (window.TOKEN_MAP && typeof window.TOKEN_MAP.encodeConfig === 'function') {
+        return window.TOKEN_MAP.encodeConfig(cfg);
+      }
+      // Fallback: the old full-name encoding (kept so a blocked script never
+      // bricks the page).
       return btoa(unescape(encodeURIComponent(JSON.stringify(cfg))))
         .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
     }
@@ -30,6 +37,202 @@
     let initialConfig = null;
     let customStreams = [];
     let hasExistingToken = false;
+
+    // ── Config draft (sessionStorage) ─────────────────────────────────────
+    // The form state is snapshotted here whenever the user changes something,
+    // so a refresh / accidental reload doesn't wipe their work in progress. It
+    // is cleared on Save / Push / Reset and expires after DRAFT_TTL. Stored
+    // against the current install token so a draft never leaks onto a
+    // different account's configure page.
+    const DRAFT_KEY = 'lelibrary_config_draft';
+    const DRAFT_TTL = 60 * 60 * 1000;   // 1 hour
+    let draftArmed = false;             // only snapshot once the initial load settled
+    let draftTimer = null;
+    let draftSuppressUntil = 0;         // window where saveDraft is ignored (after Reset)
+
+    function currentToken() {
+      const t = window.location.pathname.split('/')[1];
+      return t && t !== 'configure' ? t : '';
+    }
+
+    function snapshotConfig() {
+      // getCurrentConfig() carries the whole form (incl. the server-side-only
+      // stream settings + filter chips) so a restored draft looks exactly like
+      // what the user left.
+      return getCurrentConfig();
+    }
+
+    function saveDraft() {
+      if (!draftArmed) return;
+      if (Date.now() < draftSuppressUntil) return; // post-Reset: let the token config reload
+      clearTimeout(draftTimer);
+      draftTimer = setTimeout(() => {
+        try {
+          sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+            ts: Date.now(),
+            token: currentToken(),
+            config: snapshotConfig(),
+          }));
+        } catch { /* storage unavailable / full — non-fatal */ }
+      }, 400);
+    }
+
+    function loadDraft(expectedToken) {
+      let raw = null;
+      try { raw = sessionStorage.getItem(DRAFT_KEY); } catch { return null; }
+      if (!raw) return null;
+      let d = null;
+      try { d = JSON.parse(raw); } catch { return null; }
+      if (!d || typeof d.config !== 'object') return null;
+      if (!d.ts || (Date.now() - d.ts) > DRAFT_TTL) { clearDraft(); return null; }
+      if ((d.token || '') !== (expectedToken || '')) return null; // different URL/account
+      return d;
+    }
+
+    function clearDraft() {
+      clearTimeout(draftTimer);
+      try { sessionStorage.removeItem(DRAFT_KEY); } catch {}
+    }
+
+    // After the address-bar token is replaced (save / push / load-time
+    // re-encode) keep the draft pointing at the new token so a later refresh
+    // still restores it.
+    function refreshDraftToken(newToken) {
+      try {
+        const raw = sessionStorage.getItem(DRAFT_KEY);
+        if (!raw) return;
+        const d = JSON.parse(raw);
+        if (!d || typeof d.config !== 'object') return;
+        d.token = newToken || '';
+        d.ts = Date.now();
+        sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+      } catch { /* non-fatal */ }
+    }
+
+    // Apply a config object (token, server store, or restored draft) to the
+    // form fields. Shared by the initial token load and the draft restore so
+    // both paths behave identically.
+    function applyConfig(cfg) {
+      if (!cfg || typeof cfg !== 'object') return;
+      if (cfg.provider) {
+        document.getElementById('provider').value = cfg.provider;
+        onProviderChange();
+      }
+      if (cfg.torboxApiKey) document.getElementById('torboxApiKey').value = cfg.torboxApiKey;
+      if (cfg.tmdbApiKey) document.getElementById('tmdbApiKey').value = cfg.tmdbApiKey;
+      if (cfg.rdApiKey) document.getElementById('rdApiKey').value = cfg.rdApiKey;
+      if (cfg.adApiKey) document.getElementById('adApiKey').value = cfg.adApiKey;
+      if (cfg.pmApiKey) document.getElementById('pmApiKey').value = cfg.pmApiKey;
+      if (cfg.rdCatalog) document.getElementById('rdCatalog').value = cfg.rdCatalog;
+      if (cfg.sortBy) document.getElementById('sortBy').value = cfg.sortBy;
+      if (cfg.lang) document.getElementById('lang').value = cfg.lang;
+      if (cfg.posterProvider) {
+        document.getElementById('posterProvider').value = cfg.posterProvider;
+        onPosterChange();
+      }
+      if (cfg.erdbToken) { document.getElementById('erdbToken').value = cfg.erdbToken; updatePosterPreview(); }
+      if (cfg.rpdbKey) { document.getElementById('rpdbKey').value = cfg.rpdbKey; updatePosterPreview(); }
+      if (cfg.fanartKey) document.getElementById('fanartKey').value = cfg.fanartKey;
+      if (cfg.omdbKey) document.getElementById('omdbKey').value = cfg.omdbKey;
+      if (cfg.enhanceBackground != null) document.getElementById('enhanceBackground').checked = cfg.enhanceBackground;
+      if (cfg.enhanceLogo != null) document.getElementById('enhanceLogo').checked = cfg.enhanceLogo;
+      if (cfg.customStreams && Array.isArray(cfg.customStreams)) {
+        customStreams = cfg.customStreams;
+        renderCustomStreams();
+      }
+      if (cfg.catNameMovies) catNames.movies = cfg.catNameMovies;
+      if (cfg.catNameSeries) catNames.series = cfg.catNameSeries;
+      if (cfg.catNameAnime) catNames.anime = cfg.catNameAnime;
+      if (cfg.hideAnime) {
+        document.getElementById('hideAnime').checked = true;
+      }
+      if (cfg.pinCollections) {
+        if (document.getElementById('pinCollections')) document.getElementById('pinCollections').checked = true;
+      }
+      if (cfg.libraryIdMode === 'tt') {
+        if (document.getElementById('libraryIdMode')) document.getElementById('libraryIdMode').checked = true;
+      } else if (cfg.libraryIdMode === '') {
+        if (document.getElementById('libraryIdMode')) document.getElementById('libraryIdMode').checked = false;
+      }
+      if (cfg.streamPreset) document.getElementById('streamPreset').value = cfg.streamPreset;
+      if (cfg.streamPreset === 'custom') {
+        if (cfg.streamNameTemplate) document.getElementById('streamNameTemplate').value = cfg.streamNameTemplate;
+        if (cfg.streamDescTemplate) document.getElementById('streamDescTemplate').value = cfg.streamDescTemplate;
+      } else {
+        onStreamPresetChange();
+      }
+      // Streams 2.0 — restore filter + sort settings
+      if (cfg.streamSort) document.getElementById('streamSort').value = cfg.streamSort;
+      const sf = (cfg.streamFilters && typeof cfg.streamFilters === 'object') ? cfg.streamFilters : {};
+      if (sf.minQuality) document.getElementById('streamMinQuality').value = sf.minQuality;
+      if (sf.maxQuality) document.getElementById('streamMaxQuality').value = sf.maxQuality;
+      if (sf.minSizeGB) document.getElementById('streamMinSizeGB').value = sf.minSizeGB;
+      if (sf.cachedOnly) document.getElementById('streamCachedOnly').checked = true;
+      if (Array.isArray(sf.excludeQualities) && sf.excludeQualities.length) document.getElementById('streamExcludeLow').checked = true;
+      if (cfg.catalogTrending) catSelection.trending = true;
+      // Discovery rows tick individually; legacy catalogTrending/catalogPopular
+      // (both at once) still work for older tokens.
+      if (cfg.catalogTrendingMovies || cfg.catalogTrending) catSelection.trendingMovies = true;
+      if (cfg.catalogTrendingSeries || cfg.catalogTrending) catSelection.trendingSeries = true;
+      if (cfg.catalogPopularMovies || cfg.catalogPopular) catSelection.popularMovies = true;
+      if (cfg.catalogPopularSeries || cfg.catalogPopular) catSelection.popularSeries = true;
+      if (cfg.catalogMovies === false) catSelection.movies = false;
+      if (cfg.catalogSeries === false) catSelection.series = false;
+      if (cfg.catalogAnime === false) catSelection.anime = false;
+      if (cfg.catalogFranchises === false) catSelection.franchises = false;
+      // Catalogue names (Edit Catalogues) — per-catalogue fields with legacy
+      // single trendingName/popularName fallback.
+      if (cfg.trendingMoviesName) catNames.trendingMovies = cfg.trendingMoviesName;
+      else if (cfg.trendingName) catNames.trendingMovies = cfg.trendingName;
+      if (cfg.trendingSeriesName) catNames.trendingSeries = cfg.trendingSeriesName;
+      else if (cfg.trendingName) catNames.trendingSeries = cfg.trendingName;
+      if (cfg.popularMoviesName) catNames.popularMovies = cfg.popularMoviesName;
+      else if (cfg.popularName) catNames.popularMovies = cfg.popularName;
+      if (cfg.popularSeriesName) catNames.popularSeries = cfg.popularSeriesName;
+      else if (cfg.popularName) catNames.popularSeries = cfg.popularName;
+      if (cfg.collectionsName) catNames.franchises = cfg.collectionsName;
+      if (Array.isArray(cfg.catalogOrder) && cfg.catalogOrder.length) {
+        catOrder = cfg.catalogOrder.slice();
+        for (const k of DEFAULT_CAT_ORDER) {
+          if (!catOrder.includes(k)) catOrder.push(k);
+        }
+      }
+      if (cfg.streamAddons && Array.isArray(cfg.streamAddons)) streamAddons = cfg.streamAddons;
+      // Restore Filters & Preferences
+      if (cfg.filterResolutions && Array.isArray(cfg.filterResolutions)) {
+        // Migrate old labels: 2160p→4K, 1440p→2K
+        const migrated = cfg.filterResolutions.map(r => r === '2160p' ? '4K' : r === '1440p' ? '2K' : r);
+        filterState.resIncluded = new Set(migrated);
+        filterState.resolutions = migrated.slice();
+        for (const r of ALL_RESOLUTIONS) { if (!filterState.resolutions.includes(r)) filterState.resolutions.push(r); }
+      }
+      if (cfg.filterResOrder && Array.isArray(cfg.filterResOrder)) {
+        filterState.resolutions = cfg.filterResOrder.map(r => r === '2160p' ? '4K' : r === '1440p' ? '2K' : r);
+        for (const r of ALL_RESOLUTIONS) { if (!filterState.resolutions.includes(r)) filterState.resolutions.push(r); }
+      }
+      if (cfg.filterQualities && Array.isArray(cfg.filterQualities)) filterState.qualities = new Set(cfg.filterQualities);
+      if (cfg.filterSources && Array.isArray(cfg.filterSources)) filterState.sources = new Set(cfg.filterSources);
+      if (cfg.filterCodecs && Array.isArray(cfg.filterCodecs)) filterState.codecs = new Set(cfg.filterCodecs);
+      if (cfg.filterHdr && Array.isArray(cfg.filterHdr)) filterState.hdr = new Set(cfg.filterHdr);
+      if (cfg.filterAudio && Array.isArray(cfg.filterAudio)) filterState.audio = new Set(cfg.filterAudio);
+      if (cfg.filterMinSize) document.getElementById('filterMinSize').value = cfg.filterMinSize;
+      if (cfg.filterMaxSize) document.getElementById('filterMaxSize').value = cfg.filterMaxSize;
+      if (cfg.filterCachedOnly) document.getElementById('filterCachedOnly').checked = true;
+      renderAllFilterChips();
+      renderCataloguesOptions();
+      renderStreamAddons();
+      updateStreamPreview();
+    }
+
+    // The "Review & Save" banner button: jump to the Install step and scroll the
+    // Save / Generate button into view so it can't be missed on small screens.
+    function reviewAndSave() {
+      goToStep(6);
+      setTimeout(() => {
+        const btn = document.getElementById('btnGenerate');
+        if (btn) btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 250);
+    }
 
     // Persist the heavy stream settings (addons + format) server-side in Redis
     // keyed by the user's hash, so they survive reloads, device switches and
@@ -140,23 +343,14 @@
       if (catNames.popularSeries && catNames.popularSeries !== '⭐ Popular Series') cfg.popularSeriesName = catNames.popularSeries;
       if (catNames.franchises && catNames.franchises !== 'LeLibrary Collections') cfg.collectionsName = catNames.franchises;
       if (catOrder && JSON.stringify(catOrder) !== JSON.stringify(DEFAULT_CAT_ORDER)) cfg.catalogOrder = catOrder.slice();
-      // Filters & Preferences
+      // Filters & Preferences — ONLY the fields the addon actually reads go in
+      // the token (resolution include list, max size, cached-only). The quality/
+      // source/codec/HDR/audio chips, resolution preference order and min size
+      // are kept in the configure draft (UI state) but dropped here so they
+      // can't bloat the install URL.
       const fResInc = [...filterState.resIncluded];
       if (fResInc.length < ALL_RESOLUTIONS.length) cfg.filterResolutions = fResInc;
-      if (JSON.stringify(filterState.resolutions) !== JSON.stringify(ALL_RESOLUTIONS)) cfg.filterResOrder = filterState.resolutions.slice();
-      const fQualInc = [...filterState.qualities];
-      if (fQualInc.length < ALL_QUALITIES.length) cfg.filterQualities = fQualInc;
-      const fSrcInc = [...filterState.sources];
-      if (fSrcInc.length < ALL_SOURCES.length) cfg.filterSources = fSrcInc;
-      const fCodecInc = [...filterState.codecs];
-      if (fCodecInc.length < ALL_CODECS.length) cfg.filterCodecs = fCodecInc;
-      const fHdrInc = [...filterState.hdr];
-      if (fHdrInc.length < ALL_HDR.length) cfg.filterHdr = fHdrInc;
-      const fAudioInc = [...filterState.audio];
-      if (fAudioInc.length < ALL_AUDIO.length) cfg.filterAudio = fAudioInc;
-      const fMinSize = parseFloat(document.getElementById('filterMinSize')?.value) || 0;
       const fMaxSize = parseFloat(document.getElementById('filterMaxSize')?.value) || 0;
-      if (fMinSize > 0) cfg.filterMinSize = fMinSize;
       if (fMaxSize > 0) cfg.filterMaxSize = fMaxSize;
       if (document.getElementById('filterCachedOnly')?.checked) cfg.filterCachedOnly = true;
       // Stream addons go IN THE TOKEN too (not just Redis) so external streams
@@ -332,6 +526,16 @@
         collectionsName: catNames.franchises,
         catalogOrder: catOrder.slice(),
         streamAddons: streamAddons,
+        filterResolutions: [...filterState.resIncluded],
+        filterResOrder: filterState.resolutions.slice(),
+        filterQualities: [...filterState.qualities],
+        filterSources: [...filterState.sources],
+        filterCodecs: [...filterState.codecs],
+        filterHdr: [...filterState.hdr],
+        filterAudio: [...filterState.audio],
+        filterMinSize: parseFloat(document.getElementById('filterMinSize')?.value) || 0,
+        filterMaxSize: parseFloat(document.getElementById('filterMaxSize')?.value) || 0,
+        filterCachedOnly: !!(document.getElementById('filterCachedOnly') && document.getElementById('filterCachedOnly').checked),
       };
     }
 
@@ -376,10 +580,21 @@
         a.popularSeriesName === b.popularSeriesName &&
         a.collectionsName === b.collectionsName &&
         JSON.stringify(a.catalogOrder || []) === JSON.stringify(b.catalogOrder || []) &&
-        JSON.stringify(a.streamAddons || []) === JSON.stringify(b.streamAddons || []);
+        JSON.stringify(a.streamAddons || []) === JSON.stringify(b.streamAddons || []) &&
+        JSON.stringify(a.filterResolutions || []) === JSON.stringify(b.filterResolutions || []) &&
+        JSON.stringify(a.filterResOrder || []) === JSON.stringify(b.filterResOrder || []) &&
+        JSON.stringify(a.filterQualities || []) === JSON.stringify(b.filterQualities || []) &&
+        JSON.stringify(a.filterSources || []) === JSON.stringify(b.filterSources || []) &&
+        JSON.stringify(a.filterCodecs || []) === JSON.stringify(b.filterCodecs || []) &&
+        JSON.stringify(a.filterHdr || []) === JSON.stringify(b.filterHdr || []) &&
+        JSON.stringify(a.filterAudio || []) === JSON.stringify(b.filterAudio || []) &&
+        (a.filterMinSize || 0) === (b.filterMinSize || 0) &&
+        (a.filterMaxSize || 0) === (b.filterMaxSize || 0) &&
+        (a.filterCachedOnly || false) === (b.filterCachedOnly || false);
     }
 
     function checkChanged() {
+      saveDraft();
       updateSetupSummary();
       if (typeof updateCataloguesUI === 'function') updateCataloguesUI();
       if (!initialConfig) return;
@@ -607,7 +822,7 @@
     }
 
     async function generate(opts = {}) {
-      const { skipVerify = false, skipSave = false } = opts;
+      const { skipVerify = false, skipSave = false, suppressReinstall = false } = opts;
       const provider     = document.getElementById('provider').value;
       if (provider === 'none' || provider === '') { showToast('Select at least one provider'); return; }
       const providerSet  = getProviderSet();
@@ -720,7 +935,12 @@
       }
 
       const cfg = buildSavedConfig();
-      if (!skipSave) saveConfigToServer(cfg);
+      if (!skipSave) {
+        saveConfigToServer(cfg);
+        // A real Save/Push persisted the config — the in-progress draft is no
+        // longer needed (the new token in the address bar carries it now).
+        clearDraft();
+      }
 
       const urls = buildUrls(cfg);
       lastUrls = urls;
@@ -731,6 +951,7 @@
       // the URL and your changes were silently lost on reload).
       if (hasExistingToken) {
         try { history.replaceState(null, '', `${window.location.origin}/${urls.encoded}/configure`); } catch {}
+        refreshDraftToken(urls.encoded);
       }
 
       // Show the install links regardless (for both new and existing users)
@@ -746,6 +967,15 @@
       if (hasExistingToken) {
         if (initialConfig && configsEqual(getCurrentConfig(), initialConfig)) {
           // No changes — just show links, no flashing, no modal
+          document.getElementById('modalManifestUrl').textContent = manifestUrl;
+          btn.disabled = false;
+          document.getElementById('genBtnTitle').textContent = 'Save';
+          return;
+        }
+        if (suppressReinstall) {
+          // Load-time rebuild (e.g. after a draft was restored): point the URL
+          // and links at the latest form state without nagging — the reinstall
+          // modal appears when the user actually clicks Save.
           document.getElementById('modalManifestUrl').textContent = manifestUrl;
           btn.disabled = false;
           document.getElementById('genBtnTitle').textContent = 'Save';
@@ -802,6 +1032,10 @@
     }
 
     function resetForm() {
+      clearDraft();
+      // Don't let Reset's own change handlers re-save an empty draft: a reload
+      // right after Reset should bring back the token config, not a blank form.
+      draftSuppressUntil = Date.now() + 1000;
       ['torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey'].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -838,7 +1072,7 @@
       goToStep(1);
     }
 
-    const APP_VERSION = '4.8.1';
+    const APP_VERSION = '4.9.0';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');
@@ -868,6 +1102,8 @@
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('versionDisplay').textContent = `v${APP_VERSION}`;
       checkVersion();
+      loadStatusPill();
+      setInterval(loadStatusPill, 60000);
       renderAllFilterChips();
       renderCataloguesOptions();
       renderStreamAddons();
@@ -891,119 +1127,44 @@
 
       const cfg = window.__INITIAL_CONFIG__;
       if (cfg) {
-        if (cfg.provider) {
-          document.getElementById('provider').value = cfg.provider;
-          onProviderChange();
-        }
-        if (cfg.torboxApiKey) document.getElementById('torboxApiKey').value = cfg.torboxApiKey;
-        if (cfg.tmdbApiKey) document.getElementById('tmdbApiKey').value = cfg.tmdbApiKey;
-        if (cfg.rdApiKey) document.getElementById('rdApiKey').value = cfg.rdApiKey;
-        if (cfg.adApiKey) document.getElementById('adApiKey').value = cfg.adApiKey;
-        if (cfg.pmApiKey) document.getElementById('pmApiKey').value = cfg.pmApiKey;
-        if (cfg.rdCatalog) document.getElementById('rdCatalog').value = cfg.rdCatalog;
-        if (cfg.sortBy) document.getElementById('sortBy').value = cfg.sortBy;
-        if (cfg.lang) document.getElementById('lang').value = cfg.lang;
-        if (cfg.posterProvider) {
-          document.getElementById('posterProvider').value = cfg.posterProvider;
-          onPosterChange();
-        }
-        if (cfg.erdbToken) { document.getElementById('erdbToken').value = cfg.erdbToken; updatePosterPreview(); }
-        if (cfg.rpdbKey) { document.getElementById('rpdbKey').value = cfg.rpdbKey; updatePosterPreview(); }
-        if (cfg.fanartKey) document.getElementById('fanartKey').value = cfg.fanartKey;
-        if (cfg.omdbKey) document.getElementById('omdbKey').value = cfg.omdbKey;
-        if (cfg.enhanceBackground != null) document.getElementById('enhanceBackground').checked = cfg.enhanceBackground;
-        if (cfg.enhanceLogo != null) document.getElementById('enhanceLogo').checked = cfg.enhanceLogo;
-        if (cfg.customStreams && Array.isArray(cfg.customStreams)) {
-          customStreams = cfg.customStreams;
-          renderCustomStreams();
-        }
-        if (cfg.catNameMovies) catNames.movies = cfg.catNameMovies;
-        if (cfg.catNameSeries) catNames.series = cfg.catNameSeries;
-        if (cfg.catNameAnime) catNames.anime = cfg.catNameAnime;
-        if (cfg.hideAnime) {
-          document.getElementById('hideAnime').checked = true;
-        }
-        if (cfg.pinCollections) {
-          if (document.getElementById('pinCollections')) document.getElementById('pinCollections').checked = true;
-        }
-        if (cfg.libraryIdMode === 'tt') {
-          if (document.getElementById('libraryIdMode')) document.getElementById('libraryIdMode').checked = true;
-        }
-        if (cfg.streamPreset) document.getElementById('streamPreset').value = cfg.streamPreset;
-        if (cfg.streamPreset === 'custom') {
-          if (cfg.streamNameTemplate) document.getElementById('streamNameTemplate').value = cfg.streamNameTemplate;
-          if (cfg.streamDescTemplate) document.getElementById('streamDescTemplate').value = cfg.streamDescTemplate;
-        } else {
-          onStreamPresetChange();
-        }
-        // Streams 2.0 — restore filter + sort settings
-        if (cfg.streamSort) document.getElementById('streamSort').value = cfg.streamSort;
-        const sf = (cfg.streamFilters && typeof cfg.streamFilters === 'object') ? cfg.streamFilters : {};
-        if (sf.minQuality) document.getElementById('streamMinQuality').value = sf.minQuality;
-        if (sf.maxQuality) document.getElementById('streamMaxQuality').value = sf.maxQuality;
-        if (sf.minSizeGB) document.getElementById('streamMinSizeGB').value = sf.minSizeGB;
-        if (sf.cachedOnly) document.getElementById('streamCachedOnly').checked = true;
-        if (Array.isArray(sf.excludeQualities) && sf.excludeQualities.length) document.getElementById('streamExcludeLow').checked = true;
-        if (cfg.catalogTrending) catSelection.trending = true;
-        // Discovery rows tick individually; legacy catalogTrending/catalogPopular
-        // (both at once) still work for older tokens.
-        if (cfg.catalogTrendingMovies || cfg.catalogTrending) catSelection.trendingMovies = true;
-        if (cfg.catalogTrendingSeries || cfg.catalogTrending) catSelection.trendingSeries = true;
-        if (cfg.catalogPopularMovies || cfg.catalogPopular) catSelection.popularMovies = true;
-        if (cfg.catalogPopularSeries || cfg.catalogPopular) catSelection.popularSeries = true;
-        if (cfg.catalogMovies === false) catSelection.movies = false;
-        if (cfg.catalogSeries === false) catSelection.series = false;
-        if (cfg.catalogAnime === false) catSelection.anime = false;
-        if (cfg.catalogFranchises === false) catSelection.franchises = false;
-        // Catalogue names (Edit Catalogues) — per-catalogue fields with legacy
-        // single trendingName/popularName fallback.
-        if (cfg.trendingMoviesName) catNames.trendingMovies = cfg.trendingMoviesName;
-        else if (cfg.trendingName) catNames.trendingMovies = cfg.trendingName;
-        if (cfg.trendingSeriesName) catNames.trendingSeries = cfg.trendingSeriesName;
-        else if (cfg.trendingName) catNames.trendingSeries = cfg.trendingName;
-        if (cfg.popularMoviesName) catNames.popularMovies = cfg.popularMoviesName;
-        else if (cfg.popularName) catNames.popularMovies = cfg.popularName;
-        if (cfg.popularSeriesName) catNames.popularSeries = cfg.popularSeriesName;
-        else if (cfg.popularName) catNames.popularSeries = cfg.popularName;
-        if (cfg.collectionsName) catNames.franchises = cfg.collectionsName;
-        if (Array.isArray(cfg.catalogOrder) && cfg.catalogOrder.length) {
-          catOrder = cfg.catalogOrder.slice();
-          for (const k of DEFAULT_CAT_ORDER) {
-            if (!catOrder.includes(k)) catOrder.push(k);
-          }
-        }
-        if (cfg.streamAddons && Array.isArray(cfg.streamAddons)) streamAddons = cfg.streamAddons;
-        // Restore Filters & Preferences
-        if (cfg.filterResolutions && Array.isArray(cfg.filterResolutions)) {
-          // Migrate old labels: 2160p→4K, 1440p→2K
-          const migrated = cfg.filterResolutions.map(r => r === '2160p' ? '4K' : r === '1440p' ? '2K' : r);
-          filterState.resIncluded = new Set(migrated);
-          filterState.resolutions = migrated.slice();
-          for (const r of ALL_RESOLUTIONS) { if (!filterState.resolutions.includes(r)) filterState.resolutions.push(r); }
-        }
-        if (cfg.filterQualities && Array.isArray(cfg.filterQualities)) filterState.qualities = new Set(cfg.filterQualities);
-        if (cfg.filterSources && Array.isArray(cfg.filterSources)) filterState.sources = new Set(cfg.filterSources);
-        if (cfg.filterCodecs && Array.isArray(cfg.filterCodecs)) filterState.codecs = new Set(cfg.filterCodecs);
-        if (cfg.filterHdr && Array.isArray(cfg.filterHdr)) filterState.hdr = new Set(cfg.filterHdr);
-        if (cfg.filterAudio && Array.isArray(cfg.filterAudio)) filterState.audio = new Set(cfg.filterAudio);
-        if (cfg.filterMinSize) document.getElementById('filterMinSize').value = cfg.filterMinSize;
-        if (cfg.filterMaxSize) document.getElementById('filterMaxSize').value = cfg.filterMaxSize;
-        if (cfg.filterCachedOnly) document.getElementById('filterCachedOnly').checked = true;
-        renderAllFilterChips();
-        renderCataloguesOptions();
-        renderStreamAddons();
-        updateStreamPreview();
-        setTimeout(() => generate({ skipVerify: true, skipSave: true }), 100);
+        applyConfig(cfg);
         initialConfig = getCurrentConfig();
         if (hasToken) document.getElementById('btnGenerate').style.display = 'none';
+      } else {
+        initialConfig = null;
+      }
+      // From here on, every form change is snapshotted to sessionStorage so a
+      // refresh / accidental reload keeps your work in progress. The draft is
+      // cleared on Save / Push / Reset and expires after DRAFT_TTL.
+      draftArmed = true;
 
+      const finishLoad = () => {
+        // Baseline = the token (+ server store) state as loaded. Kept separate
+        // from the draft so any draft differences still show as unsaved.
+        if (cfg) initialConfig = getCurrentConfig();
+        // Restore any in-progress draft on top of the loaded token.
+        const draft = loadDraft(currentToken());
+        if (draft) {
+          applyConfig(draft.config);
+          if (!cfg) initialConfig = getCurrentConfig(); // fresh page: the draft is the baseline
+        }
+        updateSetupSummary();
+        checkChanged();
+        // Rebuild the install links from the final form state. On a token page
+        // this also migrates the address-bar token to the compact format.
+        if (cfg) {
+          setTimeout(() => generate({ skipVerify: true, skipSave: true, suppressReinstall: true }), 100);
+        }
+      };
+
+      if (cfg && hasToken) {
         // Pre-fill stream settings from the server-side store when the token
-        // itself lacks them (they're saved to Redis on every Save/Push).
-        if (hasToken) {
-          fetch('/api/config/' + encodeURIComponent(token))
-            .then(r => r.json().catch(() => null))
-            .then(stored => {
-              if (!stored || typeof stored !== 'object') return;
+        // itself lacks them (they're saved to Redis on every Save/Push), then
+        // restore any in-progress draft on top.
+        fetch('/api/config/' + encodeURIComponent(token))
+          .then(r => r.json().catch(() => null))
+          .then(stored => {
+            if (stored && typeof stored === 'object') {
               let applied = false;
               if (Array.isArray(stored.streamAddons) && !streamAddonsTouched) { streamAddons = stored.streamAddons; applied = true; }
               if (Array.isArray(stored.customStreams) && stored.customStreams.length) { customStreams = stored.customStreams; applied = true; }
@@ -1028,11 +1189,13 @@
               if (applied) {
                 renderStreamAddons();
                 updateStreamPreview();
-                initialConfig = getCurrentConfig();
               }
-            })
-            .catch(() => {});
-        }
+            }
+            finishLoad();
+          })
+          .catch(() => finishLoad());
+      } else {
+        finishLoad();
       }
       updateSetupSummary();
 
@@ -1050,6 +1213,12 @@
         if (el) el.addEventListener('change', checkChanged);
       });
       ['csName', 'csUrl', 'csType'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', checkChanged);
+      });
+      // Custom formatter templates — mark them changed so the unsaved banner
+      // and the sessionStorage draft pick them up.
+      ['streamNameTemplate', 'streamDescTemplate'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', checkChanged);
       });
@@ -2511,6 +2680,8 @@
       try { history.replaceState(null, '', `${window.location.origin}/${urls.encoded}/configure`); } catch {}
       // Persist stream settings server-side too (fire and forget).
       saveConfigToServer(buildSavedConfig());
+      // The push saved the config — the in-progress draft is no longer needed.
+      clearDraft();
 
       // 2) Push to the platform.
       label.textContent = 'Now pushing…';
@@ -2787,6 +2958,41 @@
     }
 
     function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+    // ── Provider status pill (topbar) ──────────────────────────────────────
+    function statusClass(s) {
+      return s === 'operational' ? 'op' : s === 'degraded' ? 'deg' : s === 'down' ? 'down' : 'unknown';
+    }
+    function statusLabel(s) {
+      return s === 'operational' ? 'Operational' : s === 'degraded' ? 'Degraded' : s === 'down' ? 'Down' : 'Unknown';
+    }
+    function renderStatusPill(data) {
+      const pills = document.querySelectorAll('.status-pill');
+      if (!pills.length) return;
+      const cls = data ? statusClass(data.overall) : 'unknown';
+      const total = data && Array.isArray(data.providers) ? data.providers.length : 4;
+      const up = data && Array.isArray(data.providers) ? data.providers.filter(p => p.status === 'operational').length : 0;
+      pills.forEach(pill => {
+        pill.classList.remove('op', 'deg', 'down', 'unknown');
+        pill.classList.add(cls);
+        const c = pill.querySelector('.status-pill-count');
+        if (c) c.textContent = data ? `${up}/${total}` : '\u2013';
+        pill.title = data && Array.isArray(data.providers)
+          ? data.providers.map(p => `${p.name}: ${statusLabel(p.status)}`).join(' \u00b7 ')
+          : 'Provider status';
+      });
+    }
+    async function loadStatusPill() {
+      try {
+        const r = await fetch('/api/status', { signal: AbortSignal.timeout(15000), cache: 'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+        window._lelibraryStatus = data;
+        renderStatusPill(data);
+      } catch (e) {
+        renderStatusPill(null);
+      }
+    }
 
     // ── Step completion tracking ───────────────────────────────────────────
     const completedSteps = new Set();

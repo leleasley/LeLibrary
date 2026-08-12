@@ -3,6 +3,7 @@ const axios = require('axios');
 const { getTorBoxDownloads, getTorBoxStreamLink, getTorBoxFiles, isVideoFile, isJunkVideo } = require('./torbox');
 const { getRealDebridDownloads, getRealDebridFiles, getRealDebridStreamLink } = require('./realdebrid');
 const providers = require('./providers');
+const cache = require('./cache');
 const { searchMetadata, searchCandidates, getMetadata, findEpisodeByAirDate, getImdbId } = require('./tmdb');
 const { guessMediaInfo } = require('./parser');
 const NodeCache = require('node-cache');
@@ -10,14 +11,76 @@ const NodeCache = require('node-cache');
 const formatter = require('../website/public/formatter.js');
 
 const CACHE_FILE = '/tmp/torbox-tmdb-cache.json';
-const matchCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
+
+// Name→TMDB match cache. The match itself is global (the same release name
+// resolves to the same title whoever owns it), so it is shared across users
+// with a fast in-memory copy backed by Redis. The old cache was in-memory only
+// with a 5-minute TTL and a disk file under /tmp (wiped on every deploy) — a
+// cold cache made the stream rebuild path fall into the slow full-library TMDB
+// search (10-15s — enough for STRMR to time out and show "no sources"), and
+// made the discovery owned-bridge silently miss owned copies. Redis backing
+// with a long TTL keeps matches across deploys and idle periods so the rebuild
+// path answers from cache in milliseconds.
+const MATCH_CACHE_TTL = 24 * 60 * 60; // 24h
+const MATCH_REDIS_PREFIX = 'matchcache:';
+const memMatchCache = new NodeCache({ stdTTL: MATCH_CACHE_TTL, checkperiod: 60 });
+
+// Strip per-user torrent items before anything is stored: the match result is
+// shared across users, so no one user's download record should persist (it was
+// never served back, but it bloated the cache and could leak an account's id
+// into another user's Redis space). Every reader re-attaches the caller's own
+// item, so dropping it here is safe.
+function stripTorboxItem(value) {
+  if (value && typeof value === 'object' && value.torboxItem) {
+    const copy = { ...value };
+    delete copy.torboxItem;
+    return copy;
+  }
+  return value;
+}
+
+const matchCache = {
+  async get(key) {
+    const mem = memMatchCache.get(key);
+    if (mem !== undefined) return mem;
+    try {
+      const redisKey = MATCH_REDIS_PREFIX + key;
+      if (await cache.exists(redisKey)) {
+        const val = await cache.get(redisKey);
+        memMatchCache.set(key, val, MATCH_CACHE_TTL);
+        return val;
+      }
+    } catch (err) { /* Redis blip — treat as miss */ }
+    return undefined;
+  },
+  async set(key, value, ttl = MATCH_CACHE_TTL) {
+    const toStore = stripTorboxItem(value);
+    memMatchCache.set(key, toStore, ttl);
+    try {
+      await cache.set(MATCH_REDIS_PREFIX + key, toStore, ttl);
+    } catch (err) { /* non-fatal — the in-memory copy still works */ }
+  },
+  async has(key) {
+    if (memMatchCache.has(key)) return true;
+    try {
+      return await cache.exists(MATCH_REDIS_PREFIX + key);
+    } catch (err) {
+      return false;
+    }
+  },
+  // Synchronous view of the in-memory copy — only used by the disk
+  // persistence below, which must not block its interval on Redis.
+  keys() {
+    return memMatchCache.keys();
+  },
+};
 
 function loadPersistentCache() {
   try {
     if (fs.existsSync(CACHE_FILE)) {
       const data = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
       let n = 0;
-      for (const [k, v] of Object.entries(data)) { matchCache.set(k, v); n++; }
+      for (const [k, v] of Object.entries(data)) { memMatchCache.set(k, stripTorboxItem(v)); n++; }
       console.log(`[Cache] Loaded ${n} entries from disk`);
     }
   } catch (e) { console.error('[Cache] Load error:', e.message); }
@@ -26,8 +89,8 @@ function loadPersistentCache() {
 function savePersistentCache() {
   try {
     const data = {};
-    for (const k of matchCache.keys()) {
-      const v = matchCache.get(k);
+    for (const k of memMatchCache.keys()) {
+      const v = memMatchCache.get(k);
       if (v !== undefined) data[k] = v;
     }
     fs.writeFileSync(CACHE_FILE, JSON.stringify(data));
@@ -167,7 +230,7 @@ async function matchItem(item, tmdbApiKey, type, lang) {
   const tmdbType = type === 'movie' ? 'movie' : 'series';
   const cacheKey = `match:${type}:${lang}:${name}`;
 
-  const cached = matchCache.get(cacheKey);
+  const cached = await matchCache.get(cacheKey);
   if (cached !== undefined) {
     if (!cached) return null;
     // Re-validate the anime guard on reuse: cached entries may predate the
@@ -175,11 +238,11 @@ async function matchItem(item, tmdbApiKey, type, lang) {
     // anime into the series catalog.
     const cachedAnime = isTmdbAnime(cached);
     if (type === 'series' && (cachedAnime || infoAnime(cached, name))) {
-      matchCache.set(cacheKey, null);
+      await matchCache.set(cacheKey, null);
       return null;
     }
     if (type === 'anime' && !cachedAnime && !infoAnime(cached, name)) {
-      matchCache.set(cacheKey, null);
+      await matchCache.set(cacheKey, null);
       return null;
     }
     // Never reuse another user's torrent item — attach the caller's item.
@@ -187,12 +250,12 @@ async function matchItem(item, tmdbApiKey, type, lang) {
   }
 
   const info = guessMediaInfo(name);
-  if (!info) { matchCache.set(cacheKey, null); return null; }
+  if (!info) { await matchCache.set(cacheKey, null); return null; }
 
   // Simplified type validation
-  if (type === 'movie' && info.isSeries) { matchCache.set(cacheKey, null); return null; }
-  if (type === 'series' && (!info.isSeries || info.isAnime)) { matchCache.set(cacheKey, null); return null; }
-  if (type === 'anime' && !info.isSeries) { matchCache.set(cacheKey, null); return null; }
+  if (type === 'movie' && info.isSeries) { await matchCache.set(cacheKey, null); return null; }
+  if (type === 'series' && (!info.isSeries || info.isAnime)) { await matchCache.set(cacheKey, null); return null; }
+  if (type === 'anime' && !info.isSeries) { await matchCache.set(cacheKey, null); return null; }
 
   try {
     let season     = info.season;
@@ -223,18 +286,18 @@ async function matchItem(item, tmdbApiKey, type, lang) {
     } else {
       result = await searchMetadata(tmdbApiKey, info.title, tmdbType, info.year, lang);
     }
-    if (!result) { matchCache.set(cacheKey, null); return null; }
+    if (!result) { await matchCache.set(cacheKey, null); return null; }
 
     const isAnime = isTmdbAnime(result);
 
     if (type === 'series' && (isAnime || info.isAnime)) {
       console.log(`[TMDB] "${info.title}" is anime — excluded from series`);
-      matchCache.set(cacheKey, null);
+      await matchCache.set(cacheKey, null);
       return null;
     }
 
     if (type === 'anime' && !isAnime && !info.isAnime) {
-      matchCache.set(cacheKey, null);
+      await matchCache.set(cacheKey, null);
       return null;
     }
 
@@ -258,11 +321,11 @@ async function matchItem(item, tmdbApiKey, type, lang) {
       episodeEnd,
     };
 
-    matchCache.set(cacheKey, meta);
+    await matchCache.set(cacheKey, meta);
     return meta;
   } catch (err) {
     console.error(`[TMDB] Error "${name}": ${err.message}`);
-    matchCache.set(cacheKey, null);
+    await matchCache.set(cacheKey, null);
     return null;
   }
 }
@@ -304,7 +367,7 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
     for (const { item, info } of allRelevant) {
       const name   = item.name || item.filename || '';
       const ck     = `match:${type}:${lang}:${name}`;
-      if (matchCache.has(ck)) cached.push({ item, info });
+      if (await matchCache.has(ck)) cached.push({ item, info });
       else fresh.push({ item, info });
     }
     freshCount = fresh.length;
@@ -464,7 +527,7 @@ async function buildMeta(tmdbId, type, tmdbApiKey, lang, config = {}, enhance = 
 
         for (const t of ['anime', 'series']) {
           for (const l of [lang, 'pt-BR', 'en-US']) {
-            const c = matchCache.get(`match:${t}:${l}:${name}`);
+            const c = await matchCache.get(`match:${t}:${l}:${name}`);
             if (c && String(c.tmdbId) === String(tmdbId)) {
               matched = true; cachedMeta = c; break;
             }
@@ -644,7 +707,7 @@ async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episo
 
       for (const t of ['anime', 'series', 'movie']) {
         for (const l of [lang, 'pt-BR', 'en-US']) {
-          const c = matchCache.get(`match:${t}:${l}:${name}`);
+          const c = await matchCache.get(`match:${t}:${l}:${name}`);
           if (c && String(c.tmdbId) === String(tmdbId)) {
             entries.push({ item, season: c.season, episode: c.episode, episodeEnd: c.episodeEnd ?? null });
             found = true;

@@ -1,5 +1,53 @@
 # Changelog
 
+## [4.9.0]
+
+### Provider Status Page
+
+- **Dedicated status page at `/status`**: a full-page live status dashboard for all four debrid providers (TorBox, Real-Debrid, AllDebrid, Premiumize). Each provider shows a row of individual 60-second check beats that update live, current status, ping latency, and a link to the provider's own status page. Toggle between the last 24 checks and last 7 checks
+- **Status pill in the nav bar**: every page (landing, configure, My Library, status) now shows a small pill in the top nav with a live count (e.g. "4/4") and a colored dot that reflects the overall provider status. Clicking it takes you straight to the status page
+- **Server-side background pings**: the server now pings all four providers every 60 seconds in the background, so the status page and nav pills always show fresh data without waiting for a live check on page load. Each check also reports its round-trip latency in milliseconds
+- **Self-hosters get a graceful fallback**: the status page is a private file (like the landing page), so it only appears on the hosted instance. Self-hosters are quietly redirected to the configure page if they visit `/status`
+
+### Website
+
+- **New three-column footer**: the landing and status pages now have a three-column footer with a brand description, product links (Features, How it works, Streams, My Library), a "Get Started" column with a live provider status indicator, social links (GitHub, Reddit), and a bottom bar with a "Not affiliated with any debrid provider or streaming service" disclaimer
+- **Removed the Manifest link from the footer**: the Stremio manifest link is no longer shown in the site footer
+- **Animated gradient glow on the hero mockup**: the configure page mockup in the hero section now has a subtle amber glow that pulses in and out, giving the landing page a more alive, premium feel
+- **Glassmorphism on feature cards**: the six feature cards now use a semi-transparent background with a backdrop blur, and the hover effect is smoother with a deeper shadow and amber glow
+- **Scroll-triggered reveals**: all feature cards, section headings, and the CTA section now fade in and slide up as you scroll into view. The feature grid cards cascade in one by one with a staggered delay
+
+### Configure page
+
+- **Your setup survives a refresh**: while you configure the addon, your changes are now saved in the browser as you type. If the page reloads or you lose it by accident, everything comes back exactly where you left it. The draft clears itself automatically once you save or push, and after an hour in the same tab
+- **Much shorter install links**: the token in your addon URL is now up to around half the length, because only the settings the addon actually uses are stored in it. Easier to copy, and it takes up far less room in Stremio and Nuvio. Existing installs switch over to the shorter link automatically when you open your configure page
+- **The "Review & Save" button now takes you straight to the Save button**: it jumps to the Install step and scrolls the Save or Generate button into view, so it can't be missed on mobile. The configure page also accepts your token even if you paste it the wrong way round, so a mangled link no longer loses your setup
+
+### My Library
+
+- **Series search no longer includes the year in the query**: when you open a TV show in My Library, the search now queries "Title S01" instead of "1999 Title S01", so individual episodes and season packs are found much more reliably. The year is still searched as a fallback, just not shown as the primary search term
+- **Only the season you are browsing shows up**: opening a TV show no longer floods the results with complete season packs from other seasons. Results are filtered to the season you selected, and multi-season packs that include it still appear
+- **Correct season labels on season packs**: a "Family Guy Complete Season 18" torrent now shows "Full S18" instead of being mislabeled as the season you happen to be viewing
+- **Smoother torrent searches**: episode and season searches now run in small batches instead of firing a wall of requests at once, so searches finish without tripping rate limits
+- **"In Library" badges now actually work**: movies and shows you already have in your debrid library are correctly marked on the browse, search and genre pages, and the badges refresh automatically when new files land in your library
+- **Duplicate cleanup shows its work**: clearing duplicate files now opens a proper dialog that lists every duplicate group with checkboxes, so you can pick exactly which copies to delete. The largest file in each group is marked as the one that stays, and a spinner shows while the deletion runs
+
+### Design
+
+- **Denser movie grid on wide screens**: the browse pages pack in more titles per row on larger monitors with tighter spacing, so the grid feels less sparse
+- **More interactive posters**: hovering a poster now zooms it slightly with a soft gradient at the bottom and a gentle lift, and the title row slides up with it
+- **Compact genre chips**: the genre buttons are now neat little pills that wrap, instead of big full-width blocks
+- **Smoother, less cluttered look**: cards, buttons, tabs, inputs and list rows use softer borders, gentler shadows and eased animations throughout, so the pages feel more polished
+
+### Trending & Popular
+
+- **Your filters and sort order apply straight away**: changing the resolution/quality filters or the stream sort for the Trending and Popular rows now takes effect immediately, instead of waiting up to ten minutes for the cached streams to refresh
+- **Your sort order is respected even without stream addons**: when no external stream addons are enabled, your owned streams on Trending and Popular rows are now ordered by your chosen sort, the same as they would be with addons on
+
+### Streams
+
+- **Streams appear on the first try**: your owned movies and shows now load sources more consistently across every app, including Android TV. Some apps occasionally showed "no sources found" when you first opened an episode, then found them after you reopened the show, because the first request had to re-examine your whole library and could time out. Titles you have already watched or browsed are now remembered between sessions, so the first click is just as quick as every one after it
+
 ## [4.8.1]
 
 ### Trending & Popular

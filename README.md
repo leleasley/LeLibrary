@@ -123,7 +123,7 @@ Choose any combination of **TorBox, Real-Debrid, AllDebrid and Premiumize** from
 API keys are encrypted in `localStorage` using Web Crypto API (AES-256-GCM with PBKDF2, 100k iterations). The encryption password is stored in `sessionStorage` (cleared when browser closes) — you re-enter it once per browser session. Keys are only ever decrypted in memory and never written to `localStorage` in any form.
 
 **What goes where:**
-- **API keys**: encoded in the addon URL (base64 JSON with `provider`, `torboxApiKey`, `rdApiKey`, `tmdbApiKey`, plus optional poster/rating tokens) — sent to the server only when Stremio/Nuvio fetches your library, never stored in a database or logged
+- **API keys**: encoded in the addon URL as a compact base64 token (your debrid providers, TMDB key, and optional poster/rating tokens) — sent to the server only when Stremio/Nuvio fetches your library, never stored in a database or logged
 - **Heavy stream settings** (custom formatter templates, custom streams, stream addon choices): saved server-side in Redis keyed by your account hash, and merged back by the addon on every request — this keeps the install URL short and means nothing can break it. These are stream settings only, never API keys
 - **Configure page**: the `/configure` page has no server-side auth — anyone with the URL can access it. No tracking, analytics, or third-party requests.
 

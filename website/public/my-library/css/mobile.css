@@ -85,6 +85,15 @@
 .mobile-menu a:last-child { border-bottom: none; }
 .mobile-menu a:hover { color: var(--white); }
 
+/* Provider status pill inside the mobile menu keeps its own pill look */
+.mobile-menu .status-pill {
+  width: max-content;
+  padding: 5px 12px;
+  border: 1px solid rgba(48,54,61,0.6);
+  margin: 6px 0 2px;
+}
+.mobile-menu .status-pill:hover { border-color: var(--muted); color: var(--text); background: var(--surface); }
+
 /* Compact one-row actions (Refresh · Settings · Logout) under Home */
 .mobile-menu-actions {
   display: flex; align-items: center; gap: 20px;

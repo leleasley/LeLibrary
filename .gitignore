@@ -35,6 +35,7 @@ Thumbs.db
 # Private website files (not in public repo)
 website/landing.html
 website/index.js
+website/status.html
 
 # Private addon identity (id, description, Stremio registry signature) — production-only
 # Self-hosters get a generic self-hosted manifest instead.

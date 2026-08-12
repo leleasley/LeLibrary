@@ -4,7 +4,7 @@ const path    = require('path');
 const cache   = require('./src/cache');
 const providers = require('./src/providers');
 const { buildCatalog, buildMeta, buildStreams, populateTmdbIndexFromMetas } = require('./src/builder');
-const { buildDiscoveryCatalog, buildDiscoveryMeta, buildDiscoveryStreams } = require('./src/discovery');
+const { buildDiscoveryCatalog, buildDiscoveryMeta, buildDiscoveryStreams, discoveryStreamKeyParts } = require('./src/discovery');
 const { buildCollectionsCatalog, cacheCollections, getCollectionMeta, getCollections, getCollectionForMovie } = require('./src/collections');
 
 let createWebRoutes = null;
@@ -163,6 +163,12 @@ app.get('/img/tmdb/*', async (req, res) => {
   }
 });
 
+// The configure page encodes tokens with SHORT field names (see
+// website/public/token-map.js) to keep the install URL small. Decode maps them
+// back to the canonical names here so every downstream consumer reads full keys
+// — old tokens that still use full names pass through unchanged.
+const tokenMap = require('./website/public/token-map.js');
+
 function decodeConfig(str) {
   if (!str || typeof str !== 'string' || str.length > 2048) return null;
   try {
@@ -170,7 +176,7 @@ function decodeConfig(str) {
     const standard = padded.replace(/-/g, '+').replace(/_/g, '/');
     const decoded = JSON.parse(Buffer.from(standard, 'base64').toString('utf8'));
     if (!decoded || typeof decoded !== 'object') return null;
-    return decoded;
+    return tokenMap.normalizeConfig(decoded);
   } catch { return null; }
 }
 
@@ -316,7 +322,7 @@ function getLogoUrl(baseUrl) {
 function getBaseManifest(baseUrl) {
   const manifest = {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-    version: '4.8.1',
+    version: '4.9.0',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -440,7 +446,7 @@ function getConfiguredManifest(baseUrl, config = {}) {
 
   return {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-    version: '4.8.1',
+    version: '4.9.0',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -462,7 +468,7 @@ app.get('/health', async (req, res) => {
   res.json({
     status: 'ok',
     cache: stats,
-    version: '4.8.1',
+    version: '4.9.0',
   });
 });
 
@@ -1128,6 +1134,11 @@ app.get('/:token/stream/:type/:id.json', async (req, res) => {
   // Include the stream-format fingerprint so changing the preset/templates
   // invalidates cached streams instead of serving stale names for the TTL.
   const fmtFp = ':' + hashShort([config.streamPreset || '', config.streamNameTemplate || '', config.streamDescTemplate || ''].join('|'));
+  // The DISCOVERY response is also shaped by the discovery filters + sort, so
+  // they join the cache-key fingerprint too — otherwise changing them would
+  // keep serving stale cached streams for the whole stream TTL. Mirrors the
+  // fmtFp the builder uses so both cache layers always agree.
+  const discFmtFp = discoveryStreamKeyParts(config).fmtFp;
 
   let tmdbId, season, episode;
   let buildType = type;
@@ -1166,9 +1177,10 @@ app.get('/:token/stream/:type/:id.json', async (req, res) => {
     // ── tt: id + stream addons → owned copy first, then external addons ──
     if (id.startsWith('tt')) {
       const addonFp = ':' + hashShort(externalAddons.slice().sort().join(','));
-      // Include the format fingerprint so changing the stream preset/templates
-      // invalidates cached discovery streams instead of serving the old format.
-      const discKey = cache.makeKey('stream', type, id, '', '', userKey + addonFp + fmtFp);
+      // Include the format + filter + sort fingerprint so changing the stream
+      // preset/templates, discovery filters or sort order invalidates cached
+      // discovery streams instead of serving the old format.
+      const discKey = cache.makeKey('stream', type, id, '', '', userKey + addonFp + discFmtFp);
       const cached  = await cache.get(discKey);
       if (cached) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');

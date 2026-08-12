@@ -54,14 +54,40 @@ function createWebRoutes(decodeConfig, options = {}) {
 
   // Configure page
   router.get('/configure', (req, res) => {
+    // Convenience alias: /configure?token=<token> → /<token>/configure. The
+    // configure route lives at /<token>/configure, but users who have copied a
+    // manifest URL sometimes paste the token the wrong way round, so accept
+    // both. Invalid/absent tokens fall through to the blank form.
+    if (req.query.token && req.query.token !== 'configure') {
+      const config = decodeConfig(req.query.token);
+      if (config) return res.redirect('/' + req.query.token + '/configure');
+    }
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(WEBSITE_DIR, 'configure.html'));
+  });
+
+  // Same convenience alias the other way round: /configure/<token> (the natural
+  // guess for a user who has a token and is told "open the configure page").
+  router.get('/configure/:token', (req, res) => {
+    if (!decodeConfig(req.params.token)) return res.status(400).send('Invalid token');
+    res.redirect('/' + req.params.token + '/configure');
   });
 
   // Library browser
   router.get('/my-library', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(PUBLIC_DIR, 'my-library', 'index.html'));
+  });
+
+  // Provider status page — PRIVATE page (website/status.html is gitignored, like
+  // landing.html). Served only when the file exists on this instance; self-hosters
+  // don't get the file, so the route redirects to the configure page instead of
+  // 404ing (keeps the nav status pill pointing somewhere useful).
+  router.get('/status', (req, res) => {
+    const page = path.join(WEBSITE_DIR, 'status.html');
+    if (!fs.existsSync(page)) return res.redirect('/configure');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.sendFile(page);
   });
 
   // Configure with injected config (from Stremio addon)
@@ -117,20 +143,24 @@ function createWebRoutes(decodeConfig, options = {}) {
   });
 
   // ── Provider status aggregator (public health checks, no user keys) ──
-  // Fetches each debrid provider's public status so the landing page and
-  // My Library can show live uptime. Cached for 60s so page views don't
-  // hammer the upstream status pages / APIs.
+  // Fetches each debrid provider's public status so the status page, landing
+  // page and My Library can show live uptime. A background loop re-pings every
+  // 60s ("server-side ping"), so /api/status always returns fresh data without
+  // a page view having to wait for live checks. Each check reports its own
+  // round-trip latency (ms) for the status page.
   const STATUS_CHECKS = [
     {
       id: 'torbox',
       name: 'TorBox',
       url: 'https://status.torbox.app',
       async check(axios) {
+        const t0 = Date.now();
         const r = await axios.get('https://status.torbox.app/index.json', { timeout: 8000 });
+        const latency = Date.now() - t0;
         const state = r.data?.data?.attributes?.aggregate_state;
-        if (state === 'operational') return { status: 'operational', detail: 'All systems operational' };
-        if (state === 'major_outage') return { status: 'down', detail: 'Major outage reported' };
-        return { status: 'degraded', detail: state ? state.replace(/_/g, ' ') : 'Status unknown' };
+        if (state === 'operational') return { status: 'operational', detail: 'All systems operational', latency };
+        if (state === 'major_outage') return { status: 'down', detail: 'Major outage reported', latency };
+        return { status: 'degraded', detail: state ? state.replace(/_/g, ' ') : 'Status unknown', latency };
       },
     },
     {
@@ -138,8 +168,9 @@ function createWebRoutes(decodeConfig, options = {}) {
       name: 'Real-Debrid',
       url: 'https://real-debrid.com',
       async check(axios) {
+        const t0 = Date.now();
         await axios.get('https://api.real-debrid.com/rest/1.0/time', { timeout: 8000 });
-        return { status: 'operational', detail: 'API responding normally' };
+        return { status: 'operational', detail: 'API responding normally', latency: Date.now() - t0 };
       },
     },
     {
@@ -147,11 +178,13 @@ function createWebRoutes(decodeConfig, options = {}) {
       name: 'AllDebrid',
       url: 'https://alldebrid.com',
       async check(axios) {
+        const t0 = Date.now();
         const r = await axios.get('https://api.alldebrid.com/v4/ping', { timeout: 8000 });
+        const latency = Date.now() - t0;
         if (r.data?.status === 'success' && r.data?.data?.ping === 'pong') {
-          return { status: 'operational', detail: 'API responding normally' };
+          return { status: 'operational', detail: 'API responding normally', latency };
         }
-        return { status: 'degraded', detail: 'Unexpected API response' };
+        return { status: 'degraded', detail: 'Unexpected API response', latency };
       },
     },
     {
@@ -159,41 +192,91 @@ function createWebRoutes(decodeConfig, options = {}) {
       name: 'Premiumize',
       url: 'https://premiumize.reamaze.com/status',
       async check(axios) {
+        const t0 = Date.now();
         await axios.get('https://premiumize.reamaze.com/status', { timeout: 8000, maxRedirects: 5 });
-        return { status: 'operational', detail: 'Status page responding' };
+        return { status: 'operational', detail: 'Status page responding', latency: Date.now() - t0 };
       },
     },
   ];
   const STATUS_RANK = { operational: 0, degraded: 1, down: 2 };
   let statusCache = { at: 0, data: null };
 
+  // Rolling uptime history (in-memory, one sample per background check).
+  // Cleared on restart — the status page renders it as Uptime-Kuma-style cells.
+  const HISTORY_WINDOW = 7 * 24 * 3600 * 1000; // keep 7 days of samples
+  const statusHistory = new Map(); // providerId -> [{ t, status }]
+
+  // Bucket the raw samples into Uptime-Kuma-style cells: each cell = one
+  // individual 60s check beat (not an hourly/daily aggregate). This means
+  // the cells update live every minute as new checks arrive.
+  //   b24 = last 24 beats (~24 minutes of history)
+  //   b7  = last  7 beats (~7 minutes of history)
+  function aggregateHistory(history) {
+    const out = { b24: [], b7: [], up24: null, up7: null };
+
+    const last24 = history.slice(-24);
+    last24.forEach(s => out.b24.push({ t: s.t, status: s.status }));
+
+    const last7 = history.slice(-7);
+    last7.forEach(s => out.b7.push({ t: s.t, status: s.status }));
+
+    const pct = (slice) => {
+      if (!slice.length) return null;
+      return Math.round((slice.filter(s => s.status !== 'down').length / slice.length) * 100);
+    };
+    out.up24 = pct(last24);
+    out.up7 = pct(last7);
+
+    return out;
+  }
+
+  async function runStatusCheck() {
+    try {
+      const axios = require('axios');
+      const settled = await Promise.allSettled(STATUS_CHECKS.map(p => p.check(axios)));
+
+      const providers = STATUS_CHECKS.map((p, i) => {
+        if (settled[i].status === 'fulfilled') {
+          return { id: p.id, name: p.name, url: p.url, ...settled[i].value };
+        }
+        const code = settled[i].reason?.response?.status;
+        return {
+          id: p.id, name: p.name, url: p.url,
+          status: 'down',
+          detail: code ? `Unavailable (HTTP ${code})` : 'Unreachable',
+        };
+      });
+
+      const overall = providers.reduce((worst, p) => {
+        return (STATUS_RANK[p.status] ?? 1) > STATUS_RANK[worst] ? p.status : worst;
+      }, 'operational');
+
+      // Append this check to the rolling history and attach the cell buckets.
+      const now = Date.now();
+      providers.forEach(p => {
+        const h = statusHistory.get(p.id) || [];
+        h.push({ t: now, status: p.status });
+        while (h.length && h[0].t < now - HISTORY_WINDOW) h.shift();
+        statusHistory.set(p.id, h);
+        p.history = aggregateHistory(h);
+      });
+
+      statusCache = { at: Date.now(), data: { updatedAt: Date.now(), overall, providers } };
+    } catch (err) {
+      console.error(`[Status] background check failed: ${err.message}`);
+    }
+  }
+
+  // Background "server-side ping": keep the cache warm every 60s.
+  runStatusCheck();
+  setInterval(runStatusCheck, 60000);
+
   router.get('/api/status', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     if (req.method === 'OPTIONS') return res.sendStatus(200);
     if (statusCache.data && Date.now() - statusCache.at < 60000) return res.json(statusCache.data);
-
-    const axios = require('axios');
-    const settled = await Promise.allSettled(STATUS_CHECKS.map(p => p.check(axios)));
-
-    const providers = STATUS_CHECKS.map((p, i) => {
-      if (settled[i].status === 'fulfilled') {
-        return { id: p.id, name: p.name, url: p.url, ...settled[i].value };
-      }
-      const code = settled[i].reason?.response?.status;
-      return {
-        id: p.id, name: p.name, url: p.url,
-        status: 'down',
-        detail: code ? `Unavailable (HTTP ${code})` : 'Unreachable',
-      };
-    });
-
-    const overall = providers.reduce((worst, p) => {
-      return (STATUS_RANK[p.status] ?? 1) > STATUS_RANK[worst] ? p.status : worst;
-    }, 'operational');
-
-    const data = { updatedAt: Date.now(), overall, providers };
-    statusCache = { at: Date.now(), data };
-    res.json(data);
+    await runStatusCheck();
+    res.json(statusCache.data || { updatedAt: Date.now(), overall: 'down', providers: [] });
   });
 
   // ── TorBox API proxy (client-side library browser) ──

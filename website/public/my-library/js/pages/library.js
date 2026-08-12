@@ -643,9 +643,94 @@ function isDuplicateExtra(item) {
 
 function deleteDuplicateExtras() {
   if (libraryState.selectedIds.size === 0) return;
+  showDuplicateModal();
+}
+
+function showDuplicateModal() {
+  const groups = libraryState.duplicateGroups;
+  const groupKeys = Object.keys(groups);
+  if (groupKeys.length === 0) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'dupe-modal-overlay';
+  overlay.id = 'dupeModalOverlay';
+  overlay.onclick = (e) => { if (e.target === overlay) closeDupeModal(); };
+
+  let groupsHtml = '';
+  for (const key of groupKeys) {
+    const g = groups[key];
+    const itemsHtml = g.items.map((item, idx) => {
+      const isKeep = idx === 0;
+      const name = item.name || item.filename || 'Unknown';
+      const size = item.size ? formatBytes(item.size) : '';
+      const sk = selKey(item);
+      const checked = libraryState.selectedIds.has(sk) ? 'checked' : '';
+      return `<div class="dupe-modal-item">
+        <input type="checkbox" ${isKeep ? '' : checked} data-sel-key="${sk}" onchange="toggleDupeModalItem('${sk}', this.checked)" />
+        <div class="dupe-modal-item-info">
+          <div class="dupe-modal-item-name" title="${escHtml(name)}">${escHtml(name.length > 60 ? name.slice(0, 60) + '...' : name)}</div>
+          <div class="dupe-modal-item-meta">${size}</div>
+        </div>
+        ${isKeep ? '<span class="dupe-modal-item-keep">KEEP</span>' : ''}
+      </div>`;
+    }).join('');
+
+    groupsHtml += `<div class="dupe-modal-group">
+      <div class="dupe-modal-group-header">
+        <span>${escHtml(g.title)}${g.year ? ` (${escHtml(g.year)})` : ''}</span>
+        <span class="group-count">${g.items.length} copies</span>
+      </div>
+      ${itemsHtml}
+    </div>`;
+  }
+
+  const deleteCount = libraryState.selectedIds.size;
+  overlay.innerHTML = `
+    <div class="dupe-modal">
+      <div class="dupe-modal-header">
+        <h3>Duplicates Found</h3>
+        <span class="dupe-modal-count">${groupKeys.length} groups</span>
+        <button class="dupe-modal-close" onclick="closeDupeModal()">&times;</button>
+      </div>
+      <div class="dupe-modal-body">${groupsHtml}</div>
+      <div class="dupe-modal-footer">
+        <span class="dupe-modal-info" id="dupeModalInfo">${deleteCount} item${deleteCount !== 1 ? 's' : ''} selected for deletion</span>
+        <div class="dupe-modal-actions">
+          <button class="btn btn-secondary btn-sm" onclick="closeDupeModal()">Cancel</button>
+          <button class="btn btn-danger btn-sm" id="dupeModalDeleteBtn" onclick="deleteFromModal()">
+            Delete ${deleteCount} item${deleteCount !== 1 ? 's' : ''}
+          </button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function toggleDupeModalItem(selKey, checked) {
+  if (checked) libraryState.selectedIds.add(selKey);
+  else libraryState.selectedIds.delete(selKey);
   const count = libraryState.selectedIds.size;
-  if (!confirm(`Delete ${count} duplicate extra copies? (Keeping the largest file in each group)`)) return;
-  deleteSelected(true).then(() => {
+  const info = document.getElementById('dupeModalInfo');
+  const btn = document.getElementById('dupeModalDeleteBtn');
+  if (info) info.textContent = `${count} item${count !== 1 ? 's' : ''} selected for deletion`;
+  if (btn) btn.innerHTML = `Delete ${count} item${count !== 1 ? 's' : ''}`;
+}
+
+async function deleteFromModal() {
+  if (libraryState.selectedIds.size === 0) return;
+  const btn = document.getElementById('dupeModalDeleteBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="dupe-spinner"></span>Deleting...'; }
+  try {
+    await deleteSelected(true);
+    closeDupeModal();
     clearDuplicateMode();
-  });
+  } catch (e) {
+    showToast('Delete failed: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = 'Retry'; }
+  }
+}
+
+function closeDupeModal() {
+  const overlay = document.getElementById('dupeModalOverlay');
+  if (overlay) overlay.remove();
 }

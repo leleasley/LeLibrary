@@ -138,7 +138,7 @@ async function loadGenrePage(endpoint, page, replace) {
       const title = item.title || item.name || '';
       const year = (item.release_date || item.first_air_date || '').split('-')[0];
       const rating = item.vote_average ? item.vote_average.toFixed(1) : '';
-      const inLib = isInLibrary(title);
+      const inLib = isInLibrary(title, year);
       const mt = genreState.type === 'movie' ? 'movie' : 'tv';
       const card = document.createElement('div');
       card.className = 'card';

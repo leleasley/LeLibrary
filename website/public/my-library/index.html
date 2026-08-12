@@ -28,13 +28,10 @@
     </a>
     <nav class="topbar-links">
       <a href="/">Home</a>
-      <a href="#" onclick="navigateTo('settings');return false" class="topbar-status" id="topbarStatus" title="Provider status">
-        <span class="provider-dots">
-          <span class="pdot unknown" data-id="torbox"><img src="/provider-logos/torbox.png" alt=""><i class="sdot"></i></span>
-          <span class="pdot unknown" data-id="realdebrid"><img src="/provider-logos/realdebrid.svg" alt=""><i class="sdot"></i></span>
-          <span class="pdot unknown" data-id="alldebrid"><img src="/provider-logos/alldebrid.png" alt=""><i class="sdot"></i></span>
-          <span class="pdot unknown" data-id="premiumize"><img src="/provider-logos/premiumize.svg" alt=""><i class="sdot"></i></span>
-        </span>
+      <a href="/status" class="topbar-status status-pill" id="topbarStatus" title="Provider status">
+        <span class="status-pill-dot"></span>
+        <span class="status-pill-label">Status</span>
+        <span class="status-pill-count">&ndash;/4</span>
       </a>
       <span id="authNav" style="display:none">
         <a href="#" onclick="loadLibrary();return false" style="color:var(--amber)" title="Refresh library from providers">Refresh</a>
@@ -46,15 +43,11 @@
       <span></span><span></span><span></span>
     </button>
     <div class="mobile-menu" id="mobileMenu">
-      <a href="/">Home</a>
-      <a href="#" onclick="navigateTo('settings');return false" class="mobile-menu-action mobile-status" id="topbarStatusMobile" title="Provider status">
-        <span class="mobile-status-label">Status</span>
-        <span class="provider-dots">
-          <span class="pdot unknown" data-id="torbox"><img src="/provider-logos/torbox.png" alt=""><i class="sdot"></i></span>
-          <span class="pdot unknown" data-id="realdebrid"><img src="/provider-logos/realdebrid.svg" alt=""><i class="sdot"></i></span>
-          <span class="pdot unknown" data-id="alldebrid"><img src="/provider-logos/alldebrid.png" alt=""><i class="sdot"></i></span>
-          <span class="pdot unknown" data-id="premiumize"><img src="/provider-logos/premiumize.svg" alt=""><i class="sdot"></i></span>
-        </span>
+      <a href="/" >Home</a>
+      <a href="/status" class="mobile-menu-action mobile-status status-pill" id="topbarStatusMobile" title="Provider status">
+        <span class="status-pill-dot"></span>
+        <span class="status-pill-label">Status</span>
+        <span class="status-pill-count">&ndash;/4</span>
       </a>
       <span id="authNavMobile" style="display:none" class="mobile-menu-actions">
         <a href="#" onclick="loadLibrary();return false" class="mobile-menu-action" title="Refresh library from providers">Refresh</a>

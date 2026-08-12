@@ -417,15 +417,6 @@ function buildSearchQueries(title, year, mediaType, seasonNum) {
   // "Walking Dead S01" (many uploaders drop "The").
   const strippedTitle = cleanTitle.replace(/^(the|a|an)\s+/i, '').trim();
 
-  // Abbreviated title: drop parenthetical suffixes like "Marvel's Agents of
-  // S.H.I.E.L.D. (2013)" → "Agents of SHIELD"
-  const abbrTitle = strippedTitle
-    .replace(/\([^)]*\)/g, '')
-    .replace(/['']/g, '')
-    .replace(/\bS\.?H\.?I\.?E\.?L\.?D\b/gi, 'SHIELD')
-    .replace(/\s+/g, ' ')
-    .trim();
-
   if (mediaType !== 'tv' || !seasonNum) {
     return [(year ? year + ' ' : '') + cleanTitle];
   }
@@ -433,24 +424,14 @@ function buildSearchQueries(title, year, mediaType, seasonNum) {
   const sn = String(seasonNum).padStart(2, '0');
   const queries = new Set();
 
-  // Primary: "Year Title SNN" or "Title SNN"
-  queries.add((year ? year + ' ' : '') + cleanTitle + ' S' + sn);
+  // Primary: year-less "Title SNN" — TV torrents almost never include the year.
+  queries.add(cleanTitle + ' S' + sn);
   // "Season N" variant (some uploaders spell it out)
-  queries.add((year ? year + ' ' : '') + cleanTitle + ' Season ' + seasonNum);
-  // Without year if we have one (catches uploaders who omit it)
-  if (year) {
-    queries.add(cleanTitle + ' S' + sn);
-    queries.add(cleanTitle + ' Season ' + seasonNum);
-  }
-  // Stripped title (drop "The"/"A"/"An") with SNN
+  queries.add(cleanTitle + ' Season ' + seasonNum);
+  // Stripped title (drop "The"/"A"/"An") — important for shows like
+  // "The Walking Dead" where uploaders often omit the article.
   if (strippedTitle !== cleanTitle) {
-    queries.add((year ? year + ' ' : '') + strippedTitle + ' S' + sn);
     queries.add(strippedTitle + ' S' + sn);
-  }
-  // Abbreviated / simplified title
-  if (abbrTitle !== strippedTitle && abbrTitle !== cleanTitle) {
-    queries.add(abbrTitle + ' S' + sn);
-    queries.add(abbrTitle + ' Season ' + seasonNum);
   }
 
   return [...queries];
@@ -460,6 +441,42 @@ function buildSearchQueries(title, year, mediaType, seasonNum) {
 // The public scrapers only return {title, size, hash, seeds, source}, so
 // episode coverage has to be inferred from the torrent title. These helpers
 // power the episode-completeness badge and the batch "add season/episodes".
+
+// Extract the season number from a torrent title. Returns null if unclear.
+function extractSeasonFromTitle(title) {
+  if (!title) return null;
+  const t = title.toUpperCase();
+  // S01E01 / S01E01-E03 style — first Sxx match
+  const sxxe = t.match(/\bS(\d{1,2})E\d/);
+  if (sxxe) return parseInt(sxxe[1], 10);
+  // S01 (no episode) — standalone season pack marker
+  const sxx = t.match(/\bS(\d{1,2})\b/);
+  if (sxx) return parseInt(sxx[1], 10);
+  // Season 1 / Season 18 style
+  const sn = t.match(/\bSEASON\s+(\d{1,2})\b/);
+  if (sn) return parseInt(sn[1], 10);
+  // 1x01 style
+  const nx = t.match(/\b(\d{1,2})x\d/);
+  if (nx) return parseInt(nx[1], 10);
+  // Bare 3-digit like "101" = S01E01
+  const bare = t.match(/(?:^|[^0-9])(\d)(\d{2})(?:[^0-9]|$)/);
+  if (bare) return parseInt(bare[1], 10);
+  return null;
+}
+
+// Extract a season RANGE from a torrent title covering multiple seasons, e.g.
+// "S01-S03", "Season 1-3", "Seasons 1-3", "Season 01-03". Returns { from, to }
+// or null when the title doesn't describe a multi-season pack.
+function extractSeasonRange(title) {
+  if (!title) return null;
+  const t = title.toUpperCase();
+  const m = t.match(/\b(?:S|SEASONS?)\s?(\d{1,2})\s*[-–~]\s*(?:S|SEASONS?)?\s?(\d{1,2})\b/);
+  if (!m) return null;
+  const from = parseInt(m[1], 10);
+  const to = parseInt(m[2], 10);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from > to) return null;
+  return { from, to };
+}
 
 // Expected episode count for the currently selected season (from TMDB).
 function currentSeasonEpisodeCount() {
@@ -550,13 +567,9 @@ function isCompleteSeasonTorrent(title, seasonNum, expected, preEps) {
   // "Complete Series" / "All Seasons" / "Whole Series" / "Series Complete"
   if (/\b(complete.?series|all seasons|entire.?series|full.?series|series.?complete|complete.?set)\b/i.test(lower)) return true;
 
-  // "Season 1-3" or "S01-S03" — multi-season pack covering this season
-  const multiSeason = lower.match(/\b(?:s|season\s*)(\d{1,2})\s*[-–~]\s*(?:s|season\s*)(\d{1,2})\b/);
-  if (multiSeason) {
-    const from = parseInt(multiSeason[1], 10);
-    const to = parseInt(multiSeason[2], 10);
-    if (seasonNum >= from && seasonNum <= to) return true;
-  }
+  // "Season 1-3" / "Seasons 1-3" / "S01-S03" — multi-season pack covering this season
+  const range = extractSeasonRange(title);
+  if (range && seasonNum >= range.from && seasonNum <= range.to) return true;
 
   // "1080p Complete" / "Bluray Complete" — generic quality+complete
   if (/\b(complete|full|whole|pack)\b/i.test(lower) && /\b(bluray|web-?dl|webrip|remux|1080p|2160p|4k|hdtv)\b/i.test(lower)) return true;
@@ -631,15 +644,25 @@ async function runTorrentSearch(queries) {
     { name: 'Rutor', key: 'rutor' },
   ];
 
-  // Fire all (source x query) combinations in parallel, tracking
-  // which ones complete so we can show live progress.
+  // Fire all (source x query) combinations, but in small batches to avoid
+  // hammering the scrapers and triggering 429 rate limits. Each batch runs
+  // in parallel, then a short pause before the next batch.
   let completedCount = 0;
   const totalJobs = sourceDefs.length * queryList.length;
 
-  const jobPromises = [];
+  const allJobs = [];
   for (const src of sourceDefs) {
     for (const q of queryList) {
-      const job = scrapeSource(src.key, q)
+      allJobs.push({ src, q });
+    }
+  }
+
+  const BATCH_SIZE = 3;
+  const allResults = [];
+  for (let i = 0; i < allJobs.length; i += BATCH_SIZE) {
+    const batch = allJobs.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(batch.map(({ src, q }) =>
+      scrapeSource(src.key, q)
         .then(results => {
           completedCount++;
           updateSearchProgress(completedCount, totalJobs, src.name + ' done');
@@ -649,25 +672,23 @@ async function runTorrentSearch(queries) {
           completedCount++;
           updateSearchProgress(completedCount, totalJobs, src.name + ' done');
           return [];
-        });
-      jobPromises.push(job);
+        })
+    ));
+    allResults.push(...batchResults);
+    // Small pause between batches to avoid rate limits
+    if (i + BATCH_SIZE < allJobs.length) {
+      await new Promise(r => setTimeout(r, 120));
     }
   }
-
-  const allSets = await Promise.all(jobPromises);
   if (!detailIsCurrent()) return;
 
-  _detailScrapeFailed = allSets.every(s => !s || !s.length);
+  _detailScrapeFailed = allResults.every(s => !s || !s.length);
 
-  // Flatten and deduplicate
-  let allResults = [];
-  for (const set of allSets) {
-    if (Array.isArray(set)) allResults = allResults.concat(set);
-  }
-
+  // Deduplicate
   const seen = new Set();
   const unique = allResults.filter(t => {
-    const key = t.hash || t.title.toLowerCase();
+    if (!t) return false;
+    const key = t.hash || (t.title || '').toLowerCase();
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -680,7 +701,29 @@ async function runTorrentSearch(queries) {
     return !titleLower || name.includes(titleLower) || titleLower.includes(name);
   });
 
-  _detailResults = sortTorrentsByQuality(filtered);
+  // Season filter: for TV shows, drop results that are clearly for a different
+  // season than the one the user is browsing. Multi-season packs that cover
+  // the current season are kept.
+  const isTv = _detailItem?.mt === 'tv';
+  const currentSeason = _detailCurrentSeason;
+  const seasonFiltered = isTv && currentSeason ? filtered.filter(t => {
+    const titleSeason = extractSeasonFromTitle(t.title);
+    if (titleSeason === null) {
+      // No explicit season marker — keep unless it's a multi-season range that
+      // doesn't include the current season (e.g. "Seasons 1-3" → not S5).
+      const range = extractSeasonRange(t.title);
+      if (range) return currentSeason >= range.from && currentSeason <= range.to;
+      return true; // unclear → keep (might be relevant)
+    }
+    if (titleSeason === currentSeason) return true; // exact match
+    // Multi-season packs: "S01-S03", "Season 1-3", "Seasons 1-3" — check if the
+    // current season falls in range.
+    const range = extractSeasonRange(t.title);
+    if (range) return currentSeason >= range.from && currentSeason <= range.to;
+    return false;
+  }) : filtered;
+
+  _detailResults = sortTorrentsByQuality(seasonFiltered);
 
   if (torboxKey && _detailResults.length > 0) {
     updateSearchProgress(totalJobs, totalJobs, 'Checking TorBox cache...');
@@ -850,16 +893,19 @@ function renderTorrentCards(torrents, grid) {
       return { label: 'Extras', cls: 'badge-extras' };
     }
     if (isTv && seasonNum) {
-      const { eps, seasonPack } = analyzeSeasonTorrent({ title: name }, seasonNum, expected);
+      // Use the ACTUAL season from the title, not just the current season.
+      // This prevents "Family Guy Complete Season 18" from being labeled "Full S01".
+      const titleSeason = extractSeasonFromTitle(name) || seasonNum;
+      // Multi-season packs ("S01-S03", "Season 1-3", "Seasons 1-3") get their own
+      // badge first, so a range pack isn't mislabeled as one season.
+      const range = extractSeasonRange(name);
+      if (range) return { label: 'S' + String(range.from).padStart(2, '0') + '-S' + String(range.to).padStart(2, '0'), cls: 'badge-full' };
+      const { eps, seasonPack } = analyzeSeasonTorrent({ title: name }, titleSeason, expected);
       // Filter out the sentinel "season number" from the eps count
-      const realEps = eps.filter(e => e !== seasonNum);
-      if (seasonPack && realEps.length === 0) return { label: 'Full S' + String(seasonNum).padStart(2, '0'), cls: 'badge-full' };
-      if (seasonPack) return { label: 'Full S' + String(seasonNum).padStart(2, '0'), cls: 'badge-full' };
+      const realEps = eps.filter(e => e !== titleSeason);
+      if (seasonPack) return { label: 'Full S' + String(titleSeason).padStart(2, '0'), cls: 'badge-full' };
       if (realEps.length === 1) return { label: 'E' + String(realEps[0]).padStart(2, '0'), cls: 'badge-single' };
       if (realEps.length > 1) return { label: realEps.length + '/' + (expected || '?') + ' eps', cls: 'badge-partial' };
-      // Check for multi-season packs
-      const multiSeason = name.match(/\b(?:s|season\s*)(\d{1,2})\s*[-–~]\s*(?:s|season\s*)(\d{1,2})\b/i);
-      if (multiSeason) return { label: 'S' + multiSeason[1] + '-S' + multiSeason[2], cls: 'badge-full' };
       return { label: 'Single', cls: 'badge-single' };
     }
     return { label: 'Single', cls: 'badge-single' };

@@ -38,6 +38,14 @@ function createWebRoutes(decodeConfig, options = {}) {
   router.use(express.json());
   router.use(express.urlencoded({ extended: true }));
 
+  // The provider status page is a PRIVATE file (website/status.html is gitignored,
+  // only present on the hosted instance). Without it there is no status page to
+  // serve, so self-hosters get no provider status checks at all: no background
+  // 60s ping loop and no on-demand /api/status pings (the route returns a
+  // placeholder). This keeps self-hosted instances from making pointless
+  // outbound requests to every debrid provider every minute.
+  const HAS_STATUS_PAGE = fs.existsSync(path.join(WEBSITE_DIR, 'status.html'));
+
   // ── Page routes (BEFORE static to avoid immutable caching) ──
 
   // Landing page (private file — only served when present)
@@ -267,13 +275,22 @@ function createWebRoutes(decodeConfig, options = {}) {
     }
   }
 
-  // Background "server-side ping": keep the cache warm every 60s.
-  runStatusCheck();
-  setInterval(runStatusCheck, 60000);
+  // Background "server-side ping": keep the cache warm every 60s. Only runs on
+  // instances that have the private status page (HAS_STATUS_PAGE) — self-hosters
+  // never start it, so no background traffic to debrid providers.
+  if (HAS_STATUS_PAGE) {
+    runStatusCheck();
+    setInterval(runStatusCheck, 60000);
+  }
 
   router.get('/api/status', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     if (req.method === 'OPTIONS') return res.sendStatus(200);
+    // Self-hosted instances have no status page, so never ping providers even
+    // on-demand (a browser polling /api/status would otherwise trigger one).
+    if (!HAS_STATUS_PAGE) {
+      return res.json({ updatedAt: Date.now(), overall: 'unknown', providers: [] });
+    }
     if (statusCache.data && Date.now() - statusCache.at < 60000) return res.json(statusCache.data);
     await runStatusCheck();
     res.json(statusCache.data || { updatedAt: Date.now(), overall: 'down', providers: [] });

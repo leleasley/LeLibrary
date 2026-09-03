@@ -5369,6 +5369,85 @@
       }
     }
 
+    // Apply the selected badge pack to the target Nuvio profile. Nuvio renders
+    // badges from the profile's own badge settings, so pushing collections
+    // alone leaves whichever pack was imported before. Only the badge rules
+    // value is replaced; every other profile setting passes through untouched.
+    // Best-effort: badge failures never fail the push.
+    async function syncNuvioBadgePack(token, profileId) {
+      try {
+        const packs = (window.LeBadgePacks && window.LeBadgePacks.PACKS) || [];
+        const cfg = getCurrentConfig();
+        const pack = cfg.nuvioBadgePack || 'lelibrary-premium';
+        const preset = packs.find(p => p.id === pack) || packs[0] || { id: 'lelibrary-premium', url: '/api/nuvio-badges/lelibrary-premium.json', local: true };
+        let sourceUrl = '';
+        if (pack === 'custom') {
+          sourceUrl = String(cfg.nuvioBadgeUrl || '').trim();
+        } else if (preset.local) {
+          sourceUrl = new URL(preset.url, location.origin).href;
+        } else {
+          sourceUrl = preset.url || '';
+        }
+        try { const u = new URL(sourceUrl); if (!['http:', 'https:'].includes(u.protocol)) return; }
+        catch { return; }
+        // Route remote manifests through the SSRF-hardened JSON proxy so the
+        // browser never fetches user-supplied hosts directly.
+        const manifestUrl = preset.local || pack === 'custom' && new URL(sourceUrl).origin === location.origin
+          ? sourceUrl
+          : `/api/import-json?url=${encodeURIComponent(sourceUrl)}`;
+        const manifestResponse = await fetch(manifestUrl, { cache: 'no-store', credentials: 'same-origin', signal: AbortSignal.timeout(20000) });
+        if (!manifestResponse.ok) throw new Error(`Badge manifest unavailable (HTTP ${manifestResponse.status})`);
+        const manifest = await manifestResponse.json();
+        const filters = (Array.isArray(manifest?.filters) ? manifest.filters : [])
+          .filter(f => f && typeof f === 'object' && String(f.pattern || '').trim() && String(f.imageURL || f.imageUrl || '').trim())
+          .slice(0, 200)
+          .map(f => {
+            const out = {};
+            for (const key of ['id', 'groupId', 'name', 'pattern', 'imageURL', 'imageUrl', 'isEnabled', 'tagColor', 'borderColor', 'tagStyle', 'textColor']) {
+              if (f[key] === undefined) continue;
+              out[key] = typeof f[key] === 'boolean' ? f[key] : String(f[key]).slice(0, 2000);
+            }
+            if (out.imageUrl && !out.imageURL) { out.imageURL = out.imageUrl; delete out.imageUrl; }
+            if (out.isEnabled === undefined) out.isEnabled = true;
+            return out;
+          });
+        if (!filters.length) throw new Error('That badge pack has no usable badges.');
+        const groups = (Array.isArray(manifest?.groups) ? manifest.groups : [])
+          .filter(g => g && typeof g === 'object').slice(0, 50)
+          .map(g => {
+            const out = {};
+            for (const key of ['id', 'name', 'color', 'borderColor', 'tagColor']) {
+              if (g[key] === undefined) continue;
+              out[key] = String(g[key]).slice(0, 500);
+            }
+            return out;
+          });
+        const badgeImport = { sourceUrl, filters, groups, isActive: true };
+        const pulled = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_profile_settings_blob', {
+          p_profile_id: profileId,
+          p_platform: 'tv',
+        });
+        const row = Array.isArray(pulled) ? pulled[0] : pulled;
+        const blob = row?.settings_json;
+        if (!blob || typeof blob !== 'object') return;
+        const next = JSON.parse(JSON.stringify(blob));
+        next.features = next.features && typeof next.features === 'object' ? next.features : {};
+        const badge = next.features.stream_badge_settings && typeof next.features.stream_badge_settings === 'object'
+          ? next.features.stream_badge_settings : {};
+        badge.stream_badge_rules = { type: 'string', value: JSON.stringify({ imports: [badgeImport] }) };
+        next.features.stream_badge_settings = badge;
+        await nuvioRpc(token, '/rest/v1/rpc/sync_push_profile_settings_blob', {
+          p_profile_id: profileId,
+          p_settings_json: next,
+          p_platform: 'tv',
+          p_origin_client_id: nuvioOriginClientId(),
+        });
+        console.log('[Push] Nuvio badge pack synced:', sourceUrl);
+      } catch (err) {
+        console.warn('[Push] Could not sync Nuvio badge pack:', err.message);
+      }
+    }
+
     // After restoring a saved session, quietly confirm the token still works.
     // If it's expired, drop back to the sign-in boxes so the user can reconnect.
     async function verifyRestoredConnect() {
@@ -5808,6 +5887,9 @@
           if (manifestForNuvio) {
             await syncNuvioHomeOrder(connectState.nuvioToken, profileIndex, manifestForNuvio, importedRows, warmedCollections);
           }
+          // Apply the selected badge pack to this profile as well, so Nuvio
+          // shows the pack chosen here instead of a previously imported one.
+          await syncNuvioBadgePack(connectState.nuvioToken, profileIndex);
           setSyncProgress(5);
           renderBackupList(backup);
         }

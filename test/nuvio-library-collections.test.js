@@ -162,6 +162,19 @@ test('Hide anime removes anime sources from both Home rows and collection folder
   assert.deepEqual(plan.collections[0].folders.map((folder) => folder.id), ['action']);
 });
 
+test('Hide anime removes imported anime collections even when their source IDs are generic', () => {
+  const plan = compileCollectionPlan({
+    manifestId: 'community.lelibrary.dev',
+    integration: 'nuvio',
+    hideAnime: true,
+    collections: [
+      { id: 'imported-anime', title: 'Anime', folders: [{ id: 'anime-folder', title: 'Seasonal picks', catalogSources: [{ addonId: 'external', addonUrl: 'https://example.com/manifest.json', catalogId: 'featured', type: 'movie' }] }] },
+      { id: 'imported-movies', title: 'Movies', folders: [{ id: 'movie-folder', title: 'Action', catalogSources: [{ addonId: 'external', addonUrl: 'https://example.com/manifest.json', catalogId: 'action', type: 'movie' }] }] },
+    ],
+  });
+  assert.deepEqual(plan.collections.map((collection) => collection.id), ['imported-movies']);
+});
+
 test('the Hub rejects its old flat Movie Collections folder', () => {
   const plan = compileCollectionPlan({
     manifestId: 'community.lelibrary.dev',

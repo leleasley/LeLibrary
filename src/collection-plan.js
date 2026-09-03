@@ -32,9 +32,25 @@ function cloneSource(source = {}, manifestId = '') {
 
 function isAnimeSource(source = {}) {
   if (String(source.type || '').toLowerCase() === 'anime') return true;
-  const identity = [sourceCatalogId(source), source.title, source.name, source.category]
+  const identity = [sourceCatalogId(source), source.title, source.name, source.category, source.provider, source.addonId]
     .filter(Boolean).join(' ').toLowerCase();
-  return /(?:^|[\s_\-/])(anime|ghibli|kitsu)(?:$|[\s_\-/])/.test(identity);
+  return /(?:^|[\s_\-/])(anime|ghibli|kitsu|anilist|myanimelist|animedb)(?:$|[\s_\-/])/.test(identity);
+}
+
+function isAnimeFolder(folder = {}) {
+  return isAnimeSource(folder) || isAnimeSource({
+    title: folder.title,
+    name: folder.name,
+    category: folder.category,
+  });
+}
+
+function isAnimeCollection(collection = {}) {
+  return isAnimeSource(collection) || isAnimeSource({
+    title: collection.title,
+    name: collection.name,
+    category: collection.category,
+  });
 }
 
 function compileCollectionPlan({ collections = [], homeRows = [], sources = [], manifestId = '', integration = 'nuvio', hideAnime = false } = {}) {
@@ -130,9 +146,13 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
   // folder collection into one misleading film row.
   })).filter((row) => row.source.catalogId && !(integration === 'nuvio' && row.source.catalogId === 'torbox-collections'));
 
-  const normalizedCollections = safeCollections.map((collection, ci) => ({
+  const normalizedCollections = safeCollections.map((collection, ci) => {
+    if (hideAnime && isAnimeCollection(collection)) return null;
+    return ({
     ...collection,
-    folders: (Array.isArray(collection?.folders) ? collection.folders : []).map((folder, fi) => ({
+    folders: (Array.isArray(collection?.folders) ? collection.folders : []).map((folder, fi) => {
+      if (hideAnime && isAnimeFolder(folder)) return null;
+      return ({
       ...folder,
       id: folder?.id || `folder-${ci}-${fi}`,
       catalogSources: (Array.isArray(folder?.catalogSources) ? folder.catalogSources : [])
@@ -141,8 +161,10 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
         // as one list. Franchise navigation is only supported by Nuvio's
         // native generated collection, never by a configurable folder.
         .filter((source) => source.catalogId && !(integration === 'nuvio' && source.catalogId === 'torbox-collections')),
-    })).filter((folder) => (!hideAnime || folder.catalogSources.length) && !(folder?._import?.adapter === 'xperience-v1' && folder.enabled === false)),
-  })).filter((collection) => collection.folders.length > 0 || collection?._import?.adapter !== 'xperience-v1');
+    });
+    }).filter((folder) => folder && (!hideAnime || folder.catalogSources.length) && !(folder?._import?.adapter === 'xperience-v1' && folder.enabled === false)),
+  });
+  }).filter((collection) => collection && (collection.folders.length > 0 || collection?._import?.adapter !== 'xperience-v1'));
 
   return {
     collections: normalizedCollections,

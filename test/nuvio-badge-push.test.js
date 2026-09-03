@@ -1,11 +1,15 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { PACKS, resolveBadgePackUrl, buildBadgeImport, applyBadgeImportToBlob } = require('../src/nuvio-badge-packs');
+const { PACKS, SETTINGS_PLATFORMS, resolveBadgePackUrl, buildBadgeImport, applyBadgeImportToBlob } = require('../src/nuvio-badge-packs');
 
 test('badge pack table covers the browser picker ids', () => {
   for (const id of ['lelibrary-premium', 'nard-full', 'nard-slim', 'better-colored', 'better-mono', 'elite', 'minimal-white', 'minimal-mixed', 'custom']) {
     assert.ok(PACKS.some((p) => p.id === id), `missing pack ${id}`);
   }
+});
+
+test('badge sync covers every Nuvio client platform', () => {
+  assert.deepEqual(SETTINGS_PLATFORMS, ['tv', 'mobile']);
 });
 
 test('badge URL resolution prefers the saved choice', () => {

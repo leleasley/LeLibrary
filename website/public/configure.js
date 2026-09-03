@@ -5423,26 +5423,34 @@
             return out;
           });
         const badgeImport = { sourceUrl, filters, groups, isActive: true };
-        const pulled = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_profile_settings_blob', {
-          p_profile_id: profileId,
-          p_platform: 'tv',
-        });
-        const row = Array.isArray(pulled) ? pulled[0] : pulled;
-        const blob = row?.settings_json;
-        if (!blob || typeof blob !== 'object') return;
-        const next = JSON.parse(JSON.stringify(blob));
-        next.features = next.features && typeof next.features === 'object' ? next.features : {};
-        const badge = next.features.stream_badge_settings && typeof next.features.stream_badge_settings === 'object'
-          ? next.features.stream_badge_settings : {};
-        badge.stream_badge_rules = { type: 'string', value: JSON.stringify({ imports: [badgeImport] }) };
-        next.features.stream_badge_settings = badge;
-        await nuvioRpc(token, '/rest/v1/rpc/sync_push_profile_settings_blob', {
-          p_profile_id: profileId,
-          p_settings_json: next,
-          p_platform: 'tv',
-          p_origin_client_id: nuvioOriginClientId(),
-        });
-        console.log('[Push] Nuvio badge pack synced:', sourceUrl);
+        // TV and mobile apps sync separate settings blobs ('tv' vs 'mobile'):
+        // write the pack to each one that exists so every app shows it.
+        for (const badgePlatform of ['tv', 'mobile']) {
+          try {
+            const pulled = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_profile_settings_blob', {
+              p_profile_id: profileId,
+              p_platform: badgePlatform,
+            });
+            const row = Array.isArray(pulled) ? pulled[0] : pulled;
+            const blob = row?.settings_json;
+            if (!blob || typeof blob !== 'object') continue;
+            const next = JSON.parse(JSON.stringify(blob));
+            next.features = next.features && typeof next.features === 'object' ? next.features : {};
+            const badge = next.features.stream_badge_settings && typeof next.features.stream_badge_settings === 'object'
+              ? next.features.stream_badge_settings : {};
+            badge.stream_badge_rules = { type: 'string', value: JSON.stringify({ imports: [badgeImport] }) };
+            next.features.stream_badge_settings = badge;
+            await nuvioRpc(token, '/rest/v1/rpc/sync_push_profile_settings_blob', {
+              p_profile_id: profileId,
+              p_settings_json: next,
+              p_platform: badgePlatform,
+              p_origin_client_id: nuvioOriginClientId(),
+            });
+            console.log('[Push] Nuvio badge pack synced (' + badgePlatform + '):', sourceUrl);
+          } catch (platformErr) {
+            console.warn('[Push] Could not sync Nuvio badge pack (' + badgePlatform + '):', platformErr.message);
+          }
+        }
       } catch (err) {
         console.warn('[Push] Could not sync Nuvio badge pack:', err.message);
       }

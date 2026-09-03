@@ -21,6 +21,12 @@ const PACKS = [
 const MAX_MANIFEST_BYTES = 2 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 15000;
 
+// Nuvio syncs profile settings per platform client family. The TV client
+// uses 'tv'; the Apple mobile app uses 'mobile' (verified against live
+// blobs). Badge packs must be written to each existing platform blob or the
+// corresponding app keeps showing its old pack.
+const SETTINGS_PLATFORMS = ['tv', 'mobile'];
+
 // Resolve the absolute badge JSON URL for a saved picker choice. Returns ''
 // when the choice has no usable URL (caller should then skip the sync).
 function resolveBadgePackUrl(pack, customUrl, baseUrl) {
@@ -141,4 +147,4 @@ async function fetchBadgeManifest(sourceUrl) {
   return response.data;
 }
 
-module.exports = { LOCAL_PATH, PACKS, MAX_MANIFEST_BYTES, resolveBadgePackUrl, buildBadgeImport, applyBadgeImportToBlob, fetchBadgeManifest };
+module.exports = { LOCAL_PATH, PACKS, SETTINGS_PLATFORMS, MAX_MANIFEST_BYTES, resolveBadgePackUrl, buildBadgeImport, applyBadgeImportToBlob, fetchBadgeManifest };

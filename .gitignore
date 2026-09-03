@@ -37,6 +37,7 @@ website/landing.html
 website/index.js
 website/status.html
 website/privacy.html
+website/sitemap.xml
 
 # Private addon identity (id, description, Stremio registry signature) — production-only
 # Self-hosters get a generic self-hosted manifest instead.

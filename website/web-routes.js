@@ -1061,6 +1061,17 @@ function createWebRoutes(resolveConfig, options = {}) {
     } catch { res.json({ valid: false, error: 'Could not reach MDBList: try again' }); }
   });
 
+  // ── SEO: sitemap.xml (private static file, gitignored) ──
+  // Served from website/sitemap.xml when present on this instance (dev +
+  // prod via manual rsync, like landing.html/privacy.html). Self-hosted
+  // installs without the file 404 cleanly instead of serving prod URLs.
+  router.get('/sitemap.xml', (req, res) => {
+    const page = path.join(WEBSITE_DIR, 'sitemap.xml');
+    if (!fs.existsSync(page)) return res.status(404).type('text/plain').send('Not found');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.sendFile(page);
+  });
+
   // ── Error pages ──────────────────────────────────────────
   // 404 catch-all for unmatched routes: but let addon/API routes that are
   // defined in app.js after this router fall through (preview, catalogs).

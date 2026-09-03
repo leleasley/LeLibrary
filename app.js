@@ -607,6 +607,22 @@ async function buildAndCacheForConfigInner(token, config) {
 
     if (oldHash === newHash) {
       console.log(`[Cache] Downloads unchanged, skip rebuild`);
+      // A restart wipes the in-memory franchise projection while the Redis
+      // hash survives, so "unchanged" would otherwise leave LeLibrary
+      // Collections empty until the next library change. The fresh downloads
+      // are already in hand here: rebuild just the collections once so the
+      // projection recovers on its own. Catalog rows stay cached.
+      if (getCollections(userKey, lang).length === 0) {
+        try {
+          const collMetas = await buildCollectionsCatalog(downloads, tmdbApiKey, lang, { erdbToken, rpdbKey });
+          cacheCollections(userKey, lang, collMetas);
+          const collKey = cache.makeKey('cat', 'collections', 'collections', sortBy, '', '0', userKey, lang, posterFp(config));
+          await cache.set(collKey, { metas: collMetas }, TTL_CATALOG);
+          console.log(`[Cache] collections recovered after restart → ${collMetas.length} items`);
+        } catch (err) {
+          console.warn('[Cache] collections recovery failed:', err.message);
+        }
+      }
       // Keep long-TTL catalog cache warm so it doesn't expire and force a slow rebuild
       await cache.touchPattern(`cat:*${userKey}*`, TTL_CATALOG);
       await cache.expire(hashKey, 7200);

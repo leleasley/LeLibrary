@@ -262,7 +262,7 @@ app.use((req, res, next) => {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' data: blob: https:",
-      "connect-src 'self' https://challenges.cloudflare.com https://api.nuvio.tv https://api.strem.io https://api.github.com https://oauth2.googleapis.com https://openidconnect.googleapis.com",
+      "connect-src 'self' https://challenges.cloudflare.com https://api.nuvio.tv https://api.strem.io https://api.github.com https://raw.githubusercontent.com https://oauth2.googleapis.com https://openidconnect.googleapis.com",
       "frame-src 'self' https://challenges.cloudflare.com",
     ].join('; '));
   }

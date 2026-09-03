@@ -51,7 +51,10 @@
     const cached = remotePreviews.get(url);
     if (cached?.state === 'ready' || cached?.state === 'failed' || cached?.state === 'loading') return;
     remotePreviews.set(url, { state: 'loading', badges: [] });
-    fetch(url, { cache: 'force-cache' })
+    // Route remote manifests through the existing, SSRF-hardened JSON proxy.
+    // Community hosts often omit CORS headers, and this also keeps the browser
+    // CSP limited to same-origin requests for user-supplied URLs.
+    fetch(`/api/import-json?url=${encodeURIComponent(url)}`, { cache: 'force-cache', credentials: 'same-origin' })
       .then(response => { if (!response.ok) throw new Error('Badge manifest unavailable'); return response.json(); })
       .then(data => { remotePreviews.set(url, { state: 'ready', badges: remoteBadgeMatches(data?.filters, data?.groups, url) }); onReady?.(); })
       .catch(() => { remotePreviews.set(url, { state: 'failed', badges: [] }); onReady?.(); });

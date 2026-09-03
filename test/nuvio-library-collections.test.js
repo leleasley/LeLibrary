@@ -141,7 +141,7 @@ test('the shared wizard plan removes only the legacy flat franchise source for N
   }]);
 });
 
-test('Hide anime removes anime sources from both Home rows and collection folders', () => {
+test('Hide anime removes anime Home rows and the complete collection containing anime folders', () => {
   const plan = compileCollectionPlan({
     manifestId: 'community.lelibrary.dev',
     integration: 'nuvio',
@@ -159,7 +159,7 @@ test('Hide anime removes anime sources from both Home rows and collection folder
     }],
   });
   assert.deepEqual(plan.homeRows.map((row) => row.source.catalogId), ['lib-genre_action_movies']);
-  assert.deepEqual(plan.collections[0].folders.map((folder) => folder.id), ['action']);
+  assert.deepEqual(plan.collections, []);
 });
 
 test('Hide anime removes imported anime collections even when their source IDs are generic', () => {
@@ -173,6 +173,24 @@ test('Hide anime removes imported anime collections even when their source IDs a
     ],
   });
   assert.deepEqual(plan.collections.map((collection) => collection.id), ['imported-movies']);
+});
+
+test('Hide anime removes an entire imported collection when an anime addon sits inside a generic folder', () => {
+  const plan = compileCollectionPlan({
+    manifestId: 'community.lelibrary.dev',
+    integration: 'nuvio',
+    hideAnime: true,
+    collections: [{
+      id: 'community-pack',
+      title: 'Imported favourites',
+      folders: [{
+        id: 'mixed-folder',
+        title: 'Featured',
+        catalogSources: [{ addonId: 'org.stremio.anime', catalogId: 'featured', type: 'movie' }],
+      }],
+    }],
+  });
+  assert.deepEqual(plan.collections, []);
 });
 
 test('the Hub rejects its old flat Movie Collections folder', () => {

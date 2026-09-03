@@ -34,7 +34,9 @@ function isAnimeSource(source = {}) {
   if (String(source.type || '').toLowerCase() === 'anime') return true;
   const identity = [sourceCatalogId(source), source.title, source.name, source.category, source.provider, source.addonId]
     .filter(Boolean).join(' ').toLowerCase();
-  return /(?:^|[\s_\-/])(anime|ghibli|kitsu|anilist|myanimelist|animedb)(?:$|[\s_\-/])/.test(identity);
+  // Imported addons commonly use dotted package ids (for example
+  // `org.stremio.anime`) rather than human-readable catalogue names.
+  return /(anime|ghibli|kitsu|anilist|myanimelist|animedb)/.test(identity);
 }
 
 function isAnimeFolder(folder = {}) {
@@ -46,11 +48,17 @@ function isAnimeFolder(folder = {}) {
 }
 
 function isAnimeCollection(collection = {}) {
-  return isAnimeSource(collection) || isAnimeSource({
+  if (isAnimeSource(collection) || isAnimeSource({
     title: collection.title,
     name: collection.name,
     category: collection.category,
-  });
+  })) return true;
+  // A community collection is one selectable unit. If any of its folders is
+  // anime, Hide Anime must remove the whole imported collection rather than
+  // leaving a half-empty shell behind.
+  return (Array.isArray(collection.folders) ? collection.folders : []).some((folder) =>
+    isAnimeFolder(folder) || (Array.isArray(folder?.catalogSources) ? folder.catalogSources : []).some(isAnimeSource)
+  );
 }
 
 function compileCollectionPlan({ collections = [], homeRows = [], sources = [], manifestId = '', integration = 'nuvio', hideAnime = false } = {}) {

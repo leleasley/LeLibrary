@@ -9,6 +9,7 @@ const {
 } = require('../src/nuvio-library-collections');
 const { encodeConfig, normalizeConfig } = require('../website/public/token-map');
 const { compileCollectionPlan } = require('../src/collection-plan');
+const { normalizeImportedSourceDefinition } = require('../src/import-sources/definition');
 
 // Synthetic output of the existing debrid -> TMDB matcher. `videos` contains
 // only owned downloads; absent TMDB franchise parts never enter this fixture.
@@ -139,6 +140,22 @@ test('the shared wizard plan removes only the legacy flat franchise source for N
   assert.deepEqual(plan.collections[0].folders[1].catalogSources, [{
     addonId: 'community.lelibrary.dev', addonUrl: '', catalogId: 'lelibrary-curated-movie', type: 'movie', genre: 'lib-now_playing_movies',
   }]);
+});
+
+test('private imported folders use the exact manifest catalogue ID and an opaque genre reference', () => {
+  const source = normalizeImportedSourceDefinition({
+    provider: 'tmdb', engine: 'discover', mediaType: 'movie',
+    params: { filters: { with_companies: 41077 }, sortBy: 'primary_release_date.desc' },
+    label: 'A24 Recent Movies',
+  });
+  const plan = compileCollectionPlan({
+    manifestId: 'community.lelibrary.dev', integration: 'nuvio', sources: [source],
+    collections: [{ id: 'a24', folders: [{ id: 'recent', catalogSources: [{ catalogId: source.id, type: 'movie' }] }] }],
+  });
+  assert.deepEqual(plan.collections[0].folders[0].catalogSources, [{
+    addonId: 'community.lelibrary.dev', addonUrl: '', catalogId: 'lelibrary-import-movie', type: 'movie', genre: source.id,
+  }]);
+  assert.deepEqual(plan.importedTypes, ['movie']);
 });
 
 test('Hide anime removes anime Home rows and the complete collection containing anime folders', () => {

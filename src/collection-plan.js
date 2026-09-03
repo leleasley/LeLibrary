@@ -135,8 +135,12 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
         return normalized;
       }
       importedTypes.add(normalized.type);
-      normalized.catalogId = `lelibrary-import-${normalized.type},${definition.id}`;
-      normalized.genre = String(source.title || definition.label || 'Imported source').slice(0, 160);
+      // Nuvio resolves a folder source against the installed manifest before
+      // applying extras. A comma-suffixed internal id is therefore shown as a
+      // raw name and never reaches the addon. Keep the manifest catalogue id
+      // exact and carry the opaque, authorised source reference in `genre`.
+      normalized.catalogId = `lelibrary-import-${normalized.type}`;
+      normalized.genre = definition.id;
     }
     if (!isLeLibrarySource(source, manifestId) && normalized.addonId && normalized.addonUrl) {
       externalAddons.set(normalized.addonId, normalized.addonUrl);

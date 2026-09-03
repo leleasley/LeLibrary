@@ -1538,11 +1538,12 @@ async function handleCatalog(req, res) {
     const skip = parseInt(extra.skip) || 0;
     const search = extra.search || '';
     let metas = [];
-    if (importedMatch[2]) {
+    const importedSourceId = importedMatch[2] || (/^imp_[a-f0-9]{64}$/.test(String(extra.genre || '')) ? String(extra.genre) : '');
+    if (importedSourceId) {
       // Only an opaque account token can resolve an imp_* definition. The
       // visible genre is deliberately ignored and remains presentation only.
       if (config.__configScope?.type !== 'account' || !HOSTED?.resolveImportedSource) return res.json({ metas: [] });
-      const definition = await HOSTED.resolveImportedSource(req.params.token, importedMatch[2], type);
+      const definition = await HOSTED.resolveImportedSource(req.params.token, importedSourceId, type);
       if (!definition) return res.json({ metas: [] });
       try {
         metas = await require('./src/libcatalog').buildNormalizedImportedCatalog({

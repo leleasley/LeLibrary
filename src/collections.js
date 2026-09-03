@@ -2,7 +2,7 @@
 // Groups the user's owned movies into TMDB franchise/collection metas for the
 // addon. Each collection becomes a "series"-type meta whose "episodes" are the
 // owned movies; clicking an episode resolves to the owned movie's stream (via
-// the existing buildStreams path in builder.js). Entirely additive — existing
+// the existing buildStreams path in builder.js). Entirely additive: existing
 // movie/series/anime catalogs, meta and streams are untouched.
 //
 // Matching is TMDB-id only (no IMDb ids in the matching pipeline). The filename
@@ -20,6 +20,7 @@ const axios = require('axios');
 const NodeCache = require('node-cache');
 const { searchMetadata, titleScore, getImdbId } = require('./tmdb');
 const { guessMediaInfo } = require('./parser');
+const { isJunkVideo } = require('./torbox');
 
 const detailCache = new NodeCache({ stdTTL: 86400, checkperiod: 3600 });
 // `${userKey}:${lang}` → Map(collectionId → full meta) so meta requests don't
@@ -128,7 +129,7 @@ async function matchMovie(tmdbApiKey, title, year, lang) {
   const s = r => (r ? titleScore(title, r) : 0);
   if (year) {
     const withYear = await searchMetadata(tmdbApiKey, title, 'movie', year, lang);
-    if (s(withYear) >= 90) return withYear; // exact title + year — trust it
+    if (s(withYear) >= 90) return withYear; // exact title + year: trust it
     const withoutYear = await searchMetadata(tmdbApiKey, title, 'movie', undefined, lang);
     if (s(withoutYear) > s(withYear)) return withoutYear;
     return withYear || null;
@@ -159,11 +160,11 @@ function slugify(s) {
     .slice(0, 40) || 'collection';
 }
 function collectionKey(name, id) {
-  // e.g. "toy-story-collection-bxgqk" — no numeric segment anywhere.
+  // e.g. "toy-story-collection-bxgqk": no numeric segment anywhere.
   return `${slugify(name)}-${lettersHash(id)}`;
 }
 
-// Poster providers applied to the films inside collections (TMDB ids only —
+// Poster providers applied to the films inside collections (TMDB ids only -
 // matching and poster URLs never depend on IMDb ids). Same services and URL
 // shapes the movie catalog rows already use.
 function enhancedPosterUrl(tmdbId, enhance) {
@@ -175,12 +176,13 @@ function enhancedPosterUrl(tmdbId, enhance) {
 
 // Build collection metas for a user's downloads. Returns [{ id, type, name,
 // poster, background, description, videos }].
-async function buildCollectionsCatalog(downloads, tmdbApiKey, lang = 'pt-BR', enhance = {}) {
+async function buildCollectionsCatalog(downloads, tmdbApiKey, lang = 'en-US', enhance = {}) {
   // 1. Collect unique movie titles (movies only, deduped by title+year)
   const seen = new Set();
   const movies = [];
   for (const item of downloads || []) {
     const name = item.name || item.filename || '';
+    if (isJunkVideo(name)) continue;
     const info = guessMediaInfo(name);
     if (!info || info.isSeries || info.isAnime) continue;
     const key = titleKey(info.title, info.year);
@@ -270,7 +272,7 @@ async function buildCollectionsCatalog(downloads, tmdbApiKey, lang = 'pt-BR', en
       id: `torbox:collection:${key}`,
       type: 'series',
       name,
-      // Raw TMDB collection id (e.g. 10194 for Toy Story) — harmless extra
+      // Raw TMDB collection id (e.g. 10194 for Toy Story): harmless extra
       // field, used for the movie → saga reverse index and by NuvioWeb's native
       // "Collection" tab on detail pages.
       collectionId: c.id,

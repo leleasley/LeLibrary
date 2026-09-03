@@ -22,7 +22,9 @@ services:
     restart: unless-stopped
     volumes:
       - redis_data:/data
-    command: redis-server --save 60 1 --loglevel warning
+    # Cache data is disposable: cap it so a burst of large collection imports
+    # cannot consume all host memory. allkeys-lfu retains the hottest catalogues.
+    command: redis-server --save 60 1 --loglevel warning --maxmemory ${REDIS_MAXMEMORY:-512mb} --maxmemory-policy allkeys-lfu
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s

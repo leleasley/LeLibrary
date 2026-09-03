@@ -4,7 +4,7 @@ const { getTorBoxDownloads, getTorBoxStreamLink, getTorBoxFiles, isVideoFile, is
 const { getRealDebridDownloads, getRealDebridFiles, getRealDebridStreamLink } = require('./realdebrid');
 const providers = require('./providers');
 const cache = require('./cache');
-const { searchMetadata, searchCandidates, getMetadata, findEpisodeByAirDate, getImdbId } = require('./tmdb');
+const { searchMetadata, searchCandidates, getMetadata, findEpisodeByAirDate, getSeasonEpisodeCounts, getImdbId, getMovieReleaseInfo } = require('./tmdb');
 const { guessMediaInfo } = require('./parser');
 const NodeCache = require('node-cache');
 // AIOStreams-compatible stream formatter engine (works in Node + browser).
@@ -12,18 +12,30 @@ const formatter = require('../website/public/formatter.js');
 
 const CACHE_FILE = '/tmp/torbox-tmdb-cache.json';
 
+function hashShort(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
 // Name→TMDB match cache. The match itself is global (the same release name
 // resolves to the same title whoever owns it), so it is shared across users
 // with a fast in-memory copy backed by Redis. The old cache was in-memory only
-// with a 5-minute TTL and a disk file under /tmp (wiped on every deploy) — a
+// with a 5-minute TTL and a disk file under /tmp (wiped on every deploy): a
 // cold cache made the stream rebuild path fall into the slow full-library TMDB
-// search (10-15s — enough for STRMR to time out and show "no sources"), and
+// search (10-15s: enough for STRMR to time out and show "no sources"), and
 // made the discovery owned-bridge silently miss owned copies. Redis backing
 // with a long TTL keeps matches across deploys and idle periods so the rebuild
 // path answers from cache in milliseconds.
 const MATCH_CACHE_TTL = 24 * 60 * 60; // 24h
+const NULL_MATCH_TTL  = 5 * 60;        // 5 min: null (failed) matches retry quickly
 const MATCH_REDIS_PREFIX = 'matchcache:';
 const memMatchCache = new NodeCache({ stdTTL: MATCH_CACHE_TTL, checkperiod: 60 });
+// Coalesce duplicate player requests and briefly remember a proven miss. This
+// keeps one user's very large library from triggering a full re-scan for every
+// Nuvio retry while an upstream provider is slow.
+const streamBuildInFlight = new Map();
+const streamMissCache = new NodeCache({ stdTTL: 45, checkperiod: 15 });
 
 // Strip per-user torrent items before anything is stored: the match result is
 // shared across users, so no one user's download record should persist (it was
@@ -50,7 +62,7 @@ const matchCache = {
         memMatchCache.set(key, val, MATCH_CACHE_TTL);
         return val;
       }
-    } catch (err) { /* Redis blip — treat as miss */ }
+    } catch (err) { /* Redis blip: treat as miss */ }
     return undefined;
   },
   async set(key, value, ttl = MATCH_CACHE_TTL) {
@@ -58,7 +70,7 @@ const matchCache = {
     memMatchCache.set(key, toStore, ttl);
     try {
       await cache.set(MATCH_REDIS_PREFIX + key, toStore, ttl);
-    } catch (err) { /* non-fatal — the in-memory copy still works */ }
+    } catch (err) { /* non-fatal: the in-memory copy still works */ }
   },
   async has(key) {
     if (memMatchCache.has(key)) return true;
@@ -68,7 +80,7 @@ const matchCache = {
       return false;
     }
   },
-  // Synchronous view of the in-memory copy — only used by the disk
+  // Synchronous view of the in-memory copy: only used by the disk
   // persistence below, which must not block its interval on Redis.
   keys() {
     return memMatchCache.keys();
@@ -80,7 +92,16 @@ function loadPersistentCache() {
     if (fs.existsSync(CACHE_FILE)) {
       const data = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
       let n = 0;
-      for (const [k, v] of Object.entries(data)) { memMatchCache.set(k, stripTorboxItem(v)); n++; }
+      for (const [k, v] of Object.entries(data)) {
+        // Skip negative (null) entries: a null saved moments before its TTL
+        // would otherwise resurrect as a long-lived "unmatchable" shadow.
+        if (v === null || v === undefined) continue;
+        // Short TTL for disk-loaded values: the disk file can be staler than
+        // Redis (docker restart keeps /tmp), and without an expiry a stale
+        // disk value used to beat the fresher Redis match for up to 24h.
+        memMatchCache.set(k, stripTorboxItem(v), 6 * 60 * 60);
+        n++;
+      }
       console.log(`[Cache] Loaded ${n} entries from disk`);
     }
   } catch (e) { console.error('[Cache] Load error:', e.message); }
@@ -98,7 +119,7 @@ function savePersistentCache() {
 }
 
 loadPersistentCache();
-setInterval(savePersistentCache, 60_000);
+setInterval(savePersistentCache, 60_000).unref?.();
 
 const omdbCache    = new NodeCache({ stdTTL: 86400, checkperiod: 3600 });
 // Per-user index: `${userKey}:series:12345` → [{item, season, episode}].
@@ -144,18 +165,18 @@ function populateTmdbIndexFromMetas(metas, userKey = '') {
 
 function buildErdbUrl(token, type, id) {
   if (!token || !type || !id) return null;
-  return `https://easyratingsdb.com/${token}/${type}/${id}.jpg`;
+  return `https://easyratingsdb.com/${encodeURIComponent(token)}/${encodeURIComponent(type)}/${encodeURIComponent(id)}.jpg`;
 }
 
 function buildRpdbUrl(key, idType, posterType, mediaId) {
   if (!key || !mediaId) return null;
-  return `https://api.ratingposterdb.com/${key}/${idType}/${posterType}/${mediaId}.jpg?fallback=true`;
+  return `https://api.ratingposterdb.com/${encodeURIComponent(key)}/${encodeURIComponent(idType)}/${encodeURIComponent(posterType)}/${encodeURIComponent(mediaId)}.jpg?fallback=true`;
 }
 
 // BetterPoster (btttr.cc) serves poster artwork keyed by the title's IMDb id,
 // matching the format the BetterPosters addon uses (movie|tv/{imdb}/auto~gr).
 // The id is a byproduct of TMDB's external_ids that getMetadata already
-// fetches — it is never used for matching. Poster-only: no backdrops or logos.
+// fetches: it is never used for matching. Poster-only: no backdrops or logos.
 function buildBetterPosterUrl(imdbId, type) {
   if (!imdbId) return null;
   const t = (type === 'series' || type === 'anime') ? 'tv' : 'movie';
@@ -168,7 +189,7 @@ async function getOmdbRatings(apiKey, imdbId) {
   const cached = omdbCache.get(key);
   if (cached !== undefined) return cached;
   try {
-    const res = await axios.get(`https://www.omdbapi.com/?apikey=${apiKey}&i=${imdbId}&plot=short`, { timeout: 8000 });
+    const res = await axios.get('https://www.omdbapi.com/', { params: { apikey: apiKey, i: imdbId, plot: 'short' }, timeout: 8000 });
     if (res.data?.Response === 'False') { omdbCache.set(key, null); return null; }
     const ratings = {
       imdbRating: res.data.imdbRating || null,
@@ -198,7 +219,7 @@ async function getFanartArt(apiKey, tmdbId, type) {
   const cached = omdbCache.get(cacheKey);
   if (cached !== undefined) return cached;
   try {
-    const res = await axios.get(`https://webservice.fanart.tv/v3${endpoint}?api_key=${apiKey}`, { timeout: 8000 });
+    const res = await axios.get(`https://webservice.fanart.tv/v3${endpoint}`, { params: { api_key: apiKey }, timeout: 8000 });
     const art = {
       poster: res.data.movieposter?.[0]?.url || res.data.tvposter?.[0]?.url || null,
       background: res.data.moviebackground?.[0]?.url || res.data.showbackground?.[0]?.url || null,
@@ -227,35 +248,39 @@ function infoAnime(_meta, name) {
 
 async function matchItem(item, tmdbApiKey, type, lang) {
   const name     = item.name || item.filename || '';
+  if (isJunkVideo(name)) return null;
   const tmdbType = type === 'movie' ? 'movie' : 'series';
   const cacheKey = `match:${type}:${lang}:${name}`;
 
   const cached = await matchCache.get(cacheKey);
+  // A cached null is a proven negative (stored with NULL_MATCH_TTL): honour it
+  // instead of re-running the parse+search on every request. The entry expires
+  // quickly so TMDB-side changes get picked up.
+  if (cached === null) return null;
   if (cached !== undefined) {
-    if (!cached) return null;
     // Re-validate the anime guard on reuse: cached entries may predate the
     // anime filter (disk-persisted across versions) and could otherwise leak
     // anime into the series catalog.
     const cachedAnime = isTmdbAnime(cached);
     if (type === 'series' && (cachedAnime || infoAnime(cached, name))) {
-      await matchCache.set(cacheKey, null);
+      await matchCache.set(cacheKey, null, NULL_MATCH_TTL);
       return null;
     }
     if (type === 'anime' && !cachedAnime && !infoAnime(cached, name)) {
-      await matchCache.set(cacheKey, null);
+      await matchCache.set(cacheKey, null, NULL_MATCH_TTL);
       return null;
     }
-    // Never reuse another user's torrent item — attach the caller's item.
+    // Never reuse another user's torrent item: attach the caller's item.
     return { ...cached, torboxItem: item };
   }
 
   const info = guessMediaInfo(name);
-  if (!info) { await matchCache.set(cacheKey, null); return null; }
+  if (!info) { await matchCache.set(cacheKey, null, NULL_MATCH_TTL); return null; }
 
   // Simplified type validation
-  if (type === 'movie' && info.isSeries) { await matchCache.set(cacheKey, null); return null; }
-  if (type === 'series' && (!info.isSeries || info.isAnime)) { await matchCache.set(cacheKey, null); return null; }
-  if (type === 'anime' && !info.isSeries) { await matchCache.set(cacheKey, null); return null; }
+  if (type === 'movie' && info.isSeries) { await matchCache.set(cacheKey, null, NULL_MATCH_TTL); return null; }
+  if (type === 'series' && (!info.isSeries || info.isAnime)) { await matchCache.set(cacheKey, null, NULL_MATCH_TTL); return null; }
+  if (type === 'anime' && !info.isSeries) { await matchCache.set(cacheKey, null, NULL_MATCH_TTL); return null; }
 
   try {
     let season     = info.season;
@@ -284,20 +309,26 @@ async function matchItem(item, tmdbApiKey, type, lang) {
         result = candidates[0] || null;
       }
     } else {
-      result = await searchMetadata(tmdbApiKey, info.title, tmdbType, info.year, lang);
+      // Year from filename helps disambiguate remakes/reboots with identical titles
+      // (e.g. "Ann Droid" 2020 vs 2026, "Good Boy" 2025 vs 2026). For movies the
+      // year is also sent to TMDB as a filter; for series we keep it local-only
+      // (yearBonus in pickBestResult) so long-running shows like WWE Raw (1993)
+      // with a 2026 episode date aren't filtered out at the API level.
+      const yearParam = info.year;
+      result = await searchMetadata(tmdbApiKey, info.title, tmdbType, yearParam, lang);
     }
-    if (!result) { await matchCache.set(cacheKey, null); return null; }
+    if (!result) { await matchCache.set(cacheKey, null, NULL_MATCH_TTL); return null; }
 
     const isAnime = isTmdbAnime(result);
 
     if (type === 'series' && (isAnime || info.isAnime)) {
-      console.log(`[TMDB] "${info.title}" is anime — excluded from series`);
-      await matchCache.set(cacheKey, null);
+      console.log(`[TMDB] "${info.title}" is anime: excluded from series`);
+      await matchCache.set(cacheKey, null, NULL_MATCH_TTL);
       return null;
     }
 
     if (type === 'anime' && !isAnime && !info.isAnime) {
-      await matchCache.set(cacheKey, null);
+      await matchCache.set(cacheKey, null, NULL_MATCH_TTL);
       return null;
     }
 
@@ -322,15 +353,20 @@ async function matchItem(item, tmdbApiKey, type, lang) {
     };
 
     await matchCache.set(cacheKey, meta);
-    return meta;
+    // Tag freshly-computed matches (NOT stored in the cache value: the tag is
+    // only on the returned object) so buildCatalog can detect that a new title
+    // / episode just became matchable and invalidate that user's stale meta and
+    // stream caches. Previously an episode added to TorBox stayed invisible
+    // until a manual "refresh catalog" because the cached meta predated its match.
+    return { ...meta, _freshMatch: true };
   } catch (err) {
     console.error(`[TMDB] Error "${name}": ${err.message}`);
-    await matchCache.set(cacheKey, null);
+    await matchCache.set(cacheKey, null, NULL_MATCH_TTL);
     return null;
   }
 }
 
-async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = 'pt-BR', enhance = {}, opts = {}) {
+async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = 'en-US', enhance = {}, opts = {}) {
   const skip      = parseInt(extra?.skip) || 0;
   const search    = extra?.search?.toLowerCase();
   const PAGE_SIZE = 50;
@@ -341,6 +377,7 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
   const allRelevant = [];
   for (const item of downloads) {
     const name = item.name || item.filename || '';
+    if (isJunkVideo(name)) continue;
     const info = guessMediaInfo(name);
     if (!info) continue;
     if (type === 'movie'  && (info.isSeries || info.isAnime))  continue;
@@ -355,7 +392,7 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
   console.log(`[Catalog] type=${type} | raw=${downloads.length} → filtered=${allRelevant.length}${hideAnime ? ' (hideAnime)' : ''}`);
 
   // Progressive mode: split into already-matched (instant) vs new (background).
-  // New items are still matched — just after responding, not blocking it.
+  // New items are still matched: just after responding, not blocking it.
   const BATCH_SIZE = 6;
   let tasks;
   let completion = null;
@@ -367,13 +404,17 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
     for (const { item, info } of allRelevant) {
       const name   = item.name || item.filename || '';
       const ck     = `match:${type}:${lang}:${name}`;
-      if (await matchCache.has(ck)) cached.push({ item, info });
+      // Treat null-cached (failed) entries as needing retry: only count
+      // non-null cache hits as truly cached.  This prevents a transient TMDB
+      // failure from locking an item out for the full 24h cache TTL.
+      const cv = await matchCache.get(ck);
+      if (cv !== undefined && cv !== null) cached.push({ item, info });
       else fresh.push({ item, info });
     }
     freshCount = fresh.length;
     console.log(`[Catalog] Progressive: ${cached.length} cached, ${fresh.length} to match in background`);
     // Only fast-return a partial when the majority is already matched.
-    // A cold or near-cold cache (few cached) would return a near-empty page —
+    // A cold or near-cold cache (few cached) would return a near-empty page -
     // worse than blocking for the full build, so fall back to the full build.
     if (cached.length === 0 || cached.length < fresh.length) {
       tasks = allRelevant.map(({ item }) => () => matchItem(item, tmdbApiKey, type, lang));
@@ -396,6 +437,38 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
     results = results.filter(r => !r.isJapaneseAnimation);
   }
 
+  // New matches (a download that was previously unmatchable now resolves to a
+  // title/episode) mean the user's rendered library pages are stale too.  It
+  // is not enough to evict meta/stream responses: My Movies can otherwise
+  // retain its already-rendered first page for an hour, leaving a newly matched
+  // film invisible even though it is in the provider snapshot and franchise
+  // builder.  Clear only this user's catalog projections; the caller that is
+  // currently building immediately writes its fresh result back.
+  const freshMatchCount = results.filter(r => r && r._freshMatch === true).length;
+  if (freshMatchCount > 0 && userKey) {
+    await cache.delPattern(`cat:*${userKey}*`).catch(() => {});
+    await cache.delPattern(`meta:*${userKey}*`).catch(() => {});
+    await cache.delPattern(`stream:*${userKey}*`).catch(() => {});
+    console.log(`[Catalog] ${freshMatchCount} new match(es) → invalidated catalog/meta/stream caches for ${userKey}`);
+  }
+  // Progressive background matches complete after the response: invalidate once
+  // they land too, so episodes matched off-page show up without a manual refresh.
+  if (completion) {
+    completion.then(completionResults => {
+      const bgFresh = (completionResults || []).filter(r => r && r._freshMatch === true).length;
+      if (bgFresh > 0 && userKey) {
+        return Promise.all([
+          cache.delPattern(`cat:*${userKey}*`).catch(() => {}),
+          cache.delPattern(`meta:*${userKey}*`).catch(() => {}),
+          cache.delPattern(`stream:*${userKey}*`).catch(() => {}),
+        ]).then(() => {
+          console.log(`[Catalog] ${bgFresh} new match(es) (background) → invalidated catalog/meta/stream caches for ${userKey}`);
+        });
+      }
+      return Promise.resolve();
+    }).catch(() => {});
+  }
+
   const seen = new Map();
   for (const meta of results) {
     const indexKey = `${userKey}:${meta.type}:${meta.tmdbId}`;
@@ -405,10 +478,14 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
       tmdbindex.set(indexKey, [entry]);
     } else {
       const existing = tmdbindex.get(indexKey);
-      if (!existing.some(e => e.item.id === entry.item.id)) existing.push(entry);
+      // Compare id AND source: TorBox and Real-Debrid both emit bare numeric
+      // API ids, so an id-only check silently dropped one provider's copy of
+      // the same title in merge mode.
+      if (!existing.some(e => e.item.id === entry.item.id && e.item.source === entry.item.source)) existing.push(entry);
     }
 
     if (!seen.has(meta.id)) seen.set(meta.id, { ...meta, torboxItems: [entry] });
+    else seen.get(meta.id).torboxItems.push(entry);
   }
 
   let metas = Array.from(seen.values());
@@ -417,12 +494,16 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
   if (sortBy === 'data_lancamento') {
     metas.sort((a, b) => (b.released || '').localeCompare(a.released || ''));
   } else if (sortBy === 'titulo') {
-    metas.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'));
+    metas.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'en-US'));
   } else {
+    // "Recently added" sorts on the NEWEST file of each title: a merged
+    // title's date used to freeze at whichever download was seen first.
     metas.sort((a, b) => {
-      const aDate = a.torboxItems?.[0]?.item?.created_at || '';
-      const bDate = b.torboxItems?.[0]?.item?.created_at || '';
-      return bDate.localeCompare(aDate);
+      const latestDate = (items) => (items || []).reduce((acc, it) => {
+        const d = it?.item?.created_at || '';
+        return d > acc ? d : acc;
+      }, '');
+      return latestDate(b.torboxItems).localeCompare(latestDate(a.torboxItems));
     });
   }
 
@@ -458,9 +539,12 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
     }
   }
 
+  // Filter BEFORE destructuring: the map used to strip `_drop` from the row,
+  // so `!m._drop` was always true and tt-mode rows without an IMDb id were
+  // never dropped as documented.
   const output = paginated
-    .map(({ torboxItem, torboxItems, tmdbId, released, catalogType, isJapaneseAnimation, season, episode, _drop, ...rest }) => rest)
-    .filter(m => m.poster && !m._drop);
+    .filter(m => m.poster && !m._drop)
+    .map(({ torboxItem, torboxItems, tmdbId, released, catalogType, isJapaneseAnimation, season, episode, _drop, _freshMatch, ...rest }) => rest);
 
   if (completion) return { metas: output, completion, _fresh: freshCount };
   return output;
@@ -469,11 +553,24 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
 async function buildMeta(tmdbId, type, tmdbApiKey, lang, config = {}, enhance = {}, userKey = '', filterOwnedEpisodes = true) {
   const tmdbType = type === 'series' || type === 'anime' ? 'series' : 'movie';
 
-  // Check if tmdbindex already has entries (per-user) before fetching downloads
+  // Check if tmdbindex already has entries (per-user) before fetching downloads.
+  // MERGE the series and anime buckets: a show can have episodes in both (e.g.
+  // stale anime-classified matches for an animated series), and picking just the
+  // first non-empty bucket dropped the other's seasons entirely.
   const indexKey = `${userKey}:${type}:${tmdbId}`;
-  const existingEntries = tmdbindex.get(indexKey)
-    || tmdbindex.get(`${userKey}:series:${tmdbId}`)
-    || tmdbindex.get(`${userKey}:anime:${tmdbId}`);
+  const _mergedIdx = [];
+  const _seenIdx = new Set();
+  for (const bucket of [
+    tmdbindex.get(indexKey),
+    tmdbindex.get(`${userKey}:series:${tmdbId}`),
+    tmdbindex.get(`${userKey}:anime:${tmdbId}`),
+  ]) {
+    if (!Array.isArray(bucket)) continue;
+    for (const e of bucket) {
+      if (e && e.item && !_seenIdx.has(e.item.id)) { _seenIdx.add(e.item.id); _mergedIdx.push(e); }
+    }
+  }
+  const existingEntries = _mergedIdx;
 
   // Discovery (tt:) requests skip the owned-episode pass entirely: they show
   // every TMDB episode so external stream addons can contribute, regardless of
@@ -492,7 +589,7 @@ async function buildMeta(tmdbId, type, tmdbApiKey, lang, config = {}, enhance = 
   try {
     if (!needsOwnedPass) {
       // Movies skip the episode-availability pass (nothing to filter), and
-      // discovery (tt:) series keep their full TMDB episode list — but both
+      // discovery (tt:) series keep their full TMDB episode list: but both
       // still fall through to the poster/rating enhancement below.
     } else {
     const availableEps = new Set();
@@ -513,7 +610,7 @@ async function buildMeta(tmdbId, type, tmdbApiKey, lang, config = {}, enhance = 
         }
       }
     } else {
-      // Index not populated — full match, but in parallel per unique title
+      // Index not populated: full match, but in parallel per unique title
       const titleCache = new Map();
       const toSearch   = [];
 
@@ -526,7 +623,7 @@ async function buildMeta(tmdbId, type, tmdbApiKey, lang, config = {}, enhance = 
         let cachedMeta = null;
 
         for (const t of ['anime', 'series']) {
-          for (const l of [lang, 'pt-BR', 'en-US']) {
+          for (const l of [lang, 'en-US', 'pt-BR']) {
             const c = await matchCache.get(`match:${t}:${l}:${name}`);
             if (c && String(c.tmdbId) === String(tmdbId)) {
               matched = true; cachedMeta = c; break;
@@ -536,7 +633,10 @@ async function buildMeta(tmdbId, type, tmdbApiKey, lang, config = {}, enhance = 
         }
 
         if (!matched) {
-          const tk = info.airDate ? info.title : (info.title + '|' + (info.year || ''));
+          // For series, skip year in the search key: the filename year is often
+          // the episode date (e.g. "2026" from "S34E01 2026-08-03"), not the
+          // show's first air year, and passing it filters out long-running shows.
+          const tk = (info.airDate || info.isSeries) ? info.title : (info.title + '|' + (info.year || ''));
           toSearch.push({ item, info, tk, cachedMeta: null });
         } else {
           toSearch.push({ item, info, tk: null, cachedMeta });
@@ -673,7 +773,12 @@ async function enhanceMeta(meta, enhance = {}) {
   return meta;
 }
 
-async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episode, lang, customStreams, userKey = '', opts = {}) {
+async function buildStreamsInner(config = {}, tmdbApiKey, type, tmdbId, season, episode, lang, customStreams, userKey = '', opts = {}) {
+  // Miss cache is scoped per mode (bridge vs full) for the same reason as the
+  // requestKey in buildStreams: a discovery-bridge miss must not blind the
+  // library path, which would have run its own TMDB fallback.
+  const streamMissKey = `${userKey}:${type}:${tmdbId}:${season ?? ''}:${episode ?? ''}:${opts.skipTmdbFallback ? 'bridge' : 'full'}`;
+  if (streamMissCache.get(streamMissKey)) return [];
   // Try both indexes (series and anime) since ID is always torbox:series:X
   const possibleKeys = [
     `${userKey}:${type === 'anime' ? 'series' : type}:${tmdbId}`,
@@ -683,13 +788,18 @@ async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episo
   
   let entries = null;
   let usedKey = null;
-  
+
+  // Merge all matching buckets (series + anime) rather than stopping at the
+  // first non-empty one: a show split across both buckets lost the episodes
+  // in the ignored bucket ("no sources" for seasons in the other type).
+  const _streamSeen = new Set();
   for (const key of possibleKeys) {
     const found = tmdbindex.get(key);
     if (found && found.length > 0) {
-      entries = found;
-      usedKey = key;
-      break;
+      if (!usedKey) usedKey = key;
+      for (const e of found) {
+        if (e && e.item && !_streamSeen.has(e.item.id)) { _streamSeen.add(e.item.id); (entries = entries || []).push(e); }
+      }
     }
   }
 
@@ -701,22 +811,28 @@ async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episo
     entries = [];
     const downloads = await providers.fetchDownloads(config);
 
-    for (const item of downloads) {
-      const name = item.name || item.filename || '';
-      let found  = false;
+    // Candidate namespaces are constrained by the requested type: TMDB movie
+    // and TV ids are INDEPENDENT sequences, so scanning the movie bucket for
+    // a series tmdbId pulled unrelated films in as "full pack" matches.
+    // (series+anime stay merged deliberately: shows live in both buckets.)
+    // All cache lookups for one file run in parallel, and files are processed
+    // 20 at a time: the old triple-nested loop did up to 9 SEQUENTIAL gets
+    // per download on every cold rebuild.
+    const typeScanOrder   = type === 'movie' ? ['movie'] : (type === 'anime' ? ['anime', 'series'] : ['series', 'anime']);
+    const langsToTry      = [...new Set([lang || 'en-US', 'en-US', 'pt-BR'])];
+    const candidateKeysFor = (name) => typeScanOrder.flatMap(t => langsToTry.map(l => `match:${t}:${l}:${name}`));
 
-      for (const t of ['anime', 'series', 'movie']) {
-        for (const l of [lang, 'pt-BR', 'en-US']) {
-          const c = await matchCache.get(`match:${t}:${l}:${name}`);
-          if (c && String(c.tmdbId) === String(tmdbId)) {
-            entries.push({ item, season: c.season, episode: c.episode, episodeEnd: c.episodeEnd ?? null });
-            found = true;
-            break;
-          }
-        }
-        if (found) break;
+    await pLimit((downloads || []).map(item => async () => {
+      const name = item.name || item.filename || '';
+      if (!name) return;
+      const keys = candidateKeysFor(name);
+      const vals = await Promise.all(keys.map(k => matchCache.get(k)));
+      const hitIdx = vals.findIndex(c => c && String(c.tmdbId) === String(tmdbId));
+      if (hitIdx >= 0) {
+        const c = vals[hitIdx];
+        entries.push({ item, season: c.season, episode: c.episode, episodeEnd: c.episodeEnd ?? null });
       }
-    }
+    }), 20);
 
     if (entries.length === 0 && tmdbApiKey && !opts.skipTmdbFallback) {
       console.log(`[Stream] TMDB fallback...`);
@@ -748,7 +864,8 @@ async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episo
             }
             return;
           }
-          const result = await searchMetadata(tmdbApiKey, info.title, tmdbType, info.year, lang);
+          const yearParam2 = tmdbType === 'movie' ? info.year : undefined;
+          const result = await searchMetadata(tmdbApiKey, info.title, tmdbType, yearParam2, lang);
           if (result && String(result.id) === String(tmdbId)) {
             entries.push({ item, season: info.season, episode: info.episode, episodeEnd: info.episodeEnd ?? null });
           }
@@ -766,6 +883,7 @@ async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episo
 
   if (!entries || entries.length === 0) {
     console.log(`[Stream] No items found`);
+    streamMissCache.set(streamMissKey, true);
     return [];
   }
 
@@ -809,11 +927,36 @@ async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episo
         console.log(`[Stream] Fallback ep-only: ${filtered.length} entries`);
       } else {
         // Last resort: match by season only (never return every entry across
-        // all seasons — that was serving the wrong seasons/episodes).
+        // all seasons: that was serving the wrong seasons/episodes).
         filtered = season != null && season !== ''
           ? entries.filter(({ season: s }) => s != null && String(s) === String(season))
           : [];
         console.log(`[Stream] Fallback season-only: ${filtered.length} entries`);
+      }
+
+      // Anime absolute numbering: files like "One Piece - 101" parse as
+      // { season: null, episode: 101 }, which matched NO filter above: an
+      // owned anime episode ended up with zero streams. Map the requested
+      // season/episode to a global episode number via TMDB's season sizes
+      // and match absolute-numbered entries against it.
+      if (filtered.length === 0 && type === 'anime' && season != null && season !== '' && episode != null && episode !== '') {
+        try {
+          const counts = await getSeasonEpisodeCounts(tmdbApiKey, tmdbId, lang || 'en-US');
+          const before = Array.isArray(counts)
+            ? counts.filter(c => c.season < Number(season)).reduce((a, c) => a + c.count, 0)
+            : 0;
+          const globalReq = before + parseInt(episode, 10);
+          const absMatches = globalReq > 0 ? entries.filter(({ season: s, episode: e, episodeEnd: eEnd }) => {
+            if (s != null || e == null) return false;
+            const from = parseInt(e, 10);
+            const to   = (eEnd != null) ? parseInt(eEnd, 10) : from;
+            return globalReq >= from && globalReq <= to;
+          }) : [];
+          if (absMatches.length > 0) {
+            filtered = absMatches;
+            console.log(`[Stream] Fallback absolute-numbering: ${filtered.length} entries (global ep ${globalReq})`);
+          }
+        } catch { /* non-fatal: fall through with empty */ }
       }
     }
   } else {
@@ -829,16 +972,23 @@ async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episo
 
     const files      = await getFiles();
     let videoFiles = files.filter(f => isVideoFile(f.name || f.short_name));
-    // Drop sample/trailer files by name, AND tiny sample files (e.g. the ~1MB
-    // "ETRG.mp4" bundled by some release groups) whenever a real feature-sized
-    // file is present. Keeps legit short/extra content when it's all there is.
+    // Always drop Sample/trailer junk ("/Sample/" folder or "-sample.mkv" suffix).
+    // The old path only dropped them when a real file remained, so a torrent
+    // whose only video was a sample still produced a playable stream. Now a
+    // sample-only torrent yields no streams (user request). Tiny helper files
+    // (e.g. the ~1MB "ETRG.mp4") are still only dropped when a real feature
+    // is present so legit short extras aren't hidden when they're all there is.
+    const nonJunk = videoFiles.filter(f => !isJunkVideo(f.name || f.short_name));
+    if (nonJunk.length > 0) {
+      videoFiles = nonJunk;
+    } else if (videoFiles.some(f => isJunkVideo(f.name || f.short_name))) {
+      videoFiles = [];
+    }
     const hasFeature = videoFiles.some(f => (f.size || 0) > 100 * 1024 * 1024);
-    let realFiles = videoFiles.filter(f => {
-      if (isJunkVideo(f.name || f.short_name)) return false;
-      if (hasFeature && (f.size || 0) < 20 * 1024 * 1024) return false;
-      return true;
-    });
-    if (realFiles.length > 0) videoFiles = realFiles;
+    if (hasFeature) {
+      const withoutTiny = videoFiles.filter(f => (f.size || 0) >= 20 * 1024 * 1024);
+      if (withoutTiny.length > 0) videoFiles = withoutTiny;
+    }
 
     let targetFiles = videoFiles;
     if ((type === 'series' || type === 'anime') && episode != null && episode !== '' && videoFiles.length > 1) {
@@ -870,20 +1020,21 @@ async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episo
           rawStreams.push({ url, fname, size: file.size || 0, source: item.source, bingeKey });
         } catch {}
       }
-    } else if (videoFiles.length <= 1) {
-      // Single-file torrent (or unparseable filenames) — serve the whole item.
+    } else if (videoFiles.length === 1 || (videoFiles.length === 0 && files.length === 0 && !isJunkVideo(item.name || ''))) {
+      // Single-file torrent (or unparseable filenames): serve the whole item.
       // When the requested episode didn't match inside a multi-file torrent,
-      // return nothing instead of playing the wrong file.
+      // return nothing instead of playing the wrong file. Never fall back to
+      // a Sample/trailer file (videoFiles was emptied above when only junk remained).
       try {
         const url = await getLink(0);
         if (url) rawStreams.push({ url, fname: item.name || '', size: item.size || 0, source: item.source, bingeKey });
       } catch {}
     } else {
-      console.log(`[Stream] No matching file for s=${season} e=${episode} — skipping`);
+      console.log(`[Stream] No matching file for s=${season} e=${episode}: skipping`);
     }
   }));
 
-  const langCode = (lang || 'pt-BR').split('-')[0].toLowerCase();
+  const langCode = (lang || 'en-US').split('-')[0].toLowerCase();
   rawStreams.sort((a, b) => {
     const dl = langScore(b.fname, langCode) - langScore(a.fname, langCode);
     if (dl !== 0) return dl;
@@ -921,6 +1072,29 @@ async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episo
   }
 
   return result;
+}
+
+// Fingerprint of the stream FORMAT settings (preset, custom templates and the
+// notices toggle). Shared by app.js's meta-route prefetch AND the stream route
+// so both compute identical cache keys: they used to drift (the prefetch left
+// out streamNotices), which made the prefetch write entries the route could
+// never hit whenever notices were configured.
+function libraryStreamFmtFp(config = {}) {
+  return ':' + hashShort(['notice-v3', config.streamPreset || '', config.streamNameTemplate || '', config.streamDescTemplate || '', config.streamNotices || ''].join('|'));
+}
+
+async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episode, lang, customStreams, userKey = '', opts = {}) {
+  // Include skipTmdbFallback in the coalescing key: the discovery owned-bridge
+  // calls buildStreams with it set, the library path does not. A shared key let
+  // whichever request arrived first answer BOTH: bridge-limited results were
+  // served to library requests (missing TMDB-fallback sources) and a bridge
+  // "miss" planted a miss-cache entry that blanked the library path too.
+  const requestKey = `${userKey}:${type}:${tmdbId}:${season ?? ''}:${episode ?? ''}:${lang || ''}:${opts.skipTmdbFallback ? 'bridge' : 'full'}`;
+  const existing = streamBuildInFlight.get(requestKey);
+  if (existing) return existing;
+  const pending = buildStreamsInner(config, tmdbApiKey, type, tmdbId, season, episode, lang, customStreams, userKey, opts);
+  streamBuildInFlight.set(requestKey, pending);
+  try { return await pending; } finally { streamBuildInFlight.delete(requestKey); }
 }
 
 function langScore(n = '', langCode = 'pt') {
@@ -1047,7 +1221,7 @@ function formatBytes(bytes) {
  * Format inspired by AIOStreams:
  *   Line 1 → provider + ⚡ cached indicator
  *   Line 2 → resolution · source
- *   Line 3 → visual tags (HDR / DV / 10bit) — only if present
+ *   Line 3 → visual tags (HDR / DV / 10bit): only if present
  */
 // Resolve the effective name/description templates for a config: the chosen
 // preset from formatter.js, overridden by any custom templates.
@@ -1089,7 +1263,7 @@ function reformatExternalStream(stream, source = 'torbox', config = {}) {
   const size = Number(stream.behaviorHints && stream.behaviorHints.videoSize) || 0;
   const addonName = (stream && stream._sourceAddon) || 'LeLibrary';
   // The badge reflects the user's DEBRID PROVIDER (`source`, e.g. "[TB]" for
-  // TorBox), matching how owned streams are labelled — so every stream shows
+  // TorBox), matching how owned streams are labelled: so every stream shows
   // the same [TB]/[RD]/[AD]/[PM] badge regardless of which addon supplied it.
   // The addon's NAME still appears next to it (e.g. "[TB] Comet").
   const src = source;
@@ -1103,4 +1277,77 @@ function reformatExternalStream(stream, source = 'torbox', config = {}) {
   };
 }
 
-module.exports = { buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta, buildErdbUrl, buildRpdbUrl, buildBetterPosterUrl, getFanartArt };
+// ── Stream notices ────────────────────────────────────────────────────────
+// Non-clickable informational rows served through the normal stream list:
+//   • "No streams available" fallback when nothing was found: clients
+//     (Nuvio/Stremio) only show their own "tried addons, none returned"
+//     error when EVERY addon returns an empty list, so always answering with
+//     at least one row replaces that ugly failure with a friendly message.
+//   • "Not released digitally yet" notice above the streams for films TMDB
+//     marks as having no past digital release window (explains CAM-quality /
+//     missing sources). Movies only: episodes don't have digital windows.
+// Rows carry no url/infoHash/ytId so no client can try to play them, and
+// autoplay skips them (Nuvio's isPlayable() requires a playable source).
+// Toggle: config.streamNotices ('on' default when absent, 'off' disables).
+const NOTICE_DAYS_UNTIL_STALE = 120; // theatrical releases older than this without a digital date are just old films, not unreleased
+
+function streamNoticesEnabled(config = {}) {
+  return config.streamNotices !== 'off';
+}
+
+function makeNoticeRow(name, description) {
+  // Nuvio filters stream DTOs with an empty URL before rendering them. A
+  // harmless local 204 endpoint makes an informational row visible without
+  // exposing a media source; the `_notice` marker still keeps it out of our
+  // real-stream/cache accounting.
+  const origin = String(process.env.BASE_URL || 'https://lelibrary.uk').replace(/\/+$/, '');
+  return { name, description, url: `${origin}/stream-notice`, behaviorHints: { notWebReady: false }, _notice: true };
+}
+
+async function applyStreamNotices(streams, { config = {}, tmdbApiKey, tmdbId, type } = {}) {
+  if (!streamNoticesEnabled(config)) return streams;
+  const isMovie = type === 'movie';
+  let digitalInfo = null;
+  if (isMovie && tmdbApiKey && tmdbId) {
+    try { digitalInfo = await getMovieReleaseInfo(tmdbApiKey, tmdbId); } catch {}
+  }
+  let notDigitalYet = false;
+  let digitalNote = '';
+  if (isMovie && digitalInfo) {
+    const now = Date.now();
+    const digitalTs = digitalInfo.digitalDate ? Date.parse(digitalInfo.digitalDate) : null;
+    const theatricalTs = digitalInfo.releaseDate ? Date.parse(digitalInfo.releaseDate) : null;
+    if (digitalTs !== null) {
+      if (digitalTs > now) {
+        notDigitalYet = true;
+        digitalNote = ` Digital release: ${new Date(digitalTs).toISOString().slice(0, 10)}.`;
+      }
+    } else if (theatricalTs !== null && !Number.isNaN(theatricalTs)) {
+      // No digital window on TMDB: future and recent theatrical releases are
+      // both awaiting a digital date. Older titles are simply old films.
+      const daysSince = (now - theatricalTs) / 86400000;
+      if (daysSince < NOTICE_DAYS_UNTIL_STALE) {
+        notDigitalYet = true;
+      }
+    }
+  }
+
+  const list = Array.isArray(streams) ? streams : [];
+  if (list.length === 0) {
+    return [makeNoticeRow(
+      'ℹ️ No streams found',
+      isMovie && notDigitalYet
+        ? `This film has limited sources as it has not been released digitally yet.${digitalNote}`
+        : 'LeLibrary and your stream addons found nothing for this title.'
+    )];
+  }
+  if (isMovie && notDigitalYet) {
+    return [
+      makeNoticeRow('ℹ️ Digital release not found', `TMDB has no digital release listed for this film yet, so sources may be limited.${digitalNote}`),
+      ...list,
+    ];
+  }
+  return list;
+}
+
+module.exports = { buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta, buildErdbUrl, buildRpdbUrl, buildBetterPosterUrl, getFanartArt, applyStreamNotices, streamNoticesEnabled, libraryStreamFmtFp };

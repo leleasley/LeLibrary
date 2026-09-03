@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=2" />
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=2" />
   <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png?v=2" />
@@ -10,10 +10,12 @@
   <link rel="manifest" href="/site.webmanifest" />
   <meta name="theme-color" content="#09090b" />
   <title>Configure | LeLibrary</title>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/configure.css?v=9" />
-  <script src="/formatter.js?v=6"></script>
+    <link rel="stylesheet" href="/configure.css?v=80" />
+  <link rel="stylesheet" href="/toast.css?v=2" />
+  <script src="/formatter.js?v=7"></script>
+  <script src="/badge-packs.js?v=4"></script>
   <script src="/token-map.js?v=1"></script>
+  <script src="/toast.js?v=2"></script>
 </head>
 <body>
 
@@ -24,18 +26,16 @@
     </a>
     <div class="topbar-right">
       <a href="/" class="topbar-link">Home</a>
-      <a href="/my-library" class="topbar-link">My Library</a>
-      <a href="https://github.com/leleasley/LeLibrary" target="_blank" class="topbar-link" style="display:flex;align-items:center;gap:6px;">
+      <a href="https://github.com/leleasley/LeLibrary" target="_blank" class="topbar-link gh-link">
         <svg class="gh-icon" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-        GitHub
+        <span class="link-text">GitHub</span>
       </a>
-      <a href="https://www.reddit.com/r/LeLibrary/" target="_blank" class="topbar-link" style="display:flex;align-items:center;gap:6px;" aria-label="Reddit">
+      <a href="https://www.reddit.com/r/LeLibrary/" target="_blank" class="topbar-link reddit-link">
         <svg class="gh-icon" viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12c0 3.314 1.343 6.314 3.515 8.485l-2.286 2.286C.775 23.225 1.097 24 1.738 24H12c6.627 0 12-5.373 12-12S18.627 0 12 0Zm4.388 3.199c1.104 0 1.999.895 1.999 1.999 0 1.105-.895 2-1.999 2-.946 0-1.739-.657-1.947-1.539v.002c-1.147.162-2.032 1.15-2.032 2.341v.007c1.776.067 3.4.567 4.686 1.363.473-.363 1.064-.58 1.707-.58 1.547 0 2.802 1.254 2.802 2.802 0 1.117-.655 2.081-1.601 2.531-.088 3.256-3.637 5.876-7.997 5.876-4.361 0-7.905-2.617-7.998-5.87-.954-.447-1.614-1.415-1.614-2.538 0-1.548 1.255-2.802 2.803-2.802.645 0 1.239.218 1.712.585 1.275-.79 2.881-1.291 4.64-1.365v-.01c0-1.663 1.263-3.034 2.88-3.207.188-.911.993-1.595 1.959-1.595Zm-8.085 8.376c-.784 0-1.459.78-1.506 1.797-.047 1.016.64 1.429 1.426 1.429.786 0 1.371-.369 1.418-1.385.047-1.017-.553-1.841-1.338-1.841Zm7.406 0c-.786 0-1.385.824-1.338 1.841.047 1.017.634 1.385 1.418 1.385.785 0 1.473-.413 1.426-1.429-.046-1.017-.721-1.797-1.506-1.797Zm-3.703 4.013c-.974 0-1.907.048-2.77.135-.147.015-.241.168-.183.305.483 1.154 1.622 1.964 2.953 1.964 1.33 0 2.47-.81 2.953-1.964.057-.137-.037-.29-.184-.305-.863-.087-1.795-.135-2.769-.135Z"/></svg>
-        Reddit
+        <span class="link-text">Reddit</span>
       </a>
       <a href="/status" class="topbar-link status-pill" id="navStatusPill" title="Provider status">
         <span class="status-pill-dot"></span>
-        <span class="status-pill-label">Status</span>
         <span class="status-pill-count">&ndash;/4</span>
       </a>
       <span class="topbar-link" id="versionDisplay"></span>
@@ -55,35 +55,93 @@
             <div id="setupContent">
       <div class="form-header" style="margin-bottom:24px">
         <h1 style="font-size:1.6rem;font-weight:700;color:var(--white);letter-spacing:-0.02em;margin-bottom:6px">Set up your addon</h1>
-        <p style="font-size:0.88rem;color:var(--muted);line-height:1.5;max-width:620px">Add your debrid providers and a TMDB key, then install straight into Stremio or Nuvio. Your keys are <strong style="color:var(--text);font-weight:600">encoded in the addon URL</strong> — never stored or logged.</p>
+        <p style="font-size:0.88rem;color:var(--muted);line-height:1.5;max-width:620px">Add your debrid providers and a TMDB key, then install straight into Stremio or Nuvio. Your configuration stays in your install link.</p>
+      </div>
+
+      <!-- Load an existing setup (works for self-host + hosted) -->
+      <div class="load-config" style="margin-bottom:20px">
+        <button type="button" class="btn-main btn-outline" id="toggleLoadConfigBtn" onclick="toggleLoadConfig()" style="width:auto;padding:10px 16px;font-size:0.85rem">
+          <span class="ico">📂</span>
+          <span class="txt">Load an existing setup</span>
+        </button>
+        <div id="loadConfigBox" style="display:none;margin-top:10px">
+          <!-- Self-host only: saved configs list -->
+          <div id="selfhostSavedConfigs" style="display:none;margin-bottom:14px">
+            <div class="field-label" style="margin-bottom:6px">Your saved configs</div>
+            <div id="selfhostConfigList" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--panel,#141417)"></div>
+            <button type="button" id="saveCurrentSetupBtn" class="btn-main btn-outline" onclick="saveCurrentConfig()" style="width:auto;margin-top:8px;padding:8px 14px;font-size:0.8rem">
+              <span class="ico">💾</span>
+              <span class="txt">Save current setup</span>
+            </button>
+          </div>
+          <div class="field" style="max-width:480px">
+            <div class="field-label">Paste your install link or token</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="text" id="loadConfigInput" placeholder="https://…/{token}/manifest.json  or  eyJwIj…" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')loadConfigFromInput()" style="flex:1;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:0.86rem;font-family:var(--font)" />
+              <button type="button" class="btn-main btn-gen" onclick="loadConfigFromInput()" style="padding:10px 18px">Load</button>
+            </div>
+            <p class="field-hint" style="margin:8px 0 0">We'll fill the form from your saved setup. Nothing is sent to any server unless it's an account-based link.</p>
+            <p id="loadConfigError" style="color:var(--error);font-size:0.82rem;margin-top:8px;display:none"></p>
+          </div>
+        </div>
       </div>
 
       <div class="wizard-wrap">
         <nav class="wizard-nav" id="wizardNav">
-          <button class="step-btn active" data-step="1" type="button" onclick="advanceStep(1)"><span class="step-num">1</span><div class="step-label"><span class="step-title">Providers</span><span class="step-desc">Debrid accounts</span></div></button>
+          <button class="step-btn active" data-step="1" type="button" onclick="advanceStep(1)"><span class="step-num">1</span><div class="step-label"><span class="step-title">Platform &amp; Setup</span><span class="step-desc">Nuvio or Stremio</span></div></button>
           <div class="step-dot-line"></div>
-          <button class="step-btn" data-step="2" type="button" onclick="advanceStep(2)"><span class="step-num">2</span><div class="step-label"><span class="step-title">Metadata</span><span class="step-desc">TMDB + language</span></div></button>
+          <button class="step-btn" data-step="2" type="button" onclick="advanceStep(2)"><span class="step-num">2</span><div class="step-label"><span class="step-title">Providers</span><span class="step-desc">Debrid accounts</span></div></button>
           <div class="step-dot-line"></div>
-          <button class="step-btn" data-step="3" type="button" onclick="advanceStep(3)"><span class="step-num">3</span><div class="step-label"><span class="step-title">Filters</span><span class="step-desc">Resolution & quality</span><span class="step-opt">optional</span></div></button>
+          <button class="step-btn" data-step="3" type="button" onclick="advanceStep(3)"><span class="step-num">3</span><div class="step-label"><span class="step-title">Metadata &amp; Watchlists</span><span class="step-desc">TMDB, language &amp; optional lists</span></div></button>
           <div class="step-dot-line"></div>
-          <button class="step-btn" data-step="4" type="button" onclick="advanceStep(4)"><span class="step-num">4</span><div class="step-label"><span class="step-title">Catalogues</span><span class="step-desc">Row selection</span></div></button>
+          <button class="step-btn" data-step="4" type="button" onclick="advanceStep(4)"><span class="step-num">4</span><div class="step-label"><span class="step-title">Stream Preferences</span><span class="step-desc">Quality &amp; filters</span><span class="step-opt">optional</span></div></button>
           <div class="step-dot-line"></div>
-          <button class="step-btn" data-step="5" type="button" onclick="advanceStep(5)"><span class="step-num">5</span><div class="step-label"><span class="step-title">Streams & Look</span><span class="step-desc">Format + extras</span><span class="step-opt">optional</span></div></button>
+          <button class="step-btn" data-step="5" type="button" onclick="advanceStep(5)"><span class="step-num">5</span><div class="step-label"><span class="step-title">Content Builder</span><span class="step-desc">Library, discovery &amp; rows</span></div></button>
           <div class="step-dot-line"></div>
-          <button class="step-btn" data-step="6" type="button" onclick="advanceStep(6)"><span class="step-num">6</span><div class="step-label"><span class="step-title">Install</span><span class="step-desc">Push or links</span></div></button>
+          <button class="step-btn" data-step="6" type="button" onclick="advanceStep(6)"><span class="step-num">6</span><div class="step-label"><span class="step-title">Appearance &amp; Streams</span><span class="step-desc">Artwork, addons &amp; format</span><span class="step-opt">optional</span></div></button>
+          <div class="step-dot-line"></div>
+          <button class="step-btn" data-step="7" type="button" onclick="advanceStep(7)"><span class="step-num">7</span><div class="step-label"><span class="step-title">Review &amp; Install</span><span class="step-desc">Preview, push or copy</span></div></button>
         </nav>
 
         <div class="wizard-body">
           <div class="wizard-progress">
-            <span class="wp-text" id="stepProgressText">Step 1 of 6</span>
-            <span class="wp-title" id="stepProgressTitle">Providers</span>
+            <span class="wp-text" id="stepProgressText">Step 1 of 7</span>
+            <span class="wp-title" id="stepProgressTitle">Platform &amp; Setup</span>
             <div class="wp-bar"><div class="wp-bar-fill" id="stepProgressFill"></div></div>
           </div>
 
-          <!-- STEP 1: PROVIDERS -->
+          <!-- STEP 1: PLATFORM -->
           <div class="step-panel visible" id="panel-1">
             <div class="step">
-              <div class="step-head"><div><h2>Choose your providers</h2><p>Pick one or more — your library is pulled from whichever you enable.</p></div></div>
+              <div class="step-head"><div><h2>Where are you watching?</h2><p>Choose the experience you are building. Nuvio adds native Collections, artwork, focus GIFs and profiles, while Stremio focuses on Home rows. You can change it anytime.</p></div></div>
+              <div id="platformSelectionWrap">
+                <div class="provider-grid" id="platformCards">
+                  <div class="provider-card platform-card" id="platformStremio" onclick="selectPlatform('stremio')">
+                    <div class="pc-head">
+                      <img src="/stremio.svg" alt="Stremio" />
+                      <div class="pc-info"><strong>Stremio</strong><small>Your content as Home rows</small></div>
+                      <span class="pc-check">✓</span>
+                    </div>
+                  </div>
+                  <div class="provider-card platform-card" id="platformNuvio" onclick="selectPlatform('nuvio')">
+                    <div class="pc-head">
+                      <img src="/nuvio.png" alt="Nuvio" />
+                      <div class="pc-info"><strong>Nuvio</strong><small>Collections, artwork, profiles &amp; focus GIFs</small></div>
+                      <span class="pc-check">✓</span>
+                    </div>
+                  </div>
+                </div>
+                <input type="hidden" id="platform" />
+                <div class="url-warning" id="platformHint">Pick one: it decides whether you get home rows (Stremio) or collections (Nuvio) when you install.</div>
+              </div>
+              <div id="platformConnectionPanel"></div>
+            </div>
+          </div>
+
+          <!-- STEP 2: PROVIDERS -->
+          <div class="step-panel" id="panel-2">
+            <div class="step">
+              <div class="step-head"><div><h2>Choose your providers</h2><p>Pick one or more: your library is pulled from whichever you enable.</p></div></div>
               <div class="provider-grid">
                 <div class="provider-card" id="tbCard">
                   <div class="pc-head" onclick="toggleProviderCard('torbox')">
@@ -98,7 +156,7 @@
                       <button class="btn-icon" type="button" onclick="toggleVis('torboxApiKey',this)" aria-label="Show/hide">👁</button>
                       <button class="btn-verify" type="button" onclick="verifyKey('torbox')" id="verifyTorbox" title="Verify key">✓</button>
                     </div>
-                    <p class="pc-referral">No TorBox account? <a href="https://torbox.app/subscription?referral=fba69dd3-9611-4e43-a505-87190b4db7fb" target="_blank">Sign up — referral applied ↗</a></p>
+                    <p class="pc-referral">No TorBox account? <a href="https://torbox.app/subscription?referral=fba69dd3-9611-4e43-a505-87190b4db7fb" target="_blank">Sign up: referral applied ↗</a></p>
                   </div>
                 </div>
                 <div class="provider-card" id="rdCard">
@@ -114,7 +172,7 @@
                       <button class="btn-icon" type="button" onclick="toggleVis('rdApiKey',this)" aria-label="Show/hide">👁</button>
                       <button class="btn-verify" type="button" onclick="verifyKey('realdebrid')" id="verifyRealdebrid" title="Verify key">✓</button>
                     </div>
-                    <p class="pc-referral">No Real-Debrid account? <a href="https://real-debrid.com/?id=14493200" target="_blank">Sign up — referral applied ↗</a></p>
+                    <p class="pc-referral">No Real-Debrid account? <a href="https://real-debrid.com/?id=14493200" target="_blank">Sign up: referral applied ↗</a></p>
                   </div>
                 </div>
                 <div class="provider-card" id="adCard">
@@ -145,7 +203,7 @@
                       <button class="btn-icon" type="button" onclick="toggleVis('pmApiKey',this)" aria-label="Show/hide">👁</button>
                       <button class="btn-verify" type="button" onclick="verifyKey('premiumize')" id="verifyPremiumize" title="Verify key">✓</button>
                     </div>
-                    <p class="pc-referral">First use from a new IP asks you to authorize — we'll show you the PIN.</p>
+                    <p class="pc-referral">First use from a new IP asks you to authorize: we'll show you the PIN.</p>
                   </div>
                 </div>
               </div>
@@ -158,14 +216,14 @@
                 </select>
                 <p class="field-hint">Merge shows one combined library; separate keeps each provider in its own catalog row.</p>
               </div>
-              <div class="url-warning">Protect this page — anyone with the URL can access your configuration.</div>
+              <div class="url-warning">Protect this page: anyone with the URL can access your configuration.</div>
             </div>
           </div>
 
-          <!-- STEP 2: METADATA -->
-          <div class="step-panel" id="panel-2">
+          <!-- STEP 3: METADATA -->
+          <div class="step-panel" id="panel-3">
             <div class="step">
-              <div class="step-head"><div><h2>Metadata</h2><p>TMDB powers your posters, ratings and detail pages.</p></div></div>
+              <div class="step-head"><div><h2>Metadata &amp; Watchlists</h2><p>TMDB powers your posters, ratings and detail pages. Optional watchlist sources can appear in My Rows on the next step.</p></div></div>
               <div class="step-card">
                 <div class="field">
                   <div class="field-label">TMDB API Key <span class="req">*</span><a href="https://www.themoviedb.org/settings/api" target="_blank">Get key →</a></div>
@@ -174,7 +232,7 @@
                     <button class="btn-icon" type="button" onclick="toggleVis('tmdbApiKey',this)" aria-label="Show/hide">👁</button>
                     <button class="btn-verify" type="button" onclick="verifyKey('tmdb')" id="verifyTmdb" title="Verify key">✓</button>
                   </div>
-                  <p class="field-hint">Copy <strong style="color:var(--text)">API Key (v3)</strong> from your TMDB account settings — a 32-character string.</p>
+                  <p class="field-hint">Copy <strong style="color:var(--text)">API Key (v3)</strong> from your TMDB account settings: a 32-character string.</p>
                   <div class="url-warning" id="tmdbV4Warning" style="display:none">⚠️ That looks like a TMDB <strong>v4 Read Access Token</strong>, not the v3 API key. v4 tokens expire. Use your <strong>v3 API key</strong> instead.</div>
                 </div>
                 <div class="field-row">
@@ -200,13 +258,27 @@
                     </select>
                   </div>
                 </div>
+                <div class="field" style="margin-top:16px">
+                  <div class="field-label">Library metadata & visibility</div>
+                  <label class="cg-advanced-item"><input type="checkbox" id="editHideAnime" onchange="toggleHideAnime(this.checked)" /><div><strong>Hide anime</strong><p class="field-hint" style="margin:6px 0 0">Removes only anime sources from your library and collections. Mixed collections keep their non-anime sources.</p></div></label>
+                  <input type="checkbox" id="hideAnime" style="display:none" />
+                  <label class="cg-advanced-item"><input type="checkbox" id="libraryIdMode" onchange="checkChanged()" /><div><strong>Use Main metadata</strong><p class="field-hint" style="margin:6px 0 0">Use IMDb IDs for My Movies, My Shows and LeLibrary Collections, with richer metadata, external streams and scrobbling support.</p></div></label>
+                  <div class="field" style="margin-top:14px"><div class="field-label">Search</div><select id="searchScope" onchange="checkChanged()"><option value="combined">Movies &amp; Series + Your Library</option><option value="library">Only your Library</option><option value="tmdb">Only Movies &amp; Series from TMDB</option></select><p class="field-hint" style="margin:6px 0 0">Choose whether addon search includes TMDB, your owned movies and shows, or both.</p></div>
+                </div>
+                <div class="field" style="margin-top:16px">
+                  <div class="field-label">Stream notices</div>
+                  <label style="display:flex;align-items:flex-start;gap:8px;font-size:0.85rem;color:var(--text);cursor:pointer">
+                    <input type="checkbox" id="streamNotices" onchange="checkChanged()" checked />
+                    <span>Show helpful notices in the stream list, including <strong>No streams found</strong> and <strong>Digital release not found</strong>.</span>
+                  </label>
+                </div>
               </div>
             </div>
           </div>
 
 
-          <!-- STEP 3: FILTERS & PREFERENCES -->
-          <div class="step-panel" id="panel-3">
+          <!-- STEP 4: FILTERS & PREFERENCES -->
+          <div class="step-panel" id="panel-4">
             <div class="step">
               <div class="step-head"><div><h2>Filters & Preferences</h2><p>Control which streams appear and in what order. All optional.</p></div></div>
 
@@ -293,42 +365,57 @@
             </div>
           </div>
 
-          <!-- STEP 3: CATALOGUES -->
-          <div class="step-panel" id="panel-4">
+          <!-- STEP 5: CATALOGUES -->
+          <div class="step-panel" id="panel-5">
             <div class="step">
-              <div class="step-head"><div><h2>Edit Catalogues <span class="beta">Beta</span></h2><p>Choose which catalogues get installed. Reorder with arrows, rename with ✎.</p></div></div>
-              <div class="step-card">
-                <div class="coll-note">
-                  <strong>Collections stay up to date:</strong> new films added to a franchise you already own appear automatically. One <strong>LeLibrary Collections</strong> row holds every franchise: in Nuvio it shows as folders, and in Stremio as a genre filter.
-                  <br /><br />When you add a <strong>brand-new franchise</strong> to your library, give it one quick re-push from the Install step and its folder will appear in Nuvio.
-                </div>
-                <div class="field">
-                  <div class="field-label">Your catalogues <small style="font-weight:400;color:var(--muted)">— use ↑ ↓ to reorder, ✎ to rename</small></div>
-                  <div class="cat-options" id="catalogueList"></div>
-                  <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;margin-top:12px">
-                    <input type="checkbox" id="editHideAnime" onchange="toggleHideAnime(this.checked)" /> Hide anime catalogue
-                  </label>
-                  <input type="checkbox" id="hideAnime" style="display:none" />
-                  <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;margin-top:8px">
-                    <input type="checkbox" id="pinCollections" onchange="checkChanged()" /> Pin LeLibrary Collections to top (Nuvio)
-                  </label>
-                  <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
-                    <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer">
-                      <input type="checkbox" id="libraryIdMode" onchange="checkChanged()" /> Use main metadata for My Movies / My Shows / Collections
-                    </label>
-                    <p class="field-hint" style="margin:6px 0 0">
-                      When off (default) your library rows use isolated TorBox ids: owned streams only, owned episodes only. When on, rows switch to IMDb ids so they load through the same metadata as every other title, external stream addons can contribute, and the titles are ready for scrobbling. Change it, then save.
-                    </p>
-                  </div>
-                </div>
+              <div class="step-head"><div><h2>Build your content experience</h2><p>Choose the library and discovery sources you want, then shape the Home rows and Nuvio Collections around them.</p></div></div>
+              <div class="content-builder-intro" data-capability="content-builder">
+                <div class="content-builder-copy"><span class="section-kicker">CONTENT BUILDER</span><h3>One layout, two layers</h3><p><strong>Home rows</strong> control what appears on the platform home screen. <strong>Nuvio Collections</strong> add curated folders with artwork and profile-aware presentation. Your owned library and discovery sources can power either layer.</p></div>
+                <div class="content-builder-legend"><span><i class="legend-dot owned"></i>Owned library</span><span><i class="legend-dot discovery"></i>Discovery</span><span><i class="legend-dot nuvio"></i>Nuvio Collections</span></div>
               </div>
+
+              <details class="cg-accordion" id="libraryAccordion">
+                <summary class="cg-accordion-head"><span class="cg-section-icon">🏠</span><div><strong>Home Rows</strong><small>Choose the rows you want on your Home screen</small></div><span class="cg-accordion-count" id="catGroupTotal"></span></summary>
+                <div class="cg-accordion-body"><div style="display:flex; gap:8px; margin: 12px 0 8px;"><button type="button" class="btn-main btn-gen" style="flex:1" onclick="addLeLibrarySpecialHomeRows()">🌟 Add LeLibrary Special (20 rows)</button><button type="button" class="btn-copy-url" onclick="document.getElementById('libCatalogFilter').focus()">Search</button></div><input type="text" id="libCatalogFilter" placeholder="Search the catalog library…" oninput="onLibCatalogSearch()" class="cg-search" /><div id="catGroupList" class="catgroup-list"></div><p class="field-hint" style="margin:10px 0 0">These rows carry plain IMDb ids, so external stream addons can add streams and Nuvio shows the full detail page.</p></div>
+              </details>
+              <details class="cg-accordion curated-packs-section nuvio-only" id="curatedCollectionsAccordion">
+                <summary class="cg-accordion-head"><span class="cg-section-icon">✨</span><div><strong>Nuvio Collections Studio</strong><small>Build folders with artwork, focus GIFs and Nuvio presentation settings</small></div><span class="cg-accordion-count" id="curatedPackTotal"></span></summary>
+                <div class="cg-accordion-body"><div id="curatedPackList" class="curated-pack-list"></div><p class="field-hint" style="margin:12px 0 0">Select a pack to add its folders to Nuvio Collections. Expand a pack to see every folder and its source before selecting it.</p></div>
+              </details>
+              <div class="cg-accordion cg-accordion--action nuvio-public-collections-section nuvio-only" id="nuvioPublicCollectionsLauncher" role="button" tabindex="0" onclick="openNuvioPublicCollectionsModal()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openNuvioPublicCollectionsModal();}">
+                <div class="cg-accordion-head"><span class="cg-section-icon nuvio-community-icon"><img src="/nuvio.png" alt=""></span><div><strong>Nuvio Public Collections</strong><small>Browse community packs, check requirements and import them into your profile</small></div><span class="cg-accordion-count">Browse</span></div>
+              </div>
+              <details class="cg-accordion imported-rows-section" id="importedRowsAccordion">
+                <summary class="cg-accordion-head"><span class="cg-section-icon">⬇️</span><div><strong>Import</strong><small>Import manifests, Nuvio collections, or setup project files</small></div><span class="cg-accordion-count" id="importedRowsTotal"></span></summary>
+                <div class="cg-accordion-body">
+                  <div class="import-choice-grid">
+                    <button type="button" class="import-choice-card" onclick="openImportedRowsModal('manifest')">
+                      <span class="import-choice-icon">▤</span><span class="import-choice-copy"><strong>Import Manifest</strong><small>Add catalogue rows from a Stremio manifest URL</small></span><span class="import-choice-arrow">›</span>
+                    </button>
+                    <button type="button" class="import-choice-card featured" onclick="openImportedRowsModal('collections')">
+                      <span class="import-choice-icon">▦</span><span class="import-choice-copy"><strong>Import Collections</strong><small>Upload or paste a Nuvio collections.json with folders</small></span><span class="import-choice-arrow">›</span>
+                    </button>
+                  </div>
+                  <p class="import-explainer"><strong>What’s the difference?</strong> A manifest contains catalogue rows. A collections file contains the native Nuvio groups, folders, artwork and source links.</p>
+                  <div id="importedRowsList" class="imported-rows-list"></div>
+                </div>
+              </details>
+              <details class="cg-accordion" id="yourRowsAccordion">
+                <summary class="cg-accordion-head"><span class="cg-section-icon">📋</span><div><strong>Home layout</strong><small>Selected Home rows, in the order they will appear</small></div><span class="cg-accordion-count" id="yourRowsTotal"></span></summary>
+                <div class="cg-accordion-body"><div class="cg-row-list" id="catalogueList"></div><p class="field-hint" style="margin:10px 0 0">Watchlist rows and Nuvio collection packs appear here when configured.</p></div>
+              </details>
+              <details class="cg-accordion" id="advancedAccordion">
+                <summary class="cg-accordion-head"><span class="cg-section-icon">⚙️</span><div><strong>Advanced</strong><small>Additional catalogue controls</small></div></summary>
+                <div class="cg-accordion-body"><span style="display:inline-block;padding:7px 14px;border-radius:999px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.38);color:var(--amber);font-size:0.78rem;font-weight:600;">Library metadata, anime visibility and stream notices are now in Metadata + Watchlists.</span></div>
+              </details>
+              <div class="preview-wrap" id="catPreviewWrap" style="display:none"><div class="preview-panel open" id="catPreviewBody"><div class="preview-head" id="catPreviewHead">Preview</div><div id="catPreviewGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;padding:10px"></div><div class="preview-footer" id="catPreviewFooter">Rendered from the same pipeline Stremio and Nuvio receive</div></div></div>
             </div>
           </div>
 
-          <!-- STEP 4: STREAMS & LOOK -->
-          <div class="step-panel" id="panel-5">
+          <!-- STEP 6: STREAMS & LOOK -->
+          <div class="step-panel" id="panel-6">
             <div class="step">
-              <div class="step-head"><div><h2>Streams & Look</h2><p>Stream format, addons, posters and custom streams — all optional.</p></div></div>
+              <div class="step-head"><div><h2>Streams & Look</h2><p>Stream format, addons, posters and custom streams: all optional.</p></div></div>
 
               <div class="coll-card">
                 <div class="coll-header" onclick="toggleCollCard(this)">
@@ -340,6 +427,10 @@
                     <div class="field-label">Preset</div>
                     <select id="streamPreset" onchange="onStreamPresetChange()">
                       <option value="lelibrary">LeLibrary</option>
+                      <option value="cinema">Cinema cards</option>
+                      <option value="remux">Premium REMUX</option>
+                      <option value="compact">Clean compact</option>
+                      <option value="technical">Technical detail</option>
                       <option value="torrentio">Torrentio</option>
                       <option value="torbox">Torbox</option>
                       <option value="gdrive">Google Drive</option>
@@ -359,8 +450,9 @@
                     <textarea id="streamDescTemplate" rows="4" spellcheck="false" style="font-family:var(--mono,monospace);font-size:0.82rem;resize:vertical;width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text)" oninput="updateStreamPreview()"></textarea>
                   </div>
                   <div style="margin-top:8px;font-size:0.72rem;color:var(--muted)">
-                    Variables: <code>{provider}</code> <code>{providerEmoji}</code> <code>{quality}</code> <code>{source}</code> <code>{codec}</code> <code>{audio}</code> <code>{visualTags}</code> <code>{size}</code> <code>{sub}</code> <code>{group}</code> <code>{filename}</code> <code>{type}</code>
+                    Variables: <code>{stream.resolution}</code> <code>{stream.quality}</code> <code>{stream.source}</code> <code>{stream.encode}</code> <code>{stream.visualTags}</code> <code>{stream.audioTags}</code> <code>{stream.audioChannels}</code> <code>{stream.size}</code> <code>{stream.subtitles}</code> <code>{stream.releaseGroup}</code> <code>{stream.filename}</code> <code>{stream.type}</code> <code>{service.shortName}</code> <code>{addon.name}</code>
                   </div>
+                  <div id="badgePackPicker"></div>
                   <div style="margin-top:14px">
                     <div class="field-label" style="margin-bottom:8px">Preview</div>
                     <div id="streamPreview" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;min-height:80px;font-size:0.82rem">
@@ -370,15 +462,15 @@
                 </div>
               </div>
 
-              <div class="coll-card">
+              <div class="coll-card" id="streamAddonsCard">
                 <div class="coll-header" onclick="toggleCollCard(this)">
-                  <div class="coll-header-left"><span class="coll-icon">🎛️</span><span class="coll-label">Addons & Filters</span><span class="coll-sub">Trending/Popular streams</span></div>
-                  <span class="coll-arrow">▸</span>
+                  <div class="coll-header-left"><span class="coll-icon">🎛️</span><span class="coll-label">External Stream Addons</span><span class="coll-sub">For public IMDb rows</span></div>
+                  <span class="coll-arrow open">▸</span>
                 </div>
-                <div class="coll-body">
+                <div class="coll-body open">
                   <div class="field" style="margin-bottom:14px">
                     <div class="field-label" style="margin-bottom:4px">Stream Addons <span class="beta">Optional</span></div>
-                    <p class="field-hint" style="margin:0 0 12px 0">Power the <strong>Trending</strong> and <strong>Popular</strong> catalogue rows by letting LeLibrary pull streams from other addons. None are enabled by default. Your library rows are <strong>never</strong> affected.</p>
+                    <p class="field-hint" style="margin:0 0 12px 0">Add streams to every row that uses a public IMDb id: <strong>Trending</strong>, <strong>Popular</strong>, imported or created Home rows, and your library or collections when <strong>Use main metadata</strong> is enabled. None are enabled by default. The default isolated TorBox library stays owned-only.</p>
                     <div class="cat-options" id="streamAddonList"></div>
                   </div>
 
@@ -395,9 +487,9 @@
                     <div class="field-label">Poster Service</div>
                     <select id="posterProvider" onchange="onPosterChange()">
                       <option value="">None (TMDB default)</option>
-                      <option value="erdb">ERDB — EasyRatingsDB (ratings on posters)</option>
-                      <option value="rpdb">RPDB — Rating Poster DB (ratings on posters)</option>
-                      <option value="betterposter">BetterPosters — btttr.cc artwork</option>
+                      <option value="erdb">ERDB: EasyRatingsDB (ratings on posters)</option>
+                      <option value="rpdb">RPDB: Rating Poster DB (ratings on posters)</option>
+                      <option value="betterposter">BetterPosters: btttr.cc artwork</option>
                       <option value="fanart">Fanart.tv (high-res alternative art)</option>
                     </select>
                   </div>
@@ -441,7 +533,7 @@
                         <button class="btn-icon" type="button" onclick="toggleVis('omdbKey',this)" aria-label="Show/hide">👁</button>
                         <button class="btn-verify" type="button" onclick="verifyKey('omdb')" id="verifyOmdb" title="Verify key">✓</button>
                       </div>
-                      <p class="field-hint">Adds IMDb, Rotten Tomatoes & Metacritic scores to detail pages. Get a free key at <a href="https://www.omdbapi.com/apikey.aspx" target="_blank">omdbapi.com</a> — 1,000 req/day.</p>
+                      <p class="field-hint">Adds IMDb, Rotten Tomatoes & Metacritic scores to detail pages. Get a free key at <a href="https://www.omdbapi.com/apikey.aspx" target="_blank">omdbapi.com</a>: 1,000 req/day.</p>
                     </div>
                   </div>
                   <div class="mobile-poster-preview" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);text-align:center">
@@ -473,57 +565,89 @@
             </div>
           </div>
 
-          <!-- STEP 5: INSTALL -->
-          <div class="step-panel" id="panel-6">
+          <!-- STEP 7: INSTALL -->
+          <div class="step-panel" id="panel-7">
             <div class="step">
-              <div class="step-head"><div><h2>Install</h2><p>Push straight to your connected account, or generate the links to install manually.</p></div></div>
+              <div class="step-head"><div><h2>Install LeLibrary</h2><p>Choose where to install, then push your saved setup.</p></div></div>
+              <div class="field" style="margin-bottom:14px">
+                <div class="field-label">Push to</div>
+                <div class="platform-toggle" id="installPlatformTabs">
+                  <button type="button" class="ptab" data-plat="stremio" onclick="selectPlatform('stremio')"><img src="/stremio.svg" alt="" onerror="this.style.display='none'" /> Stremio</button>
+                  <button type="button" class="ptab" data-plat="nuvio" onclick="selectPlatform('nuvio')"><img src="/nuvio.svg" alt="" onerror="this.onerror=null;this.src='/nuvio.png'" /> Nuvio</button>
+                </div>
+              </div>
               <div id="installPush"></div>
-              <div class="step-card">
-                <div class="field-label" style="margin-bottom:6px">Install manually</div>
-                <div class="coll-note" style="margin-bottom:14px"><strong>Note:</strong> your categories and library are installed by the <strong>Push to</strong> option above. If no catalogues are selected, use the options below.</div>
-                <div class="actions">
-                  <button class="btn-main btn-gen" id="btnGenerate" onclick="generate()">
-                    <div class="ico">⚡</div>
-                    <div class="txt"><span id="genBtnTitle">Generate install links</span><small>Create links with your keys</small></div>
-                    <span class="arr">›</span>
-                  </button>
-                  <button class="btn-main btn-stremio" id="btnDesktop" type="button" onclick="pushAddonTo('stremio')" style="cursor:pointer;font-family:var(--font)">
-                    <div class="ico"><img src="/stremio.svg" alt="Stremio" style="width:20px;height:20px" /></div>
-                    <div class="txt"><span>Push to Stremio</span><small>Installs LeLibrary on your connected Stremio account</small></div>
-                    <span class="arr">›</span>
-                  </button>
-                  <button class="btn-main btn-nuvio" id="btnNuvio" type="button" onclick="pushAddonTo('nuvio')" style="cursor:pointer;font-family:var(--font)">
-                    <div class="ico"><img src="/nuvio.png" alt="Nuvio" style="width:20px;height:20px" /></div>
-                    <div class="txt"><span>Push to Nuvio</span><small>Installs LeLibrary on your connected Nuvio account</small></div>
-                    <span class="arr">›</span>
-                  </button>
-                  <a class="btn-main btn-outline" id="btnWeb" href="#" target="_blank" rel="noopener">
-                    <div class="ico"><img src="/stremio.svg" alt="Stremio" style="width:20px;height:20px" /></div>
-                    <div class="txt"><span>Install manually via Stremio Web</span><small>Use at web.stremio.com in the browser</small></div>
-                    <span class="arr">›</span>
-                  </a>
-                  <div id="pushNotConnectedHint" style="display:none;margin-top:4px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:8px;padding:10px 14px;font-size:0.78rem;color:var(--text);line-height:1.5;text-align:center">
-                    You haven't configured Nuvio/Stremio. <a href="#" onclick="goToStep(6);return false" style="color:var(--amber)">Sign in</a> above to use the push feature.
-                  </div>
-                  <button class="btn-main btn-gen" id="btnRefresh" onclick="clearCache()" style="display:none;background:var(--surface2);color:var(--text);border:1px solid var(--border)">
-                    <div class="ico">🔄</div>
-                    <div class="txt"><span>Refresh catalog</span><small>Clears server cache — then refresh in Stremio or Nuvio</small></div>
-                    <span class="arr">›</span>
-                  </button>
-                  <div class="url-box" id="urlRow">
-                    <span id="manifestUrl"></span>
-                    <button class="btn-copy-url" onclick="copyUrl(this)">Copy</button>
+              <!-- Hidden legacy elements for JS compatibility -->
+              <button class="btn-main btn-gen" id="btnGenerate" onclick="generate()" style="display:none"><div class="ico">⚡</div><div class="txt"><span id="genBtnTitle">Generate install links</span><small>Create links with your keys</small></div><span class="arr">›</span></button>
+              <a class="btn-main btn-outline hide-push-dups" id="btnWeb" href="#" target="_blank" rel="noopener" style="display:none"></a>
+              <button class="btn-main btn-stremio hide-push-dups" id="btnDesktop" type="button" onclick="pushAddonTo('stremio')" style="display:none"></button>
+              <button class="btn-main btn-nuvio hide-push-dups" id="btnNuvio" type="button" onclick="pushAddonTo('nuvio')" style="display:none"></button>
+              <span id="manifestUrl" style="display:none"></span>
+              <div id="urlRow" class="url-box" style="display:none"><span></span><button class="btn-copy-url" onclick="copyUrl(this)">Copy</button></div>
+              <div id="pushNotConnectedHint" style="display:none;margin-top:4px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:8px;padding:10px 14px;font-size:0.78rem;color:var(--text);line-height:1.5;text-align:center">You haven't connected <span id="pushNotConnectedPlat">Stremio</span>. <a href="#" onclick="goToStep(1);return false" style="color:var(--amber)">Sign in</a> above to use the push feature.</div>
+              <div class="account-publish-actions">
+                <div id="secondaryPlatformAction">
+                  <div class="account-action-card" id="stremioInstallCard">
+                    <button class="account-action-row" type="button" onclick="toggleStremioInstall()">
+                      <span class="account-action-icon stremio"><img src="/stremio.svg" alt=""></span><span><strong>Add to Stremio</strong><small>Choose the Stremio app or Stremio Web.</small></span><b id="stremioInstallArrow">›</b>
+                    </button>
+                    <div class="account-action-options" id="stremioInstallOptions" hidden>
+                      <button type="button" onclick="handleOpenInStremio()"><img src="/stremio.svg" alt="">Add to Stremio app<small>Opens the installed Stremio app.</small></button>
+                      <button type="button" onclick="handleOpenInStremioWeb()"><img src="/stremio.svg" alt="">Add to Stremio Web<small>Opens the addon page in Stremio Web.</small></button>
+                    </div>
                   </div>
                 </div>
-                <div class="preview-wrap">
-                  <button class="preview-btn" id="previewToggle" onclick="togglePreview()">
-                    <span>Streams Preview</span><span class="arr">›</span>
-                  </button>
-                  <div class="preview-panel" id="previewBody">
-                    <div class="preview-head">Example of how streams appear in Stremio</div>
-                    <div id="previewCards"></div>
-                    <div class="preview-footer">Actual streams depend on the files in your TorBox / Real-Debrid account</div>
+                <button class="account-action-row" type="button" onclick="handleShareProfile()">
+                  <span class="account-action-icon share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="18" cy="5" r="2.4"/><circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="19" r="2.4"/><path d="m8.2 10.8 7.5-4.4M8.2 13.2l7.5 4.4"/></svg></span><span><strong>Share profile</strong><small>Export your setup so another account can import it.</small></span><b>›</b>
+                </button>
+                <div class="step-card install-card" id="manualSetupCard">
+                  <div class="install-card-head" onclick="toggleManualSetup()">
+                    <span class="install-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h3M11 17h9"/><circle cx="16" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></span>
+                    <div><strong>Manual setup</strong><small>Install URL, QR code, collections file and cache controls.</small></div>
+                    <span class="install-card-arrow" id="manualSetupArrow">∨</span>
                   </div>
+                  <div class="install-card-body" id="manualSetupBody" style="display:none">
+                    <div class="field" style="margin-bottom:10px">
+                      <div class="field-label">Manifest URL</div>
+                      <div class="url-box show" style="display:flex" id="manualManifestRow">
+                        <span id="manualManifestUrl" style="font-family:var(--mono);font-size:0.68rem;color:var(--amber);word-break:break-all;flex:1"></span>
+                        <button class="btn-copy-url" type="button" onclick="copyManualUrl('manifest', this)">Copy</button>
+                      </div>
+                    </div>
+                    <div class="field" id="manualCollectionsField" style="display:none;margin-bottom:10px">
+                      <div class="field-label">Collections URL</div>
+                      <div class="url-box show" style="display:flex" id="manualCollectionsRow">
+                        <span id="manualCollectionsUrl" style="font-family:var(--mono);font-size:0.68rem;color:var(--amber);word-break:break-all;flex:1"></span>
+                        <button class="btn-copy-url" type="button" onclick="copyManualUrl('collections', this)">Copy</button>
+                      </div>
+                      <p class="field-hint">Import this into Nuvio to restore your Collections setup.</p>
+                    </div>
+                    <div class="field" style="margin-bottom:10px">
+                      <div class="field-label">Configure link</div>
+                      <div class="url-box show" style="display:flex">
+                        <span id="manualConfigureUrl" style="font-family:var(--mono);font-size:0.68rem;color:var(--muted);word-break:break-all;flex:1"></span>
+                        <button class="btn-copy-url" type="button" onclick="copyManualUrl('configure', this)">Copy</button>
+                      </div>
+                    </div>
+                    <button class="btn-main btn-gen" id="btnRefresh" onclick="clearCache()" style="margin-top:8px;background:var(--surface2);color:var(--text);border:1px solid var(--border)">
+                      <div class="ico">🔄</div>
+                      <div class="txt"><span>Refresh catalog</span><small>Clears server cache: then refresh in Stremio or Nuvio</small></div>
+                      <span class="arr">›</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="preview-wrap" style="margin-top:14px">
+                <button class="preview-btn" id="previewToggle" onclick="togglePreview()">
+                  <span>Streams Preview</span><span class="arr">›</span>
+                </button>
+                <button class="preview-btn" id="btnFullPreview" onclick="openFullSetupPreview()" style="margin-top:8px">
+                  <span>👁 Preview full setup: all your rows</span><span class="arr">›</span>
+                </button>
+                <div class="preview-panel" id="previewBody">
+                  <div class="preview-head">Example of how streams appear in Stremio</div>
+                  <div id="previewCards"></div>
+                  <div class="preview-footer">Actual streams depend on the files in your TorBox / Real-Debrid account</div>
                 </div>
               </div>
             </div>
@@ -560,9 +684,10 @@
         <div class="setup-head"><h3>Your setup</h3><span class="setup-count" id="setupCount">0/2 providers</span></div>
         <div class="setup-chips" id="setupChips"><span class="chip dim">No provider set</span></div>
         <div class="setup-rows">
-          <div class="setup-row"><span>Catalog mode</span><strong id="setupCatalogMode">—</strong></div>
+          <div class="setup-row"><span>Catalog mode</span><strong id="setupCatalogMode">-</strong></div>
           <div class="setup-row"><span>TMDB key</span><strong id="setupTmdb">Not set</strong></div>
           <div class="setup-row"><span>Poster service</span><strong id="setupPoster">TMDB</strong></div>
+          <div class="setup-row"><span>Stream format</span><strong id="setupFormat">LeLibrary</strong></div>
           <div class="setup-row"><span>Custom streams</span><strong id="setupStreams">None</strong></div>
         </div>
         <button class="btn-primary-sm" id="btnGenerateSide" onclick="goGenerate()">Generate install links</button>
@@ -602,6 +727,58 @@
     </div>
   </div>
 
-  <script src="/configure.js?v=10"></script>
+  <div class="app-modal" id="confirmModal">
+    <div class="app-modal-box">
+      <div class="app-modal-head">
+        <h3 id="confirmModalTitle">Are you sure?</h3>
+        <button class="app-modal-x" onclick="closeConfirmModal()" aria-label="Close">✕</button>
+      </div>
+      <div class="app-modal-body">
+        <p id="confirmModalText"></p>
+      </div>
+      <div class="app-modal-actions">
+        <button class="btn btn-outline" onclick="closeConfirmModal()">Cancel</button>
+        <button class="btn btn-danger" id="confirmModalOk" onclick="runConfirm()">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-modal" id="nameModal">
+    <div class="app-modal-box">
+      <div class="app-modal-head">
+        <h3 id="nameModalTitle">Name this config</h3>
+        <button class="app-modal-x" onclick="closeNameModal()" aria-label="Close">✕</button>
+      </div>
+      <div class="app-modal-body">
+        <input id="nameModalInput" type="text" placeholder="My setup" />
+      </div>
+      <div class="app-modal-actions">
+        <button class="btn btn-outline" onclick="closeNameModal()">Cancel</button>
+        <button class="btn btn-gen" onclick="runNameModal()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full-setup preview: every enabled catalogue rendered through the real
+       catalog pipeline, plus the stream format: how the addon will actually look -->
+  <div class="full-preview-overlay" id="fullPreviewModal" hidden>
+    <div class="full-preview-panel" role="dialog" aria-modal="true" aria-label="Full setup preview">
+      <div class="full-preview-head">
+        <div>
+          <h3>Your setup preview</h3>
+          <small id="fullPreviewSub">Rendered from the same pipeline Stremio and Nuvio receive</small>
+        </div>
+        <button class="full-preview-close" onclick="closeFullSetupPreview()" aria-label="Close preview">✕</button>
+      </div>
+      <div class="full-preview-body" id="fullPreviewBody"></div>
+      <div class="full-preview-foot">
+        <button class="btn btn-outline" onclick="closeFullSetupPreview()">Close</button>
+      </div>
+    </div>
+  </div>
+
+    <script src="/configure.js?v=101"></script>
+  <script src="/configure-state.js?v=1"></script>
+  <script src="/configure-ui.js?v=1"></script>
 </body>
 </html>

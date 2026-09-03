@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=2">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=2">
+  <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png?v=2">
+  <link rel="apple-touch-icon" type="image/png" sizes="180x180" href="/apple-touch-icon.png?v=2">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#09090b">
+  <title>Error | LeLibrary</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/toast.css">
+  <script src="/toast.js" defer></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090b;
+      --bg-raised: #111114;
+      --bg-card: #161619;
+      --border: #222228;
+      --amber: #f59e0b;
+      --amber-dim: #b45309;
+      --amber-glow: rgba(245, 158, 11, 0.15);
+      --white: #fafafa;
+      --muted: #71717a;
+      --text: #d4d4d8;
+      --font: 'Space Grotesk', -apple-system, sans-serif;
+      --mono: 'DM Mono', 'Menlo', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* ── NAV ── */
+    .topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: env(safe-area-inset-top, 0px) clamp(20px, 4vw, 48px) 0;
+      min-height: 64px;
+      background: rgba(9, 9, 11, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--white);
+    }
+
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      object-fit: contain;
+    }
+
+    .brand-name {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .topbar-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .topbar-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      transition: color 0.2s;
+    }
+    .topbar-links a:hover { color: var(--white); }
+
+    .topbar-cta {
+      background: var(--amber) !important;
+      color: var(--bg) !important;
+      padding: 8px 18px;
+      border-radius: 6px;
+      font-weight: 600 !important;
+      font-size: 0.82rem !important;
+    }
+    .topbar-cta:hover { opacity: 0.9; }
+
+    .hamburger {
+      display: none;
+      flex-direction: column;
+      gap: 5px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+    }
+    .hamburger span {
+      display: block;
+      width: 22px;
+      height: 2px;
+      background: var(--text);
+      border-radius: 2px;
+      transition: all 0.3s;
+    }
+    .hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .hamburger.open span:nth-child(2) { opacity: 0; }
+    .hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+    .mobile-menu {
+      display: none;
+      position: fixed;
+      top: calc(64px + env(safe-area-inset-top, 0px));
+      left: 0; right: 0;
+      background: var(--bg-raised);
+      border-bottom: 1px solid var(--border);
+      flex-direction: column;
+      padding: 16px 24px 24px;
+      z-index: 99;
+      animation: fadeSlideDown 0.25s ease forwards;
+    }
+    @keyframes fadeSlideDown {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .mobile-menu.open { display: flex; }
+    .mobile-menu a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 500;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .mobile-menu a:last-child { border-bottom: none; }
+    .mobile-menu a:hover { color: var(--white); }
+    .mobile-menu .mob-cta {
+      background: var(--amber);
+      color: var(--bg) !important;
+      text-align: center;
+      border-radius: 8px;
+      margin-top: 8px;
+      border: none;
+      font-weight: 700;
+    }
+
+    @media (max-width: 640px) {
+      .hamburger { display: flex; }
+      .topbar-links { display: none; }
+    }
+
+    /* ── ERROR HERO ── */
+    .error-hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: calc(80px + env(safe-area-inset-top, 0px)) clamp(24px, 5vw, 80px) 80px;
+      position: relative;
+    }
+
+    .grid-bg {
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+      background-size: 48px 48px;
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    .error-content {
+      position: relative;
+      z-index: 1;
+      max-width: 560px;
+    }
+
+    .error-code {
+      font-family: var(--mono);
+      font-size: clamp(6rem, 15vw, 10rem);
+      font-weight: 700;
+      color: var(--amber);
+      line-height: 1;
+      letter-spacing: -0.04em;
+      margin-bottom: 16px;
+      opacity: 0;
+      animation: errorReveal 0.6s ease 0.1s forwards;
+    }
+
+    .error-title {
+      font-size: clamp(1.5rem, 3vw, 2.2rem);
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+      opacity: 0;
+      animation: errorReveal 0.6s ease 0.25s forwards;
+    }
+
+    .error-desc {
+      font-size: 1rem;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-bottom: 40px;
+      max-width: 420px;
+      margin-left: auto;
+      margin-right: auto;
+      opacity: 0;
+      animation: errorReveal 0.6s ease 0.4s forwards;
+    }
+
+    .error-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      opacity: 0;
+      animation: errorReveal 0.6s ease 0.55s forwards;
+    }
+
+    @keyframes errorReveal {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 26px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+      font-family: var(--font);
+    }
+
+    .btn-amber {
+      background: var(--amber);
+      color: var(--bg);
+    }
+    .btn-amber:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(245, 158, 11, 0.25);
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-outline:hover {
+      border-color: var(--muted);
+      background: rgba(255,255,255,0.03);
+      transform: translateY(-2px);
+    }
+
+    @media (max-width: 480px) {
+      .error-hero { padding: 90px 16px 48px; }
+      .error-actions { flex-direction: column; align-items: center; }
+      .error-actions .btn { width: 100%; justify-content: center; max-width: 280px; }
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 56px clamp(24px, 5vw, 80px) 0;
+      position: relative;
+      z-index: 2;
+    }
+
+    .footer-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr;
+      gap: 48px;
+    }
+
+    @media (max-width: 700px) {
+      .footer-inner { grid-template-columns: 1fr; gap: 36px; }
+      footer { padding: 40px 20px 0; }
+    }
+
+    .footer-brand { max-width: 320px; }
+
+    .footer-brand .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      margin-bottom: 14px;
+    }
+    .footer-brand .brand img { width: 28px; height: 28px; border-radius: 6px; }
+    .footer-brand .brand span {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: -0.02em;
+    }
+
+    .footer-brand p {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.65;
+      margin-bottom: 18px;
+    }
+
+    .footer-social {
+      display: flex;
+      gap: 10px;
+    }
+    .footer-social a {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 12px;
+      transition: all 0.2s;
+    }
+    .footer-social a:hover { color: var(--white); border-color: var(--muted); }
+    .footer-social svg { width: 14px; height: 14px; fill: currentColor; }
+
+    .footer-col h4 {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--white);
+      margin-bottom: 16px;
+    }
+
+    .footer-col ul { list-style: none; }
+    .footer-col li { margin-bottom: 10px; }
+    .footer-col a {
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .footer-col a:hover { color: var(--white); }
+
+    .footer-bar {
+      border-top: 1px solid var(--border);
+      margin-top: 48px;
+      padding: 20px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 0.76rem;
+      color: var(--muted);
+    }
+    .footer-bar a { color: var(--muted); text-decoration: none; transition: color 0.2s; }
+    .footer-bar a:hover { color: var(--white); }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <header class="topbar">
+    <a href="/" class="brand">
+      <img src="/LeLibrary.png?v=2" alt="LeLibrary" class="brand-logo">
+      <div class="brand-name">LeLibrary</div>
+    </a>
+    <nav class="topbar-links">
+      <a href="/configure">Configure</a>
+      <a href="/">Home</a>
+    </nav>
+    <button class="hamburger" id="hamburger" onclick="toggleMenu()" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="mobile-menu" id="mobileMenu">
+      <a href="/" onclick="toggleMenu()">Home</a>
+      <a href="/configure" onclick="toggleMenu()">Configure Addon</a>
+    </div>
+  </header>
+
+  <!-- ERROR -->
+  <section class="error-hero">
+    <div class="grid-bg"></div>
+    <div class="error-content">
+      <div class="error-code" id="errorCode"></div>
+      <h1 class="error-title" id="errorTitle"></h1>
+      <p class="error-desc" id="errorDesc"></p>
+      <div class="error-actions">
+        <a class="btn btn-amber" href="/">Go Home</a>
+        <a class="btn btn-outline" href="/account/login" aria-label="Open your account">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+          Account
+        </a>
+        <a class="btn btn-outline" href="/configure">Configure Addon</a>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <a href="/" class="brand">
+          <img src="/LeLibrary.png?v=2" alt="LeLibrary">
+          <span>LeLibrary</span>
+        </a>
+        <p>The Stremio &amp; Nuvio addon that organizes your TorBox, Real-Debrid, AllDebrid, and Premiumize libraries with rich TMDB metadata.</p>
+        <div class="footer-social">
+          <a href="https://github.com/leleasley/LeLibrary" target="_blank">
+            <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+            GitHub
+          </a>
+          <a href="https://www.reddit.com/r/LeLibrary/" target="_blank">
+            <svg viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12c0 3.314 1.343 6.314 3.515 8.485l-2.286 2.286C.775 23.225 1.097 24 1.738 24H12c6.627 0 12-5.373 12-12S18.627 0 12 0Zm4.388 3.199c1.104 0 1.999.895 1.999 1.999 0 1.105-.895 2-1.999 2-.946 0-1.739-.657-1.947-1.539v.002c-1.147.162-2.032 1.15-2.032 2.341v.007c1.776.067 3.4.567 4.686 1.363.473-.363 1.064-.58 1.707-.58 1.547 0 2.802 1.254 2.802 2.802 0 1.117-.655 2.081-1.601 2.531-.088 3.256-3.637 5.876-7.997 5.876-4.361 0-7.905-2.617-7.998-5.87-.954-.447-1.614-1.415-1.614-2.538 0-1.548 1.255-2.802 2.803-2.802.645 0 1.239.218 1.712.585 1.275-.79 2.881-1.291 4.64-1.365v-.01c0-1.663 1.263-3.034 2.88-3.207.188-.911.993-1.595 1.959-1.595Zm-8.085 8.376c-.784 0-1.459.78-1.506 1.797-.047 1.016.64 1.429 1.426 1.429.786 0 1.371-.369 1.418-1.385.047-1.017-.553-1.841-1.338-1.841Zm7.406 0c-.786 0-1.385.824-1.338 1.841.047 1.017.634 1.385 1.418 1.385.785 0 1.473-.413 1.426-1.429-.046-1.017-.721-1.797-1.506-1.797Zm-3.703 4.013c-.974 0-1.907.048-2.77.135-.147.015-.241.168-.183.305.483 1.154 1.622 1.964 2.953 1.964 1.33 0 2.47-.81 2.953-1.964.057-.137-.037-.29-.184-.305-.863-.087-1.795-.135-2.769-.135Z"/></svg>
+            Reddit
+          </a>
+        </div>
+      </div>
+
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="/configure">Configure Addon</a></li>
+          <li><a href="/">Home</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h4>Get Started</h4>
+        <ul>
+          <li><a href="/configure">Configure Addon</a></li>
+          <li><a href="https://github.com/leleasley/LeLibrary" target="_blank">Source Code</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bar">
+      <span>&copy; 2026 LeLibrary. Not affiliated with any debrid provider or streaming service.</span>
+      <span>Made for the <a href="https://www.stremio.com" target="_blank">Stremio</a> &amp; <a href="https://nuvio.tv" target="_blank">Nuvio</a> community</span>
+    </div>
+  </footer>
+
+  <script>
+    function toggleMenu() {
+      document.getElementById('hamburger').classList.toggle('open');
+      document.getElementById('mobileMenu').classList.toggle('open');
+    }
+
+    // Populate error details from injected data
+    (function() {
+      var code = window.__ERROR_CODE__ || 500;
+      var title = window.__ERROR_TITLE__ || 'Something went wrong';
+      var desc = window.__ERROR_DESC__ || 'An unexpected error occurred. Please try again.';
+
+      document.getElementById('errorCode').textContent = code;
+      document.getElementById('errorTitle').textContent = title;
+      document.getElementById('errorDesc').textContent = desc;
+      document.title = code + ' ' + title + ' | LeLibrary';
+    })();
+  </script>
+</body>
+</html>

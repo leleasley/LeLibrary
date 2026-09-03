@@ -36,10 +36,33 @@ Thumbs.db
 website/landing.html
 website/index.js
 website/status.html
+website/privacy.html
 
 # Private addon identity (id, description, Stremio registry signature) — production-only
 # Self-hosters get a generic self-hosted manifest instead.
 src/registry.js
+
+# Private V5 accounts area — OAuth, sessions, DB, encrypted keys, My Library.
+# Absent on self-hosted installs; the addon runs in token-only mode without it.
+src/accounts/
+src/hosted.js
+
+# Account-private tests — require src/accounts or ignored scripts/
+# and would fail on self-hosted checkouts where those are absent.
+test/accounts-security.test.js
+test/source-import-route.test.js
+test/source-import-security.test.js
+test/import-source-migration-audit.test.js
+test/foundations.test.js
+
+# Retired V5 My Library UI and generated hosted artwork
+website/public/my-library/
+website/public/backgrounds/
+scripts
+# Generated test output
+coverage/
+.nyc_output/
+test-results/
 
 # IDEs
 .vscode/

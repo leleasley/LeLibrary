@@ -52,7 +52,7 @@ function normalize(s) {
   return s.replace(/[._]/g, ' ').replace(/\s{2,}/g, ' ').trim();
 }
 
-// Provider filenames sometimes arrive HTML-encoded ("Child&#039;s Play") —
+// Provider filenames sometimes arrive HTML-encoded ("Child&#039;s Play") -
 // decode before parsing so titles with apostrophes/entities still match TMDB.
 function decodeHtml(s) {
   return String(s || '')
@@ -60,8 +60,12 @@ function decodeHtml(s) {
     .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 }
 
+const _parseCache = new Map();
+function clearParseCache() { _parseCache.clear(); }
+
 function guessMediaInfo(raw) {
   if (!raw || raw.length < 3) return null;
+  if (_parseCache.has(raw)) return _parseCache.get(raw);
 
   let name = decodeHtml(raw).replace(/\.(mkv|mp4|avi|mov|ts|wmv|m4v|webm)$/i, '').trim();
 
@@ -118,12 +122,19 @@ function guessMediaInfo(raw) {
     } else {
       const dm2 = norm.match(DATE_MDY);
       if (dm2) {
-        isSeries = true;
-        const a = mkDate(dm2[3], dm2[1], dm2[2]);
-        const b = mkDate(dm2[3], dm2[2], dm2[1]);
-        airDates = [a, b].filter(Boolean);
-        airDate  = airDates[0] || null;
-        serieCut = dm2.index;
+        // Jackass 2.5/3.5/4.5 are movie version numbers, not air dates
+        // "Jackass 3 5 2011" normalizes from "Jackass.3.5.2011" - the "3 5" is the
+        // version, not month/day. Don't treat it as a series date.
+        const before = norm.slice(0, dm2.index).trim();
+        const isJackassVer = /^jackass(\s+\d+(?:\.\d+)?)?\s*$/i.test(before) && /^[1-5]$/.test(dm2[1]) && /^[1-5]$/.test(dm2[2]);
+        if (!isJackassVer) {
+          isSeries = true;
+          const a = mkDate(dm2[3], dm2[1], dm2[2]);
+          const b = mkDate(dm2[3], dm2[2], dm2[1]);
+          airDates = [a, b].filter(Boolean);
+          airDate  = airDates[0] || null;
+          serieCut = dm2.index;
+        }
       }
     }
   }
@@ -170,7 +181,9 @@ function guessMediaInfo(raw) {
     .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(' ');
 
-  return { title, year, isSeries, isAnime, season, episode: episode ?? animeEp, episodeEnd, airDate, airDates };
+  const result = { title, year, isSeries, isAnime, season, episode: episode ?? animeEp, episodeEnd, airDate, airDates };
+  _parseCache.set(raw, result);
+  return result;
 }
 
-module.exports = { guessMediaInfo };
+module.exports = { guessMediaInfo, clearParseCache };

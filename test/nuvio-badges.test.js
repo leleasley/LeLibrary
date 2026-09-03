@@ -1,0 +1,54 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+const formatter = require('../website/public/formatter.js');
+const { BADGES, GROUPS, badgeSvg, manifest } = require('../src/nuvio-badges');
+
+function asJsRegex(pattern) {
+  // Nuvio uses Java/Kotlin regexes. Its inline case-insensitive flag maps to
+  // the JavaScript flag for this compatibility check.
+  return new RegExp(pattern.replace(/^\(\?i\)/, ''), 'i');
+}
+
+test('LeLibrary Premium badge manifest has valid grouped local images', () => {
+  const data = manifest('https://lelibrary.example');
+  const groupIds = new Set(GROUPS.map(([id]) => id));
+  assert.equal(data.filters.length, BADGES.length);
+  assert.equal(new Set(data.filters.map((filter) => filter.id)).size, data.filters.length);
+
+  for (const filter of data.filters) {
+    assert.ok(groupIds.has(filter.groupId), `${filter.id} has a known group`);
+    assert.match(filter.imageURL, /^https:\/\/lelibrary\.example\/api\/nuvio-badges\/lelibrary-premium\/[\w-]+\.svg$/);
+    assert.match(badgeSvg(filter.id), /^<svg\b/);
+    assert.doesNotThrow(() => asJsRegex(filter.pattern), filter.id);
+  }
+  assert.equal(badgeSvg('not-a-badge'), null);
+});
+
+test('formatter output contains reliable text for each local badge category', () => {
+  const filenames = [
+    'Film.2026.2160p.BluRay.REMUX.IMAX.DV.HDR10+.HEVC.10bit.TrueHD.Atmos.7.1-Group.mkv',
+    'Film.2026.1080p.WEB-DL.H.264.AAC.5.1.English.mkv',
+    'Film.2026.2160p.WEB-DL.AV1.DDP.5.1.Dual.Audio.PT-BR.mkv',
+    'Film.2026.720p.WEBRip.x265.DTS-HD.MA.5.1.Spanish.mkv',
+  ];
+  const text = filenames.map((filename) => {
+    const output = formatter.formatStream(
+      formatter.presets.technical.name,
+      formatter.presets.technical.description,
+      filename,
+      'torbox',
+      73900000000,
+    );
+    return `${output.name}\n${output.description}`;
+  }).join('\n');
+
+  const filters = manifest('https://lelibrary.example').filters;
+  for (const group of ['resolution', 'source', 'edition', 'visual', 'audio', 'channels', 'codec', 'language']) {
+    assert.ok(filters.filter((filter) => filter.groupId === group).some((filter) => asJsRegex(filter.pattern).test(text)), `${group} has a match`);
+  }
+  for (const id of ['source-remux', 'edition-imax', 'visual-dv', 'audio-atmos-truehd', 'codec-av1', 'lang-pt', 'lang-es']) {
+    const filter = filters.find((entry) => entry.id === id);
+    assert.match(text, asJsRegex(filter.pattern), id);
+  }
+});

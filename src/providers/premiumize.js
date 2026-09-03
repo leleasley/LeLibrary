@@ -48,7 +48,7 @@ function isPmVideoFile(name = '') {
 // full paths (`{ id, name, path, size, mime_type, created_at }`). Using it as
 // the source of truth means content inside folders (organized manually or by
 // transfers) is always found, with no depth limit and no reliance on the
-// transfer list. Links are not included here — they're resolved per-file via
+// transfer list. Links are not included here: they're resolved per-file via
 // /item/details when a stream or download is actually requested.
 
 // Short in-memory cache for the flat file list (one call returns the whole
@@ -115,7 +115,7 @@ function pmLooksMediaLike(name) {
 }
 
 // Generic container/category words ("My Files", "Movies", "Action", "TV Shows",
-// ...) — these are catch-all parents that should be descended into, not library
+// ...): these are catch-all parents that should be descended into, not library
 // items. Without the genre/category words, a folder named "Action" or "Drama"
 // would parse as a plain title and swallow every movie inside it into one item.
 const PM_GENERIC_TOKENS = new Set([
@@ -140,7 +140,7 @@ function pmLooksGeneric(name) {
   return words.length > 0 && words.every(w => PM_GENERIC_TOKENS.has(w));
 }
 
-// "Season 1", "Temporada 1", "S01" — the tell-tale sign a folder is a show
+// "Season 1", "Temporada 1", "S01": the tell-tale sign a folder is a show
 // container (its subfolders are seasons) rather than a catch-all category.
 function pmIsSeasonLike(name) {
   return /\b(?:season|temporada)\s*\d+\b/i.test(name) || /\b\d+[aªº°]\s*temporada\b/i.test(name) || /\b[Ss]\d{1,2}(?!\s*[Ee])/.test(name);
@@ -217,7 +217,7 @@ function pmGroupDescend(items, files, prefixParts, depth) {
   // A folder is a content row when it directly holds video files, its name has
   // strong media signals, or its subfolders are seasons (a show container like
   // "Breaking.Bad/Season 1/..."). A name that merely *parses* as a title is NOT
-  // enough — catch-all categories ("Classic Films", "4K Collection") parse too
+  // enough: catch-all categories ("Classic Films", "4K Collection") parse too
   // and would swallow every movie inside them.
   const nextSegs = new Set();
   for (const f of files) {
@@ -272,7 +272,7 @@ async function pmTransferItems(apiKey) {
 
 // ── Tier-3 fallback: walk the cloud from the root folder ─────
 // Dedicated Premiumize addons (e.g. Josherinos' stremio-premiumize-addon)
-// browse content with /folder/list and stream each file's direct link — they
+// browse content with /folder/list and stream each file's direct link: they
 // never rely on /transfer/list or /item/listall. Walking the root folder
 // therefore finds EVERYTHING in the cloud: transfers, manually-organised
 // folders, uploads. Used when the other two sources come back empty.
@@ -359,7 +359,7 @@ async function pmRootWalkItems(apiKey) {
 // The simplest, most reliable model (what the user asked for): walk into every
 // folder, pull out the video files, and make EACH video file a library entry.
 // The file names are real release names, so the addon's normal movie/show
-// matching puts movies in My Movies and shows in My Shows — no folder-name
+// matching puts movies in My Movies and shows in My Shows: no folder-name
 // guessing needed. When a file name is generic ("movie.mkv", "s01e01.mkv") the
 // nearest media-like parent folder name is used instead.
 function pmBestDisplayName(f) {
@@ -444,7 +444,7 @@ async function listTransferFiles(apiKey, transferId) {
 
 // Walk a folder recursively collecting file entries (used by the legacy
 // transfer-id path; new ids resolve straight from the listall scan). The depth
-// cap is only a safety net — StremThru/AIOStreams walk folders to any depth.
+// cap is only a safety net: StremThru/AIOStreams walk folders to any depth.
 async function listFolderFiles(apiKey, folderId, depth = 0) {
   const { data, error } = await pmRequest(apiKey, 'GET', '/folder/list', { id: folderId });
   if (error || !Array.isArray(data?.content)) return [];
@@ -482,7 +482,7 @@ async function getPremiumizeFiles(apiKey, itemId) {
   return listTransferFiles(apiKey, itemId);
 }
 
-// Premiumize files carry a direct `link` (via /item/details) — streamable with
+// Premiumize files carry a direct `link` (via /item/details): streamable with
 // no unlock step. listall doesn't include links, so they're resolved lazily.
 async function pmDetailsLink(apiKey, fileId) {
   if (!fileId) return null;
@@ -511,7 +511,7 @@ async function getPremiumizeStreamLink(apiKey, itemId, fileId) {
   return file?.link || null;
 }
 
-// Verification — PIN-aware: a new-IP device-authorization prompt is surfaced
+// Verification: PIN-aware: a new-IP device-authorization prompt is surfaced
 // as { needPin: true, pin, deviceUrl } so the UI can walk the user through it.
 async function verifyPremiumizeKey(apiKey) {
   const { data, error, pin } = await pmRequest(apiKey, 'GET', '/account/info');

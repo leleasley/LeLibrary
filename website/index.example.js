@@ -4,4 +4,4 @@
 // local private version).
 const createWebRoutes = require('./web-routes');
 
-module.exports = (decodeConfig) => createWebRoutes(decodeConfig, { landing: false });
+module.exports = (decodeConfig, options = {}) => createWebRoutes(decodeConfig, { ...options, landing: false });

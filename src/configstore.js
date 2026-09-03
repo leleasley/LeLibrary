@@ -1,27 +1,39 @@
 // ── Server-side per-user config store (Redis) ─────────────────────────
-// The configure page saves the "heavy" stream settings here (the stream-addon
-// list plus the stream-format preset/templates) keyed by the user's stable
-// hash, so the install token stays small and the settings survive page
+// Configure pages save the “heavy” stream settings here (the stream-addon
+// list plus the stream-format preset/templates) under a configuration scope,
+// so the install token stays small and the settings survive page
 // reloads, device switches and re-pushes. The addon merges these back into
 // the decoded token on every stream request.
 //
 // The store is deliberately a SUPPLEMENT, never the source of truth: if Redis
 // is flushed or the key expires, everything keeps working from the token alone
 // (just without the server-side stream settings). It holds ONLY stream
-// settings — never API keys, tokens or catalog config — so nothing sensitive
+// settings: never API keys, tokens or catalog config: so nothing sensitive
 // lands in Redis.
 
 const cache = require('./cache');
 const { getUserKey } = require('./providers');
+const crypto = require('crypto');
 
-const STREAM_FIELDS = ['streamAddons', 'streamPreset', 'streamNameTemplate', 'streamDescTemplate', 'customStreams'];
+const STREAM_FIELDS = ['streamAddons', 'streamPreset', 'streamNameTemplate', 'streamDescTemplate', 'nuvioBadgePack', 'nuvioBadgeUrl', 'customStreams', 'streamNotices', 'filterResolutions', 'filterResOrder', 'filterQualities', 'filterSources', 'filterCodecs', 'filterHdr', 'filterAudio', 'filterMinSize', 'filterMaxSize', 'filterCachedOnly', 'nuvioCollectionPacks', 'nuvioCollectionOverrides', 'importedRows', 'libraryCatalogs', 'libHomeHidden'];
 // Non-stream toggle fields that also live server-side so changing them needs no
 // re-push. Stored explicitly ('tt' or '') so unchecking clears the stored value.
 const TOGGLE_FIELDS = ['libraryIdMode'];
 const CONFIG_TTL = 60 * 60 * 24 * 90; // 90 days, refreshed on every save
 
-function storeKey(userKey) {
-  return `userconfig:${userKey}`;
+function storeScope(config = {}) {
+  const accountToken = config.__configScope?.type === 'account'
+    ? config.__configScope.token
+    : '';
+  if (accountToken) {
+    const digest = crypto.createHash('sha256').update(String(accountToken)).digest('hex');
+    return `account:${digest}`;
+  }
+  return `legacy:${getUserKey(config)}`;
+}
+
+function storeKey(config = {}) {
+  return `userconfig:${storeScope(config)}`;
 }
 
 // Extract just the stream-settings subset from a config object. Fields that
@@ -42,9 +54,9 @@ function streamSettings(config = {}) {
   return out;
 }
 
-// Persist a config's stream settings keyed by the user hash. Returns the
+// Persist a config's stream settings under its configuration scope. Returns the
 // userKey, or null if the config has no usable provider keys. A config with
-// NO stream-settings fields leaves the existing store untouched — this keeps
+// NO stream-settings fields leaves the existing store untouched: this keeps
 // the configure page's initial restore POST from wiping the user's saved
 // addons while their settings are still loading.
 async function saveStreamSettings(config = {}) {
@@ -52,13 +64,20 @@ async function saveStreamSettings(config = {}) {
   if (!userKey) return null;
   const subset = streamSettings(config);
   if (Object.keys(subset).length === 0) return userKey;
-  await cache.set(storeKey(userKey), subset, CONFIG_TTL);
+  await cache.set(storeKey(config), subset, CONFIG_TTL);
   return userKey;
 }
 
-async function loadStreamSettings(userKey) {
-  if (!userKey) return null;
-  return cache.get(storeKey(userKey));
+async function loadStreamSettings(userKeyOrConfig) {
+  if (!userKeyOrConfig) return null;
+  if (typeof userKeyOrConfig === 'object') {
+    const scoped = await cache.get(storeKey(userKeyOrConfig));
+    if (scoped || userKeyOrConfig.__configScope?.type === 'account') return scoped;
+    // Compatibility read for legacy settings written before scoping was added.
+    const userKey = getUserKey(userKeyOrConfig);
+    return userKey ? cache.get(`userconfig:${userKey}`) : null;
+  }
+  return cache.get(`userconfig:legacy:${userKeyOrConfig}`);
 }
 
 // Merge server-side stream settings into a decoded token config (a copy).
@@ -67,9 +86,14 @@ async function mergeStoredConfig(config = {}) {
   if (!config || typeof config !== 'object') return config;
   const userKey = getUserKey(config);
   if (!userKey) return config;
-  const stored = await loadStreamSettings(userKey);
+  const stored = await loadStreamSettings(config);
   if (!stored || typeof stored !== 'object') return config;
   const merged = { ...config };
+  if (config.__configScope) {
+    Object.defineProperty(merged, '__configScope', {
+      value: config.__configScope, enumerable: false, configurable: true,
+    });
+  }
   for (const f of STREAM_FIELDS) {
     const v = stored[f];
     if (v !== undefined && v !== null && v !== '') merged[f] = v;

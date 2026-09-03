@@ -1,0 +1,671 @@
+{
+  "folder-lelibrary-discover-trending-movies": {
+    "cover": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/discover/cover/trending.jpg",
+      "localPath": "/collection-assets/collections/covers/discover-trending-movies.jpg"
+    },
+    "focusGif": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/discover/focused/trending.gif",
+      "localPath": "/collection-assets/collections/gifs/discover-trending-movies-focus.gif"
+    }
+  },
+  "folder-lelibrary-discover-trending-series": {
+    "cover": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/discover/cover/trending.jpg",
+      "localPath": "/collection-assets/collections/covers/discover-trending-series.jpg"
+    },
+    "focusGif": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/discover/focused/trending.gif",
+      "localPath": "/collection-assets/collections/gifs/discover-trending-series-focus.gif"
+    }
+  },
+  "folder-lelibrary-discover-popular-movies": {
+    "cover": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/discover/cover/popular.jpg",
+      "localPath": "/collection-assets/collections/covers/discover-popular-movies.jpg"
+    },
+    "focusGif": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/discover/focused/popular.gif",
+      "localPath": "/collection-assets/collections/gifs/discover-popular-movies-focus.gif"
+    }
+  },
+  "folder-lelibrary-discover-popular-series": {
+    "cover": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/discover/cover/popular.jpg",
+      "localPath": "/collection-assets/collections/covers/discover-popular-series.jpg"
+    },
+    "focusGif": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/discover/focused/popular.gif",
+      "localPath": "/collection-assets/collections/gifs/discover-popular-series-focus.gif"
+    }
+  },
+  "folder-lelibrary-discover-in-theaters": {
+    "cover": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Trending _ New/New Movies/New Movies_Background.jpg",
+      "localPath": "/collection-assets/collections/covers/discover-in-theaters.jpg"
+    }
+  },
+  "folder-lelibrary-discover-new-releases": {
+    "cover": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Trending _ New/New Movies/New Movies_Background.jpg",
+      "localPath": "/collection-assets/collections/covers/discover-new-releases.jpg"
+    }
+  },
+  "folder-lelibrary-discover-top-rated": {
+    "cover": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/discover/cover/top-rated.jpg",
+      "localPath": "/collection-assets/collections/covers/discover-top-rated.jpg"
+    },
+    "focusGif": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/discover/focused/top-rated.gif",
+      "localPath": "/collection-assets/collections/gifs/discover-top-rated-focus.gif"
+    }
+  },
+  "folder-lelibrary-discover-on-air": {
+    "cover": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Misc/Top Streaming Series/Top_Streaming_Series_Base.png",
+      "localPath": "/collection-assets/collections/covers/discover-on-air-series.png"
+    }
+  },
+  "folder-lelibrary-streaming-netflix": {
+    "cover": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/streaming/cover/netflix.png",
+      "localPath": "/collection-assets/collections/covers/streaming-netflix.png"
+    },
+    "focusGif": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/streaming/focused/netflix.gif",
+      "localPath": "/collection-assets/collections/gifs/streaming-netflix-focus.gif"
+    }
+  },
+  "folder-lelibrary-streaming-prime": {
+    "cover": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/streaming/cover/prime-video.png",
+      "localPath": "/collection-assets/collections/covers/streaming-prime.png"
+    },
+    "focusGif": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/streaming/focused/prime-video.gif",
+      "localPath": "/collection-assets/collections/gifs/streaming-prime-focus.gif"
+    }
+  },
+  "folder-lelibrary-streaming-disney": {
+    "cover": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/streaming/cover/disney-plus.png",
+      "localPath": "/collection-assets/collections/covers/streaming-disney.png"
+    },
+    "focusGif": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/streaming/focused/disney-plus.gif",
+      "localPath": "/collection-assets/collections/gifs/streaming-disney-focus.gif"
+    }
+  },
+  "folder-lelibrary-streaming-hbo": {
+    "cover": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/streaming/cover/hbo-max.png",
+      "localPath": "/collection-assets/collections/covers/streaming-hbo.png"
+    },
+    "focusGif": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/streaming/focused/hbo-max.gif",
+      "localPath": "/collection-assets/collections/gifs/streaming-hbo-focus.gif"
+    }
+  },
+  "folder-lelibrary-streaming-apple": {
+    "cover": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/streaming/cover/apple-tv.png",
+      "localPath": "/collection-assets/collections/covers/streaming-apple.png"
+    },
+    "focusGif": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/streaming/focused/apple-tv.gif",
+      "localPath": "/collection-assets/collections/gifs/streaming-apple-focus.gif"
+    }
+  },
+  "folder-lelibrary-streaming-hulu": {
+    "cover": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/streaming/cover/hulu.png",
+      "localPath": "/collection-assets/collections/covers/streaming-hulu.png"
+    },
+    "focusGif": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/streaming/focused/hulu.gif",
+      "localPath": "/collection-assets/collections/gifs/streaming-hulu-focus.gif"
+    }
+  },
+  "folder-lelibrary-streaming-paramount": {
+    "cover": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/streaming/cover/paramount-plus.png",
+      "localPath": "/collection-assets/collections/covers/streaming-paramount.png"
+    },
+    "focusGif": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/streaming/focused/paramount-plus.gif",
+      "localPath": "/collection-assets/collections/gifs/streaming-paramount-focus.gif"
+    }
+  },
+  "folder-lelibrary-streaming-crunchyroll": {
+    "cover": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/streaming/cover/crunchyroll.png",
+      "localPath": "/collection-assets/collections/covers/streaming-crunchyroll.png"
+    },
+    "focusGif": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/streaming/focused/crunchyroll.gif",
+      "localPath": "/collection-assets/collections/gifs/streaming-crunchyroll-focus.gif"
+    }
+  },
+  "folder-lelibrary-franchise-marvel": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "franchises/mcu/mcu-landscape.gif (converted locally to JPG)",
+      "localPath": "/collection-assets/collections/covers/franchise-marvel.jpg"
+    },
+    "focusGif": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "franchises/mcu/mcu.gif",
+      "localPath": "/collection-assets/collections/gifs/franchise-marvel-focus.gif"
+    }
+  },
+  "folder-lelibrary-franchise-dc": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "franchises/dc-universe/dc-universe-landscape.jpg",
+      "localPath": "/collection-assets/collections/covers/franchise-dc.jpg"
+    },
+    "focusGif": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "franchises/dc-universe/dc-universe.gif",
+      "localPath": "/collection-assets/collections/gifs/franchise-dc-focus.gif"
+    }
+  },
+  "folder-lelibrary-franchise-star-wars": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "franchises/star-wars/star-wars-landscape.jpg",
+      "localPath": "/collection-assets/collections/covers/franchise-star-wars.jpg"
+    }
+  },
+  "folder-lelibrary-franchise-harry-potter": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "franchises/wizarding-world/wizarding-world-landscape.png",
+      "localPath": "/collection-assets/collections/covers/franchise-harry-potter.png"
+    }
+  },
+  "folder-lelibrary-franchise-bond": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "franchises/007/007-landscape.jpg",
+      "localPath": "/collection-assets/collections/covers/franchise-bond.jpg"
+    }
+  },
+  "folder-lelibrary-franchise-lotr": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "franchises/lord-of-the-rings/lord-of-the-rings-landscape.jpg",
+      "localPath": "/collection-assets/collections/covers/franchise-lotr.jpg"
+    }
+  },
+  "folder-lelibrary-franchise-dune": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "franchises/dune/dune-landscape.jpg",
+      "localPath": "/collection-assets/collections/covers/franchise-dune.jpg"
+    }
+  },
+  "folder-lelibrary-franchise-john-wick": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "franchises/john-wick/john-wick-landscape.jpg",
+      "localPath": "/collection-assets/collections/covers/franchise-john-wick.jpg"
+    }
+  },
+  "folder-lelibrary-franchise-jurassic": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "franchises/jurassic-world/jurassic-world-landscape.jpg",
+      "localPath": "/collection-assets/collections/covers/franchise-jurassic.jpg"
+    }
+  },
+  "folder-lelibrary-franchise-mission-impossible": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "franchises/mission-impossible/mission-impossible-landscape.jpg",
+      "localPath": "/collection-assets/collections/covers/franchise-mission-impossible.jpg"
+    }
+  },
+  "folder-lelibrary-genre-action": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "genres/action/action-landscape.png",
+      "localPath": "/collection-assets/collections/covers/genre-action.png"
+    }
+  },
+  "folder-lelibrary-genre-comedy": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "genres/comedy/comedy-landscape.png",
+      "localPath": "/collection-assets/collections/covers/genre-comedy.png"
+    }
+  },
+  "folder-lelibrary-genre-horror": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "genres/horror/horror-landscape.png",
+      "localPath": "/collection-assets/collections/covers/genre-horror.png"
+    }
+  },
+  "folder-lelibrary-genre-scifi": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "genres/sci-fi/sci-fi-landscape.png",
+      "localPath": "/collection-assets/collections/covers/genre-scifi.png"
+    }
+  },
+  "folder-lelibrary-genre-thriller": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "genres/thriller/thriller-landscape.png",
+      "localPath": "/collection-assets/collections/covers/genre-thriller.png"
+    }
+  },
+  "folder-lelibrary-genre-drama": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "genres/drama/drama-landscape.png",
+      "localPath": "/collection-assets/collections/covers/genre-drama.png"
+    }
+  },
+  "folder-lelibrary-genre-fantasy": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "genres/fantasy/fantasy-landscape.png",
+      "localPath": "/collection-assets/collections/covers/genre-fantasy.png"
+    }
+  },
+  "folder-lelibrary-genre-crime": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "genres/crime/crime-landscape.png",
+      "localPath": "/collection-assets/collections/covers/genre-crime.png"
+    }
+  },
+  "folder-lelibrary-genre-family": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "genres/kids/kids-landscape.png",
+      "localPath": "/collection-assets/collections/covers/genre-family.png"
+    }
+  },
+  "folder-lelibrary-genre-animation": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "genres/animation/animation-landscape.png",
+      "localPath": "/collection-assets/collections/covers/genre-animation.png"
+    }
+  },
+  "folder-lelibrary-studio-marvel": {
+    "cover": {
+      "source": "Deimosdm7/Coisas-de-app",
+      "upstreamPath": "Studios/marvel.jpg",
+      "localPath": "/collection-assets/collections/covers/studio-marvel.jpg"
+    },
+    "focusGif": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/studios/focused/marvel.gif",
+      "localPath": "/collection-assets/collections/gifs/studio-marvel-focus.gif"
+    }
+  },
+  "folder-lelibrary-studio-dc": {
+    "cover": {
+      "source": "i.postimg.cc",
+      "upstreamPath": "SN9JXk4P/DC.jpg",
+      "localPath": "/collection-assets/collections/covers/studio-dc.jpg"
+    },
+    "focusGif": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/studios/focused/dc.gif",
+      "localPath": "/collection-assets/collections/gifs/studio-dc-focus.gif"
+    }
+  },
+  "folder-lelibrary-studio-a24": {
+    "cover": {
+      "source": "kojimaproductions.jp via DuckDuckGo image proxy",
+      "upstreamPath": "sites/default/files/2023-12/coverimage_1.jpg",
+      "localPath": "/collection-assets/collections/covers/studio-a24.jpg"
+    }
+  },
+  "folder-lelibrary-studio-ghibli": {
+    "cover": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/studios/cover/ghibli.png",
+      "localPath": "/collection-assets/collections/covers/studio-ghibli.png"
+    },
+    "focusGif": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/studios/focused/ghibli.gif",
+      "localPath": "/collection-assets/collections/gifs/studio-ghibli-focus.gif"
+    }
+  },
+  "folder-lelibrary-studio-pixar": {
+    "cover": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/studios/cover/pixar.png",
+      "localPath": "/collection-assets/collections/covers/studio-pixar.png"
+    },
+    "focusGif": {
+      "source": "luckynumb3rs/stremio-perfect-setup",
+      "upstreamPath": "collections/studios/focused/pixar.gif",
+      "localPath": "/collection-assets/collections/gifs/studio-pixar-focus.gif"
+    }
+  },
+  "folder-lelibrary-studio-disney": {
+    "cover": {
+      "source": "rrevanth/nuvio-assets",
+      "upstreamPath": "studios/walt-disney-animation/walt-disney-animation-landscape.gif",
+      "localPath": "/collection-assets/collections/covers/studio-disney.gif"
+    }
+  },
+  "folder-lelibrary-studio-warner": {
+    "cover": {
+      "source": "1000logos.net",
+      "upstreamPath": "wp-content/uploads/2020/09/Warner-Bros-Logo.jpg",
+      "localPath": "/collection-assets/collections/covers/studio-warner.jpg"
+    }
+  },
+  "folder-lelibrary-studio-universal": {
+    "cover": {
+      "source": "1000logos.net",
+      "upstreamPath": "wp-content/uploads/2020/09/Universal-Logo.png",
+      "localPath": "/collection-assets/collections/covers/studio-universal.png"
+    }
+  },
+  "folder-lelibrary-theme-mindfuck": {
+    "cover": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Genres/../Moods/Mind_Bending/Mind_Bending_Base.png",
+      "localPath": "/collection-assets/collections/covers/theme-mindfuck.png"
+    },
+    "focusGif": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Genres/../Moods/Mind_Bending/Mind_Bending_Hover.gif",
+      "localPath": "/collection-assets/collections/gifs/theme-mindfuck-focus.gif"
+    }
+  },
+  "folder-lelibrary-theme-plot-twists": {
+    "cover": {
+      "source": "i.ibb.co",
+      "upstreamPath": "1fbcbWDd/x.jpg",
+      "localPath": "/collection-assets/collections/covers/theme-plot-twists.jpg"
+    },
+    "focusGif": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Moods/Keep You Guessing/Keep_You_Guessing_Hover.gif",
+      "localPath": "/collection-assets/collections/gifs/theme-plot-twists-focus.gif"
+    }
+  },
+  "folder-lelibrary-theme-heists": {
+    "cover": {
+      "source": "i.postimg.cc",
+      "upstreamPath": "8cknW46f/Snip-My-temp-attachment.png",
+      "localPath": "/collection-assets/collections/covers/theme-heists.png"
+    },
+    "focusGif": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Moods/Adrenaline_Rush/Adrenaline_Rush_Hover.gif",
+      "localPath": "/collection-assets/collections/gifs/theme-heists-focus.gif"
+    }
+  },
+  "folder-lelibrary-theme-time-travel": {
+    "cover": {
+      "source": "i.postimg.cc",
+      "upstreamPath": "cLR0GzzL/ec9e093e-1de4-4da8-ba1b-7e1c8ebb0861.png",
+      "localPath": "/collection-assets/collections/covers/theme-time-travel.png"
+    },
+    "focusGif": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Moods/Epic_Sweeping/Epic_Sweeping_Hover.gif",
+      "localPath": "/collection-assets/collections/gifs/theme-time-travel-focus.gif"
+    }
+  },
+  "folder-lelibrary-theme-zombies": {
+    "cover": {
+      "source": "i.postimg.cc",
+      "upstreamPath": "xdyGRdZ3/b57d0fa4-83a4-45cb-9d11-0004ff3c6a24.png",
+      "localPath": "/collection-assets/collections/covers/theme-zombies.png"
+    },
+    "focusGif": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Moods/Spooky_Creepy/Spooky_Creepy_Hover.gif",
+      "localPath": "/collection-assets/collections/gifs/theme-zombies-focus.gif"
+    }
+  },
+  "folder-lelibrary-theme-hidden-gems": {
+    "cover": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Moods/Turn Off Your Brain/Turn_Off_Your_Brain_Base.png",
+      "localPath": "/collection-assets/collections/covers/theme-hidden-gems.png"
+    },
+    "focusGif": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Moods/Turn Off Your Brain/Turn_Off_Your_Brain_Hover.gif",
+      "localPath": "/collection-assets/collections/gifs/theme-hidden-gems-focus.gif"
+    }
+  },
+  "folder-lelibrary-theme-superhero": {
+    "cover": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Genres/Superhero/Superhero_Base.png",
+      "localPath": "/collection-assets/collections/covers/theme-superhero.png"
+    },
+    "focusGif": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Genres/Superhero/Superhero_Hover.gif",
+      "localPath": "/collection-assets/collections/gifs/theme-superhero-focus.gif"
+    }
+  },
+  "folder-lelibrary-theme-true-crime": {
+    "cover": {
+      "source": "i.ibb.co",
+      "upstreamPath": "JRGw31cF/Banner-apaisado-de-documentais-e-true-crime-con-texto-branco.png",
+      "localPath": "/collection-assets/collections/covers/theme-true-crime.png"
+    },
+    "focusGif": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Genres/True Crime & Serial Killers/True Crime & Serial Killers_Hover.gif",
+      "localPath": "/collection-assets/collections/gifs/theme-true-crime-focus.gif"
+    }
+  },
+  "folder-lelibrary-actor-ana-de-armas": {
+    "cover": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Ana_de_Armas/Ana_de_Armas_Base.png",
+      "localPath": "/collection-assets/people/covers/actor-ana-de-armas.png"
+    },
+    "focusGif": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Ana_de_Armas/Ana_de_Armas_Hover.gif",
+      "localPath": "/collection-assets/people/gifs/actor-ana-de-armas.gif"
+    },
+    "heroBackdrop": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Ana_de_Armas/Ana_de_Armas_Backdrop.jpg",
+      "localPath": "/collection-assets/people/backdrops/actor-ana-de-armas.jpg"
+    }
+  },
+  "folder-lelibrary-actor-anne-hathaway": {
+    "cover": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Anne_Hathaway/Anne_Hathaway_Base.png",
+      "localPath": "/collection-assets/people/covers/actor-anne-hathaway.png"
+    },
+    "focusGif": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Anne_Hathaway/Anne_Hathaway_Hover.gif",
+      "localPath": "/collection-assets/people/gifs/actor-anne-hathaway.gif"
+    },
+    "heroBackdrop": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Anne_Hathaway/Anne_Hathaway_Background.jpg",
+      "localPath": "/collection-assets/people/backdrops/actor-anne-hathaway.jpg"
+    }
+  },
+  "folder-lelibrary-actor-cillian-murphy": {
+    "cover": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Cillian_Murphy/Cillian_Murphy_Base.png",
+      "localPath": "/collection-assets/people/covers/actor-cillian-murphy.png"
+    },
+    "focusGif": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Cillian_Murphy/Cillian_Murphy_Hover.gif",
+      "localPath": "/collection-assets/people/gifs/actor-cillian-murphy.gif"
+    },
+    "heroBackdrop": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Cillian_Murphy/Cillian_Murphy_Backdrop.jpg",
+      "localPath": "/collection-assets/people/backdrops/actor-cillian-murphy.jpg"
+    }
+  },
+  "folder-lelibrary-actor-daniel-craig": {
+    "cover": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Daniel_Craig/Daniel_Craig_Base.png",
+      "localPath": "/collection-assets/people/covers/actor-daniel-craig.png"
+    },
+    "focusGif": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Daniel_Craig/Daniel_Craig_Hover.gif",
+      "localPath": "/collection-assets/people/gifs/actor-daniel-craig.gif"
+    },
+    "heroBackdrop": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Daniel_Craig/Daniel_Craig_Background.jpg",
+      "localPath": "/collection-assets/people/backdrops/actor-daniel-craig.jpg"
+    }
+  },
+  "folder-lelibrary-actor-emma-stone": {
+    "cover": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Emma_Stone/Emma_Stone_Base.png",
+      "localPath": "/collection-assets/people/covers/actor-emma-stone.png"
+    },
+    "focusGif": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Emma_Stone/Emma_Stone_Hover.gif",
+      "localPath": "/collection-assets/people/gifs/actor-emma-stone.gif"
+    },
+    "heroBackdrop": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Emma_Stone/Emma_Stone_Background.jpg",
+      "localPath": "/collection-assets/people/backdrops/actor-emma-stone.jpg"
+    }
+  },
+  "folder-lelibrary-actor-jake-gyllenhaal": {
+    "cover": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Jake_Gyllenhaal/Jake_Gyllenhaal_Base.png",
+      "localPath": "/collection-assets/people/covers/actor-jake-gyllenhaal.png"
+    },
+    "focusGif": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Jake_Gyllenhaal/Jake_Gyllenhaal_Hover.gif",
+      "localPath": "/collection-assets/people/gifs/actor-jake-gyllenhaal.gif"
+    },
+    "heroBackdrop": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Jake_Gyllenhaal/Jake_Gyllenhaal_Background.jpg",
+      "localPath": "/collection-assets/people/backdrops/actor-jake-gyllenhaal.jpg"
+    }
+  },
+  "folder-lelibrary-actor-keanu-reeves": {
+    "cover": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Keanu_Reeves/Keanu_Reeves_Base.png",
+      "localPath": "/collection-assets/people/covers/actor-keanu-reeves.png"
+    },
+    "focusGif": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Keanu_Reeves/Keanu_Reeves_Hover.gif",
+      "localPath": "/collection-assets/people/gifs/actor-keanu-reeves.gif"
+    },
+    "heroBackdrop": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Keanu_Reeves/Keanu_Reeves_Backdrop.jpg",
+      "localPath": "/collection-assets/people/backdrops/actor-keanu-reeves.jpg"
+    }
+  },
+  "folder-lelibrary-actor-leonardo-dicaprio": {
+    "cover": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Leonardo_DiCaprio/Leonardo_DiCaprio_Base.png",
+      "localPath": "/collection-assets/people/covers/actor-leonardo-dicaprio.png"
+    },
+    "focusGif": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Leonardo_DiCaprio/Leonardo_DiCaprio_Hover.gif",
+      "localPath": "/collection-assets/people/gifs/actor-leonardo-dicaprio.gif"
+    },
+    "heroBackdrop": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Leonardo_DiCaprio/Leonardo_DiCaprio_Background.jpg",
+      "localPath": "/collection-assets/people/backdrops/actor-leonardo-dicaprio.jpg"
+    }
+  },
+  "folder-lelibrary-actor-margot-robbie": {
+    "cover": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Margot_Robbie/Margot_Robbie_Base.png",
+      "localPath": "/collection-assets/people/covers/actor-margot-robbie.png"
+    },
+    "focusGif": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Margot_Robbie/Margot_Robbie_Hover.gif",
+      "localPath": "/collection-assets/people/gifs/actor-margot-robbie.gif"
+    },
+    "heroBackdrop": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Margot_Robbie/Margot_Robbie_Backdrop.jpg",
+      "localPath": "/collection-assets/people/backdrops/actor-margot-robbie.jpg"
+    }
+  },
+  "folder-lelibrary-actor-pedro-pascal": {
+    "cover": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Pedro_Pascal/Pedro_Pascal_Base.png",
+      "localPath": "/collection-assets/people/covers/actor-pedro-pascal.png"
+    },
+    "focusGif": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Pedro_Pascal/Pedro_Pascal_Hover.gif",
+      "localPath": "/collection-assets/people/gifs/actor-pedro-pascal.gif"
+    },
+    "heroBackdrop": {
+      "source": "ImKaptain/nuvio-assets",
+      "upstreamPath": "Actors/Pedro_Pascal/Pedro_Pascal_Backdrop.jpg",
+      "localPath": "/collection-assets/people/backdrops/actor-pedro-pascal.jpg"
+    }
+  }
+}

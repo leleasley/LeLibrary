@@ -2,7 +2,7 @@
 // Aggregates streams from other Stremio stream addons for `tt:` (IMDb) ids,
 // mirroring how AIOStreams fetches from configured addons server-side.
 //
-// IMPORTANT — isolation: this module is ONLY ever called for `tt:` ids (the
+// IMPORTANT: isolation: this module is ONLY ever called for `tt:` ids (the
 // Trending/Popular discovery rows). Library rows (My Movies / My Series /
 // LeLibrary Collections) use `torbox:*` ids and never reach this code, so the
 // external addons can never interfere with owned-content streams.
@@ -21,6 +21,16 @@ const SERVICE_NAMES = {
   premiumize: 'premiumize',
 };
 
+// Config field names intentionally retain their short legacy forms for the
+// latter three providers. Keep that translation here so every upstream addon
+// receives the active service credential correctly.
+const SERVICE_KEY_FIELDS = {
+  torbox: 'torboxApiKey',
+  realdebrid: 'rdApiKey',
+  alldebrid: 'adApiKey',
+  premiumize: 'pmApiKey',
+};
+
 // Which of the user's active providers a given addon supports (by its own
 // service naming). Unknown/unsupported providers are skipped silently.
 const SUPPORTED_SERVICES = {
@@ -28,13 +38,14 @@ const SUPPORTED_SERVICES = {
   comet:        ['realdebrid', 'torbox', 'alldebrid', 'premiumize'],
   meteor:       ['realdebrid', 'alldebrid', 'torbox', 'premiumize'],
   mediafusion:  ['realdebrid', 'torbox', 'alldebrid', 'premiumize'],
+  jackettio:    ['realdebrid', 'torbox', 'alldebrid', 'premiumize'],
 };
 
 function activePairs(config, addonId) {
   const supported = SUPPORTED_SERVICES[addonId] || [];
   const pairs = [];
   for (const providerId of Object.keys(SERVICE_NAMES)) {
-    const key = config[`${providerId}ApiKey`];
+    const key = config[SERVICE_KEY_FIELDS[providerId]];
     if (!key) continue;
     if (supported.includes(providerId)) pairs.push([SERVICE_NAMES[providerId], key]);
   }
@@ -43,6 +54,37 @@ function activePairs(config, addonId) {
 
 function base64Url(s) {
   return Buffer.from(s).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+// Jackettio accepts one debrid service per configured manifest. Mirroring
+// AIOStreams, make one manifest for each active compatible service rather
+// than arbitrarily choosing one when a user has more than one provider.
+function buildJackettioConfigUrls(config) {
+  return activePairs(config, 'jackettio').map(([debridId, debridApiKey]) => {
+    const settings = {
+      maxTorrents: 30,
+      priotizePackTorrents: 2,
+      excludeKeywords: [],
+      debridId,
+      debridApiKey,
+      hideUncached: false,
+      sortCached: [['quality', true], ['size', true]],
+      sortUncached: [['seeders', true]],
+      forceCacheNextEpisode: false,
+      priotizeLanguages: [],
+      indexerTimeoutSec: 60,
+      metaLanguage: '',
+      enableMediaFlow: false,
+      mediaflowProxyUrl: '',
+      mediaflowApiPassword: '',
+      mediaflowPublicIp: '',
+      useStremThru: true,
+      stremthruUrl: 'https://stremthru.13377001.xyz',
+      qualities: [0, 360, 480, 720, 1080, 2160],
+      indexers: ['eztv', 'thepiratebay', 'therarbg', 'yts'],
+    };
+    return `https://jackettio.elfhosted.com/${Buffer.from(JSON.stringify(settings)).toString('base64')}/manifest.json`;
+  });
 }
 
 const ADDONS = {
@@ -132,7 +174,7 @@ const ADDONS = {
     logo: 'https://raw.githubusercontent.com/mhdzumair/MediaFusion/refs/heads/main/resources/images/mediafusion_logo.png',
     baseUrl: 'https://mediafusion.elfhosted.com',
     supportedServices: ['realdebrid', 'torbox', 'alldebrid', 'premiumize'],
-    // MediaFusion's config is NOT in the URL — it is sent as an
+    // MediaFusion's config is NOT in the URL: it is sent as an
     // `encoded_user_data` header on every request (this is how its own client
     // works). The manifest URL stays plain.
     buildConfigUrl() {
@@ -200,6 +242,13 @@ const ADDONS = {
       return { encoded_user_data: base64Url(JSON.stringify(cfg)) };
     },
   },
+  jackettio: {
+    name: 'Jackettio',
+    logo: 'https://raw.githubusercontent.com/Jackett/Jackett/bbea5febd623f6e536e11aa1fa8d6674d8d4043f/src/Jackett.Common/Content/jacket_medium.png',
+    baseUrl: 'https://jackettio.elfhosted.com',
+    supportedServices: ['realdebrid', 'torbox', 'alldebrid', 'premiumize'],
+    buildConfigUrls: buildJackettioConfigUrls,
+  },
 };
 
 const ADDON_LIST = [
@@ -207,28 +256,35 @@ const ADDON_LIST = [
   { id: 'comet',        name: 'Comet',        logo: ADDONS.comet.logo,        desc: "Stremio's fast torrent/debrid stream addon." },
   { id: 'meteor',       name: 'Meteor',       logo: ADDONS.meteor.logo,       desc: 'Torrent + debrid streams with usenet support.' },
   { id: 'mediafusion',  name: 'MediaFusion',  logo: ADDONS.mediafusion.logo,  desc: 'Universal streams for movies, series and anime.' },
+  { id: 'jackettio',    name: 'Jackettio',    logo: ADDONS.jackettio.logo,    desc: 'Extra tracker results, configured with your existing debrid account.' },
 ];
 
-// No hard caps — the resolution filter and total cap in discovery.js handle
+// No hard caps: the resolution filter and total cap in discovery.js handle
 // stream selection. AIOStreams has no cap either; the filter is the gate.
 
-// Fetch one addon's streams for a `tt:` id. Returns [] on any failure — one
+// Fetch one addon's streams for a `tt:` id. Returns [] on any failure: one
 // slow/broken addon must never fail the whole response.
 async function fetchAddonStreams(addonId, config, type, ttId, timeoutMs = 15000) {
   const addon = ADDONS[addonId];
   if (!addon) return [];
   try {
-    const manifestUrl = addon.buildConfigUrl(config);
-    // stream endpoint = the configured manifest base + /stream/{type}/{id}.json
-    const streamUrl = manifestUrl.replace(/\/manifest\.json$/, '') + `/stream/${type}/${ttId}.json`;
-    const headers = {
-      'User-Agent': 'LeLibrary/2.0 (+https://github.com/leleasley/LeLibrary)',
-      Accept: 'application/json',
-      ...(typeof addon.buildHeaders === 'function' ? addon.buildHeaders(config) : {}),
-    };
-    const res = await axios.get(streamUrl, { headers, timeout: timeoutMs, validateStatus: s => s < 500 });
-    const streams = res.data?.streams;
-    if (!Array.isArray(streams) || streams.length === 0) return [];
+    const manifestUrls = typeof addon.buildConfigUrls === 'function'
+      ? addon.buildConfigUrls(config)
+      : [addon.buildConfigUrl(config)];
+    if (!manifestUrls.length) return [];
+    const responses = await Promise.all(manifestUrls.map(manifestUrl => {
+      const streamUrl = manifestUrl.replace(/\/manifest\.json$/, '') + `/stream/${type}/${ttId}.json`;
+      const headers = {
+        'User-Agent': 'LeLibrary/2.0 (+https://github.com/leleasley/LeLibrary)',
+        Accept: 'application/json',
+        ...(typeof addon.buildHeaders === 'function' ? addon.buildHeaders(config) : {}),
+      };
+      return axios.get(streamUrl, { headers, timeout: timeoutMs, validateStatus: s => s < 500 })
+        .then(res => Array.isArray(res.data?.streams) ? res.data.streams : [])
+        .catch(() => []);
+    }));
+    const streams = responses.flat();
+    if (streams.length === 0) return [];
     // Tag each stream with its source addon so reformatting can show WHERE it
     // came from (name for display, id for the formatter's service badge);
     // capped per addon to the best few (addons sort best-first).
@@ -259,17 +315,23 @@ function dedupeStreams(streams) {
   return out;
 }
 
+// Returns the configured provider-order difference for two external streams.
+// A non-prioritised stream sorts after a configured provider. Kept independent
+// of the network code so the final stream sorter can honour this invariant.
+function compareExternalProviderPriority(a, b) {
+  const priority = stream => Number.isFinite(stream?._externalPriority)
+    ? stream._externalPriority
+    : Number.MAX_SAFE_INTEGER;
+  return priority(a) - priority(b);
+}
+
 // Aggregate streams from all enabled addons for a `tt:` id, in parallel.
-// Uses a global time budget so a single slow addon can't hold up the whole
-// response — addons that respond within the budget contribute, the rest are
-// dropped. This keeps the discovery stream request snappy even when one
-// upstream is lagging.
-const EXTERNAL_TIME_BUDGET_MS = 6000;
-// Resolve as soon as enough addons have answered OR the budget expires,
-// whichever comes first. Slow addons keep running in the background and their
-// results are still collected up to the deadline, but they can never hold up
-// the response past the budget. (Deliberately NOT Promise.all — that would
-// wait for the slowest addon and defeat the whole point.)
+// Use one shared deadline so a hung upstream cannot hold the player forever.
+// Do not return merely because the first fast addons produced enough rows:
+// that made Comet/MediaFusion hide slower enabled addons such as Torrentio and
+// Jackettio. The response now includes every selected addon that answers
+// before the deadline.
+const EXTERNAL_TIME_BUDGET_MS = 15000;
 async function fetchExternalStreams(addonIds, config, type, ttId) {
   const ids = Array.isArray(addonIds) ? addonIds.filter(id => ADDONS[id]) : [];
   if (ids.length === 0) return [];
@@ -277,49 +339,29 @@ async function fetchExternalStreams(addonIds, config, type, ttId) {
   const budgetMs = EXTERNAL_TIME_BUDGET_MS;
   const deadline = Date.now() + budgetMs;
 
-  const collected = [];
-  const done = new Set();
-  const failedAddons = new Set();
-  let settle;
-  const finished = new Promise(r => { settle = r; });
-
-  ids.forEach(id => {
-    const run = async () => {
-      try {
-        const remaining = Math.max(2000, deadline - Date.now());
-        const streams = await fetchAddonStreams(id, config, normType, ttId, remaining);
-        collected.push(...streams);
-      } catch (err) {
-        console.warn(`[StreamAddons] ${id} error: ${err.message}`);
-        failedAddons.add(id);
-      } finally {
-        done.add(id);
-        // Count how many addons actually returned streams (not just errored).
-        // Settle once 2 working addons have contributed — this prevents a
-        // fast-failing addon from settling before a working one contributes.
-        const successful = [...done].filter(did => {
-          // An addon is "successful" if it contributed at least one stream
-          // (we track this via a per-addon flag set after push).
-          return !failedAddons.has(did);
-        });
-        if (successful.length >= Math.min(3, ids.length) || done.size >= ids.length) settle();
-      }
-    };
-    run(); // fire and forget — results accumulate into `collected`
-  });
-
-  // Budget expiry — settle with whatever we have.
-  const timer = setTimeout(settle, budgetMs);
-  await finished;
-  clearTimeout(timer);
-
-  const deduped = dedupeStreams(collected);
+  // Fetch in parallel, but assemble in the configured order. Appending each
+  // response as it completes made faster providers (usually Comet) jump ahead
+  // of a user's first choice. `_externalPriority` is intentionally retained
+  // until discovery.js has applied the final per-provider stream ordering.
+  const responses = await Promise.all(ids.map(async (id, priority) => {
+    try {
+      const remaining = Math.max(2000, deadline - Date.now());
+      const streams = await fetchAddonStreams(id, config, normType, ttId, remaining);
+      return streams.map(stream => ({ ...stream, _externalPriority: priority }));
+    } catch (err) {
+      console.warn(`[StreamAddons] ${id} error: ${err.message}`);
+      return [];
+    }
+  }));
+  const deduped = dedupeStreams(responses.flat());
   return deduped;
 }
 
 module.exports = {
   ADDON_LIST,
   ADDONS,
+  buildJackettioConfigUrls,
   fetchExternalStreams,
   dedupeStreams,
+  compareExternalProviderPriority,
 };

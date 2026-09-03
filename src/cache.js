@@ -4,8 +4,62 @@ const NodeCache = require('node-cache');
 let redis = null;
 let isConnected = false;
 
-// In-memory fallback when Redis is not configured
-const memCache = new NodeCache({ stdTTL: 3600, checkperiod: 600, useClones: false });
+// In-memory fallback when Redis is not configured.
+// useClones:true: values handed out by get()/set() must not be live
+// references: callers mutate returned objects (metas especially), and with
+// shared refs one request's edits leaked into every later reader until the
+// entry expired.
+const MEM_CACHE_MAX_KEYS = Math.max(100, parseInt(process.env.MEM_CACHE_MAX_KEYS, 10) || 3000);
+const memCache = new NodeCache({ stdTTL: 3600, checkperiod: 600, useClones: true });
+// NodeCache has no eviction policy: its optional maxKeys limit throws instead
+// of evicting. Keep a small LRU-style index ourselves so the hot in-process
+// mirror cannot steadily consume process memory. Redis remains authoritative;
+// an evicted mirror entry is simply read from Redis again.
+const memKeyOrder = new Map();
+
+function rememberMemKey(key) {
+  if (memKeyOrder.has(key)) memKeyOrder.delete(key);
+  memKeyOrder.set(key, true);
+}
+
+function setMemCache(key, value, ttl) {
+  if (!memCache.has(key)) {
+    while (memKeyOrder.size >= MEM_CACHE_MAX_KEYS) {
+      const oldest = memKeyOrder.keys().next().value;
+      if (oldest === undefined) break;
+      memKeyOrder.delete(oldest);
+      memCache.del(oldest);
+    }
+  }
+  memCache.set(key, value, ttl);
+  rememberMemKey(key);
+}
+
+function getMemCache(key) {
+  const value = memCache.get(key);
+  if (value === undefined) memKeyOrder.delete(key);
+  else rememberMemKey(key);
+  return value;
+}
+
+function delMemCache(key) {
+  memKeyOrder.delete(key);
+  memCache.del(key);
+}
+
+async function scanPattern(client, pattern, onBatch) {
+  let cursor = '0';
+  let matched = 0;
+  do {
+    const [nextCursor, keys] = await client.scan(cursor, 'MATCH', pattern, 'COUNT', 250);
+    cursor = nextCursor;
+    if (keys.length) {
+      matched += keys.length;
+      await onBatch(keys);
+    }
+  } while (cursor !== '0');
+  return matched;
+}
 
 function getRedisClient() {
   if (!redis) {
@@ -42,7 +96,7 @@ function getRedisClient() {
 async function get(key) {
   const client = getRedisClient();
   if (!client) {
-    const val = memCache.get(key);
+    const val = getMemCache(key);
     if (val !== undefined) return val;
     return null;
   }
@@ -52,7 +106,7 @@ async function get(key) {
     return JSON.parse(data);
   } catch (err) {
     console.error(`[Cache] Error fetching ${key}:`, err.message);
-    const val = memCache.get(key);
+    const val = getMemCache(key);
     return val !== undefined ? val : null;
   }
 }
@@ -60,22 +114,22 @@ async function get(key) {
 async function set(key, value, ttl = 3600) {
   const client = getRedisClient();
   if (!client) {
-    memCache.set(key, value, ttl);
+    setMemCache(key, value, ttl);
     return true;
   }
   try {
     await client.setex(key, ttl, JSON.stringify(value));
-    memCache.set(key, value, ttl); // mirror in memory for fast reads
+    setMemCache(key, value, ttl); // mirror in memory for fast reads
     return true;
   } catch (err) {
     console.error(`[Cache] Error storing ${key}:`, err.message);
-    memCache.set(key, value, ttl);
+    setMemCache(key, value, ttl);
     return false;
   }
 }
 
 async function del(key) {
-  memCache.del(key);
+  delMemCache(key);
   const client = getRedisClient();
   if (!client) return true;
   try {
@@ -90,16 +144,14 @@ async function del(key) {
 async function delPattern(pattern) {
   // Clear memCache by pattern
   const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
-  for (const k of memCache.keys()) { if (regex.test(k)) memCache.del(k); }
+  for (const k of memCache.keys()) { if (regex.test(k)) delMemCache(k); }
 
   const client = getRedisClient();
   if (!client) return 0;
   try {
-    const keys = await client.keys(pattern);
-    if (keys.length === 0) return 0;
-    await client.del(...keys);
-    console.log(`[Cache] DEL Pattern → ${pattern} (${keys.length} keys)`);
-    return keys.length;
+    const count = await scanPattern(client, pattern, (keys) => client.del(...keys));
+    if (count) console.log(`[Cache] DEL Pattern → ${pattern} (${count} keys)`);
+    return count;
   } catch (err) {
     console.error(`[Cache] Error deleting pattern ${pattern}:`, err.message);
     return 0;
@@ -114,23 +166,23 @@ async function touchPattern(pattern, ttl) {
     // memCache: bump the TTL on matching in-memory keys
     const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
     for (const k of memCache.keys()) {
-      if (regex.test(k)) { const v = memCache.get(k); if (v !== undefined) memCache.set(k, v, ttl); }
+      if (regex.test(k)) { const v = getMemCache(k); if (v !== undefined) setMemCache(k, v, ttl); }
     }
     return 0;
   }
   try {
-    const keys = await client.keys(pattern);
-    if (keys.length === 0) return 0;
-    const pipe = client.pipeline();
-    for (const k of keys) pipe.expire(k, ttl);
-    await pipe.exec();
+    const count = await scanPattern(client, pattern, async (keys) => {
+      const pipe = client.pipeline();
+      for (const k of keys) pipe.expire(k, ttl);
+      await pipe.exec();
+    });
     // Mirror in memCache
     const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
     for (const k of memCache.keys()) {
-      if (regex.test(k)) { const v = memCache.get(k); if (v !== undefined) memCache.set(k, v, ttl); }
+      if (regex.test(k)) { const v = getMemCache(k); if (v !== undefined) setMemCache(k, v, ttl); }
     }
-    console.log(`[Cache] TOUCH → ${pattern} (${keys.length} keys, TTL ${ttl}s)`);
-    return keys.length;
+    if (count) console.log(`[Cache] TOUCH → ${pattern} (${count} keys, TTL ${ttl}s)`);
+    return count;
   } catch (err) {
     console.error(`[Cache] Error touching pattern ${pattern}:`, err.message);
     return 0;

@@ -16,10 +16,11 @@ const PROVIDER_META = {
 };
 const PROVIDER_ORDER = ['torbox', 'realdebrid', 'alldebrid', 'premiumize'];
 
-// item.source → provider id (torrents/usenet both live on TorBox)
+// item.source → provider id (torrents/usenet/webdl all live on TorBox)
 const SOURCE_TO_PROVIDER = {
   torrent: 'torbox',
   usenet: 'torbox',
+  webdl: 'torbox',
   realdebrid: 'realdebrid',
   alldebrid: 'alldebrid',
   premiumize: 'premiumize',
@@ -38,7 +39,12 @@ function providerByCat(prefix) {
 // values ('torbox', 'realdebrid', 'both') and the new comma-separated set.
 // Only providers that actually have a key configured count as active.
 function activeProviders(config = {}) {
-  const raw = (config.provider || '').trim();
+  // Coerce defensively: config tokens are arbitrary user-supplied JSON, and a
+  // crafted non-string `provider` used to throw on `.trim()` and take the
+  // whole process down via an unhandled async rejection. Even String() can
+  // throw on objects with a poisoned toString, so only strings/numbers pass.
+  const p = config.provider;
+  const raw = typeof p === 'string' ? p.trim() : (typeof p === 'number' ? String(p) : '');
   let ids;
   if (!raw) ids = [];
   else if (raw === 'both') ids = ['torbox', 'realdebrid'];
@@ -46,7 +52,7 @@ function activeProviders(config = {}) {
   return PROVIDER_ORDER.filter(id => ids.includes(id) && config[PROVIDER_META[id].key]);
 }
 
-// Stable per-user key from the sorted id:key pairs — a full hash, never a
+// Stable per-user key from the sorted id:key pairs: a full hash, never a
 // plain key fragment (replaces the old slice(-6) namespace).
 function getUserKey(config = {}) {
   const pairs = activeProviders(config)
@@ -73,6 +79,11 @@ async function downloadsForProvider(config, id) {
 // the RAW provider downloads so the discovery owned-bridge can answer "does the
 // user own this?" without re-hitting TorBox/Real-Debrid on every tt: request.
 const DOWNLOADS_TTL = 10 * 60; // 10 minutes
+// One slow provider refresh must be shared by all requests for the same
+// account. Nuvio commonly asks for the same title more than once while a
+// detail page opens; without this guard each request could start a separate
+// multi-page TorBox download scan.
+const downloadsInFlight = new Map();
 
 function downloadsCacheKey(config = {}) {
   const userKey = getUserKey(config);
@@ -82,40 +93,64 @@ function downloadsCacheKey(config = {}) {
 async function getCachedDownloads(config = {}) {
   const key = downloadsCacheKey(config);
   if (!key) return null;
-  return cache.get(key);
+  const cached = await cache.get(key);
+  // Empty snapshots from older provider failures must never keep a library
+  // blank. Successful non-empty snapshots remain the normal fast path.
+  return Array.isArray(cached) && cached.length === 0 ? null : cached;
 }
 
 async function setCachedDownloads(config = {}, downloads) {
   const key = downloadsCacheKey(config);
   if (!key) return;
+  // Do not persist an empty snapshot. It may be a real empty account, but
+  // preserving a previous library is safer than treating a transient outage
+  // as destructive state.
+  if (!Array.isArray(downloads) || downloads.length === 0) return;
   await cache.set(key, downloads, DOWNLOADS_TTL);
 }
 
 // Fetch downloads from all active providers (or only the listed subset).
 // One provider failing must not empty the others.
 // When `useCache` is true (default) and a fresh-enough copy exists in Redis,
-// it returns that instead of hitting the providers — the discovery owned-bridge
+// it returns that instead of hitting the providers: the discovery owned-bridge
 // uses this so every tt: stream request doesn't re-fetch 500+ TorBox downloads.
 async function fetchDownloads(config = {}, { only = null, useCache = true } = {}) {
   if (useCache) {
     try {
       const cached = await getCachedDownloads(config);
       if (Array.isArray(cached)) return cached;
-    } catch { /* cache miss — fall through to live fetch */ }
+    } catch { /* cache miss: fall through to live fetch */ }
   }
-  const list = only && only.length ? only : activeProviders(config);
-  const results = [];
-  await Promise.all(list.map(async id => {
-    try {
-      results.push(...await downloadsForProvider(config, id));
-    } catch (err) {
-      console.error(`[Providers] ${id} downloads failed (continuing): ${err.message}`);
+  const userKey = getUserKey(config);
+  const requestKey = `${userKey}:${only?.slice().sort().join(',') || '*'}`;
+  const existing = downloadsInFlight.get(requestKey);
+  if (existing) return existing;
+
+  const pending = (async () => {
+    const list = only && only.length ? only : activeProviders(config);
+    const results = [];
+    const failures = [];
+    await Promise.all(list.map(async id => {
+      try {
+        results.push(...await downloadsForProvider(config, id));
+      } catch (err) {
+        console.error(`[Providers] ${id} downloads failed (continuing): ${err.message}`);
+        failures.push({ id, err });
+      }
+    }));
+    // An empty account is valid, but an empty result caused by every active
+    // provider failing is not. Propagate it so callers retain their last good
+    // catalogue instead of caching an empty library during a TorBox backoff.
+    if (list.length > 0 && failures.length === list.length) {
+      throw failures[0].err;
     }
-  }));
-  if (useCache) {
-    try { await setCachedDownloads(config, results); } catch { /* non-fatal */ }
-  }
-  return results;
+    if (useCache) {
+      try { await setCachedDownloads(config, results); } catch { /* non-fatal */ }
+    }
+    return results;
+  })();
+  downloadsInFlight.set(requestKey, pending);
+  try { return await pending; } finally { downloadsInFlight.delete(requestKey); }
 }
 
 // Keep only downloads that belong to one provider.

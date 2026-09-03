@@ -877,12 +877,28 @@
       description: '{?🎬 {stream.title::title} ?}{?({stream.year}) ?}{?🍂 {stream.formattedSeasons} ?}{?🎞️ {stream.formattedEpisodes}?}{stream.seadexBest::istrue["🎚️ Best "||""]}{stream.seadex::istrue::and::stream.seadexBest::isfalse["🎚️ Alternative"||""]}{stream.rseMatched::exists::and::stream.seadex::isfalse::and::stream.rseMatched::string::~T1::or::stream.rseMatched::string::~T2::or::stream.rseMatched::string::~T3::or::stream.rseMatched::string::~T4::or::stream.rseMatched::string::~T5::or::stream.rseMatched::string::~T6::or::stream.rseMatched::string::~T7::or::stream.rseMatched::string::~T8[" 🎚️ {stream.rseMatched::first}"||""]}{stream.regexMatched::exists::and::stream.rseMatched::exists::isfalse::and::stream.seadex::isfalse["🎚️ {stream.regexMatched} "||""]}\n{?🎥 {stream.quality} ?}{?📺 {stream.visualTags::join(" | ")} ?}{?🎞️ {stream.encode} ?}{stream.duration::>0["⏱️ {stream.duration::time} "||""]}\n{?🎧 {stream.audioTags::join(" | ")} ?}{?🔊 {stream.audioChannels::join(" | ")} ?}{stream.languages::exists["🗣️ {stream.languageEmojis::join(" / ")}"||""]}{stream.subtitles::exists["📝 {stream.subtitleEmojis::join(" / ")}"||""]}\n{stream.size::>0["📦 {stream.size::sbytes} "||""]}{stream.folderSize::>0["/ {stream.folderSize::sbytes} "||""]}{stream.bitrate::>0["📊 {stream.bitrate::sbitrate} "||""]}{service.cached::isfalse::or::stream.type::=p2p::and::stream.seeders::>0["🌱 {stream.seeders} "||""]}{stream.type::=usenet::and::stream.age::exists["📅 {stream.age} "||""]}\n{?🏷️ {stream.releaseGroup} ?}{?📡 {stream.indexer} ?}{?🎭 {stream.network}?}\n{service.cached::istrue["⚡Ready "||""]}{service.cached::isfalse["❌ Not Ready "||""]}{service.id::exists["({service.shortName}) "||""]}{stream.library::istrue["📌 Library "||""]}{stream.type::=Usenet["📰 Usenet "||""]}{stream.type::=p2p["⚠️ P2P "||""]}{stream.type::=http["💻 Web Link "||""]}{stream.type::=youtube["▶️ Youtube "||""]}{stream.type::=live["📺 Live "||""]}{stream.proxied::istrue["🔒 Proxied "||""]}{stream.private::istrue["🔑 Private "||""]}🔍{addon.name}\n{?ℹ️ {stream.message}?}\n',
     },
     tamtaro: {
-      name: '{stream.resolution::exists["{stream.resolution::replace("2160p","  4K  ")::replace("1440p","  2K  ")::replace("1080p","1080p ")::replace("720p"," 720p ")}"||""]}{service.cached["⚡"||"⏳"||""]}\n{stream.source::exists::or::stream.visualTags::exists["〈 "||""]}{stream.source::exists["{stream.source}"||""]}{stream.visualTags::exists["{stream.source::exists[" · "||""]}{stream.visualTags::join(" · ")}"||""]}{stream.source::exists::or::stream.visualTags::exists[" 〈"||""]}',
+      name: '{stream.resolution::exists["{stream.resolution::replace("2160p","  4K  ")::replace("1440p","  2K  ")::replace("1080p","1080p ")::replace("720p"," 720p ")}"||""]}{service.cached["⚡"||"⏳"||""]}\n{stream.source::exists::or::stream.visualTags::exists["〈 "||""]}{stream.source::exists["{stream.source}"||""]}{stream.visualTags::exists["{stream.source::exists[" · "||""]}{stream.visualTags::join(" · ")}"||""]}{stream.source::exists::or::stream.visualTags::exists[" 〉"||""]}',
       description: '{?▣ {stream.encode}{stream.visualTags::exists["  {stream.visualTags::join(" · ")}"||""]}?}\n{?♬ {stream.audioTags::join(" · ")}{stream.audioTags::exists::and::stream.audioChannels::exists["  ♯ "||""]}{stream.audioChannels::join(" · ")}?}\n{?◈ {stream.size::sbytes}{stream.releaseGroup::exists[" · {stream.releaseGroup}"||""]}?}\n{?⛉ [{service.shortName}] {addon.name}?}\n{stream.languages::exists["✓ {stream.languages::join(" · ")}"||""]}{stream.languages::exists::and::stream.subtitles::exists[" · "||""]}{stream.subtitles::exists["⛿ {stream.subtitles::join(" · ")}"||""]}',
     },
     lelibrary: {
       name: '{addon.badgeName}\n{stream.resolution::exists["{stream.resolution::replace("2160p","4K")}"||""]}{stream.resolution::exists::and::stream.visualTags::exists[" · "||""]}{stream.visualTags::exists["{stream.visualTags::join(" · ")}"||""]}',
-      description: '⚡ {addon.name}\n{?🎬 {stream.quality} · {stream.source} · {stream.encode}?}\n{?🔊 {stream.audioTags::join(" · ")} · {stream.audioChannels::join(".")}?}\n{stream.languages::exists["🌐 {stream.languages::join(", ")}"||""]}{stream.languages::exists::and::stream.subtitles::exists[" · "||""]}{stream.subtitles::exists["💬 {stream.subtitles::join(", ")}"||""]}\n{stream.size::>0["💾 {stream.size::sbytes}"||""]}{stream.size::>0::and::stream.releaseGroup::exists[" · "||""]}{stream.releaseGroup::exists["🏷️ {stream.releaseGroup}"||""]}',
+      description: '⚡ {addon.name}\n{?🎬 {stream.source} · {stream.releaseTags::join(" · ")} · {stream.encode}?}\n{?🔊 {stream.audioTags::join(" · ")} · {stream.audioChannels::join(" · ")}?}\n{stream.languages::exists["🌐 {stream.languages::join(", ")}"||""]}{stream.languages::exists::and::stream.subtitles::exists[" · "||""]}{stream.subtitles::exists["💬 {stream.subtitles::join(", ")}"||""]}\n{stream.size::>0["💾 {stream.size::sbytes}"||""]}{stream.size::>0::and::stream.releaseGroup::exists[" · "||""]}{stream.releaseGroup::exists["🏷️ {stream.releaseGroup}"||""]}',
+    },
+    cinema: {
+      name: '🎬 {stream.resolution::exists["{stream.resolution::replace("2160p","4K UHD")::replace("1080p","1080p FHD")::replace("720p","720p HD")}"||"Stream"]}{stream.releaseTags::exists[" · {stream.releaseTags::join(" · ")}"||""]}{service.cached::istrue[" · ⚡"||""]}',
+      description: '{?🎞️ {stream.source} · {stream.encode} ?}\n{?🎧 {stream.audioTags::join(" · ")} · {stream.audioChannels::join(" · ")}?}\n{stream.visualTags::exists["✨ {stream.visualTags::join(" · ")}\n"||""]}{stream.size::>0["📦 SIZE {stream.size::sbytes}"||""]}{stream.releaseGroup::exists[" · {stream.releaseGroup}"||""]}',
+    },
+    remux: {
+      name: '💎 {stream.resolution::exists["{stream.resolution::replace("2160p","4K")}"||"HD"]}{stream.releaseTags::exists[" · {stream.releaseTags::join(" · ")}"||""]}{service.cached::istrue[" · CACHED"||""]}',
+      description: '{?🎞️ {stream.source} · {stream.encode}?}\n{?🔊 {stream.audioTags::join(" · ")} · {stream.audioChannels::join(" · ")}?}\n{stream.visualTags::exists["🌈 {stream.visualTags::join(" · ")}\n"||""]}{stream.size::>0["📦 {stream.size::sbytes}"||""]}{stream.releaseGroup::exists[" · 🏷️ {stream.releaseGroup}"||""]}',
+    },
+    compact: {
+      name: '{addon.badgeName} · {stream.resolution::exists["{stream.resolution::replace("2160p","4K")}"||"HD"]}{stream.releaseTags::exists[" · {stream.releaseTags::first}"||""]}',
+      description: '{?{stream.source} · {stream.encode} · {stream.visualTags::join(" · ")}?}\n{?{stream.audioTags::join(" · ")} · {stream.audioChannels::join(" · ")}?}{stream.size::>0["\n📦 {stream.size::sbytes}"||""]}',
+    },
+    technical: {
+      name: '⚡ {addon.badgeName} · {stream.resolution::exists["{stream.resolution}"||"Unknown"]}{stream.releaseTags::exists[" · {stream.releaseTags::join(" · ")}"||""]}',
+      description: '{?SOURCE  {stream.source}?}{stream.encode::exists[" · CODEC  {stream.encode}"||""]}\n{stream.visualTags::exists["VIDEO  {stream.visualTags::join(" · ")}\n"||""]}{stream.audioTags::exists["AUDIO  {stream.audioTags::join(" · ")}"||""]}{stream.audioChannels::exists[" · {stream.audioChannels::join(" · ")}"||""]}\n{stream.size::>0["SIZE  {stream.size::sbytes}"||""]}{stream.releaseGroup::exists[" · GROUP  {stream.releaseGroup}"||""]}\n{stream.filename::exists["📁 {stream.filename}"||""]}',
     },
   };
 
@@ -922,6 +938,19 @@
     if (u.match(/\bHDTV\b/)) return 'HDTV';
     if (u.match(/\bDVDRIP\b/)) return 'DVDRip';
     return '';
+  }
+  function parseReleaseTags(filename) {
+    const u = String(filename || '').toUpperCase();
+    const tags = [];
+    if (/\bREMUX\b/.test(u)) tags.push('REMUX');
+    if (/\bPROPER\b/.test(u)) tags.push('PROPER');
+    if (/\bREPACK\b/.test(u)) tags.push('REPACK');
+    if (/\bEXTENDED\b/.test(u)) tags.push('EXTENDED');
+    if (/\bIMAX\b/.test(u)) tags.push('IMAX');
+    if (/\b(?:OPEN[ ._-]?MATTE|OM)\b/.test(u)) tags.push('OPEN MATTE');
+    if (/\bCRITERION\b/.test(u)) tags.push('CRITERION');
+    if (/\bREMASTER(?:ED)?\b/.test(u)) tags.push('REMASTERED');
+    return tags;
   }
   function parseAudioTags(filename) {
     const u = String(filename || '').toUpperCase();
@@ -970,6 +999,21 @@
     return /\bDUAL\b|\bDUBLADO\b|\bNACIONAL\b/.test(u);
   }
 
+  // Stream builders can supply richer metadata through opts.metadata. When
+  // they do not, infer a useful title/year pair from the filename so custom
+  // {metadata.title} and {metadata.year} templates do not resolve to blanks.
+  function inferMetadata(filename) {
+    let base = String(filename || '').replace(/\.[a-z0-9]{2,5}$/i, '');
+    const yearMatch = base.match(/(?:^|[. _-])((?:19|20)\d{2})(?=[. _-]|$)/);
+    const year = yearMatch ? Number(yearMatch[1]) : null;
+    if (yearMatch) base = base.slice(0, yearMatch.index);
+    base = base.replace(/[._]+/g, ' ').replace(/\[[^\]]*\]/g, ' ');
+    base = base.replace(/\bS\d{1,2}(?:E\d{1,4}(?:-E?\d{1,4})?)?\b.*$/i, '');
+    base = base.replace(/\b(?:2160|1440|1080|720|576|480|360|240)p\b.*$/i, '');
+    base = base.replace(/\s+/g, ' ').replace(/[ -]+$/, '').trim();
+    return { title: base || null, year };
+  }
+
   function buildLeContext(filename, source, size, opts = {}) {
     const addonName = opts.addonName || 'LeLibrary';
     const fname = String(filename || '');
@@ -978,12 +1022,16 @@
     const subtitles = parseSubtitles(fname);
     const languageEmojis = languages.map(languageToEmoji).filter(Boolean);
     const subtitleEmojis = subtitles.map(languageToEmoji).filter(Boolean);
+    const inferred = inferMetadata(fname);
+    const suppliedMetadata = opts.metadata && typeof opts.metadata === 'object' ? opts.metadata : {};
+    const metadataTitle = suppliedMetadata.title || inferred.title || null;
+    const metadataYear = suppliedMetadata.year || inferred.year || null;
     const serviceMeta = {
       torbox: { id: 'torbox', shortName: 'TB', name: 'TorBox' },
       realdebrid: { id: 'realdebrid', shortName: 'RD', name: 'Real-Debrid' },
       alldebrid: { id: 'alldebrid', shortName: 'AD', name: 'AllDebrid' },
       premiumize: { id: 'premiumize', shortName: 'PM', name: 'Premiumize' },
-      // External stream addons (Trending/Popular discovery rows) — the badge
+      // External stream addons (Trending/Popular discovery rows): the badge
       // reflects the addon the stream came from, not the user's debrid provider.
       torrentio:   { id: 'torrentio',   shortName: 'TR', name: 'Torrentio' },
       comet:       { id: 'comet',       shortName: 'CM', name: 'Comet' },
@@ -1002,6 +1050,7 @@
         quality: quality || null,
         resolution: resolution || null,
         source: parseSource(fname) || null,
+        releaseTags: parseReleaseTags(fname),
         subbed: isSubbed(fname),
         dubbed: isDubbed(fname),
         ...emptyLists,
@@ -1026,8 +1075,8 @@
         duration: null,
         bitrate: null,
         message: null,
-        title: null,
-        year: null,
+        title: metadataTitle,
+        year: metadataYear,
         date: null,
         country: null,
         network: null,
@@ -1055,8 +1104,8 @@
         idMatched: false,
       },
       metadata: {
-        queryType: null, type: null, isAnime: false, title: null, titles: null,
-        year: null, yearEnd: null, runtime: null, episodeRuntime: null, genres: null,
+        queryType: null, type: null, isAnime: false, title: metadataTitle, titles: null,
+        year: metadataYear, yearEnd: null, runtime: null, episodeRuntime: null, genres: null,
         originalLanguage: null, country: null, season: null, episode: null,
         absoluteEpisode: null, relativeAbsoluteEpisode: null, episodeTitle: null,
         episodeTitles: null, latestSeason: null, daysSinceRelease: null,

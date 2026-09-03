@@ -1,5 +1,146 @@
 # Changelog
 
+## [5.0.0]
+
+### Security and self-hosting
+
+- **Safer self-hosted saved setups**: self-hosters must now set `SELFHOST_CONFIGS_SECRET` in `.env` before saving, loading or deleting saved setups. Generate one with `openssl rand -hex 32`; the Configure page uses it automatically once the instance is rebuilt.
+- **Clearer message when saved setups are off**: self-hosted installs without that secret now explain how to enable saved setups instead of failing silently.
+- **Cleaner self-hosted Configure page**: the provider status pill is hidden where there is no status page, so self-hosters no longer see a placeholder readout.
+- **Hardened network and dependency handling**: removed an unused vulnerable dependency, limited image proxy responses, and added safeguards against oversized saved configurations.
+
+### External streams
+
+- **More stream coverage with Jackettio**: you can now enable Jackettio alongside Torrentio, Comet, Meteor and MediaFusion for additional discovery streams. It uses the debrid provider you have already connected, so there is no extra API key or setup screen.
+- **Works wherever you use public IMDb rows**: external sources apply to Trending, Popular, imported or created Home rows, and My Library or Collections when you enable Use Main Metadata. The default isolated library mode remains owned-only.
+- **Faster first stream loads**: owned and external sources now start together, repeat player requests share the same in-progress result, and opening a public title warms its stream list in the background.
+
+### Stream notices
+
+- **Friendly "no streams" message**: when nothing is found, LeLibrary shows a clear "No streams found" row instead of an app error.
+- **Heads-up for unreleased films**: films still in cinemas, or without a digital release yet, show a helpful note explaining why sources may be limited. The digital release date is included when available.
+- **Turn it off any time**: stream notices are enabled by default and can be disabled in the Filters step.
+- **Instantly applied**: changing this setting takes effect without re-installing your addon.
+
+### Configure key validation
+
+- **No repeated checks in one session**: once an API key has been successfully validated in normal Configure or account Configure, re-saving and moving through setup skips the same network check for the rest of that browser session. Changing a key always checks it again.
+- **Keys stay private**: this session cache stores only a SHA-256 fingerprint of the service/key pair, never the API key itself.
+
+### Curated collection artwork
+
+- **Much better collection artwork**: streaming services, film collections, themes and studios now use refreshed locally hosted covers instead of relying on the old plain or generated artwork.
+- **Animated artwork is handled correctly**: animated GIF covers can be used where supplied, while focus GIFs are kept separate for the Nuvio focus state. Marvel and Star Wars now use static JPG covers with their focus artwork separated correctly.
+- **More polished themes and studios**: True Crime, Zombies, Time Travel, Heists, Plot Twists, Marvel, DC, A24, Warner Bros and Universal now use refreshed artwork.
+- **Live artwork previews**: changing a collection cover or focus GIF in the configure editor updates its preview immediately before saving.
+- **Local and reliable artwork**: imported artwork is served from LeLibrary’s own asset directory, with provenance recorded for each file instead of fetching images from third-party hosts at runtime.
+
+### My Library
+
+- **The in-browser library view has been retired**: this lets LeLibrary focus on the addon and catalogue experience. Your debrid downloads continue to work in the addon, and watchlists such as Simkl and MDBList still appear as addon rows.
+
+### Accounts
+
+- **Account pages rebuilt to match the main site**: the account dashboard, settings and sign-in page now share the main site's polished design and work cleanly on smaller screens.
+- **Sign in with GitHub or Google**: no passwords to remember and no email verification. Sign in once and your API keys are saved to your account, encrypted at rest, so you do not need to enter them again on another device.
+- **Shorter, safer install links**: signed-in installs use a short random ID instead of putting your keys in the URL.
+- **Account-owned install tokens**: only the account owner can manage a saved token, its settings and its connected services. You can password-protect its configuration page or revoke it at any time.
+- **Your tokens, in one place**: label saved installs, copy their URLs, protect their configuration pages with a password, or revoke them instantly. A revoked link stops working immediately.
+- **Every key verified before saving**: each provider key is checked with its service when you save, so typos are caught before they reach your setup. Every field links directly to where you can get that API key.
+- **Connect Nuvio and Stremio from your account**: sign in from the account area, without reopening the configure page. Your connection is stored securely so collections can stay in sync with your install.
+- **Watchlist connections**: connect Simkl for Plan to Watch, or save an MDBList key, and your watchlist appears as addon rows with plain IMDb IDs.
+- **Sign out and stay in control**: your keys remain encrypted on the server and are never shown back to you in plain text. Clearing a field removes it.
+- **Privacy policy**: a clear privacy policy is now available, explaining what LeLibrary stores, how account data is protected and what stays on your own device.
+- **Backward compatible**: existing install links keep working, and self-hosters can continue to run LeLibrary without accounts.
+
+### Account Collections
+
+- **A full account Collections builder**: create and manage up to five saved Nuvio collection setups from your account, each with its own short install token, folders, Home rows and Nuvio profile target.
+- **Separate account configuration pages**: account-token installs now use their own `/accounts/{token}/configure` experience, keeping account-only controls out of the standard Configure page while preserving existing links.
+- **Better Nuvio publishing**: select the target Nuvio profile when you push, see clear publishing progress, and only LeLibrary-managed collections are replaced—your other Nuvio addons and collections remain untouched.
+- **LeLibrary Hub and Movie Collections**: optionally add a clean Movies/Shows Hub, or an owned Movie Collections area grouped into franchise folders. The Hub and franchise collection stay together at the bottom of Nuvio Collections without overriding the order of your normal packs.
+- **Reliable imported profiles**: Xperience imports now resolve their private source definitions from the correct saved setup, so large imported folder sets remain available after reopening or publishing.
+- **Accurate saved-state controls**: Quick Packs now correctly show whether LeLibrary Hub and Movie Collections are already included, and imports no longer silently re-enable optional packs.
+- **More polished collection editing**: folder names support emoji, Square tiles have been removed, and Landscape/Poster changes update folder previews before you save.
+- **Cleaner setup limits**: the Collections page shows a colour-coded setup count, prevents creating a sixth setup, and deleted cards animate away while the count updates immediately.
+
+### Library refresh and caching
+
+- **New downloads update automatically in Collections**: account installs share the same provider-aware Redis refresh system as the normal Configure page. My Movies and My Shows refresh from a single provider snapshot every two minutes without a re-save or re-push.
+- **Newly matched titles no longer get stuck off-screen**: when a download becomes matchable, LeLibrary now clears the affected rendered catalogue page as well as metadata and streams. A new film appears in My Movies instead of waiting for the old page cache to expire.
+- **Faster recovery after a restart**: active account installs run one safe shared refresh as the server comes back, rather than waiting for the first background interval.
+- **Stronger fresh TorBox checks**: live library polls explicitly bypass provider and HTTP caches while retaining the shared rate-limit protection.
+
+### Watchlists
+
+- **Simkl connect**: link your Simkl account and your Plan to Watch list becomes movie and series rows in the addon.
+- **MDBList watchlist**: save your MDBList key and your MDBList watchlist appears in the same way.
+- **Plain IMDb IDs throughout**: watchlist rows use bare `tt` IDs, so external stream addons can contribute streams and Nuvio can show its full detail page.
+
+### Catalog library
+
+- **Hundreds of ready-made rows**: the Catalogue Library adds streaming services, genres, studios, actors, franchises and themed lists to your addon. Enable the rows you want and they work with external stream addons and Nuvio metadata.
+- **Daily rotating discovery rows**: broad streaming, genre, studio, network and theme catalogues now draw from a different TMDB result pool every day. Trending, Popular, Top Rated, new-release, franchise, actor and curated-list rows stay stable where that makes more sense. Rotation is automatic for hosted accounts and self-hosted installs, with shared caching and last-good results to keep TMDB load low.
+
+### Stream formatting
+
+- **New polished stream styles**: choose Cinema Cards, Premium REMUX, Clean Compact or Technical Detail from normal Configure, account Configure, or the Collections Wizard. They safely show parsed resolution, REMUX/release flags, source, HDR/Dolby Vision, codec, audio/channels, release group and file size in actual Stremio/Nuvio stream text.
+
+### Nuvio stream badges
+
+- **Badge packs alongside every formatter**: normal Configure, account Configure and the Collections Wizard now let you select a Nuvio-only badge pack independently from the stream formatting preset. Changing a formatter never changes the badge pack.
+- **LeLibrary Premium included**: an original locally hosted badge manifest covers resolution, source, REMUX/edition flags, HDR/Dolby Vision, audio, channels, codec and languages. Its JSON URL and image assets work on hosted and self-hosted installs.
+- **More packs, without copying artwork**: NardBadges, BetterFormatter, Elite and Minimalist official community pack URLs are available in the picker, along with a validated custom JSON URL option. Copy the selected URL and import it once in the relevant Nuvio profile’s Fusion badge settings.
+
+### Search
+
+- **Search LeLibrary directly in Nuvio and Stremio**: searches for films and series now include a dedicated LeLibrary results row with titles from across TMDB, not only the rows already in your addon.
+- **Choose what Search includes**: in both Configure experiences, choose between Movies & Series plus Your Library, Your Library only, or TMDB Movies & Series only. The choice is saved with your setup and applies to the addon search rows.
+
+### Configure page
+
+- **SELF-HOSTED ONLY — load an existing setup with a click**: paste an old self-hosted install link or token and the Configure page fills itself in. Saved self-hosted setups stay on your own instance.
+- **Self-hosted saved setups**: save your current self-hosted setup with a name, then load or remove it whenever you need. Everything remains on your own instance.
+- **Cleaner for self-hosters**: self-hosted installs no longer show the Sign in link because accounts do not apply there.
+- **Home Rows are configured separately**: choose which built-in and library rows appear on Home, drag them into the order you want, and keep optional catalogue rows available without putting them on Home.
+- **Optional Nuvio collection packs**: curated packs such as Discover, Streaming Services, Film Collections, Themes and Studios create folders inside Nuvio Collections without automatically adding every folder as a Home row.
+- **Per-pack display controls**: each Nuvio pack can use Tabbed Grid or Follow Layout, with optional Pin to top, Focus Glow, Show All tab, Landscape or Poster tiles, and editable folder artwork.
+- **Live collection artwork editing**: cover and focus GIF changes preview immediately, with local artwork paths supported and static images restricted to PNG/JPG/JPEG while focus artwork accepts GIFs.
+- **Anime visibility stays consistent**: enabling Hide Anime removes the Anime catalogue and Studio Ghibli from the curated Studios pack as well.
+- **Imported Home Rows**: import one or more manifest URLs, a Collections URL, pasted collections JSON, or a `.json` file. Preview the number of rows and folders, then edit the imported rows before saving.
+- **Smart Import**: the Import tool now detects addon manifests, Nuvio collections, project files, and raw collection arrays automatically, placing Home rows and collection folders in the appropriate sections.
+
+### Xperience profile imports
+
+- **Import Xperience profiles without keeping Xperience installed**: supported Xperience catalogue recipes are reconstructed as LeLibrary sources, so imported TMDB Discover, TMDB public list, TMDB collection and Trakt public-list folders continue to run through LeLibrary.
+- **Private sources stay private**: where an identical LeLibrary catalogue does not already exist, the imported recipe is stored only in the owner’s selected collection profile. Source IDs are never used as permission to access another account’s imports.
+- **Cleaner imported collections**: imported folders keep their human-readable names and artwork where safe. The interface no longer exposes Xperience addon IDs or opaque source hashes in normal use.
+- **Safe import preview**: Xperience exports are fetched server-side from the allowed export host, checked for malformed or oversized data, and reduced to a sanitized preview. Signed export links, API keys, tokens and raw profile configuration are not stored or sent back to the browser.
+- **Honest compatibility review**: unsupported Xperience catalogue types are clearly grouped for review instead of being guessed, silently changed, or creating empty Nuvio folders. Imports with no compatible sources are blocked before anything is created.
+- **More reliable first import**: secure Xperience previews now allow a bounded wait for a cold Xperience export response, with a clear retry message if the remote service remains unavailable.
+
+### TorBox
+
+- **All your torrents now show**: LeLibrary now reads your full TorBox library instead of stopping at the first 1,000 torrents. Older downloads and titles beyond the first page now appear in My Movies, My Shows and LeLibrary Collections.
+- **Web Downloads now show in your library**: TorBox Web Downloads are included alongside torrents and Usenet, so eligible downloads appear in your library automatically.
+- **More reliable TorBox access**: LeLibrary now spaces out requests and recovers gracefully from busy periods, helping large libraries load reliably.
+
+### Reliability and privacy
+
+- **Long-running series are matched more reliably**: shows such as WWE Raw and The Simpsons no longer lose episodes because a filename includes a recent year.
+- **Failed matches recover faster**: temporary metadata problems are retried on a later request instead of holding a title back for a full day.
+- **Secure account storage**: account details, saved tokens and watchlist connections are stored securely. Secrets are encrypted at rest and token passwords are securely hashed, never stored as plain text.
+- **Safer account sessions**: account actions and sign-in connections have additional protection against unauthorised requests.
+- **Hosted accounts stay separate from self-hosting**: the private account system is not included with self-hosted installs. Self-hosters receive the standalone addon and configure page.
+- **Background collection sync**: connected Nuvio and Stremio installs can keep collections in sync after you save.
+- **Consistent collection artwork**: catalogue folders use locally hosted portrait, landscape and logo artwork instead of relying on third-party image services.
+
+### Library fixes
+
+- **Fixed detail pages that could show a blank page for some series**: an error in the certification lookup could return no details for certain titles. Those pages now load correctly.
+- **Fixed movies with version numbers being grouped as a TV series**: films that include a version in the title were sometimes read as a series date. They now stay in My Movies where they belong.
+- **Fixed newly added titles not appearing when the release year differs**: if the file name year does not match the database year, the lookup now falls back to a year free search so the title is found. New downloads also appear at the top of My Movies and My Shows within seconds without needing to clear the cache.
+
 ## [4.9.0]
 
 ### Provider Status Page

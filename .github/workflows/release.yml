@@ -22,7 +22,7 @@ jobs:
             /^## \[/ {
               if (index($0, "[" ver "]")) {
                 found=1
-                sub(/ — .*/, "")
+                sub(/: .*/, "")
                 print
                 next
               } else if (found) {

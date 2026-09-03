@@ -6,7 +6,7 @@
  * still use the full names decode fine too (unknown/plain keys pass through).
  *
  * UMD: served to the browser as window.TOKEN_MAP, required by the server as a
- * CommonJS module — the encoder (browser) and decoder (server) always agree.
+ * CommonJS module: the encoder (browser) and decoder (server) always agree.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -24,6 +24,7 @@
     c:   'rdCatalog',
     s:   'sortBy',
     l:   'lang',
+    sq:  'searchScope',
     pp:  'posterProvider',
     et:  'erdbToken',
     rk:  'rpdbKey',
@@ -39,6 +40,10 @@
     sp:  'streamPreset',
     ss:  'streamSort',
     sf:  'streamFilters',
+    lh:  'libHomeHidden',
+    np:  'nuvioCollectionPacks',
+    nco: 'nuvioCollectionOverrides',
+    ir:  'importedRows',
     tm:  'catalogTrendingMovies',
     ts:  'catalogTrendingSeries',
     pmo: 'catalogPopularMovies',
@@ -68,7 +73,7 @@
   // Small arrays are packed into comma-separated strings to drop the JSON
   // array brackets/quoting (streamAddons ids, resolution labels and catalogue
   // keys never contain commas).
-  var ARRAY_CSV = { streamAddons: true, filterResolutions: true, catalogOrder: true };
+  var ARRAY_CSV = { streamAddons: true, filterResolutions: true, catalogOrder: true, libraryCatalogs: true, libHomeHidden: true, nuvioCollectionPacks: true };
 
   function base64UrlEncode(str) {
     var b64;
@@ -83,9 +88,9 @@
   // Encode a full-key config object into a compact base64url token. Omits
   // empty / default values and packs the CSV arrays so the install URL stays
   // as short as possible. Explicit `false` flags (catalogMovies: false, …) are
-  // kept — they mean "turn this off", which the server honours. Values the
+  // kept: they mean "turn this off", which the server honours. Values the
   // addon never reads (quality/source/codec/HDR/audio filter chips, resolution
-  // order, min size) are dropped by the caller — they live in the configure
+  // order, min size) are dropped by the caller: they live in the configure
   // page's draft instead.
   function encodeConfig(cfg) {
     var short = {};
@@ -114,6 +119,9 @@
     if (typeof out.streamAddons === 'string') out.streamAddons = out.streamAddons.split(',').filter(Boolean);
     if (typeof out.filterResolutions === 'string') out.filterResolutions = out.filterResolutions.split(',').filter(Boolean);
     if (typeof out.catalogOrder === 'string') out.catalogOrder = out.catalogOrder.split(',').filter(Boolean);
+    if (typeof out.libraryCatalogs === 'string') out.libraryCatalogs = out.libraryCatalogs.split(',').filter(Boolean);
+    if (typeof out.libHomeHidden === 'string') out.libHomeHidden = out.libHomeHidden.split(',').filter(Boolean);
+    if (typeof out.nuvioCollectionPacks === 'string') out.nuvioCollectionPacks = out.nuvioCollectionPacks.split(',').filter(Boolean);
     return out;
   }
 

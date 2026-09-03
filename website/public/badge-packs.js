@@ -61,7 +61,7 @@
   }
   function previewHtml(pack, url) {
     const preset = PACKS.find(p => p.id === pack) || PACKS[0];
-    if (preset.local) return `<div class="stream-badge-preview" aria-label="LeLibrary Premium badge preview"><span>BADGES</span>${LOCAL_SAMPLE.map(id => `<img src="/api/nuvio-badges/lelibrary-premium/${id}.svg" alt="">`).join('')}</div>`;
+    if (preset.local) return `<div class="stream-badge-preview" aria-label="LeLibrary Premium badge preview"><span>BADGES</span>${LOCAL_SAMPLE.map(id => `<img src="/api/nuvio-badges/lelibrary-premium/${id}.png" alt="">`).join('')}</div>`;
     const preview = remotePreviews.get(url);
     if (preview?.state === 'ready' && preview.badges.length) return `<div class="stream-badge-preview" aria-label="${esc(preset.name)} badge preview"><span>BADGES</span>${preview.badges.map(badge => `<i class="stream-badge-remote${badge.bordered ? ' is-bordered' : ''}" style="--badge-border:${esc(badge.borderColor)};--badge-fill:${esc(badge.tagColor)}"><img src="${esc(badge.imageURL)}" alt="${esc(badge.name)}" title="${esc(badge.name)}" loading="lazy"></i>`).join('')}</div>`;
     const detail = preview?.state === 'loading' ? 'Loading matching badge images…' : preview?.state === 'failed' ? 'Badge images could not be fetched by this browser.' : 'Loading badge images…';

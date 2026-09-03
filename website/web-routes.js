@@ -117,6 +117,29 @@ function createWebRoutes(resolveConfig, options = {}) {
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     res.type('image/svg+xml').send(svg);
   });
+  // PNG twin of the SVG above. Nuvio's badge image loader ships no SVG
+  // decoder, so SVG badges decode to empty black chips there — the manifest
+  // advertises these PNGs instead. Rendered once from the SVG source and
+  // held in memory (37 small pills).
+  const badgePngCache = new Map();
+  router.get('/api/nuvio-badges/lelibrary-premium/:id.png', async (req, res) => {
+    try {
+      const id = String(req.params.id || '').trim();
+      if (!/^[\w-]+$/.test(id)) return res.status(404).type('text/plain').send('Unknown badge');
+      let png = badgePngCache.get(id);
+      if (!png) {
+        const svg = require('../src/nuvio-badges').badgeSvg(id);
+        if (!svg) return res.status(404).type('text/plain').send('Unknown badge');
+        png = await require('sharp')(Buffer.from(svg)).png().toBuffer();
+        if (badgePngCache.size > 100) badgePngCache.clear();
+        badgePngCache.set(id, png);
+      }
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.type('image/png').send(png);
+    } catch (err) {
+      res.status(500).type('text/plain').send('Badge render failed');
+    }
+  });
 
   // Import helper for the Configure page. The browser cannot reliably fetch
   // third-party manifests because most addon hosts do not enable CORS. Keep

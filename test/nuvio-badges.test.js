@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const formatter = require('../website/public/formatter.js');
-const { BADGES, GROUPS, badgeSvg, manifest } = require('../src/nuvio-badges');
+const { BADGES, GROUPS, badgeSvg, svgColor, manifest } = require('../src/nuvio-badges');
 
 function asJsRegex(pattern) {
   // Nuvio uses Java/Kotlin regexes. Its inline case-insensitive flag maps to
@@ -18,11 +18,29 @@ test('LeLibrary Premium badge manifest has valid grouped local images', () => {
 
   for (const filter of data.filters) {
     assert.ok(groupIds.has(filter.groupId), `${filter.id} has a known group`);
-    assert.match(filter.imageURL, /^https:\/\/lelibrary\.example\/api\/nuvio-badges\/lelibrary-premium\/[\w-]+\.svg$/);
+    assert.match(filter.imageURL, /^https:\/\/lelibrary\.example\/api\/nuvio-badges\/lelibrary-premium\/[\w-]+\.png$/);
     assert.match(badgeSvg(filter.id), /^<svg\b/);
     assert.doesNotThrow(() => asJsRegex(filter.pattern), filter.id);
   }
   assert.equal(badgeSvg('not-a-badge'), null);
+});
+
+test('badge SVG colors convert Nuvio AARRGGBB to plain RGB', () => {
+  assert.equal(svgColor('#FF1769AA'), '#1769AA');
+  assert.equal(svgColor('#FF2E8B57'), '#2E8B57');
+  assert.equal(svgColor('#121820'), '#121820');
+  const svg = badgeSvg('res-4k');
+  assert.ok(svg.includes('fill="#1769AA"'), '4K badge uses converted blue');
+  assert.ok(!svg.includes('#FF1769AA'), 'no raw AARRGGBB leaks into SVG output');
+});
+
+test('badge SVGs rasterise to real PNGs', async () => {
+  const sharp = require('sharp');
+  for (const id of ['res-4k', 'source-remux', 'audio-atmos']) {
+    const png = await sharp(Buffer.from(badgeSvg(id))).png().toBuffer();
+    assert.deepEqual(png.subarray(0, 8), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    assert.ok(png.length > 1000, `${id} PNG is not trivially empty`);
+  }
 });
 
 test('formatter output contains reliable text for each local badge category', () => {

@@ -52,21 +52,31 @@ const BADGES = [
 
 const byId = new Map(BADGES.map((row) => [row[0], row]));
 function escapeXml(value) { return String(value).replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&apos;' })[c]); }
+// Badge colors are stored Nuvio-style (AARRGGBB). SVG renderers read 8-digit
+// hex as RRGGBBAA instead, which would tint every badge wrong — strip the
+// alpha prefix down to plain RGB for raster output.
+function svgColor(value) {
+  const raw = String(value || '').trim();
+  return /^#[0-9a-fA-F]{8}$/.test(raw) ? `#${raw.slice(3)}` : raw;
+}
 function badgeSvg(id) {
   const row = byId.get(id);
   if (!row) return null;
   const [, , label, , color] = row;
+  const fill = svgColor(color);
   const fontSize = label.length > 12 ? 22 : label.length > 8 ? 26 : 30;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="76" viewBox="0 0 300 76"><rect width="300" height="76" rx="14" fill="#121820"/><rect x="2" y="2" width="296" height="72" rx="12" fill="${color}" fill-opacity=".92"/><rect x="4" y="4" width="292" height="68" rx="10" fill="#071016" fill-opacity=".20"/><text x="150" y="48" fill="#fff" font-family="Arial,Helvetica,sans-serif" font-size="${fontSize}" font-weight="800" text-anchor="middle">${escapeXml(label)}</text></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="76" viewBox="0 0 300 76"><rect width="300" height="76" rx="14" fill="#121820"/><rect x="2" y="2" width="296" height="72" rx="12" fill="${fill}" fill-opacity=".92"/><rect x="4" y="4" width="292" height="68" rx="10" fill="#071016" fill-opacity=".20"/><text x="150" y="48" fill="#fff" font-family="Arial,Helvetica,sans-serif" font-size="${fontSize}" font-weight="800" text-anchor="middle">${escapeXml(label)}</text></svg>`;
 }
 function manifest(baseUrl) {
   const root = String(baseUrl || '').replace(/\/$/, '');
   return {
     groups: GROUPS.map(([id, name]) => ({ id, name, color: '#FF17212B', isExpanded: true })),
     filters: BADGES.map(([id, groupId, name, pattern, tagColor]) => ({
-      id, groupId, name, pattern, imageURL: `${root}/api/nuvio-badges/lelibrary-premium/${id}.svg`,
+      // PNG: Nuvio's badge image loader has no SVG decoder, so SVG badges
+      // decode to empty black chips. PNG renders everywhere.
+      id, groupId, name, pattern, imageURL: `${root}/api/nuvio-badges/lelibrary-premium/${id}.png`,
       tagColor, borderColor: '#FFFFFFFF', textColor: '#FFFFFFFF', tagStyle: 'image', isEnabled: true,
     })),
   };
 }
-module.exports = { BADGES, GROUPS, badgeSvg, manifest };
+module.exports = { BADGES, GROUPS, badgeSvg, svgColor, manifest };

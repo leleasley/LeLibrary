@@ -11,7 +11,7 @@ const GROUPS = [
 
 // Bump whenever badge artwork or labels change: Nuvio caches badge images by
 // URL, so the ?v= query in the manifest is what pulls fresh art onto devices.
-const ART_VERSION = 2;
+const ART_VERSION = 3;
 
 // Order is intentional: Nuvio displays the first match for each group.
 // Labels stay short (like the community packs) so the text stays legible at
@@ -71,10 +71,15 @@ function badgeSvg(id) {
   if (!row) return null;
   const [, , label, , color] = row;
   const fill = svgColor(color);
-  // Labels are short by design; keep the type large so it stays readable at
-  // the ~20dp height Nuvio renders badge chips.
-  const fontSize = label.length > 8 ? 30 : label.length > 5 ? 36 : 42;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="76" viewBox="0 0 300 76"><rect width="300" height="76" rx="14" fill="#121820"/><rect x="2" y="2" width="296" height="72" rx="12" fill="${fill}" fill-opacity=".92"/><rect x="4" y="4" width="292" height="68" rx="10" fill="#071016" fill-opacity=".20"/><text x="150" y="48" fill="#fff" font-family="Arial,Helvetica,sans-serif" font-size="${fontSize}" font-weight="800" text-anchor="middle">${escapeXml(label)}</text></svg>`;
+  // Compact pill sized to the text (like the community packs): a fixed wide
+  // canvas shrinks short labels like "4K" to illegible specks at the ~20dp
+  // height Nuvio renders badge chips. Type stays large and fills the frame.
+  const fontSize = 46;
+  const width = Math.ceil(48 + label.length * 30);
+  const height = 80;
+  const cx = Math.round(width / 2);
+  const baseline = Math.round(height / 2 + fontSize * 0.35);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" rx="16" fill="#121820"/><rect x="2" y="2" width="${width - 4}" height="${height - 4}" rx="14" fill="${fill}" fill-opacity=".92"/><rect x="4" y="4" width="${width - 8}" height="${height - 8}" rx="12" fill="#071016" fill-opacity=".20"/><text x="${cx}" y="${baseline}" fill="#fff" font-family="Arial,Helvetica,sans-serif" font-size="${fontSize}" font-weight="800" text-anchor="middle">${escapeXml(label)}</text></svg>`;
 }
 function manifest(baseUrl) {
   const root = String(baseUrl || '').replace(/\/$/, '');

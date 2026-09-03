@@ -25,6 +25,15 @@ test('LeLibrary Premium badge manifest has valid grouped local images', () => {
   assert.equal(badgeSvg('not-a-badge'), null);
 });
 
+test('badge pills size to their text like community packs', () => {
+  const widthOf = (svg) => Number(/width="(\d+)"/.exec(svg)[1]);
+  const short = widthOf(badgeSvg('res-4k'));
+  const long = widthOf(badgeSvg('edition-criterion'));
+  assert.ok(short < 160, `4K pill stays compact (got ${short})`);
+  assert.ok(long > short, 'longer labels get wider pills');
+  assert.ok(long < 400, `longest pill stays bounded (got ${long})`);
+});
+
 test('badge SVG colors convert Nuvio AARRGGBB to plain RGB', () => {
   assert.equal(svgColor('#FF1769AA'), '#1769AA');
   assert.equal(svgColor('#FF2E8B57'), '#2E8B57');

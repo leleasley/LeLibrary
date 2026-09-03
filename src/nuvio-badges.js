@@ -11,7 +11,7 @@ const GROUPS = [
 
 // Bump whenever badge artwork or labels change: Nuvio caches badge images by
 // URL, so the ?v= query in the manifest is what pulls fresh art onto devices.
-const ART_VERSION = 3;
+const ART_VERSION = 4;
 
 // Order is intentional: Nuvio displays the first match for each group.
 // Labels stay short (like the community packs) so the text stays legible at
@@ -79,7 +79,7 @@ function badgeSvg(id) {
   const height = 80;
   const cx = Math.round(width / 2);
   const baseline = Math.round(height / 2 + fontSize * 0.35);
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" rx="16" fill="#121820"/><rect x="2" y="2" width="${width - 4}" height="${height - 4}" rx="14" fill="${fill}" fill-opacity=".92"/><rect x="4" y="4" width="${width - 8}" height="${height - 8}" rx="12" fill="#071016" fill-opacity=".20"/><text x="${cx}" y="${baseline}" fill="#fff" font-family="Arial,Helvetica,sans-serif" font-size="${fontSize}" font-weight="800" text-anchor="middle">${escapeXml(label)}</text></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" rx="16" fill="#121820"/><rect x="2" y="2" width="${width - 4}" height="${height - 4}" rx="14" fill="${fill}" fill-opacity=".92"/><rect x="4" y="4" width="${width - 8}" height="${height - 8}" rx="12" fill="#071016" fill-opacity=".20"/><text x="${cx}" y="${baseline}" fill="#fff" font-family="Liberation Sans,sans-serif" font-size="${fontSize}" font-weight="800" text-anchor="middle">${escapeXml(label)}</text></svg>`;
 }
 function manifest(baseUrl) {
   const root = String(baseUrl || '').replace(/\/$/, '');
@@ -91,7 +91,10 @@ function manifest(baseUrl) {
       // busts Nuvio's on-device image cache whenever the artwork changes —
       // bump ART_VERSION with any visual/label edit or apps keep the old art.
       id, groupId, name, pattern, imageURL: `${root}/api/nuvio-badges/lelibrary-premium/${id}.png?v=${ART_VERSION}`,
-      tagColor, borderColor: '#FFFFFFFF', textColor: '#FFFFFFFF', tagStyle: 'image', isEnabled: true,
+      // Nuvio draws borderColor as a separate chip around the image. The PNG
+      // is already a complete pill, so setting an opaque border here creates
+      // the unwanted white outer shell on every Nuvio client.
+      tagColor, textColor: '#FFFFFFFF', tagStyle: 'image', isEnabled: true,
     })),
   };
 }

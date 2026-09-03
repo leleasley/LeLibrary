@@ -21,6 +21,7 @@ test('LeLibrary Premium badge manifest has valid grouped local images', () => {
     assert.match(filter.imageURL, /^https:\/\/lelibrary\.example\/api\/nuvio-badges\/lelibrary-premium\/[\w-]+\.png\?v=\d+$/);
     assert.match(badgeSvg(filter.id), /^<svg\b/);
     assert.doesNotThrow(() => asJsRegex(filter.pattern), filter.id);
+    assert.equal(filter.borderColor, undefined, `${filter.id} does not ask Nuvio to draw an outer border`);
   }
   assert.equal(badgeSvg('not-a-badge'), null);
 });
@@ -41,6 +42,7 @@ test('badge SVG colors convert Nuvio AARRGGBB to plain RGB', () => {
   const svg = badgeSvg('res-4k');
   assert.ok(svg.includes('fill="#1769AA"'), '4K badge uses converted blue');
   assert.ok(!svg.includes('#FF1769AA'), 'no raw AARRGGBB leaks into SVG output');
+  assert.ok(svg.includes('font-family="Liberation Sans,sans-serif"'), 'uses the font installed in the runtime image');
 });
 
 test('badge SVGs rasterise to real PNGs', async () => {

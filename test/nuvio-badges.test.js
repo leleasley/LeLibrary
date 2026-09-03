@@ -18,7 +18,7 @@ test('LeLibrary Premium badge manifest has valid grouped local images', () => {
 
   for (const filter of data.filters) {
     assert.ok(groupIds.has(filter.groupId), `${filter.id} has a known group`);
-    assert.match(filter.imageURL, /^https:\/\/lelibrary\.example\/api\/nuvio-badges\/lelibrary-premium\/[\w-]+\.png$/);
+    assert.match(filter.imageURL, /^https:\/\/lelibrary\.example\/api\/nuvio-badges\/lelibrary-premium\/[\w-]+\.png\?v=\d+$/);
     assert.match(badgeSvg(filter.id), /^<svg\b/);
     assert.doesNotThrow(() => asJsRegex(filter.pattern), filter.id);
   }

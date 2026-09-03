@@ -101,6 +101,14 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
   function visit(source, placement = 'folder') {
     const normalized = cloneSource(source, manifestId);
     if (!normalized.catalogId) return normalized;
+    // Older hosted exports persisted the compact private reference inside the
+    // catalogue id. Recover it before validation so reopening and re-pushing
+    // an old setup upgrades it to the exact manifest-id + genre contract.
+    const legacyPrivateRef = normalized.catalogId.match(/^lelibrary-import-(movie|series),(imp_[a-f0-9]{64})$/);
+    if (legacyPrivateRef && isLeLibrarySource(source, manifestId)) {
+      normalized.catalogId = legacyPrivateRef[2];
+      normalized.type = legacyPrivateRef[1];
+    }
     if (hideAnime && isAnimeSource(source)) return { ...normalized, catalogId: '' };
     const own = isLeLibrarySource(source, manifestId);
     if (placement === 'home' && own) selectedCatalogIds.add(normalized.catalogId);

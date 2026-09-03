@@ -150,7 +150,7 @@ test('private imported folders use the exact manifest catalogue ID and an opaque
   });
   const plan = compileCollectionPlan({
     manifestId: 'community.lelibrary.dev', integration: 'nuvio', sources: [source],
-    collections: [{ id: 'a24', folders: [{ id: 'recent', catalogSources: [{ catalogId: source.id, type: 'movie' }] }] }],
+    collections: [{ id: 'a24', folders: [{ id: 'recent', catalogSources: [{ catalogId: `lelibrary-import-movie,${source.id}`, type: 'movie' }] }] }],
   });
   assert.deepEqual(plan.collections[0].folders[0].catalogSources, [{
     addonId: 'community.lelibrary.dev', addonUrl: '', catalogId: 'lelibrary-import-movie', type: 'movie', genre: source.id,

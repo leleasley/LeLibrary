@@ -142,7 +142,7 @@ test('the shared wizard plan removes only the legacy flat franchise source for N
   }]);
 });
 
-test('private imported folders use the exact manifest catalogue ID and an opaque genre reference', () => {
+test('private imported folders use the exact manifest catalogue ID and a human genre label', () => {
   const source = normalizeImportedSourceDefinition({
     provider: 'tmdb', engine: 'discover', mediaType: 'movie',
     params: { filters: { with_companies: 41077 }, sortBy: 'primary_release_date.desc' },
@@ -153,7 +153,7 @@ test('private imported folders use the exact manifest catalogue ID and an opaque
     collections: [{ id: 'a24', folders: [{ id: 'recent', catalogSources: [{ catalogId: `lelibrary-import-movie,${source.id}`, type: 'movie' }] }] }],
   });
   assert.deepEqual(plan.collections[0].folders[0].catalogSources, [{
-    addonId: 'community.lelibrary.dev', addonUrl: '', catalogId: 'lelibrary-import-movie', type: 'movie', genre: source.id,
+    addonId: 'community.lelibrary.dev', addonUrl: '', catalogId: 'lelibrary-import-movie', type: 'movie', genre: 'A24 Recent Movies',
   }]);
   assert.deepEqual(plan.importedTypes, ['movie']);
 });

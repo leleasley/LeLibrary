@@ -146,9 +146,12 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
       // Nuvio resolves a folder source against the installed manifest before
       // applying extras. A comma-suffixed internal id is therefore shown as a
       // raw name and never reaches the addon. Keep the manifest catalogue id
-      // exact and carry the opaque, authorised source reference in `genre`.
+      // exact and carry a human-readable genre: Nuvio renders each folder
+      // source tab as "<catalog name> · <genre>", so an opaque imp_* hash
+      // would be visible in the UI. The server resolves the human label back
+      // to the signed definition (hashes remain accepted for old pushes).
       normalized.catalogId = `lelibrary-import-${normalized.type}`;
-      normalized.genre = definition.id;
+      normalized.genre = String(definition.label || definition.id).slice(0, 160);
     }
     if (!isLeLibrarySource(source, manifestId) && normalized.addonId && normalized.addonUrl) {
       externalAddons.set(normalized.addonId, normalized.addonUrl);

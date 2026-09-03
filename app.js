@@ -1539,11 +1539,15 @@ async function handleCatalog(req, res) {
     const search = extra.search || '';
     let metas = [];
     const importedSourceId = importedMatch[2] || (/^imp_[a-f0-9]{64}$/.test(String(extra.genre || '')) ? String(extra.genre) : '');
-    if (importedSourceId) {
-      // Only an opaque account token can resolve an imp_* definition. The
-      // visible genre is deliberately ignored and remains presentation only.
-      if (config.__configScope?.type !== 'account' || !HOSTED?.resolveImportedSource) return res.json({ metas: [] });
-      const definition = await HOSTED.resolveImportedSource(req.params.token, importedSourceId, type);
+    const importedLabel = !importedSourceId ? String(extra.genre || '').trim().slice(0, 160) : '';
+    if (importedSourceId || importedLabel) {
+      // Only an opaque account token can resolve a private definition. The
+      // genre carries the human label Nuvio displays on the folder tab
+      // ("<catalog name> · <genre>"); hashes remain accepted for old pushes.
+      if (config.__configScope?.type !== 'account' || (!HOSTED?.resolveImportedSource && !HOSTED?.resolveImportedSourceByLabel)) return res.json({ metas: [] });
+      const definition = importedSourceId
+        ? await HOSTED.resolveImportedSource(req.params.token, importedSourceId, type)
+        : await HOSTED.resolveImportedSourceByLabel(req.params.token, importedLabel, type);
       if (!definition) return res.json({ metas: [] });
       try {
         metas = await require('./src/libcatalog').buildNormalizedImportedCatalog({

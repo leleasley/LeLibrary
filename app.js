@@ -290,7 +290,7 @@ if (HOSTED) {
 app.get('/health', async (req, res) => {
   // Keep Docker liveness independent of Redis statistics and upstream work.
   // A slow provider must never make the whole addon look dead.
-  res.json({ status: 'ok', version: '5.0.0' });
+  res.json({ status: 'ok', version: '5.0.1' });
 });
 
 // A deliberately empty URL used only to let Nuvio render informational stream
@@ -745,7 +745,7 @@ function getLogoUrl(baseUrl) {
 function getBaseManifest(baseUrl) {
   const manifest = {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-    version: '5.0.0',
+    version: '5.0.1',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -1038,7 +1038,7 @@ function getConfiguredManifest(baseUrl, config = {}, { watchlist = [], collectio
 
   return {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-    version: '5.0.0',
+    version: '5.0.1',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),

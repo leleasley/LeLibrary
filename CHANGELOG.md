@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.0.1]
+
+### Series matching
+
+- **Missing Kitchen Nightmares seasons are back**: libraries that name the 2023 revival onward as seasons 8, 9 and 10 (the Sonarr/TVDB numbering) now show those episodes under the 2023 series with the correct artwork and streams, instead of silently dropping them.
+- **More reliable episode matching on first load**: series details now resolve correctly even when the cache is empty, so episodes appear the first time you open a show.
+
 ## [5.0.0]
 
 ### Security and self-hosting

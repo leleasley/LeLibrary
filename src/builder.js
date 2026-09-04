@@ -87,6 +87,45 @@ const matchCache = {
   },
 };
 
+// Shows TMDB split into two entries while TVDB/Sonarr keep as one continuous
+// series. Kitchen Nightmares US airs as a single show on TVDB (seasons 1-10)
+// but TMDB lists the 2007-2014 run (id 11294, seasons 1-7) and the 2023
+// revival (id 235884, seasons 1-3) separately: TVDB S08/S09/S10 are the 2023
+// entry's S01/S02/S03. Files named the TVDB way (e.g.
+// "Kitchen.Nightmares.US.S10E01") match the 2007 entry, whose TMDB seasons
+// stop at 7, so those episodes were silently filtered out of metas/streams.
+// Remap legacy season numbers to the split entry at match time. Table-driven
+// so future splits just add a row: { sourceTmdbId: { sourceSeason: { tmdbId, season } } }.
+const SPLIT_SHOW_SEASON_REMAP = {
+  11294: {
+    8:  { tmdbId: 235884, season: 1 },
+    9:  { tmdbId: 235884, season: 2 },
+    10: { tmdbId: 235884, season: 3 },
+  },
+};
+
+// Forward remap: a (matchedShowId, filenameSeason) that really belongs to a
+// split-off entry returns { tmdbId, season }, otherwise null. Pure function.
+function remapSplitSeason(matchedId, season) {
+  if (matchedId == null || season == null) return null;
+  const show = SPLIT_SHOW_SEASON_REMAP[String(matchedId).trim()];
+  if (!show) return null;
+  const target = show[String(parseInt(season, 10))];
+  return target ? { tmdbId: target.tmdbId, season: target.season } : null;
+}
+
+// Resolve the split target's own search-result object so catalog rows carry
+// the right title/poster. Falls back to an id-overridden copy of the source
+// result when the target isn't among the candidates (never throws).
+async function resolveSplitTarget(tmdbApiKey, title, target, lang, fallbackResult) {
+  try {
+    const cands = await searchCandidates(tmdbApiKey, title, 'tv', undefined, lang || 'en-US');
+    const hit = (cands || []).find(c => String(c.id) === String(target.tmdbId));
+    if (hit) return hit;
+  } catch {}
+  return { ...(fallbackResult || {}), id: target.tmdbId };
+}
+
 function loadPersistentCache() {
   try {
     if (fs.existsSync(CACHE_FILE)) {
@@ -257,7 +296,12 @@ async function matchItem(item, tmdbApiKey, type, lang) {
   // instead of re-running the parse+search on every request. The entry expires
   // quickly so TMDB-side changes get picked up.
   if (cached === null) return null;
-  if (cached !== undefined) {
+  // Stale split-show matches (TVDB season numbering stored against the
+  // pre-split entry, e.g. Kitchen Nightmares US S10 → 11294) predate the
+  // remap below: fall through and re-match instead of reusing them, so they
+  // self-heal without a global cache flush.
+  const staleSplit = cached && remapSplitSeason(cached.tmdbId, cached.season);
+  if (cached !== undefined && !staleSplit) {
     // Re-validate the anime guard on reuse: cached entries may predate the
     // anime filter (disk-persisted across versions) and could otherwise leak
     // anime into the series catalog.
@@ -318,6 +362,17 @@ async function matchItem(item, tmdbApiKey, type, lang) {
       result = await searchMetadata(tmdbApiKey, info.title, tmdbType, yearParam, lang);
     }
     if (!result) { await matchCache.set(cacheKey, null, NULL_MATCH_TTL); return null; }
+
+    // TVDB-numbered files for a show TMDB split in two (Kitchen Nightmares
+    // US S08+): move the match to the split entry and its season so the
+    // episodes exist on TMDB and survive meta/stream filtering.
+    if (type !== 'movie') {
+      const split = remapSplitSeason(result.id, season);
+      if (split) {
+        result = await resolveSplitTarget(tmdbApiKey, info.title, split, lang, result);
+        season = split.season;
+      }
+    }
 
     const isAnime = isTmdbAnime(result);
 
@@ -660,15 +715,34 @@ async function buildMeta(tmdbId, type, tmdbApiKey, lang, config = {}, enhance = 
       }));
 
       for (const { item, info, tk, cachedMeta } of toSearch) {
-        const matched = cachedMeta != null
+        // titleCache holds an id string (year-qualified search) or an id
+        // array (series candidate search): accept either shape.
+        const titleIds = titleCache.get(tk);
+        const titleHit = Array.isArray(titleIds)
+          ? titleIds.some(id => String(id) === String(tmdbId))
+          : (tk && titleIds === String(tmdbId));
+        // Split-show fallback (cold index): TVDB-numbered files for a show
+        // TMDB split in two match the pre-split entry; remap them to the
+        // requested split entry and season before the plain id check, so a
+        // stale plain check can't accept them with the wrong season first.
+        let splitSeason = null;
+        if (!cachedMeta && !info.airDate && !(info.airDates && info.airDates.length)) {
+          const ids = Array.isArray(titleIds) ? titleIds : (titleIds ? [titleIds] : []);
+          for (const cid of ids) {
+            const fwd = remapSplitSeason(cid, info.season);
+            if (fwd && String(fwd.tmdbId) === String(tmdbId)) { splitSeason = fwd.season; break; }
+          }
+        }
+        const matched = cachedMeta != null || splitSeason != null
           || (info.airDate
             ? (titleCache.get(tk) || []).some(id => String(id) === String(tmdbId))
-            : (tk && titleCache.get(tk) === String(tmdbId)));
+            : titleHit);
         if (!matched) continue;
 
         let season     = cachedMeta?.season     ?? info.season;
         let episode    = cachedMeta?.episode    ?? info.episode;
         let episodeEnd = cachedMeta?.episodeEnd ?? info.episodeEnd;
+        if (splitSeason != null) season = splitSeason;
         if ((info.airDate || (info.airDates && info.airDates.length)) && episode == null) {
           const dates = (info.airDates && info.airDates.length) ? info.airDates : [info.airDate];
           for (const d of dates) {
@@ -866,8 +940,12 @@ async function buildStreamsInner(config = {}, tmdbApiKey, type, tmdbId, season, 
           }
           const yearParam2 = tmdbType === 'movie' ? info.year : undefined;
           const result = await searchMetadata(tmdbApiKey, info.title, tmdbType, yearParam2, lang);
-          if (result && String(result.id) === String(tmdbId)) {
-            entries.push({ item, season: info.season, episode: info.episode, episodeEnd: info.episodeEnd ?? null });
+          // Split-show fallback: TVDB-numbered files match the pre-split
+          // entry; accept them for the split entry with the remapped season.
+          const split2 = result ? remapSplitSeason(result.id, info.season) : null;
+          const effId = split2 ? split2.tmdbId : result?.id;
+          if (result && String(effId) === String(tmdbId)) {
+            entries.push({ item, season: split2 ? split2.season : info.season, episode: info.episode, episodeEnd: info.episodeEnd ?? null });
           }
         } catch {}
       });
@@ -1350,4 +1428,4 @@ async function applyStreamNotices(streams, { config = {}, tmdbApiKey, tmdbId, ty
   return list;
 }
 
-module.exports = { buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta, buildErdbUrl, buildRpdbUrl, buildBetterPosterUrl, getFanartArt, applyStreamNotices, streamNoticesEnabled, libraryStreamFmtFp };
+module.exports = { buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta, buildErdbUrl, buildRpdbUrl, buildBetterPosterUrl, getFanartArt, applyStreamNotices, streamNoticesEnabled, libraryStreamFmtFp, remapSplitSeason, SPLIT_SHOW_SEASON_REMAP };

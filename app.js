@@ -645,7 +645,7 @@ async function buildAndCacheForConfigInner(token, config) {
 
     await Promise.all(sources.flatMap(({ key, downloads: dl }) =>
       TYPES.map(async type => {
-        const metas    = await buildCatalog(dl, tmdbApiKey, type, sortBy, { skip: 0, search: '' }, lang, { erdbToken, rpdbKey }, { userKey, hideAnime, libraryIdMode });
+        const metas    = await buildCatalog(dl, tmdbApiKey, type, sortBy, { skip: 0, search: '' }, lang, { erdbToken, rpdbKey }, { userKey, hideAnime, libraryIdMode, config });
         const cacheKey = cache.makeKey('cat', key, type, sortBy, '', '0', userKey, lang, posterFp(config), libraryIdMode);
         await cache.set(cacheKey, { metas }, TTL_CATALOG);
         console.log(`[Cache] ${key}:${type} → ${metas.length} items`);
@@ -1442,7 +1442,7 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
     if (!candidates.length) return [];
     return buildCatalog(candidates, tmdbApiKey, type, sortBy, { search: query }, lang,
       { erdbToken: enhance.erdbToken, rpdbKey: enhance.rpdbKey },
-      { userKey, hideAnime: config.hideAnime === true, libraryIdMode: config.libraryIdMode || 'torbox' });
+      { userKey, hideAnime: config.hideAnime === true, libraryIdMode: config.libraryIdMode || 'torbox', config });
   } catch (err) {
     console.warn('[Search] owned-library search failed:', err.message);
     return [];
@@ -1999,7 +1999,7 @@ async function handleCatalog(req, res) {
     }
 
     // Progressive: return already-known items immediately, complete the rest in the background
-    const built = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey }, { progressive: true, userKey, hideAnime, libraryIdMode });
+    const built = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey }, { progressive: true, userKey, hideAnime, libraryIdMode, config });
     const isPartial = !!built.completion;
     const metas     = built.metas || built;
 
@@ -2012,7 +2012,7 @@ async function handleCatalog(req, res) {
       // Finish matching + rebuild full catalog in the background
       built.completion.then(async () => {
         try {
-          const full = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey }, { userKey, hideAnime, libraryIdMode });
+          const full = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey }, { userKey, hideAnime, libraryIdMode, config });
           const result = { metas: full };
           if (hashChanged) {
             await cache.set(hashKey, newHash, 7200);

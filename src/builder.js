@@ -4,7 +4,7 @@ const { getTorBoxDownloads, getTorBoxStreamLink, getTorBoxFiles, isVideoFile, is
 const { getRealDebridDownloads, getRealDebridFiles, getRealDebridStreamLink } = require('./realdebrid');
 const providers = require('./providers');
 const cache = require('./cache');
-const { searchMetadata, searchCandidates, getMetadata, findEpisodeByAirDate, getSeasonEpisodeCounts, getImdbId, getMovieReleaseInfo } = require('./tmdb');
+const { searchMetadata, searchCandidates, getMetadata, findEpisodeByAirDate, getSeasonEpisodeCounts, getImdbId, getMovieReleaseInfo, titleScore } = require('./tmdb');
 const { guessMediaInfo } = require('./parser');
 const NodeCache = require('node-cache');
 // AIOStreams-compatible stream formatter engine (works in Node + browser).
@@ -124,6 +124,140 @@ async function resolveSplitTarget(tmdbApiKey, title, target, lang, fallbackResul
     if (hit) return hit;
   } catch {}
   return { ...(fallbackResult || {}), id: target.tmdbId };
+}
+
+// Bare-name series packs ("Kitchen.Nightmares": a 30GB torrent whose FILES
+// are S01E01...) carry no season info in the outer name, so name matching
+// rejects them and the whole pack stays invisible. The fallback below
+// matches from the inner episode filenames instead: one provider file
+// listing per new pack, then cached like any other match.
+const PACK_NULL_TTL = 24 * 60 * 60; // file lists are immutable: no episodes inside stays negative
+const PACK_OUTER_SCORE = 75; // outer title must strongly match before spending a file listing
+const PACK_INNER_SCORE = 65; // inner-title match must be plausible, never a stretch
+
+// Pure aggregation over inner file names: null when nothing usable, else
+// { title, year, season, episode, isAnime }. One distinct episode resolves
+// exactly; one season resolves as a season pack (episode null); several
+// seasons resolve as the whole show (season null → 'all').
+function summarizePackEpisodes(fileNames) {
+  const counts = new Map();
+  const pairs = new Set();
+  const seasons = new Set();
+  let anyAnime = false;
+  let best = null;
+  for (const raw of fileNames || []) {
+    if (typeof raw !== 'string' || !raw) continue;
+    if (!isVideoFile(raw) || isJunkVideo(raw)) continue;
+    const info = guessMediaInfo(raw);
+    if (!info || !info.isSeries || info.episode == null) continue;
+    if (info.isAnime) anyAnime = true;
+    const key = `${info.title}|${info.year || ''}`;
+    const entry = counts.get(key) || { title: info.title, year: info.year ?? null, n: 0 };
+    entry.n += 1;
+    counts.set(key, entry);
+    if (!best || entry.n > best.n) best = entry;
+    pairs.add(`${info.season ?? ''}:${info.episode}`);
+    if (info.season != null) seasons.add(info.season);
+  }
+  if (!best || pairs.size === 0) return null;
+  let season = null;
+  let episode = null;
+  if (pairs.size === 1) {
+    const [s, e] = [...pairs][0].split(':');
+    season = s === '' ? null : parseInt(s, 10);
+    episode = parseInt(e, 10);
+  } else if (seasons.size === 1) {
+    season = [...seasons][0];
+  }
+  return { title: best.title, year: best.year, season, episode, isAnime: anyAnime };
+}
+
+// Shared match-result row (name path and pack path converge here).
+function buildMatchMeta(result, type, item, season, episode, episodeEnd) {
+  const stremioType = type === 'anime' ? 'series' : type;
+  return {
+    id:                   `torbox:${stremioType}:${result.id}`,
+    type:                 stremioType,
+    name:                 result.title || result.name,
+    poster:               result.poster_path ? `https://image.tmdb.org/t/p/w500${result.poster_path}` : null,
+    releaseInfo:          (result.release_date || result.first_air_date || '').split('-')[0],
+    released:             result.release_date || result.first_air_date,
+    tmdbId:               result.id,
+    catalogType:          type,
+    isJapaneseAnimation:  isTmdbAnime(result),
+    torboxItem:           item,
+    season,
+    episode,
+    episodeEnd:           episodeEnd ?? null,
+  };
+}
+
+// Bare-name pack fallback: resolve the SHOW from inner episode filenames.
+// Owns its caching (success 24h, definitive negative 24h, listing failure
+// 5min): callers must not re-cache on its behalf. Returns a complete match
+// meta or null. Never throws.
+async function tryMatchPackFiles(item, config, type, tmdbApiKey, lang, outerInfo, name, cacheKey) {
+  const outerTitle = outerInfo?.title || null;
+  // Gate on the outer title first (TMDB search is cache-backed): obvious
+  // non-series items must not each cost a provider file listing.
+  if (outerTitle) {
+    let pre = null;
+    try {
+      pre = await searchMetadata(tmdbApiKey, outerTitle, 'series', outerInfo?.year, lang);
+    } catch { pre = null; }
+    if (!pre || titleScore(outerTitle, pre) < PACK_OUTER_SCORE) {
+      await matchCache.set(cacheKey, null, NULL_MATCH_TTL);
+      return null;
+    }
+  }
+  let files = null;
+  try {
+    files = await providers.getFiles(config, item);
+  } catch { files = null; }
+  if (!Array.isArray(files) || files.length === 0) {
+    await matchCache.set(cacheKey, null, NULL_MATCH_TTL);
+    return null;
+  }
+  const summary = summarizePackEpisodes(files.map(f => f.name || f.short_name || ''));
+  if (!summary) {
+    await matchCache.set(cacheKey, null, PACK_NULL_TTL);
+    return null;
+  }
+  const title = summary.title || outerTitle;
+  if (!title) {
+    await matchCache.set(cacheKey, null, PACK_NULL_TTL);
+    return null;
+  }
+  let result = null;
+  try {
+    result = await searchMetadata(tmdbApiKey, title, 'series', summary.year ?? outerInfo?.year, lang);
+  } catch { result = null; }
+  if (!result || titleScore(title, result) < PACK_INNER_SCORE) {
+    await matchCache.set(cacheKey, null, PACK_NULL_TTL);
+    return null;
+  }
+  let season = summary.season;
+  const episode = summary.episode;
+  // Split-show seasons inside packs remap exactly like file-level matches.
+  const split = remapSplitSeason(result.id, season);
+  if (split) {
+    result = await resolveSplitTarget(tmdbApiKey, title, split, lang, result);
+    season = split.season;
+  }
+  const isAnime = isTmdbAnime(result);
+  if (type === 'series' && (isAnime || summary.isAnime)) {
+    console.log(`[TMDB] pack "${name}" is anime: excluded from series`);
+    await matchCache.set(cacheKey, null, PACK_NULL_TTL);
+    return null;
+  }
+  if (type === 'anime' && !isAnime && !summary.isAnime) {
+    await matchCache.set(cacheKey, null, PACK_NULL_TTL);
+    return null;
+  }
+  console.log(`[TMDB] pack "${name}" → "${result.title || result.name}" (${result.id}) via inner files`);
+  const meta = buildMatchMeta(result, type, item, season, episode, null);
+  await matchCache.set(cacheKey, meta);
+  return meta;
 }
 
 function loadPersistentCache() {
@@ -285,7 +419,7 @@ function infoAnime(_meta, name) {
   }
 }
 
-async function matchItem(item, tmdbApiKey, type, lang) {
+async function matchItem(item, tmdbApiKey, type, lang, config = null) {
   const name     = item.name || item.filename || '';
   if (isJunkVideo(name)) return null;
   const tmdbType = type === 'movie' ? 'movie' : 'series';
@@ -319,12 +453,39 @@ async function matchItem(item, tmdbApiKey, type, lang) {
   }
 
   const info = guessMediaInfo(name);
-  if (!info) { await matchCache.set(cacheKey, null, NULL_MATCH_TTL); return null; }
+  // Unparseable outer name: only a pack-content peek can save it (series/
+  // anime catalogs with provider config). The pack path owns its caching.
+  if (!info) {
+    if (type !== 'movie' && config) {
+      const packMeta = await tryMatchPackFiles(item, config, type, tmdbApiKey, lang, null, name, cacheKey);
+      if (packMeta) return { ...packMeta, _freshMatch: true };
+      return null;
+    }
+    await matchCache.set(cacheKey, null, NULL_MATCH_TTL);
+    return null;
+  }
 
-  // Simplified type validation
+  // Simplified type validation (bare-name packs fall through to the inner-
+  // filename peek instead of failing here).
   if (type === 'movie' && info.isSeries) { await matchCache.set(cacheKey, null, NULL_MATCH_TTL); return null; }
-  if (type === 'series' && (!info.isSeries || info.isAnime)) { await matchCache.set(cacheKey, null, NULL_MATCH_TTL); return null; }
-  if (type === 'anime' && !info.isSeries) { await matchCache.set(cacheKey, null, NULL_MATCH_TTL); return null; }
+  if (type === 'series' && (!info.isSeries || info.isAnime)) {
+    if (config) {
+      const packMeta = await tryMatchPackFiles(item, config, type, tmdbApiKey, lang, info, name, cacheKey);
+      if (packMeta) return { ...packMeta, _freshMatch: true };
+      return null;
+    }
+    await matchCache.set(cacheKey, null, NULL_MATCH_TTL);
+    return null;
+  }
+  if (type === 'anime' && !info.isSeries) {
+    if (config) {
+      const packMeta = await tryMatchPackFiles(item, config, type, tmdbApiKey, lang, info, name, cacheKey);
+      if (packMeta) return { ...packMeta, _freshMatch: true };
+      return null;
+    }
+    await matchCache.set(cacheKey, null, NULL_MATCH_TTL);
+    return null;
+  }
 
   try {
     let season     = info.season;
@@ -389,23 +550,7 @@ async function matchItem(item, tmdbApiKey, type, lang) {
 
     console.log(`[TMDB] "${info.title}" → "${result.title || result.name}" (${result.id}) anime=${isAnime}`);
 
-    const stremioType = type === 'anime' ? 'series' : type;
-
-    const meta = {
-      id:                   `torbox:${stremioType}:${result.id}`,
-      type:                 stremioType,
-      name:                 result.title || result.name,
-      poster:               result.poster_path ? `https://image.tmdb.org/t/p/w500${result.poster_path}` : null,
-      releaseInfo:          (result.release_date || result.first_air_date || '').split('-')[0],
-      released:             result.release_date || result.first_air_date,
-      tmdbId:               result.id,
-      catalogType:          type,
-      isJapaneseAnimation:  isAnime,
-      torboxItem:           item,
-      season,
-      episode,
-      episodeEnd,
-    };
+    const meta = buildMatchMeta(result, type, item, season, episode, episodeEnd);
 
     await matchCache.set(cacheKey, meta);
     // Tag freshly-computed matches (NOT stored in the cache value: the tag is
@@ -428,19 +573,23 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
   const { progressive = false } = opts;
   const userKey   = opts.userKey || '';
   const hideAnime = !!opts.hideAnime;
+  // Provider config enables the bare-name pack fallback in matchItem (one
+  // file listing per otherwise-unmatchable item). Without it the filters
+  // below stay strict and behavior is unchanged.
+  const packConfig = opts.config || null;
 
   const allRelevant = [];
   for (const item of downloads) {
     const name = item.name || item.filename || '';
     if (isJunkVideo(name)) continue;
     const info = guessMediaInfo(name);
-    if (!info) continue;
-    if (type === 'movie'  && (info.isSeries || info.isAnime))  continue;
-    if (type === 'series' && (!info.isSeries || info.isAnime)) continue;
-    if (type === 'anime'  && !info.isSeries)                   continue; // anime uses SxxExx or custom format
+    if (!info && !packConfig) continue;
+    if (type === 'movie'  && (info?.isSeries || info?.isAnime))  continue;
+    if (type === 'series' && (!info?.isSeries || info?.isAnime) && !packConfig) continue;
+    if (type === 'anime'  && !info?.isSeries && !packConfig)                   continue; // anime uses SxxExx or custom format
     // "Hide anime" must strip anime from the movie/series catalogs too,
     // not just remove the anime catalog from the manifest.
-    if (hideAnime && type !== 'anime' && info.isAnime) continue;
+    if (hideAnime && type !== 'anime' && info?.isAnime) continue;
     allRelevant.push({ item, info });
   }
 
@@ -472,15 +621,15 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
     // A cold or near-cold cache (few cached) would return a near-empty page -
     // worse than blocking for the full build, so fall back to the full build.
     if (cached.length === 0 || cached.length < fresh.length) {
-      tasks = allRelevant.map(({ item }) => () => matchItem(item, tmdbApiKey, type, lang));
+      tasks = allRelevant.map(({ item }) => () => matchItem(item, tmdbApiKey, type, lang, packConfig));
     } else {
-      tasks = cached.map(({ item }) => () => matchItem(item, tmdbApiKey, type, lang));
+      tasks = cached.map(({ item }) => () => matchItem(item, tmdbApiKey, type, lang, packConfig));
       if (fresh.length > 0) {
-        completion = pLimit(fresh.map(({ item }) => () => matchItem(item, tmdbApiKey, type, lang)), BATCH_SIZE);
+        completion = pLimit(fresh.map(({ item }) => () => matchItem(item, tmdbApiKey, type, lang, packConfig)), BATCH_SIZE);
       }
     }
   } else {
-    tasks = allRelevant.map(({ item }) => () => matchItem(item, tmdbApiKey, type, lang));
+    tasks = allRelevant.map(({ item }) => () => matchItem(item, tmdbApiKey, type, lang, packConfig));
   }
 
   const rawResults = await pLimit(tasks, BATCH_SIZE);
@@ -1428,4 +1577,4 @@ async function applyStreamNotices(streams, { config = {}, tmdbApiKey, tmdbId, ty
   return list;
 }
 
-module.exports = { buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta, buildErdbUrl, buildRpdbUrl, buildBetterPosterUrl, getFanartArt, applyStreamNotices, streamNoticesEnabled, libraryStreamFmtFp, remapSplitSeason, SPLIT_SHOW_SEASON_REMAP };
+module.exports = { buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta, buildErdbUrl, buildRpdbUrl, buildBetterPosterUrl, getFanartArt, applyStreamNotices, streamNoticesEnabled, libraryStreamFmtFp, remapSplitSeason, SPLIT_SHOW_SEASON_REMAP, summarizePackEpisodes };

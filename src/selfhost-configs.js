@@ -19,10 +19,27 @@ const cache = require('./cache');
 const KEY = 'selfhost:saved_configs';
 const MAX_CONFIGS = 100;
 const MAX_CONFIG_BYTES = 256 * 1024;
+// In-memory mirror TTL: 7 days in seconds. Deliberately short: Node's
+// setTimeout (which backs the in-memory cache) overflows past ~24.8 days and
+// would drop the entry immediately, and Redis below is the durable copy.
+const MEM_TTL = 7 * 24 * 60 * 60;
 
 function normalize(rows) {
   if (!Array.isArray(rows)) return [];
   return rows.filter((r) => r && r.id && r.config && typeof r.config === 'object');
+}
+
+// Single writer: Redis holds the durable copy with NO expiry (operator data,
+// not a cache entry) and the in-memory cache only mirrors it for fast reads.
+// Never use cache.set() here: it writes Redis with SETEX, which would put an
+// expiry on the durable copy.
+async function persist(rows) {
+  const client = cache.getRedisClient();
+  if (client) {
+    if (rows.length) await client.set(KEY, JSON.stringify(rows));
+    else await client.del(KEY);
+  }
+  cache.setMem(KEY, rows, MEM_TTL);
 }
 
 async function list() {
@@ -43,23 +60,14 @@ async function save({ label, config }) {
     created_at: new Date().toISOString(),
   });
   // Persist without TTL (Redis SET: survives restarts via the named volume).
-  const client = cache.getRedisClient();
-  if (client) {
-    await client.set(KEY, JSON.stringify(rows));
-  }
-  cache.set(KEY, rows, 365 * 24 * 60 * 60); // mirror in memory (long TTL)
+  await persist(rows);
   return { id };
 }
 
 async function remove(id) {
   const rows = normalize(await cache.get(KEY));
   const next = rows.filter((r) => r.id !== id);
-  const client = cache.getRedisClient();
-  if (client) {
-    if (next.length) await client.set(KEY, JSON.stringify(next));
-    else await client.del(KEY);
-  }
-  cache.set(KEY, next, 365 * 24 * 60 * 60);
+  await persist(next);
   return true;
 }
 

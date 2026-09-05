@@ -35,6 +35,15 @@ function setMemCache(key, value, ttl) {
   rememberMemKey(key);
 }
 
+// Memory-mirror-only write: updates the in-process cache without touching
+// Redis. For operator data that Redis holds WITHOUT expiry (self-hosted saved
+// setups), where the normal set() would wrongly apply SETEX to the durable
+// copy.
+function setMem(key, value, ttl) {
+  setMemCache(key, value, ttl);
+  return true;
+}
+
 function getMemCache(key) {
   const value = memCache.get(key);
   if (value === undefined) memKeyOrder.delete(key);
@@ -245,6 +254,7 @@ function makeKey(prefix, ...parts) {
 module.exports = {
   get,
   set,
+  setMem,
   del,
   delPattern,
   touchPattern,

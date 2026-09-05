@@ -56,6 +56,13 @@
         return;
       }
       box.style.display = 'block';
+      // If setups exist, open the whole "Load an existing setup" section so
+      // the list is visible without hunting: this is the one-click loader
+      // self-hosters asked for, and a collapsed box hides it entirely.
+      if (configs.length) {
+        const loadBox = document.getElementById('loadConfigBox');
+        if (loadBox) loadBox.style.display = 'block';
+      }
       list.innerHTML = configs.map((c) => {
         const date = c.created_at ? new Date(c.created_at).toLocaleDateString() : '';
         return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border)">
@@ -1409,8 +1416,11 @@
         document.getElementById('reinstallModal').style.display = 'flex';
         return;
       }
-      // New user: scroll to links
+      // New user: scroll to links. The form now matches the generated setup,
+      // so clear the unsaved-changes banner: otherwise it keeps nagging after
+      // a successful generate and the page looks like the save never worked.
       initialConfig = getCurrentConfig();
+      document.getElementById('unsavedBanner').style.display = 'none';
       btn.disabled = false;
       document.getElementById('genBtnTitle').textContent = originalLabel;
       document.getElementById('btnDesktop').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1471,7 +1481,7 @@
       goToStep(1);
     }
 
-    const APP_VERSION = '5.0.1';
+    const APP_VERSION = '5.0.2';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');
@@ -1587,6 +1597,11 @@
         }
         // Load the self-host saved-configs list (hosted uses accounts instead).
         loadSavedConfigs();
+        // Self-host install step: offer "Save current setup" next to the
+        // manual links so the one-click loader is reachable at install time,
+        // not just inside the collapsed box at the top of the form.
+        const manualSaveBtn = document.getElementById('manualSaveSetupBtn');
+        if (manualSaveBtn) manualSaveBtn.style.display = '';
         // Self-hosted instances have no status page (/api/status returns a
         // placeholder and /status redirects to /configure), so hide the pill
         // instead of polling it every 60s for a 0/0 readout.
@@ -2863,11 +2878,10 @@
         const meta = CATALOGUE_META[key] || {};
         if (key === 'anime' && hideAnime) return;
         const enabled = meta.enable ? !!catSelection[meta.enable] : true;
-        // The summary is for active Home rows only. Disabled discovery rows
-        // stay available in the Home Rows picker below instead of cluttering
-        // this list.
-        if (meta.enable && !enabled) return;
-        rows.push(`<div class="cg-row cat-drag-item" data-cat-key="${escHtml(key)}" data-cat-idx="${i}"><span class="cat-drag-handle cg-row-handle">⠿</span><div class="cg-row-name">${escHtml(catNames[key] || key)}<span class="cg-row-desc">${meta.desc || ''}</span></div><label class="cg-switch">${meta.enable ? `<input type="checkbox" ${enabled ? 'checked' : ''} onchange="setCatOption(${jsStr(meta.enable)}, this.checked)" />` : '<input type="checkbox" checked disabled />'}<span class="cg-slider"></span></label><div class="cg-kebab-wrap"><button type="button" class="cg-kebab-btn" onclick="toggleCatKebab(event, ${jsStr(key)})">⋯</button><div class="cg-kebab-menu" id="kebab-${escHtml(key)}"><button type="button" onclick="closeCatKebabs();previewCatalogue(${jsStr(key)})">👁 Preview</button><button type="button" onclick="closeCatKebabs();editCatalogueName(${jsStr(key)})">✎ Rename</button><button type="button" onclick="closeCatKebabs();removeHomeRow(${jsStr(key)})">🗑 Remove from Home</button></div></div></div>`);
+        // Disabled core rows stay listed (dimmed) so the switch can turn them
+        // back on: unlike library/watchlist rows there is no other picker for
+        // these, so removing them stranded the setting with no way back.
+        rows.push(`<div class="cg-row cat-drag-item${enabled ? '' : ' row-hidden'}" data-cat-key="${escHtml(key)}" data-cat-idx="${i}"><span class="cat-drag-handle cg-row-handle">⠿</span><div class="cg-row-name">${escHtml(catNames[key] || key)}<span class="cg-row-desc">${meta.desc || ''}${enabled ? '' : ' · hidden from Home'}</span></div><label class="cg-switch">${meta.enable ? `<input type="checkbox" ${enabled ? 'checked' : ''} onchange="setCatOption(${jsStr(meta.enable)}, this.checked)" />` : '<input type="checkbox" checked disabled />'}<span class="cg-slider"></span></label><div class="cg-kebab-wrap"><button type="button" class="cg-kebab-btn" onclick="toggleCatKebab(event, ${jsStr(key)})">⋯</button><div class="cg-kebab-menu" id="kebab-${escHtml(key)}"><button type="button" onclick="closeCatKebabs();previewCatalogue(${jsStr(key)})">👁 Preview</button><button type="button" onclick="closeCatKebabs();editCatalogueName(${jsStr(key)})">✎ Rename</button><button type="button" onclick="closeCatKebabs();removeHomeRow(${jsStr(key)})">🗑 Remove from Home</button></div></div></div>`);
       });
       // Library selections are Home rows too. Keep them visible even when
       // hidden from Home so the switch can be toggled back on without
@@ -4646,8 +4660,14 @@
     function renderInstallPush() {
       const el = document.getElementById('installPush');
       renderPlatformStep();
-      const target = targetPlatform();
       const notConn = document.getElementById('pushNotConnectedHint');
+      // Unconnected visits are manual-install visits (they just want the
+      // manifest URL): the push top section stays hidden and Generate install
+      // links + Manual setup below do the job. Default everything visible here
+      // so connecting restores the push UI.
+      const platField = document.getElementById('installPlatformField');
+      if (platField) platField.style.display = '';
+      if (el) el.style.display = '';
       // Robust detection: for non-account tokens also consider localStorage fallback like public collections
       const effectivePlatform = connectState.platform || (function(){
         try{
@@ -4719,8 +4739,14 @@
           try{persistConnect();}catch{}
           renderInstallPush(); return;
         }
-        el.innerHTML = `<div class="connect-box" style="text-align:center;padding:20px"><p style="color:var(--muted);font-size:0.85rem;margin:0">Sign in on the <strong>Platform step</strong> (Step 1) to connect${target ? ' to ' + (target === 'nuvio' ? 'Nuvio' : 'Stremio') : ''}.</p></div>`;
-        if (notConn) notConn.style.display = target ? '' : 'none';
+        // Nothing connected: hide the whole push top section (Push to tabs,
+        // sign-in prompt, not-connected hint) and leave Generate install links
+        // plus Manual setup below as the install path.
+        if (platField) platField.style.display = 'none';
+        if (notConn) notConn.style.display = 'none';
+        el.innerHTML = '';
+        el.style.display = 'none';
+        try { updateManualSetupLinks(); } catch {}
         return;
       }
       if (notConn) notConn.style.display = 'none';
@@ -5945,22 +5971,21 @@
       renderPlatformStep();
       const plat = platform === 'nuvio' ? 'Nuvio' : 'Stremio';
       if (connectState.platform !== platform) {
-        goToStep(7); // the sign-in boxes live in the Install panel (panel-7)
-        showToast(`Connect ${plat} first, then push`, 'error');
+        goToStep(7); // Generate install links live in the Install panel (panel-7)
+        showToast(`Connect ${plat} on the Platform step (Step 1) first, then push`, 'error');
         return;
       }
       goToStep(7); // renders the push panel before pushCatalogues() reads it
       await pushCatalogues();
     }
 
-    // The "You haven't connected {platform}. Sign in…" note only shows next to
-    // the manual buttons while no platform is connected but one is chosen.
+    // The "You haven't connected {platform}…" note is retired: unconnected
+    // visits install via Generate install links (renderInstallPush hides the
+    // push top section), and connected visits hide it inside renderInstallPush.
     function updateInstallPushHint() {
       const hint = document.getElementById('pushNotConnectedHint');
       if (!hint) return;
-      const hasToken = !!(connectState.nuvioToken || connectState.stremioAuth);
-      // Intermediate Nuvio state (token but no platform yet) is handled inside renderInstallPush with a profile picker; don't show the generic hint
-      hint.style.display = (!connectState.platform && targetPlatform() && !hasToken) ? '' : 'none';
+      hint.style.display = 'none';
     }
 
     // ── Stream formatter ───────────────────────────────────────────────────

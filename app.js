@@ -290,7 +290,7 @@ if (HOSTED) {
 app.get('/health', async (req, res) => {
   // Keep Docker liveness independent of Redis statistics and upstream work.
   // A slow provider must never make the whole addon look dead.
-  res.json({ status: 'ok', version: '5.0.1' });
+  res.json({ status: 'ok', version: '5.0.2' });
 });
 
 // A deliberately empty URL used only to let Nuvio render informational stream
@@ -745,7 +745,7 @@ function getLogoUrl(baseUrl) {
 function getBaseManifest(baseUrl) {
   const manifest = {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-    version: '5.0.1',
+    version: '5.0.2',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -806,7 +806,10 @@ function getConfiguredManifest(baseUrl, config = {}, { watchlist = [], collectio
       // explicit. The TV client honours pushed Home settings, which is why
       // the leak only appeared on mobile. A library row remains available to
       // native collection folders even when it is hidden from Home.
-      if (integration === 'nuvio' && !selectedHomeCatalogs.has(catalogId)) row.showInHome = false;
+      // Wizard-managed tokens pick explicit Home rows, so anything unpicked
+      // stays off Home. Legacy/self-host installs have no Home picker at
+      // all: every enabled row IS a Home row, so never hide them.
+      if (integration === 'nuvio' && config.wizard === true && !selectedHomeCatalogs.has(catalogId)) row.showInHome = false;
       catalogs.push(row);
     };
     const groups = [];
@@ -847,12 +850,16 @@ function getConfiguredManifest(baseUrl, config = {}, { watchlist = [], collectio
     // A required search extra is Nuvio's supported way to keep a backing row
     // out of normal Home catalogue listings; folder requests still include the
     // genre filter and the handler does not require a search query.
+    // Wizard-managed Nuvio setups read this row through collection folders,
+    // so it stays off Home. Legacy/self-host installs have no folders: the
+    // row is an ordinary visible Home row with a genre filter instead.
+    const managedNuvio = integration === 'nuvio' && config.wizard === true;
     catalogs.push({
       id: 'torbox-collections',
       type: 'movie',
       name: config.collectionsName || 'LeLibrary Collections',
-      showInHome: integration === 'nuvio' ? false : selectedHomeCatalogs.has('torbox-collections'),
-      extra: integration === 'nuvio'
+      ...(managedNuvio ? { showInHome: false } : {}),
+      extra: managedNuvio
         ? [{ name: 'genre', isRequired: false, options: genres }, { name: 'search', isRequired: true }, { name: 'skip' }]
         : [{ name: 'genre', isRequired: false, options: genres }, { name: 'skip' }],
     });
@@ -938,7 +945,7 @@ function getConfiguredManifest(baseUrl, config = {}, { watchlist = [], collectio
     const curatedRefSet = new Set(curatedRefs);
     const merged = [...enabled];
     for (const r of homeRefs) if (r && !merged.includes(r)) merged.push(r);
-    const useCompactCuratedRoutes = integration === 'nuvio';
+    const useCompactCuratedRoutes = integration === 'nuvio' && config.wizard === true;
     if (integration === 'stremio') {
       for (const r of folderRefs) if (r && !merged.includes(r)) merged.push(r);
       for (const r of curatedRefs) if (r && !merged.includes(r)) merged.push(r);
@@ -957,6 +964,11 @@ function getConfiguredManifest(baseUrl, config = {}, { watchlist = [], collectio
           extra: [{ name: 'genre', isRequired: false }, { name: 'skip' }],
         });
       }
+    } else {
+      // Legacy/self-host Nuvio installs have no native folders, so selected
+      // curated packs are advertised as ordinary visible rows (exactly like
+      // the Stremio branch) instead of collapsing into hidden compact routes.
+      for (const r of curatedRefs) if (r && !merged.includes(r)) merged.push(r);
     }
     if (!merged.length) return;
     const hidden = new Set(Array.isArray(config.libHomeHidden) ? config.libHomeHidden : []);
@@ -974,9 +986,11 @@ function getConfiguredManifest(baseUrl, config = {}, { watchlist = [], collectio
         name: def.name || cid,
         extra: CAT_EXTRA,
       };
-      // Curated sources stay out of Nuvio Home by default. Explicit Home Row
-      // selections must win over the collection-only default.
-      if (hidden.has(cid) || (curatedRefSet.has(cid) && !enabled.includes(cid)) ||
+      // Curated sources stay out of a wizard-managed Nuvio Home by default:
+      // they live inside native folders there. Explicit Home Row selections
+      // must win over the collection-only default. Legacy/self-host installs
+      // have no folders, so pack sources are ordinary visible rows.
+      if (hidden.has(cid) || (config.wizard === true && curatedRefSet.has(cid) && !enabled.includes(cid)) ||
         (integration === 'nuvio' && config.wizard === true && homeRefs.includes(cid) && !selectedHomeCatalogs.has(`lib-${cid}`))) row.showInHome = false;
       catalogs.push(row);
     }
@@ -1038,7 +1052,7 @@ function getConfiguredManifest(baseUrl, config = {}, { watchlist = [], collectio
 
   return {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-    version: '5.0.1',
+    version: '5.0.2',
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -2389,3 +2403,6 @@ app.use((err, req, res, next) => {
 });
 
 module.exports = app;
+// Exported for tests: the manifest Home-visibility rules (wizard-managed vs
+// legacy/self-host installs) are verified in test/manifest-home.test.js.
+module.exports.getConfiguredManifest = getConfiguredManifest;

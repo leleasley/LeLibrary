@@ -569,7 +569,7 @@
           <div class="step-panel" id="panel-7">
             <div class="step">
               <div class="step-head"><div><h2>Install LeLibrary</h2><p>Choose where to install, then push your saved setup.</p></div></div>
-              <div class="field" style="margin-bottom:14px">
+              <div class="field" id="installPlatformField" style="margin-bottom:14px">
                 <div class="field-label">Push to</div>
                 <div class="platform-toggle" id="installPlatformTabs">
                   <button type="button" class="ptab" data-plat="stremio" onclick="selectPlatform('stremio')"><img src="/stremio.svg" alt="" onerror="this.style.display='none'" /> Stremio</button>
@@ -632,6 +632,11 @@
                     <button class="btn-main btn-gen" id="btnRefresh" onclick="clearCache()" style="margin-top:8px;background:var(--surface2);color:var(--text);border:1px solid var(--border)">
                       <div class="ico">🔄</div>
                       <div class="txt"><span>Refresh catalog</span><small>Clears server cache: then refresh in Stremio or Nuvio</small></div>
+                      <span class="arr">›</span>
+                    </button>
+                    <button class="btn-main btn-outline" id="manualSaveSetupBtn" type="button" onclick="saveCurrentConfig()" style="display:none;margin-top:8px;width:100%;justify-content:center">
+                      <div class="ico">💾</div>
+                      <div class="txt"><span>Save current setup</span><small>Keep it on this instance for one-click loading</small></div>
                       <span class="arr">›</span>
                     </button>
                   </div>

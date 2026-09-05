@@ -1,5 +1,16 @@
 # Changelog
 
+## [5.0.2]
+
+### Self-host fixes
+
+- **Simpler install step when nothing is connected**: if you have not signed in to Stremio or Nuvio, the install step now skips the push section and goes straight to Generate install links plus the manual setup links. Connect on the Platform step any time and the push options reappear.
+- **Your rows now show on Home**: self-hosted library rows (My Movies, My Series, Collections and curated picks) no longer carry a hidden-from-Home flag, so they appear on Nuvio Home as expected. Search rows stay hidden as before, and account collection folders work exactly as they did.
+- **Switching a row off no longer loses it**: turning off a Home row now keeps it listed, dimmed, so you can switch it straight back on instead of losing it with no way back.
+- **Saved setups actually persist**: self-hosted saved setups are now stored without an expiry date instead of silently expiring, so they survive restarts and rebuilds.
+- **Saved setups are easier to find**: the saved setups section opens automatically when you have setups saved, and there is a new Save current setup button on the install step next to the manual links.
+- **The save reminder clears after generating**: the Unsaved changes banner now goes away once your install links are generated, instead of nagging after a successful save.
+
 ## [5.0.1]
 
 ### Series matching

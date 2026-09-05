@@ -2367,11 +2367,23 @@ app.get('/:token/stream/:type/:id.json', async (req, res) => {
 // Terminal error handler. Async rejections land here via the auto-wrapper
 // above; without it Express 4's default would leak a stack trace as HTML.
 // JSON for API routes, plain text otherwise: never an internal message.
+// Over-limit bodies (thrown by body parsers mounted before the website
+// router, e.g. the accounts router's 6mb parser) get a plain-English 413:
+// the pre-push save carries pasted collections imports and used to fail here
+// as an opaque "Internal error" with no hint what to trim.
 app.use((err, req, res, next) => {
-  console.error(`[Error] ${req.method} ${maskSensitivePath(req.path)}: ${err.stack || err.message}`);
   if (res.headersSent) return;
+  const tooLarge = err && (err.status === 413 || err.type === 'entity.too.large');
+  const status = tooLarge ? 413 : 500;
+  const len = req.headers['content-length'] || '?';
+  console.error(`[Error] ${req.method} ${maskSensitivePath(req.path)} → ${status}: ${tooLarge ? (err.message || err) : (err.stack || err.message)} (body ${len}B)`);
   const wantsJson = req.path.endsWith('.json') || req.path.startsWith('/api/');
-  res.status(500);
+  res.status(status);
+  if (tooLarge) {
+    const msg = 'Configuration too large to save. Try removing a pasted collections import or custom streams, then push again.';
+    if (wantsJson) return void res.json({ error: msg });
+    return void res.type('text').send(msg);
+  }
   if (wantsJson) res.json({ error: 'Internal error' });
   else res.type('text').send('Internal error');
 });

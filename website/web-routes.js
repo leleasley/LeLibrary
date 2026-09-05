@@ -97,8 +97,12 @@ function createWebRoutes(resolveConfig, options = {}) {
     const secure = req.secure ? '; Secure' : '';
     res.setHeader('Set-Cookie', `${SELFHOST_COOKIE}=${selfhostCookieValue}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Strict${secure}`);
   }
-  router.use(express.json());
-  router.use(express.urlencoded({ extended: true }));
+  // Save payloads carry the full form state (pasted collections.json in
+  // importedRows, overrides, custom streams) and can exceed body-parser's
+  // 100kb default: an over-limit save used to surface as a misleading
+  // generic 500. 2mb matches the /api/preview route in app.js.
+  router.use(express.json({ limit: '2mb' }));
+  router.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
   // Nuvio imports these once per profile. Image URLs must be absolute HTTPS
   // URLs because Nuvio fetches them from another device, not this browser.
@@ -299,18 +303,23 @@ function createWebRoutes(resolveConfig, options = {}) {
   // Config-store routes must also live here: app.js mounts this router before
   // its addon routes, and the router has a 404 fallback at the end.
   router.post('/api/save-config', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) => {
+    // Failure logging only: status + reason + body size, never body content
+    // (it carries API keys) and never the token value.
+    const bodyBytes = Number(req.headers['content-length'] || 0) || '?';
+    const saveFail = (status, reason) => console.error(`[Web] POST /api/save-config → ${status}: ${reason} (body ${bodyBytes}B)`);
     try {
       const config = req.body && req.body.config;
-      if (!config || typeof config !== 'object') return res.status(400).json({ error: 'Missing config' });
+      if (!config || typeof config !== 'object') { saveFail(400, 'Missing config'); return res.status(400).json({ error: 'Missing config' }); }
       const providers = require('../src/providers');
       const tokenId = req.body && req.body.token;
       let configForStore = config;
       let ownershipVerified = false;
       if (typeof tokenId === 'string' && tokenId && tokenId.length <= 64 && !decodeConfig(tokenId) && hosted?.saveTokenConfig) {
         if (!(await hosted.ownsOpaqueToken(req, tokenId))) {
+          saveFail(403, 'opaque token not owned by session');
           return res.status(403).json({ error: 'Sign in to the account that owns this saved setup before changing it.' });
         }
-        await hosted.saveTokenConfig(tokenId, config).catch((err) => console.error('[token] saveTokenConfig failed:', err.message));
+        await hosted.saveTokenConfig(tokenId, config).catch((err) => { saveFail('store', `saveTokenConfig: ${err.message}`); console.error('[token] saveTokenConfig failed:', err.message); });
         // Wizard/account saves deliberately never carry provider keys in the
         // browser payload. Resolve the just-saved opaque token on the server
         // so its settings, including libraryIdMode, are keyed to the same
@@ -331,13 +340,14 @@ function createWebRoutes(resolveConfig, options = {}) {
             action: 'save-config',
             remoteip: req.ip,
           });
-          if (!verdict.ok) return res.status(403).json({ error: 'Bot check failed. Reload the page and try again.' });
+          if (!verdict.ok) { saveFail(403, `bot check: ${verdict.error || 'rejected'}`); return res.status(403).json({ error: 'Bot check failed. Reload the page and try again.' }); }
         }
       }
       const userKey = await require('../src/configstore').saveStreamSettings(configForStore);
-      if (!userKey) return res.status(400).json({ error: 'Config has no usable API keys' });
+      if (!userKey) { saveFail(400, 'no usable API keys in config'); return res.status(400).json({ error: 'Config has no usable API keys' }); }
       res.json({ ok: true, userKey });
     } catch (err) {
+      saveFail(500, err.message);
       res.status(500).json({ error: err.message });
     }
   });
@@ -1104,9 +1114,22 @@ function createWebRoutes(resolveConfig, options = {}) {
     serveErrorPage(res, req, 404, 'Page Not Found', ERROR_DESCRIPTIONS[404]);
   });
 
-  // Express error handler: catches thrown errors in async routes
+  // Express error handler: catches thrown errors in async routes.
+  // Over-limit bodies (entity.too.large) get a plain-English 413 instead of
+  // the misleading generic 500 so the configure page can tell the user what
+  // to trim. Failures are logged with status + size only, never body content.
   router.use((err, req, res, _next) => {
-    console.error(`[Web] ${req.method} ${req.originalUrl} error:`, err.message || err);
+    const status = err && (err.status === 413 || err.type === 'entity.too.large') ? 413 : 500;
+    const len = req.headers['content-length'] || '?';
+    console.error(`[Web] ${req.method} ${req.originalUrl} → ${status}:`, err.message || err, `(body ${len}B)`);
+    if (status === 413) {
+      const wantsJson = (req.headers.accept || '').includes('application/json')
+        || (req.originalUrl || '').startsWith('/api/');
+      if (wantsJson) {
+        return res.status(413).json({ error: 'Configuration too large to save. Try removing a pasted collections import or custom streams, then push again.' });
+      }
+      return serveErrorPage(res, req, 413, 'Configuration Too Large', 'That configuration was too large to save. Try removing a pasted collections import and pushing again.');
+    }
     serveErrorPage(res, req, 500, 'Internal Server Error', ERROR_DESCRIPTIONS[500]);
   });
 

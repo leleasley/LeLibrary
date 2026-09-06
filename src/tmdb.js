@@ -116,13 +116,30 @@ function yearBonus(requestedYear, result) {
   return -40;
 }
 
+function resultYear(result) {
+  const d = result.release_date || result.first_air_date || '';
+  const y = parseInt(String(d).slice(0, 4), 10);
+  return Number.isFinite(y) ? y : 0;
+}
+
 function pickBestResult(query, results, year) {
   const y = year ? parseInt(year, 10) : 0;
-  let best = results[0];
+  // Exact title + plausible year outranks any partial-title match. TMDB
+  // routinely dates a film a year off the filename (festival premiere vs
+  // wide release), and the year bonus then lets a same-year short or
+  // prefix-title steal the match: an "Old Ways 2020" file went to the Apex
+  // short (TMDB 1637948) instead of the 2021-dated horror feature, and an
+  // "Influencer 2023" file went to the "Influencer Life" short instead of
+  // the feature. Within the exact tier the usual score (year, then votes)
+  // still orders entries, so remakes and weekly-show variants are unaffected.
+  const scored = results.map(r => ({ r, exact: titleScore(query, r) === 100
+    && (!y || resultYear(r) === 0 || Math.abs(resultYear(r) - y) <= 1) }));
+  const pool = scored.some(s => s.exact) ? scored.filter(s => s.exact) : scored;
+  let best = pool[0].r;
   let bestScore = titleScore(query, best) + yearBonus(y, best);
   let bestVotes = best.vote_count || 0;
-  for (let i = 1; i < results.length; i++) {
-    const r = results[i];
+  for (let i = 1; i < pool.length; i++) {
+    const r = pool[i].r;
     const score = titleScore(query, r) + yearBonus(y, r);
     const votes = r.vote_count || 0;
     if (score > bestScore || (score === bestScore && votes > bestVotes)) {
@@ -152,6 +169,22 @@ async function searchMetadata(apiKey, query, type, year, lang = 'en-US') {
   const res = await axios.get(`${TMDB_BASE}${endpoint}`, { headers: auth.headers, params, timeout: 8000 });
   const results = res.data?.results || [];
   let result = results.length > 0 ? pickBestResult(query, results, year) : null;
+
+  if (result && year && type === 'movie' && titleScore(query, result) < 100) {
+    // The year filter above can hide the right title entirely when TMDB
+    // dates it a year off the filename (festival premiere vs wide release):
+    // the pick then goes to the best of a bad pool. Retry unfiltered, merge
+    // both pools, and re-pick so an exact title can still win it back.
+    try {
+      const noYearParams = { ...auth.params, query, language: lang, region, page: 1 };
+      const noYearRes = await axios.get(`${TMDB_BASE}${endpoint}`, { headers: auth.headers, params: noYearParams, timeout: 8000 });
+      const noYearResults = noYearRes.data?.results || [];
+      if (noYearResults.length > 0) {
+        const seen = new Set(results.map(r => r.id));
+        result = pickBestResult(query, results.concat(noYearResults.filter(r => !seen.has(r.id))), year);
+      }
+    } catch {}
+  }
 
   if (result && titleScore(query, result) + yearBonus(parseInt(year, 10) || 0, result) < 90 && lang.split('-')[0] !== 'en') {
     const enParams = { ...auth.params, query, language: 'en-US', page: 1 };
@@ -719,4 +752,4 @@ async function getPopular(apiKey, apiType, lang = 'en-US', pages = 1) {
   }
 }
 
-module.exports = { searchMetadata, searchCandidates, searchPersonCredits, discoverByGenre, findByImdbId, getMetadata, imdbToTmdb, imdbToTmdbCached, findEpisodeByAirDate, getSeasonEpisodeCounts, titleScore, clearCaches, getTrending, getPopular, getImdbId, getMovieReleaseInfo };
+module.exports = { searchMetadata, searchCandidates, searchPersonCredits, discoverByGenre, findByImdbId, getMetadata, imdbToTmdb, imdbToTmdbCached, findEpisodeByAirDate, getSeasonEpisodeCounts, titleScore, pickBestResult, clearCaches, getTrending, getPopular, getImdbId, getMovieReleaseInfo };

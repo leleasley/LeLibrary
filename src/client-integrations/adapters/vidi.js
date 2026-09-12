@@ -1,0 +1,3 @@
+'use strict';
+const { protocolManifest } = require('../manifest');
+module.exports = { id: 'vidi', label: 'Vidi', status: 'testing', deepLinkScheme: 'vidi', manifestMode: 'stremio', manifest: ({ manifest }) => protocolManifest(manifest, { types: ['movie', 'series'], idPrefixes: ['torbox:', 'tt'] }), response: ({ route, body }) => route === 'stream' ? { ...body, streams: (body?.streams || []).filter(stream => /^https?:\/\//i.test(stream?.url || '')) } : body, capabilities: { resources: ['catalog', 'meta', 'stream'], types: ['movie', 'series'], nativeFolderPush: false, acceptsBaseUrl: false, search: true, directHttpStreams: true } };

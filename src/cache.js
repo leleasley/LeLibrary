@@ -103,21 +103,56 @@ function getRedisClient() {
 }
 
 async function get(key) {
+  const mirrored = getMemCache(key);
+  if (mirrored !== undefined) return mirrored;
   const client = getRedisClient();
   if (!client) {
-    const val = getMemCache(key);
-    if (val !== undefined) return val;
     return null;
   }
   try {
     const data = await client.get(key);
-    if (!data) return null;
-    return JSON.parse(data);
+    if (data === null) return null;
+    const value = JSON.parse(data);
+    // Redis does not expose the remaining TTL with GET. A short mirror keeps
+    // hot request paths local without allowing a worker to hold stale state
+    // for the full authoritative lifetime.
+    setMemCache(key, value, 60);
+    return value;
   } catch (err) {
     console.error(`[Cache] Error fetching ${key}:`, err.message);
     const val = getMemCache(key);
     return val !== undefined ? val : null;
   }
+}
+
+// One Redis round trip for a set of independent cache reads. The Map retains
+// key presence, so a deliberately cached `null` remains distinguishable from
+// a missing key (important for negative TMDB match caching).
+async function mget(keys) {
+  const unique = [...new Set((keys || []).map(String))];
+  const found = new Map();
+  const missing = [];
+  for (const key of unique) {
+    const value = getMemCache(key);
+    if (value !== undefined) found.set(key, value);
+    else missing.push(key);
+  }
+  if (!missing.length) return found;
+  const client = getRedisClient();
+  if (!client) return found;
+  try {
+    const rows = await client.mget(...missing);
+    rows.forEach((data, index) => {
+      if (data === null) return;
+      const key = missing[index];
+      const value = JSON.parse(data);
+      found.set(key, value);
+      setMemCache(key, value, 60);
+    });
+  } catch (err) {
+    console.error(`[Cache] Error fetching ${missing.length} keys:`, err.message);
+  }
+  return found;
 }
 
 async function set(key, value, ttl = 3600) {
@@ -165,6 +200,20 @@ async function delPattern(pattern) {
     console.error(`[Cache] Error deleting pattern ${pattern}:`, err.message);
     return 0;
   }
+}
+
+// Replace a group of rendered pages only after their new values have already
+// been built by the caller. This keeps stale pagination from surviving a
+// source change without exposing an empty projection while upstream work is
+// still running. The last-good `catlast:` namespace is deliberately outside
+// the caller's `cat:*` pattern and remains available if a later request fails.
+async function replacePattern(pattern, entries, defaultTtl = 3600) {
+  const pages = Array.isArray(entries) ? entries.filter(entry => (
+    entry && typeof entry.key === 'string' && entry.key && Object.hasOwn(entry, 'value')
+  )) : [];
+  if (!pages.length) throw new Error('replacePattern requires at least one cache entry');
+  await delPattern(pattern);
+  return Promise.all(pages.map(entry => set(entry.key, entry.value, entry.ttl || defaultTtl)));
 }
 
 // Extend TTL on all keys matching a glob pattern (does not touch values).
@@ -253,10 +302,12 @@ function makeKey(prefix, ...parts) {
 
 module.exports = {
   get,
+  mget,
   set,
   setMem,
   del,
   delPattern,
+  replacePattern,
   touchPattern,
   exists,
   expire,

@@ -331,12 +331,14 @@ function compareExternalProviderPriority(a, b) {
 // that made Comet/MediaFusion hide slower enabled addons such as Torrentio and
 // Jackettio. The response now includes every selected addon that answers
 // before the deadline.
-const EXTERNAL_TIME_BUDGET_MS = 15000;
-async function fetchExternalStreams(addonIds, config, type, ttId) {
+const EXTERNAL_TIME_BUDGET_MS = Math.max(4000, Math.min(15000, parseInt(process.env.EXTERNAL_STREAM_BUDGET_MS, 10) || 10000));
+async function fetchExternalStreams(addonIds, config, type, ttId, timeBudgetMs = EXTERNAL_TIME_BUDGET_MS) {
   const ids = Array.isArray(addonIds) ? addonIds.filter(id => ADDONS[id]) : [];
   if (ids.length === 0) return [];
   const normType = type === 'anime' ? 'series' : type;
-  const budgetMs = EXTERNAL_TIME_BUDGET_MS;
+  const budgetMs = Number.isFinite(timeBudgetMs)
+    ? Math.max(2000, Math.min(EXTERNAL_TIME_BUDGET_MS, timeBudgetMs))
+    : EXTERNAL_TIME_BUDGET_MS;
   const deadline = Date.now() + budgetMs;
 
   // Fetch in parallel, but assemble in the configured order. Appending each

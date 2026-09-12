@@ -16,6 +16,7 @@ const { getMetadata, getTrending, getPopular, imdbToTmdbCached } = require('./tm
 const { buildStreams, reformatExternalStream, enhanceMeta, buildErdbUrl, buildRpdbUrl, buildBetterPosterUrl, getFanartArt, applyStreamNotices } = require('./builder');
 const { fetchExternalStreams, compareExternalProviderPriority } = require('./streamAddons');
 const { normalizeImdbId } = require('./identity');
+const { matchCustomStreams } = require('./custom-streams');
 
 const TTL_CATALOG = parseInt(process.env.CACHE_TTL_CATALOG) || 3600;
 const TTL_STREAM  = parseInt(process.env.CACHE_TTL_STREAM)  || 600;
@@ -37,12 +38,13 @@ function hashShort(s) {
 // tmdbId. Mirrors enhanceMeta's precedence: erdb > rpdb > betterposter > fanart.
 async function enhanceDiscoveryMetas(metas, enhance = {}) {
   if (!Array.isArray(metas) || metas.length === 0) return metas;
-  const { erdbToken, rpdbKey, fanartKey, posterProvider } = enhance;
-  if (!erdbToken && !rpdbKey && fanartKey === undefined && posterProvider !== 'betterposter') return metas;
+  const { erdbToken, rpdbKey, fanartKey, posterProvider, customPosterTemplate } = enhance;
+  if (!erdbToken && !rpdbKey && fanartKey === undefined && !['betterposter', 'custom'].includes(posterProvider)) return metas;
   return Promise.all(metas.map(async (m) => {
     if (!m || typeof m !== 'object') return m;
     const imdbId = normalizeImdbId(m.id);
     const type = m.type === 'movie' ? 'movie' : 'tv';
+    if (posterProvider === 'custom') return require('../website/public/poster-template').apply({ ...m, imdbId }, customPosterTemplate);
     if (erdbToken && imdbId) return { ...m, poster: buildErdbUrl(erdbToken, 'poster', imdbId) };
     if (rpdbKey && imdbId) return { ...m, poster: buildRpdbUrl(rpdbKey, 'imdb', 'poster-default', imdbId) };
     if (posterProvider === 'betterposter' && imdbId) return { ...m, poster: buildBetterPosterUrl(imdbId, m.type), posterShape: 'poster' };
@@ -81,22 +83,34 @@ async function buildDiscoveryCatalog({ tmdbApiKey, kind, apiType, lang, userKey,
 // top. Falls back to the TMDB-built meta if the addon is unreachable.
 const TMDB_ADDON_BASE = 'https://tmdb.elfhosted.com';
 const TMDB_ADDON_TTL  = 24 * 60 * 60;
+const TMDB_ADDON_LKG_TTL = 7 * 24 * 60 * 60;
+const tmdbAddonHealth = { failures: 0, retryAfter: 0 };
 
 async function getTmdbAddonMeta(type, tmdbId) {
   if (!tmdbId) return null;
   const cacheKey = cache.makeKey('meta', 'tmdbaddon', type, tmdbId);
+  const lastGoodKey = cache.makeKey('meta', 'tmdbaddon-lkg', type, tmdbId);
   const hit = await cache.get(cacheKey);
   if (hit) return hit;
+  const lastGood = await cache.get(lastGoodKey);
+  if (tmdbAddonHealth.retryAfter > Date.now()) return lastGood || null;
   const stremioType = type === 'movie' ? 'movie' : 'series';
   try {
-    const res = await axios.get(`${TMDB_ADDON_BASE}/meta/${stremioType}/tmdb%3A${tmdbId}.json`, { timeout: 10000 });
+    const res = await axios.get(`${TMDB_ADDON_BASE}/meta/${stremioType}/tmdb%3A${tmdbId}.json`, { timeout: 5000 });
     const meta = res.data && res.data.meta;
-    if (!meta || !meta.id) return null;
-    await cache.set(cacheKey, meta, TMDB_ADDON_TTL);
+    if (!meta || !meta.id) return lastGood || null;
+    tmdbAddonHealth.failures = 0;
+    tmdbAddonHealth.retryAfter = 0;
+    await Promise.all([
+      cache.set(cacheKey, meta, TMDB_ADDON_TTL),
+      cache.set(lastGoodKey, meta, TMDB_ADDON_LKG_TTL),
+    ]);
     return meta;
   } catch (err) {
+    tmdbAddonHealth.failures += 1;
+    if (tmdbAddonHealth.failures >= 3) tmdbAddonHealth.retryAfter = Date.now() + 2 * 60 * 1000;
     console.error(`[TmdbAddon] meta fetch failed for tmdb:${tmdbId}:`, err.message);
-    return null;
+    return lastGood || null;
   }
 }
 
@@ -277,43 +291,59 @@ function discoveryStreamKeyParts(config = {}) {
   return { filters, sortKey, fmtFp };
 }
 
-async function buildDiscoveryStreams({ config, tmdbApiKey, type, id, lang, customStreams, userKey, externalAddons }) {
+async function buildDiscoveryStreams({ config, tmdbApiKey, type, id, lang, customStreams, userKey, externalAddons, requestPolicy, runtime = {} }) {
+  const mapImdb = runtime.imdbToTmdbCached || imdbToTmdbCached;
+  const buildOwnedStreams = runtime.buildStreams || buildStreams;
+  const fetchExternal = runtime.fetchExternalStreams || fetchExternalStreams;
+  const addNotices = runtime.applyStreamNotices || applyStreamNotices;
+  const streamCache = runtime.cache || cache;
   const parts = String(id).split(':');
   const imdbId = parts[0];
   const season = parts[1];
   const episode = parts[2];
-  const mapped = await imdbToTmdbCached(tmdbApiKey, imdbId);
-  if (!mapped) return { streams: [], ownedCount: 0, externalCount: 0 };
-  const tmdbId = mapped.tmdbId;
+  const customMatch = matchCustomStreams(customStreams, { type, id, season, episode, config });
+  const mapped = tmdbApiKey ? await mapImdb(tmdbApiKey, imdbId) : null;
+  const tmdbId = mapped?.tmdbId;
+  const noticeConfig = providers.activeProviders(config).length > 0 || externalAddons.length > 0
+    ? config
+    : { ...config, streamNotices: 'off' };
 
   const { filters, sortKey, fmtFp } = discoveryStreamKeyParts(config);
 
   // Owned bridge: the user's library copy is ALWAYS listed for a tt: id, even
   // when no external stream addons are configured. (v4.6.0 accidentally gated
   // this behind externalAddons.length > 0: see regressions/4.6.0.)
-  const ownedKey = cache.makeKey('stream', type, tmdbId, season || '', episode || '', userKey + fmtFp);
-  const ownedPromise = cache.get(ownedKey).then(async ownedHit => {
-    if (ownedHit) return ownedHit.streams || [];
-    // skipTmdbFallback: the discovery owned-bridge only answers "do I own this?"
-    //: it must NOT trigger the slow per-candidate TMDB search (that's for the
-    // library path). Cached downloads + cached matches make this near-instant.
-    const streams = await buildStreams(config, tmdbApiKey, type, tmdbId, season, episode, lang, customStreams, userKey, { skipTmdbFallback: true });
-    await cache.set(ownedKey, { streams }, streams.length > 0 ? TTL_STREAM : 60);
-    return streams;
-  });
+  const ownedPromise = mapped && userKey && providers.activeProviders(config).length > 0
+    ? (() => {
+        const ownedKey = streamCache.makeKey('stream', type, tmdbId, season || '', episode || '', userKey + fmtFp);
+        return streamCache.get(ownedKey).then(async ownedHit => {
+          if (ownedHit) return ownedHit.streams || [];
+          // Custom mappings are appended after external streams below. Keep
+          // this owned-only bridge free of mapping rows so they cannot be
+          // duplicated or sorted into the owned block.
+          const streams = await buildOwnedStreams(config, tmdbApiKey, type, tmdbId, season, episode, lang, [], userKey, { skipTmdbFallback: true, imdbId });
+          const hasTransientNotice = streams.some(stream => stream?._transientNotice);
+          const hasRealStream = streams.some(stream => stream && !stream._notice);
+          await streamCache.set(ownedKey, { streams }, hasTransientNotice || !hasRealStream ? 60 : TTL_STREAM);
+          return streams;
+        });
+      })()
+    : Promise.resolve([]);
   // Start upstream fetching before the owned lookup finishes. These are fully
   // independent after IMDb→TMDB resolution, so serialising them only adds cold
   // request latency.
   const externalPromise = externalAddons.length > 0
-    ? fetchExternalStreams(externalAddons, config, type, id)
+    ? fetchExternal(externalAddons, config, type, id, requestPolicy?.externalMs)
     : Promise.resolve([]);
   const [ownedStreams, allExternal] = await Promise.all([ownedPromise, externalPromise]);
 
-  // No external addons configured: only the owned copy can answer.
+  // No external addons configured: owned copies stay first, followed by exact
+  // personal mappings and then backward-compatible global rows.
   if (externalAddons.length === 0) {
     const owned = sortKey ? applyStreamSort(ownedStreams, sortKey) : ownedStreams;
-    const noticed = await applyStreamNotices(owned, { config, tmdbApiKey, tmdbId, type });
-    return { streams: noticed, ownedCount: owned.length, externalCount: 0 };
+    const streams = [...owned, ...customMatch.exact, ...customMatch.global];
+    const noticed = await addNotices(streams, { config: noticeConfig, tmdbApiKey, tmdbId, type });
+    return { streams: noticed, ownedCount: owned.length, externalCount: 0, customCount: customMatch.streams.length };
   }
 
   // Tag owned streams so dedup prefers them and they're always "cached".
@@ -333,9 +363,16 @@ async function buildDiscoveryStreams({ config, tmdbApiKey, type, id, lang, custo
 
   let streams = dedupeStreamsV2([...ownedTagged, ...externalFmt]);
   if (sortKey) streams = applyStreamSort(streams, sortKey);
-  streams = await applyStreamNotices(streams, { config, tmdbApiKey, tmdbId, type });
+  const existingUrls = new Set(streams.map(stream => stream?.url).filter(Boolean));
+  const personal = [...customMatch.exact, ...customMatch.global].filter(stream => {
+    if (!stream.url || existingUrls.has(stream.url)) return false;
+    existingUrls.add(stream.url);
+    return true;
+  });
+  streams.push(...personal);
+  streams = await addNotices(streams, { config: noticeConfig, tmdbApiKey, tmdbId, type });
 
-  return { streams, ownedCount: ownedStreams.length, externalCount: allExternal.length };
+  return { streams, ownedCount: ownedStreams.length, externalCount: allExternal.length, customCount: personal.length };
 }
 
 module.exports = { buildDiscoveryCatalog, buildDiscoveryMeta, buildDiscoveryStreams, discoveryStreamKeyParts, applyStreamSort };

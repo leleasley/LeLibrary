@@ -51,17 +51,18 @@
     return (h>>>0).toString(36);
   }
   function posterFp(config) {
-    var erdbToken='', rpdbKey='', fanartKey='', omdbKey='', posterProvider='', eb=false, el=false;
+    var erdbToken='', rpdbKey='', fanartKey='', omdbKey='', posterProvider='', customPosterTemplate='', eb=false, el=false;
     if (config) {
       erdbToken = config.erdbToken || '';
       rpdbKey = config.rpdbKey || '';
       fanartKey = config.fanartKey || '';
       omdbKey = config.omdbKey || '';
       posterProvider = config.posterProvider || '';
+      customPosterTemplate = config.customPosterTemplate || '';
       eb = !!config.enhanceBackground;
       el = !!config.enhanceLogo;
     }
-    return hashShort([posterProvider, erdbToken, rpdbKey, fanartKey, omdbKey, eb?1:0, el?1:0].join('|'));
+    return hashShort([posterProvider, erdbToken, rpdbKey, fanartKey, omdbKey, customPosterTemplate, eb?1:0, el?1:0].join('|'));
   }
 
   // Build a full config object from wizard form state.
@@ -96,7 +97,7 @@
 
   var defaults = {
     provider: 'none', rdCatalog: 'merge', sortBy: 'data_adicao', lang: 'en-US',
-    posterProvider: '', streamPreset: 'lelibrary', streamSort: '',
+    posterProvider: '', customPosterTemplate: '', streamPreset: 'lelibrary', streamSort: '',
     catalogTrendingMovies: false, catalogTrendingSeries: false,
     catalogPopularMovies: false, catalogPopularSeries: false,
     catalogMovies: true, catalogSeries: true, catalogAnime: true, catalogFranchises: true,

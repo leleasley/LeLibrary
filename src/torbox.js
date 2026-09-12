@@ -32,6 +32,7 @@ const TB_REQUESTDL_RATE = parseInt(process.env.TORBOX_REQUESTDL_RATE, 10) || 30;
 const TB_REQUESTDL_BURST = Math.max(1, parseInt(process.env.TORBOX_REQUESTDL_BURST, 10) || 3);
 const TB_REQUESTDL_MAX_CONCURRENT = Math.max(1, parseInt(process.env.TORBOX_REQUESTDL_MAX_CONCURRENT, 10) || 2);
 const TB_REQUESTDL_MAX_ACCOUNTS = 1000;
+const TB_REQUESTDL_COOLDOWN_PREFIX = 'provider-cooldown';
 
 function createRequestDlLimiter({ ratePerMinute = TB_REQUESTDL_RATE, burst = TB_REQUESTDL_BURST, maxConcurrent = TB_REQUESTDL_MAX_CONCURRENT, now = () => Date.now(), sleep = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
   const gates = new Map();
@@ -106,6 +107,52 @@ function requestDlIdentity(apiKey) {
 }
 
 const requestDlLimiter = createRequestDlLimiter();
+const requestDlCooldownChecks = new Map();
+const requestDlCooldownLoads = new Map();
+
+function requestDlCooldownKey(cache, identity) {
+  return cache.makeKey(TB_REQUESTDL_COOLDOWN_PREFIX, 'torbox', identity);
+}
+
+function normalizePlaybackCooldown(cooldownUntil, now = Date.now()) {
+  const retryAfterSec = Math.max(0, Math.ceil((Number(cooldownUntil) - now) / 1000));
+  return retryAfterSec > 0
+    ? { provider: 'torbox', rateLimited: true, retryAfterSec }
+    : null;
+}
+
+// Restore the anonymous per-account cooldown from Redis before creating a new
+// requestdl URL. This prevents a process restart from immediately hitting a
+// provider that has already asked this account to back off. The cached value
+// contains only an expiry timestamp under a non-reversible key hash.
+async function getTorBoxPlaybackStatus(apiKey) {
+  if (!apiKey) return null;
+  const cache = require('./cache');
+  const identity = requestDlIdentity(apiKey);
+  const local = normalizePlaybackCooldown(requestDlLimiter.status(identity).cooldownUntil);
+  if (local) return local;
+
+  // A missing cooldown is the normal case. Remember that miss briefly and
+  // coalesce the first Redis lookup so one playback screen does not add a
+  // cache read for every candidate file.
+  if (Date.now() - (requestDlCooldownChecks.get(identity) || 0) < 60_000) return null;
+  let pending = requestDlCooldownLoads.get(identity);
+  if (!pending) {
+    pending = (async () => {
+      const stored = await cache.get(requestDlCooldownKey(cache, identity));
+      const restored = normalizePlaybackCooldown(stored?.cooldownUntil);
+      if (restored) requestDlLimiter.cooldown(identity, restored.retryAfterSec * 1000);
+      requestDlCooldownChecks.set(identity, Date.now());
+      return restored;
+    })();
+    requestDlCooldownLoads.set(identity, pending);
+  }
+  try {
+    return await pending;
+  } finally {
+    if (requestDlCooldownLoads.get(identity) === pending) requestDlCooldownLoads.delete(identity);
+  }
+}
 
 function tbRefill() {
   const now = Date.now();
@@ -324,9 +371,7 @@ async function getTorBoxDownloads(apiKey) {
   const knownStateKeys = ['id','name','hash','size','torrent_name','files','download_state','download_finished','download_present','seeders','leechers','ratio',' seeds','peers','progress','download_speed','upload_speed','eta','abort','active','last_state_change','created_at','updated_at','source'];
   const unknownKeys = [...allKeys].filter(k => !knownStateKeys.includes(k) && !k.startsWith('cached'));
   if (unknownKeys.length > 0 && items.length > 0) {
-    console.log(`[TorBox] Download extra fields: ${unknownKeys.join(', ')}`);
-    // Sample: dump availability, error, tracker_message for first 3 items
-    items.slice(0, 3).forEach(i => console.log(`  SAMPLE id=${i.id} availability=${JSON.stringify(i.availability)} error=${JSON.stringify(i.error)} tracker_message=${JSON.stringify(i.tracker_message)?.substring(0, 80)}`));
+    console.log(`[TorBox] Download schema includes ${unknownKeys.length} extra field(s)`);
   }
 
   const completed = items.filter(i => {
@@ -360,6 +405,7 @@ async function getTorBoxDownloads(apiKey) {
 // file on every stream build. requestdl uses its own stricter 429 backoff so
 // playback throttling cannot block catalogue/list requests.
 const TBDL_TTL = 21600; // requestdl links are temporary URLs; safe to reuse for 6h
+const requestDlInFlight = new Map();
 
 function tbdHash(s) {
   let h = 0;
@@ -372,6 +418,19 @@ async function getTorBoxStreamLink(apiKey, source, itemId, fileId) {
   const ck = cache.makeKey('tbdl', tbdHash(apiKey), source, itemId, fileId);
   const cached = await cache.get(ck);
   if (cached) return cached;
+
+  const existing = requestDlInFlight.get(ck);
+  if (existing) return existing;
+  const pending = requestTorBoxStreamLink(apiKey, source, itemId, fileId, cache, ck);
+  requestDlInFlight.set(ck, pending);
+  try {
+    return await pending;
+  } finally {
+    if (requestDlInFlight.get(ck) === pending) requestDlInFlight.delete(ck);
+  }
+}
+
+async function requestTorBoxStreamLink(apiKey, source, itemId, fileId, cache, ck) {
 
   const endpoint = source === 'torrent'
     ? `${TORBOX_BASE}/torrents/requestdl`
@@ -386,6 +445,7 @@ async function getTorBoxStreamLink(apiKey, source, itemId, fileId) {
     : { token: apiKey, usenet_id: itemId,  file_id: fileId, zip_link: false };
 
   const limiterIdentity = requestDlIdentity(apiKey);
+  await getTorBoxPlaybackStatus(apiKey);
   // Cache lookup deliberately happens before this queue: a six-hour cached
   // playback link is free and should never wait behind new link creation.
   const permitted = await requestDlLimiter.acquire(limiterIdentity);
@@ -418,6 +478,13 @@ async function getTorBoxStreamLink(apiKey, source, itemId, fileId) {
       const retryAfter = parseInt(err.response?.headers?.['retry-after'], 10);
       const backoff = (retryAfter && retryAfter > 0 ? retryAfter : 300) * 1000;
       requestDlLimiter.cooldown(limiterIdentity, backoff);
+      requestDlCooldownChecks.set(limiterIdentity, Date.now());
+      const cooldownUntil = Date.now() + backoff;
+      await cache.set(
+        requestDlCooldownKey(cache, limiterIdentity),
+        { cooldownUntil },
+        Math.max(1, Math.ceil(backoff / 1000))
+      );
       console.error(`[TorBox] requestdl 429: this account paused for ${Math.round(backoff / 1000)}s (${source} id=${itemId} file=${fileId})`);
     } else {
       const body = err.response?.data?.detail || err.response?.data?.message || err.response?.data?.error || '';
@@ -479,7 +546,7 @@ function isJunkVideo(name = '') {
   return false;
 }
 
-module.exports = { getTorBoxDownloads, getTorBoxStreamLink, getTorBoxFiles, isVideoFile, isJunkVideo, torboxRateStatus };
+module.exports = { getTorBoxDownloads, getTorBoxStreamLink, getTorBoxFiles, getTorBoxPlaybackStatus, isVideoFile, isJunkVideo, torboxRateStatus };
 
 function torboxRateStatus() {
   return {
@@ -494,4 +561,4 @@ function torboxRateStatus() {
 
 // Exported only for deterministic unit tests; runtime callers use the module
 // singleton above and never receive raw API-key material.
-module.exports.__test = { createRequestDlLimiter, requestDlIdentity };
+module.exports.__test = { createRequestDlLimiter, requestDlIdentity, normalizePlaybackCooldown };

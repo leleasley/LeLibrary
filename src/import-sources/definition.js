@@ -2,8 +2,9 @@ const crypto = require('crypto');
 
 const SCHEMA_VERSION = 1;
 const PROVIDER_ENGINES = Object.freeze({
-  tmdb: new Set(['discover', 'list', 'collection']),
+  tmdb: new Set(['discover', 'list', 'collection', 'trending']),
   trakt: new Set(['list']),
+  mdblist: new Set(['list']),
 });
 
 const DISCOVER_FILTERS = new Set([
@@ -17,7 +18,10 @@ const DISCOVER_FILTERS = new Set([
   'first_air_date.gte', 'first_air_date.lte',
   'year', 'first_air_date_year',
   'with_watch_providers', 'without_watch_providers', 'watch_region',
+  'with_watch_monetization_types', 'with_release_type',
+  'with_status', 'with_type', 'region',
   'with_runtime.gte', 'with_runtime.lte',
+  'certification_country', 'certification', 'primary_release_year',
   'include_adult', 'include_video',
 ]);
 
@@ -77,15 +81,20 @@ function normalizeIdExpression(value, label) {
 function normalizeFilterValue(key, value) {
   if (['with_genres', 'without_genres', 'with_keywords', 'without_keywords',
     'with_companies', 'without_companies', 'with_networks', 'with_cast',
-    'with_crew', 'with_people', 'with_watch_providers', 'without_watch_providers'].includes(key)) {
+    'with_crew', 'with_people', 'with_watch_providers', 'without_watch_providers', 'with_release_type', 'with_status', 'with_type'].includes(key)) {
     return normalizeIdExpression(value, key);
   }
   if (key === 'with_original_language') {
     const clean = String(value).trim().toLowerCase();
-    if (!/^[a-z]{2,3}$/.test(clean)) throw new ImportedSourceValidationError('Invalid original language');
+    if (!/^[a-z]{2,3}(?:\|[a-z]{2,3})*$/.test(clean)) throw new ImportedSourceValidationError('Invalid original language');
     return clean;
   }
-  if (key === 'with_origin_country' || key === 'watch_region') {
+  if (key === 'with_origin_country') {
+    const clean = String(value).trim().toUpperCase();
+    if (!/^[A-Z]{2}(?:\|[A-Z]{2})*$/.test(clean)) throw new ImportedSourceValidationError('Invalid origin country');
+    return clean;
+  }
+  if (key === 'watch_region' || key === 'certification_country' || key === 'region') {
     const clean = String(value).trim().toUpperCase();
     if (!/^[A-Z]{2}$/.test(clean)) throw new ImportedSourceValidationError(`Invalid ${key}`);
     return clean;
@@ -99,6 +108,17 @@ function normalizeFilterValue(key, value) {
     return clean;
   }
   if (key === 'year' || key === 'first_air_date_year') return boundedNumber(value, key, 1870, 2200, true);
+  if (key === 'primary_release_year') return boundedNumber(value, key, 1870, 2200, true);
+  if (key === 'with_watch_monetization_types') {
+    const clean = String(value).trim().toLowerCase();
+    if (!/^(?:flatrate|free|ads|rent|buy)(?:\|(?:flatrate|free|ads|rent|buy))*$/.test(clean)) throw new ImportedSourceValidationError('Invalid watch monetization types');
+    return clean;
+  }
+  if (key === 'certification') {
+    const clean = String(value).trim().toUpperCase();
+    if (!/^[A-Z0-9-]{1,12}(?:\|[A-Z0-9-]{1,12})*$/.test(clean)) throw new ImportedSourceValidationError('Invalid certification');
+    return clean;
+  }
   if (key === 'vote_average.gte' || key === 'vote_average.lte') return boundedNumber(value, key, 0, 10);
   if (key === 'vote_count.gte') return boundedNumber(value, key, 0, 10000000, true);
   if (key === 'with_runtime.gte' || key === 'with_runtime.lte') return boundedNumber(value, key, 0, 1440, true);
@@ -124,6 +144,7 @@ function normalizeDiscoverParams(params, mediaType) {
   if (!Object.prototype.hasOwnProperty.call(normalized, 'include_adult')) normalized.include_adult = false;
   if (mediaType === 'movie' && !Object.prototype.hasOwnProperty.call(normalized, 'include_video')) normalized.include_video = false;
   if ((normalized.with_watch_providers || normalized.without_watch_providers) && !normalized.watch_region) normalized.watch_region = 'US';
+  if (normalized.with_watch_providers && !normalized.with_watch_monetization_types) normalized.with_watch_monetization_types = 'flatrate|free|ads|rent|buy';
   return { sortBy, filters: normalized };
 }
 
@@ -142,6 +163,9 @@ function normalizeSemanticDefinition(input) {
   let params;
   if (provider === 'tmdb' && engine === 'discover') {
     params = normalizeDiscoverParams(rawParams, mediaType);
+  } else if (provider === 'tmdb' && engine === 'trending') {
+    ownKeys(rawParams, new Set(), 'trending params');
+    params = {};
   } else if (provider === 'tmdb' && engine === 'collection') {
     if (mediaType !== 'movie') throw new ImportedSourceValidationError('TMDB collections are movie-only');
     ownKeys(rawParams, new Set(['collectionId']), 'collection params');

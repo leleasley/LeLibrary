@@ -1037,6 +1037,7 @@
       comet:       { id: 'comet',       shortName: 'CM', name: 'Comet' },
       meteor:      { id: 'meteor',      shortName: 'ME', name: 'Meteor' },
       mediafusion: { id: 'mediafusion', shortName: 'MF', name: 'MediaFusion' },
+      custom:      { id: 'custom',      shortName: 'CS', name: 'Custom Stream' },
     }[source] || { id: 'torbox', shortName: 'TB', name: 'TorBox' };
 
     const emptyLists = { languages, subtitles, languageEmojis, subtitleEmojis };
@@ -1068,7 +1069,7 @@
         seeders: null,
         age: null,
         ageHours: null,
-        type: 'debrid',
+        type: opts.streamType || 'debrid',
         proxied: false,
         private: false,
         freeleech: null,

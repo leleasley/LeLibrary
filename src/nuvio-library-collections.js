@@ -97,10 +97,10 @@ function mergeCollectionsInPlace(existing, generated, { removeMissing = () => fa
     const id = String(item?.id);
     return id !== LIBRARY_COLLECTION_ID && id !== LELIBRARY_HUB_ID;
   });
-  // A Hub by itself remains a normal user-positioned collection. Pairing it
-  // with the generated franchise collection makes a deliberate LeLibrary
-  // section at the bottom of the Nuvio Collections page.
-  const tail = franchise ? [...(hub ? [{ ...hub, pinToTop: false }] : []), franchise] : (hub ? [hub] : []);
+  // LeLibrary's own library views always form the final section. The Hub sits
+  // immediately above Movie Collections when both are enabled, and neither
+  // may float back to the top through a stale pinToTop value.
+  const tail = [...(hub ? [{ ...hub, pinToTop: false }] : []), ...(franchise ? [franchise] : [])];
   return [...out, ...others, ...tail];
 }
 

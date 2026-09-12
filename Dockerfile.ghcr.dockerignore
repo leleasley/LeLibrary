@@ -1,0 +1,41 @@
+# The GHCR build starts from an empty context and admits only public runtime
+# files. Keep the explicit hosted-file exclusions below as a second guard.
+*
+!package.json
+!package-lock.json
+!index.js
+!app.js
+!src/**
+!website/**
+!README.md
+!LICENSE
+
+# Hosted/operator-only files are never part of the public image.
+src/accounts/
+src/registry.js
+src/hosted.js
+website/index.js
+website/landing.html
+website/privacy.html
+website/status.html
+website/sitemap.xml
+website/account/
+website/public/my-library/
+website/public/backgrounds/
+
+# Development, test, documentation, secrets and repository state.
+test/
+Docs/
+.git/
+.github/
+.env
+.env.*
+!.env.example
+compose.yml
+node_modules/
+npm-debug.log*
+*.pem
+*.key
+*.crt
+*.sqlite*
+*.db

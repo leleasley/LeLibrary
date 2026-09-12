@@ -16,7 +16,6 @@ compose.yml
 
 # Dependencies
 node_modules/
-package-lock.json
 
 # Disk-persisted cache
 /tmp/torbox-tmdb-cache.json

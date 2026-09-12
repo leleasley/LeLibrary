@@ -5,7 +5,7 @@ const LIMIT = 20;
 const CACHE_TTL = 300;
 
 function normalize(value) {
-  return String(value || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  return String(value || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
 }
 
 // Standard TMDB genre ids by normalized genre name. `movie`/`tv` hold the
@@ -37,6 +37,7 @@ const GENRES = {
 
 function resultScore(query, item) {
   const q = normalize(query);
+  if (!q) return 0;
   const primary = normalize(item.title || item.name || item.original_title || item.original_name);
   const names = [primary].filter(Boolean);
   let best = 0;
@@ -86,15 +87,16 @@ function pLimit(tasks, limit = 6) {
 
 function buildRow(item, type) {
   const date = item.release_date || item.first_air_date || '';
+  const released = date ? new Date(date) : null;
   const row = {
     type: type === 'series' ? 'series' : 'movie',
     name: item.title || item.name || item.original_title || item.original_name,
-    poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
+    poster: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : null,
     background: item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : null,
     posterShape: 'poster',
     releaseInfo: date.slice(0, 4) || undefined,
     year: date.slice(0, 4) || undefined,
-    released: date ? new Date(date).toISOString() : undefined,
+    released: released && Number.isFinite(released.getTime()) ? released.toISOString() : undefined,
     description: item.overview || undefined,
     tmdbId: item.id || undefined,
     _score: 0,
@@ -113,8 +115,13 @@ function rankRows(rows) {
 }
 
 function cleanRows(rows) {
+  const seen = new Set();
   return rows
-    .filter(r => r && r.id)
+    .filter(r => {
+      if (!r || !r.id || seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    })
     .map(({ _score, _pop, _votes, ...result }) => result);
 }
 
@@ -137,7 +144,7 @@ async function resolveRows(apiKey, items, type, apiType, lang, q, scored) {
 
 async function enhanceSearchRows(rows, enhance = {}) {
   if (!Array.isArray(rows) || !rows.length) return rows;
-  if (!enhance.erdbToken && !enhance.rpdbKey && !enhance.omdbKey && !enhance.fanartKey && enhance.posterProvider !== 'betterposter') return rows;
+  if (!enhance.erdbToken && !enhance.rpdbKey && !enhance.omdbKey && !enhance.fanartKey && !['betterposter', 'custom'].includes(enhance.posterProvider)) return rows;
   // Lazy-load the enhancement module: its library-cache housekeeping interval
   // is unnecessary for plain search/unit-test calls.
   const { enhanceMeta } = require('./builder');
@@ -155,10 +162,13 @@ async function searchCatalog({ apiKey, query, type, lang = 'en-US', limit = LIMI
   const metaType = type === 'series' ? 'series' : 'movie';
 
   const q = normalize(raw);
+  if (!q) return [];
+  limit = Number.isSafeInteger(limit) && limit > 0 ? Math.min(limit, 100) : LIMIT;
+  // v4 preserves non-Latin queries and isolates different result limits.
   // v3 separates results by a poster/rating fingerprint. The old shared cache
   // could return plain TMDB posters to a configured user (or leak a provider
   // URL in the other direction).
-  const keyParts = (variant) => cache.makeKey('search3', apiType, lang, enhanceFingerprint, variant, q);
+  const keyParts = (variant) => cache.makeKey('search4', apiType, lang, enhanceFingerprint, limit, variant, q);
   const cached = (key) => cache.get(key).then(hit => (Array.isArray(hit) ? hit : null));
   const store = (key, rows) => cache.set(key, cleanRows(rows).slice(0, limit), CACHE_TTL);
   const finalize = (key, rows) => {
@@ -213,7 +223,7 @@ async function searchCatalog({ apiKey, query, type, lang = 'en-US', limit = LIMI
         if (bestTitleScore(text, withoutYear) > withYearBest) candidates = withoutYear;
       }
     }
-    let rows = await resolveRows(apiKey, candidates, type, apiType, lang, q, true);
+    let rows = await resolveRows(apiKey, candidates, type, apiType, lang, text, true);
 
     // Person fallback: multi-word queries with no exact title match ("tom hanks").
     // Person-driven rows are merged BELOW title matches (they carry _score 0), so

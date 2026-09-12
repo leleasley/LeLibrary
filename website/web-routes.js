@@ -3,6 +3,8 @@ const express = require('express');
 const fs = require('fs');
 const crypto = require('crypto');
 const { decodeConfig } = require('../src/config/token');
+const { validateCustomStreamsConfig } = require('../src/custom-streams');
+const { MAX_UPSTREAM_BYTES: NUVIO_COMMUNITY_MAX_BYTES, listParams: nuvioCommunityListParams, failurePayload: nuvioCommunityFailurePayload, compactListPayload: compactNuvioCommunityList } = require('../src/nuvio-community');
 
 const WEBSITE_DIR = path.resolve(__dirname);
 const PUBLIC_DIR = path.join(WEBSITE_DIR, 'public');
@@ -224,8 +226,12 @@ function createWebRoutes(resolveConfig, options = {}) {
   }
   function nuvioCommunityError(res, err) {
     const status = Number(err.response?.status || 0);
-    if (status === 401 || status === 403) return res.status(401).json({ error: 'Your Nuvio session has expired. Reconnect Nuvio and try again.' });
-    return res.status(502).json({ error: 'Could not load Nuvio public collections right now.' });
+    if (status === 429) {
+      const retryAfter = String(err.response?.headers?.['retry-after'] || '60').replace(/[^0-9]/g, '') || '60';
+      res.setHeader('Retry-After', retryAfter);
+    }
+    const failure = nuvioCommunityFailurePayload({ status, code: err.code || err.cause?.code });
+    return res.status(failure.status).json({ error: failure.error, code: failure.code });
   }
   function nuvioCommunityHeaders(token) {
     return { Authorization: `Bearer ${token}`, Accept: 'application/json' };
@@ -233,22 +239,17 @@ function createWebRoutes(resolveConfig, options = {}) {
   router.get('/api/nuvio-community/collections', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) => {
     const token = nuvioCommunityToken(req);
     if (!token) return res.status(401).json({ error: 'Connect Nuvio before browsing public collections.' });
-    const sort = ['recent', 'popular', 'installed'].includes(String(req.query.sort)) ? String(req.query.sort) : 'popular';
-    const type = ['all', 'pack', 'individual'].includes(String(req.query.type)) ? String(req.query.type) : 'all';
-    const page = Math.min(Math.max(parseInt(req.query.page, 10) || 1, 1), 100);
-    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 24, 1), 48);
-    const search = String(req.query.search || '').trim().slice(0, 120);
     try {
       const axios = require('axios');
       const response = await axios.get('https://nuvio.tv/api/community-collections', {
         headers: nuvioCommunityHeaders(token),
-        params: { sort, type, page, limit, ...(search ? { search } : {}) },
+        params: nuvioCommunityListParams(req.query),
         timeout: 20000,
-        maxContentLength: 5 * 1024 * 1024,
+        maxContentLength: NUVIO_COMMUNITY_MAX_BYTES,
         validateStatus: status => status >= 200 && status < 300,
       });
       res.setHeader('Cache-Control', 'no-store');
-      res.json(response.data);
+      res.json(compactNuvioCommunityList(response.data));
     } catch (err) {
       nuvioCommunityError(res, err);
     }
@@ -263,7 +264,7 @@ function createWebRoutes(resolveConfig, options = {}) {
       const response = await axios.get(`https://nuvio.tv/api/community-collections/${encodeURIComponent(id)}`, {
         headers: nuvioCommunityHeaders(token),
         timeout: 20000,
-        maxContentLength: 5 * 1024 * 1024,
+        maxContentLength: NUVIO_COMMUNITY_MAX_BYTES,
         validateStatus: status => status >= 200 && status < 300,
       });
       res.setHeader('Cache-Control', 'no-store');
@@ -308,8 +309,14 @@ function createWebRoutes(resolveConfig, options = {}) {
     const bodyBytes = Number(req.headers['content-length'] || 0) || '?';
     const saveFail = (status, reason) => console.error(`[Web] POST /api/save-config → ${status}: ${reason} (body ${bodyBytes}B)`);
     try {
-      const config = req.body && req.body.config;
+      let config = req.body && req.body.config;
       if (!config || typeof config !== 'object') { saveFail(400, 'Missing config'); return res.status(400).json({ error: 'Missing config' }); }
+      config = validateCustomStreamsConfig(config);
+      if (config.posterProvider === 'custom') {
+        const checked = require('./public/poster-template').validate(config.customPosterTemplate);
+        if (!checked.ok) { saveFail(400, checked.error); return res.status(400).json({ error: checked.error }); }
+        config.customPosterTemplate = checked.value;
+      }
       const providers = require('../src/providers');
       const tokenId = req.body && req.body.token;
       let configForStore = config;
@@ -344,11 +351,18 @@ function createWebRoutes(resolveConfig, options = {}) {
         }
       }
       const userKey = await require('../src/configstore').saveStreamSettings(configForStore);
+      // Providerless legacy installs carry their bounded mapping table inside
+      // the self-contained install token. Validation above is still required,
+      // but there is intentionally no server-side scope to persist here.
+      if (!userKey && Array.isArray(configForStore.customStreams) && configForStore.customStreams.length > 0) {
+        return res.json({ ok: true, selfContained: true });
+      }
       if (!userKey) { saveFail(400, 'no usable API keys in config'); return res.status(400).json({ error: 'Config has no usable API keys' }); }
       res.json({ ok: true, userKey });
     } catch (err) {
-      saveFail(500, err.message);
-      res.status(500).json({ error: err.message });
+      const status = err.statusCode || 500;
+      saveFail(status, err.message);
+      res.status(status).json({ error: err.message, ...(err.details ? { details: err.details } : {}) });
     }
   });
 
@@ -361,7 +375,9 @@ function createWebRoutes(resolveConfig, options = {}) {
       if (!config) return res.status(400).json({ error: 'Invalid token' });
       const providers = require('../src/providers');
       const userKey = providers.getUserKey(config);
-      const stored = userKey ? await require('../src/configstore').loadStreamSettings(config) : null;
+      const stored = (userKey || config.__configScope?.type === 'account')
+        ? await require('../src/configstore').loadStreamSettings(config)
+        : null;
       res.json(stored || null);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -587,6 +603,11 @@ function createWebRoutes(resolveConfig, options = {}) {
       const { label, config } = req.body || {};
       if (!config || typeof config !== 'object') return res.status(400).json({ error: 'Missing config' });
       try {
+        if (config.posterProvider === 'custom') {
+          const checked = require('./public/poster-template').validate(config.customPosterTemplate);
+          if (!checked.ok) return res.status(400).json({ error: checked.error });
+          config.customPosterTemplate = checked.value;
+        }
         const { id } = await selfhostConfigs().save({ label, config });
         res.json({ ok: true, id });
       } catch (err) {
@@ -640,7 +661,7 @@ function createWebRoutes(resolveConfig, options = {}) {
         '</head>',
         `<script>window.__HOSTED__ = ${ACCOUNTS_AVAILABLE ? 'true' : 'false'}; window.__ACCOUNT_TOKEN__ = ${accountToken ? 'true' : 'false'}; window.__TOKEN_LOCKED__ = true; window.__TOKEN_ID__ = ${JSON.stringify(token)};</script></head>`
       );
-      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       return res.send(injected);
     }
     const safeJson = JSON.stringify(config)
@@ -652,7 +673,7 @@ function createWebRoutes(resolveConfig, options = {}) {
       '</head>',
       `<script>window.__HOSTED__ = ${ACCOUNTS_AVAILABLE ? 'true' : 'false'}; window.__ACCOUNT_TOKEN__ = ${accountToken ? 'true' : 'false'}; window.__INITIAL_CONFIG__ = ${safeJson}${accountToken ? '' : `;window.__TURNSTILE_SITE_KEY__ = ${scriptSafeJson(require('../src/turnstile').turnstileSiteKey())}`};</script></head>`
     );
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.send(injected);
   }
 
@@ -1110,7 +1131,7 @@ function createWebRoutes(resolveConfig, options = {}) {
   // defined in app.js after this router fall through (preview, catalogs).
   router.use((req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
-    if (/^\/[^\/]+\/(preview|manifest|catalog|meta|stream|collections)\b/.test(req.path)) return next();
+    if (/^\/[^\/]+\/(?:i\/[a-z0-9-]+\/)?(preview|manifest|catalog|meta|stream|collections|custom-streams|pictorium)\b/.test(req.path)) return next();
     serveErrorPage(res, req, 404, 'Page Not Found', ERROR_DESCRIPTIONS[404]);
   });
 
@@ -1121,7 +1142,7 @@ function createWebRoutes(resolveConfig, options = {}) {
   router.use((err, req, res, _next) => {
     const status = err && (err.status === 413 || err.type === 'entity.too.large') ? 413 : 500;
     const len = req.headers['content-length'] || '?';
-    console.error(`[Web] ${req.method} ${req.originalUrl} → ${status}:`, err.message || err, `(body ${len}B)`);
+    console.error(`[Web] ${req.method} ${req.path.replace(/^\/[^/]{16,}\//, '/[token]/')} → ${status}:`, err.message || err, `(body ${len}B)`);
     if (status === 413) {
       const wantsJson = (req.headers.accept || '').includes('application/json')
         || (req.originalUrl || '').startsWith('/api/');

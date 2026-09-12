@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { pickBestResult } = require('../src/tmdb');
+const { pickBestResult, seriesSeasonsFromVideos, seasonEpisodesFromVideos } = require('../src/tmdb');
 
 // Exact title + plausible year (±1: festival premiere vs wide release)
 // must beat any partial-title match, even a same-year one. Both cases are
@@ -49,8 +49,34 @@ test('partial match still wins when no exact title exists', () => {
   assert.equal(pickBestResult('Foo', [other, prefix], 2020).id, 10);
 });
 
+test('exact series title beats a newer higher-year spin-off', () => {
+  const show = { id: 66732, name: 'Stranger Things', first_air_date: '2016-07-15', vote_count: 25000 };
+  const spinOff = { id: 999999, name: "Stranger Things: Tales from '85", first_air_date: '2025-01-01', vote_count: 400 };
+  assert.equal(pickBestResult('Stranger Things', [spinOff, show], 2025).id, 66732);
+  assert.equal(pickBestResult('Stranger Things', [show, spinOff], 2025).id, 66732);
+  assert.equal(pickBestResult('Stranger Things', [spinOff, show]).id, 66732);
+});
+
 test('exact title with no year requested wins on votes', () => {
   const old = movie(20, 'Dune', '1984-12-14', 2000);
   const neu = movie(21, 'Dune', '2021-09-15', 9000);
   assert.equal(pickBestResult('Dune', [old, neu]).id, 21);
+});
+
+test('series picker derives seasons and exact episodes from fallback videos', () => {
+  const videos = [
+    { season: 2, episode: 2, name: 'Second', released: '2025-01-08' },
+    { season: 1, number: 1, name: 'Pilot', firstAired: '2024-01-01' },
+    { season: 2, episode: 1, name: 'First' },
+    { season: 2, episode: 1, name: 'Duplicate' },
+    { season: -1, episode: 1 },
+  ];
+  assert.deepEqual(seriesSeasonsFromVideos(videos), [
+    { season: 1, count: 1, name: 'Season 1' },
+    { season: 2, count: 2, name: 'Season 2' },
+  ]);
+  assert.deepEqual(seasonEpisodesFromVideos(videos, 2), [
+    { season: 2, episode: 1, name: 'First', released: null },
+    { season: 2, episode: 2, name: 'Second', released: '2025-01-08' },
+  ]);
 });

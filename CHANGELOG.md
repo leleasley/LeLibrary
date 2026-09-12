@@ -1,5 +1,150 @@
 # Changelog
 
+## [5.1.0]
+
+### Better search in Nuvio and Stremio
+
+- **Reliable international searches**: Searches in non-Latin scripts now keep their own results instead of accidentally showing results from another title.
+- **Better title matching with years**: Adding a year to your search keeps exact title matches ahead of more popular partial matches.
+- **Cleaner, more resilient results**: Duplicate titles are removed, and an invalid release date no longer causes the entire search to come back empty.
+- **Complete results and lighter posters**: A previous search with fewer results no longer cuts short later searches. Search posters also use smaller images suited to browsing grids.
+
+### Faster catalogues and details
+
+- **Faster repeat opens**: Hot catalogue, metadata and stream responses can now be reused by supported clients instead of being forced through a complete refresh every time.
+- **Fewer cold-start lookups**: Library title matches are loaded together and retained across restarts, substantially reducing repeated metadata work on large libraries.
+- **Fresh pagination after library changes**: Additions, removals and ordering changes now invalidate every stale page for that user after a successful full-library rebuild, immediately restore the newest first pages and refill older pages on demand without making another provider request.
+- **New downloads appear sooner in clients**: Owned library catalogue hints now refresh every two minutes while the durable server cache remains long-lived, preventing Nuvio from holding an outdated My Movies/My Shows page for an hour without increasing provider scans.
+- **Quicker movie and series details**: Cold detail pages use one combined TMDB request for the main metadata, artwork, credits, IDs and ratings instead of several separate requests.
+- **Long-running shows load more safely**: Season data is cached across restarts and fetched with controlled concurrency, avoiding large bursts for shows with many seasons.
+- **Resilient rich metadata**: Previously successful rich metadata remains available during a temporary metadata-addon outage, with a short recovery circuit preventing repeated slow failures.
+- **Faster artwork grids**: Catalogue posters use TMDB's direct image CDN at a grid-appropriate size. Images are never proxied through LeLibrary, while full detail backdrops and posters keep their larger sizes.
+- **Tighter playback waits**: External stream sources share a shorter default response budget so one slow integration is less likely to hold the whole player open; operators can still tune the budget.
+- **Privacy-safe diagnostics**: Provider refresh logs report counts and timings without printing sample download IDs, availability records or tracker messages.
+
+### Library matching, boxsets and Specials
+
+- **Correct movie/series pack classification**: Bare TV packs with episode files no longer leak into Movies through a similarly named film match. Ambiguous inspections reuse embedded files or one coalesced, cached provider lookup across every catalogue builder.
+- **Complete TV boxsets stay complete**: Names such as `S00-S26`, `S01-S14` and `Seasons 1-15` now expose their full owned season range instead of only the first season, with exact season-and-episode selection inside multi-season packs.
+- **Misleading episode names recover safely**: A large or multi-file download named like one episode is checked against its inner files, allowing cases such as a Bob's Burgers `S03E05` outer name to recover seasons 1-8. Embedded files cost no extra provider request; otherwise one coalesced result is cached by a non-secret hash-derived identity across restarts.
+- **Specials are included**: Owned season 0 episodes now appear as Specials alongside regular seasons when TMDB provides them.
+- **Ranged episode packs stay complete**: A download named like `S01E03-04` now counts both episodes even when the provider only lists the first file inside it, so the second episode no longer shows as missing.
+- **Misnamed season packs recover fully**: A download named like one episode but holding a whole season, such as a pack named `S08E07`, now exposes every episode inside it instead of only the episode in the name.
+- **The right show is chosen**: An exact series title such as Stranger Things is no longer attached to a newer spin-off whose name merely starts with the same words, even when the spin-off is more recent.
+
+### Playback reliability
+
+- **TorBox link bursts are bounded**: One playback screen now requests at most eight owned links, with no more than three candidate files taken from a single download. The best language, quality and size options are retained, while external addon results remain unaffected.
+- **Duplicate link requests are shared**: Concurrent requests for the same TorBox file now share one in-flight `requestdl` operation and continue reusing successful links from the six-hour cache.
+- **Empty results recover quickly**: A throttled or temporarily failed provider response now tells Nuvio and Stremio to retry after 60 seconds instead of accidentally caching a notice-only result for ten minutes.
+- **Clear TorBox cooldown notices**: When TorBox actually returns a playback 429 and no TorBox link succeeds, the stream list now explains that TorBox is temporarily rate-limiting playback and shows a rounded retry time. Cached, custom and external streams remain available, while the anonymous cooldown survives a restart without storing keys, tokens or media details.
+
+### Pictorium Poster Studio
+
+- **Free custom posters**: Build your own posters with rating, quality and ranking overlays without a paid poster key. Your existing TMDB key is all that is needed.
+- **A proper poster editor**: Open the Poster Studio to choose the badge style, ranking ribbon, aggregate rating sources, metadata language, region, accent colour, backdrop blur and coming-soon veil, with a live preview that updates as you change each option.
+- **Your country and language**: Choose the region that drives the ranking charts, streaming quality and cinema release detection, and the language used for artwork and titles.
+- **Coming soon by default**: Films that are in cinemas but not yet streaming now get the Coming soon veil automatically.
+- **Rotten Tomatoes, Metacritic and more**: Pick which rating sources feed the poster score. Your saved MDBList key unlocks the wider sources such as Rotten Tomatoes, Metacritic, Letterboxd and Trakt; without it the poster keeps the default IMDb and TMDB mix.
+- **Every setup screen**: The same studio and preview are available from the standard Configure page, an account setup, and the Collections Wizard.
+- **Your own server, optional**: If you self-host Pictorium, enter its public URL; otherwise the built-in studio is used automatically.
+- **Keys stay private**: The poster is rendered by the server, so your TMDB key is never placed in the poster link.
+- **Reliable previews and hiding**: Studio switches refresh the sample image, and turning a badge toggle off removes that overlay.
+- **Powered by Pictorium**: Pictorium is a separate open-source project, credited wherever the studio is offered.
+
+### MDBList collection sources
+
+- **Recognisable MDBList setup**: The folder source picker now uses MDBList's own logo beside its list builder.
+- **Add a list by ID**: The Collection Wizard folder picker can turn an MDBList list ID or ID-bearing URL into Movies, Series, or both with an optional friendly name.
+- **Scoped to one setup**: A source is saved only in the collection setup where it was added. Other tokens, profiles and accounts cannot resolve or use it.
+- **Live list contents**: Nuvio folders continue fetching the saved list source, so list changes appear after the normal cache refresh without recreating the folder.
+- **API-conscious caching**: Fresh results are shared within the setup's credential scope, concurrent requests are coalesced, and a last-known-good result is retained for temporary MDBList failures.
+- **Keys remain private**: Creating a source checks only whether an MDBList key exists. The encrypted key and list contents are not exposed to the browser.
+
+### Accounts
+
+- **Rebuilt saved-setup management**: The Tokens page now has a compact setup overview, a clear creation form, readable full-width setup rows, unmistakable primary actions and responsive in-page dialogs for password protection, revoking and deletion.
+
+### Quick Picks
+
+- **Movie Collections stay visible**: LeLibrary Hub setups restore Movie Collections as their own fixed bottom collection when its older hidden setting is absent; an explicit off choice remains off.
+- **Richer focused packs**: Family, genre, theme and seasonal starters now split their useful sources into clear folders, so they are proper browseable collections rather than one crowded row.
+- **Finished artwork for major packs**: Directors, By Decade and World Cinema now have dedicated collection artwork instead of blank tiles.
+- **More focused presets**: Added Just Added, Family Night, Hidden Gems and Documentaries packs.
+- **A much larger Quick Pack library**: Added 22 more ready-made choices covering cinema, TV binges, genres, moods, streaming services, superheroes, franchises, family viewing and seasonal comfort picks.
+- **A proper pack browser**: Quick Packs now open in a large searchable and filterable modal instead of being squeezed into a horizontal scroller.
+- **A cleaner Collections Studio**: The Quick Pack launcher and library have been redesigned with compact cards, category chips, clearer add states and a mobile-friendly list layout.
+- **LeLibrary stays at the bottom**: LeLibrary Hub and LeLibrary Movie Collections are kept together after every regular collection in both the editor and Nuvio, including when only the Hub is enabled or another pack is imported later.
+- **Fresh picks automatically**: Dynamic genre, provider, studio, network and theme sources rotate on a daily cache cycle, while Nuvio continues loading each folder from its live catalogue source without needing another push.
+- **A lighter Home-row LeLibrary Special**: The catalogue-row sampler now uses six balanced rows instead of twenty, reducing first-load work and Home-screen clutter.
+- **A roomier folder editor**: Folder editing now uses a larger sectioned workspace with a sticky live preview, grouped name, artwork and source controls, clearer animation settings and a fixed save area.
+- **A readable source picker**: Adding folder sources now uses properly spaced dark catalogue rows, clearly separated titles and metadata, a compact labelled MDBList form and a dedicated scrolling list with always-accessible actions.
+
+### Catalogue presentation
+
+- **Simpler imported catalogue labels**: Imported sources now show a short "LeLibrary" prefix followed by the source name in Nuvio, removing repeated labels such as "LeLibrary Imported Movies" while keeping each source's real name visible.
+
+### Nuvio integration
+
+- **Public collection sessions recover automatically**: Normal Configure and account-backed pages refresh expired Nuvio sessions before browsing community collections, use Nuvio's current public integration key and show a clear wait message when Nuvio rate-limits requests instead of reporting a generic gateway error.
+- **Large community packs browse reliably**: LeLibrary accepts today's larger bounded Nuvio responses, sends only lightweight summaries to the browse screen and fetches full collection resources only when a user opens or imports that collection.
+- **Nuvio community browsing restored**: Public collection requests now follow Nuvio's current filter contract across normal Configure, account Configure and the Collections Wizard, preventing the "All" filter from being rejected upstream.
+- **Current profile syncing**: Collection pushes now use Nuvio's current five-profile sync contract, so a selected profile can reliably keep its own addon setup.
+- **Clear addon requirements**: Community packs keep their original external catalogue references and clearly show when another addon must be installed in the same Nuvio profile.
+
+### Custom Streams
+
+- **Play your own stream links**: Add a direct HTTP or HTTPS link to a selected IMDb movie or exact TV episode. Existing advanced mappings remain compatible.
+- **Debrid is optional**: A Custom Streams-only setup can run without a debrid provider. A TMDB key is still required for reliable title matching, posters, metadata and exact episode selection.
+- **Fast mapping editor**: Search for a movie or series, select the real title, choose an available TMDB season and episode when needed, then paste the direct URL. Free-typed IDs and episode numbers can no longer create broken mappings.
+- **Live account-backed lookup**: Normal Configure, account Configure and the Collections Wizard all load current TMDB search results and fetch only the selected series season, keeping even long-running shows responsive.
+- **Reliable season loading**: Token-based season and episode requests now reach the picker correctly instead of being caught by the website's missing-page handler. The exact selected TMDB series is retained, with a full-series metadata fallback when the direct request is unavailable, so valid long-running shows no longer appear to have no episodes.
+- **Automatic stream expiry**: Choose 30 minutes, 1 hour, 3 hours, 6 hours, 12 hours or 24 hours when adding a link. Expired links disappear from setup and are no longer returned for playback, while existing links created before this option remain compatible.
+- **Optional Home rows**: Active links can appear in separate Custom Streams Movies and Series rows with normal TMDB posters and metadata. Multiple links for one title remain separate playback choices while its poster appears only once.
+- **Cleaner setup screen**: The mapping editor now focuses on the essentials: title, exact episode when needed, direct URL and expiry, with consistent dark controls across Configure and the Collections Wizard.
+- **Safer links and private storage**: LeLibrary checks mappings before saving them, masks URLs in the editor and encrypts mappings saved to hosted accounts. It does not open, proxy or include your media URLs in logs.
+- **Reliable stream ordering**: Your owned copy remains first when available, followed by enabled external sources and your matching Custom Streams. Changes apply immediately without reinstalling the addon.
+- **Compatibility guidance**: HTTPS MP4 links offer the widest client support. HLS links and local-network HTTP addresses may depend on the app, device and network being used.
+
+### Client integrations
+
+- **Correct Nuvio logo loading**: Configure now requests the bundled PNG directly instead of briefly requesting a missing SVG and producing a browser-console 404.
+- **Dedicated setup links for more apps**: Configure now provides tailored testing links for STRMR, Fusion, Vidi and WuPlay alongside the existing Stremio and Nuvio options.
+- **More reliable STRMR support**: STRMR now receives the correct Movies and TV setup, responds within the app's time limits and can play an owned library copy from a public IMDb title or episode.
+- **Clear STRMR setup instructions**: The install card explains that LeLibrary must be assigned to Movies, TV or both inside STRMR before its rows and streams appear.
+- **Your library IDs stay consistent**: Public discovery titles continue to use IMDb IDs, while My Movies and My Shows keep their private LeLibrary IDs unless you enable Use Main Metadata.
+- **Guidance that matches each app**: Fusion and WuPlay explain where their widgets, screens or hubs are managed. Vidi receives only the direct HTTP or HTTPS stream links it supports.
+- **Existing installs keep working**: Current Stremio and Nuvio install links are unchanged. The new app-specific links use stable addresses designed for each supported client.
+- **Stremio and Nuvio stay unchanged**: Regression coverage locks their existing manifests and capabilities to the original pass-through behavior while other apps receive tailored projections.
+- **Private troubleshooting details**: Failed or slow requests can be identified without recording setup tokens, API keys or media URLs.
+- **Clearer client timing diagnostics**: Testing integrations now report privacy-safe timings for setup resolution, ID mapping, caches, metadata and stream building, making slow STRMR requests easier to pinpoint without exposing private values.
+
+### Self-hosting
+
+- **Official Docker release images**: Version tags can now publish LeLibrary to GitHub Container Registry for both 64-bit Intel/AMD and ARM systems, with stable and preview releases kept separate.
+- **Simpler installs and upgrades**: The example Docker Compose setup pulls the official image and lets you upgrade, pin or roll back by changing the GHCR tag directly on the service's `image:` line.
+- **Smaller, safer public image**: The release image runs as a non-root user and excludes hosted accounts, private website files, credentials, development files and Git history.
+- **Clearer release build layout**: Public GHCR builds now use clearly named, dedicated build files, keeping them separate from local and hosted development builds.
+- **Better self-hosting guide**: The README now covers first-time setup, health checks, logs, upgrades, version pinning, Redis backups, restores and full resets.
+
+### Search
+
+- **Separate global and library results**: The combined Search option now shows global Movies and Series separately from My Movies, My Shows and LeLibrary Collections instead of mixing them into shared rows.
+- **The three familiar choices remain**: Choose Movies & Series plus Your Library, Only your Library, or Only Movies & Series from TMDB from the selector at the top of Configure.
+- **Correct IDs in every section**: Global results keep their public IMDb IDs, while owned results retain the selected library ID mode and continue opening the correct owned streams.
+- **Search stays off Home**: All dedicated result sections remain hidden from Home and appear only when a search is performed.
+
+### Custom Posters
+
+- **Cleaner artwork setup**: The Collections Wizard now uses a balanced provider picker, grouped enhancement controls and a contained live preview that remains readable across desktop, tablet and mobile layouts.
+- **Use your own poster service**: Custom Poster is now available alongside TMDB, ERDB, RPDB, BetterPosters and Fanart.tv in normal Configure, account Configure and the Collections Wizard.
+- **One reusable URL template**: Supply an HTTPS image URL containing an IMDb or TMDB placeholder, with an optional movie/series placeholder. LeLibrary fills it separately for every title.
+- **Live example and clear validation**: The setup page shows the resolved sample URL and poster while you type, and explains invalid protocols, placeholders or incomplete templates before saving.
+- **Encoded templates work too**: Poster services that provide URL-encoded placeholders such as `%7Bimdb_id%7D` now resolve correctly and load a real preview in Configure and the Collections Wizard.
+- **Works throughout LeLibrary**: Custom artwork applies to discovery, global search, library rows, collection films and detail pages. Titles missing an ID required by the template keep their normal poster.
+- **Direct and private**: The media app downloads the resolved image directly. LeLibrary does not fetch, proxy, scrape, cache or log image contents.
+- **Title-level artwork only**: A poster template cannot inspect the exact file chosen for playback, so Dub/Sub artwork depends on rules provided by the external poster service.
+
 ## [5.0.2]
 
 ### Self-host fixes
@@ -342,7 +487,7 @@
 
 ### Your other Nuvio catalogues stay put
 
-- **Pushing LeLibrary no longer clears your other catalogues**: the Home rows from your other Nuvio addons (Torrentio, AIOMetadata and so on) are now preserved when you push or re-push
+- **Pushing LeLibrary no longer clears your other catalogues**: the Home rows from your other Nuvio addons are now preserved when you push or re-push
 
 ## [4.6.1]
 

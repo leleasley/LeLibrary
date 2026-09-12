@@ -20,4 +20,5 @@ test('manifest declares at most the two compact imported catalogues', async (t) 
   const manifest = await response.json();
   const imported = manifest.catalogs.filter(catalog => catalog.id.startsWith('lelibrary-import-'));
   assert.deepEqual(imported.map(catalog => catalog.id).sort(), ['lelibrary-import-movie', 'lelibrary-import-series']);
+  assert.deepEqual(imported.map(catalog => catalog.name), ['LeLibrary', 'LeLibrary']);
 });

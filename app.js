@@ -12,6 +12,9 @@ const { compileCollectionPlan } = require('./src/collection-plan');
 const { buildLibraryCollection, collectionCatalogMetas } = require('./src/nuvio-library-collections');
 const { searchCatalog } = require('./src/search');
 const { decodeConfig } = require('./src/config/token');
+const { validateCustomStreamsConfig, hasCustomStreams, hasMappedCustomStreams, customStreamsFingerprint, customStreamCatalogEntries } = require('./src/custom-streams');
+const { getClientIntegration, listClientIntegrations } = require('./src/client-integrations');
+const { version: APP_VERSION } = require('./package.json');
 
 let createWebRoutes = null;
 try {
@@ -67,6 +70,10 @@ http.globalAgent.keepAlive  = true;
 https.globalAgent.keepAlive = true;
 
 const TTL_CATALOG = parseInt(process.env.CACHE_TTL_CATALOG) || 3600;  // default 1h
+// Provider-backed library rows are refreshed in the background every two
+// minutes. Keep the durable server cache long, but ask clients to check back
+// on that cadence so newly completed downloads do not stay hidden for an hour.
+const OWNED_CATALOG_CLIENT_TTL = 120;
 const TTL_STREAM  = parseInt(process.env.CACHE_TTL_STREAM)  || 600;  // default 10min
 
 const knownConfigs = new Map();
@@ -152,6 +159,40 @@ function withCacheHints(obj, { cacheMaxAge = 60, staleRevalidate = 60, staleErro
   return { ...obj, cacheMaxAge, staleRevalidate, staleError };
 }
 
+function streamResponseTtl(result) {
+  if (result?.streams?.some(stream => stream?._transientNotice)) return 60;
+  return result?.streams?.some(stream => stream && !stream._notice) ? TTL_STREAM : 60;
+}
+
+function setPrivateResponseCache(res, maxAge, staleRevalidate = maxAge, staleError = 1800) {
+  res.setHeader('Cache-Control', `private, max-age=${maxAge}, stale-while-revalidate=${staleRevalidate}, stale-if-error=${staleError}`);
+}
+
+// Facade-only stage timings make client deadline failures diagnosable without
+// recording tokens, provider keys, URLs, titles, or upstream response data.
+// Normal Stremio/Nuvio routes pay no timing or header cost.
+function markClientIntegrationStage(req, name) {
+  const trace = req?.clientIntegrationTrace;
+  if (!trace || !/^[a-z][a-z0-9-]{0,31}$/.test(String(name || ''))) return;
+  const now = process.hrtime.bigint();
+  const durationMs = Number(now - trace.last) / 1e6;
+  trace.last = now;
+  trace.stages.push({ name: String(name), durationMs });
+}
+
+function finishClientIntegrationStages(req) {
+  markClientIntegrationStage(req, 'handler');
+  return (req?.clientIntegrationTrace?.stages || []).slice(0, 16);
+}
+
+function clientIntegrationTimingHeader(stages) {
+  return stages.map(stage => `${stage.name};dur=${stage.durationMs.toFixed(1)}`).join(', ');
+}
+
+function clientIntegrationTimingLog(stages) {
+  return stages.map(stage => `${stage.name}:${Math.round(stage.durationMs)}`).join(',');
+}
+
 function hashShort(s) {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
@@ -161,12 +202,12 @@ function hashShort(s) {
 function publicStreamCacheKey({ config, type, id, userKey, externalAddons, customStreams }) {
   const addonFp = ':' + hashShort([
     ...(externalAddons || []).slice().sort(),
-    JSON.stringify(customStreams || []),
+    customStreamsFingerprint(customStreams),
   ].join('|'));
   return cache.makeKey('stream', type, id, '', '', userKey + addonFp + discoveryStreamKeyParts(config).fmtFp);
 }
 
-async function getPublicStreams({ config, tmdbApiKey, type, id, lang, customStreams, userKey, externalAddons }) {
+async function getPublicStreams({ config, tmdbApiKey, type, id, lang, customStreams, userKey, externalAddons, requestPolicy }) {
   const discKey = publicStreamCacheKey({ config, type, id, userKey, externalAddons, customStreams });
   const cached = await cache.get(discKey);
   if (cached) return { result: cached, cacheHit: true };
@@ -175,11 +216,10 @@ async function getPublicStreams({ config, tmdbApiKey, type, id, lang, customStre
   if (!pending) {
     pending = (async () => {
       const { streams, ownedCount, externalCount } = await buildDiscoveryStreams({
-        config, tmdbApiKey, type, id, lang, customStreams, userKey, externalAddons,
+        config, tmdbApiKey, type, id, lang, customStreams, userKey, externalAddons, requestPolicy,
       });
       const result = { streams };
-      const hasRealStreams = streams.some(stream => !stream._notice);
-      await cache.set(discKey, result, hasRealStreams ? TTL_STREAM : 60);
+      await cache.set(discKey, result, streamResponseTtl(result));
       console.log(`[Stream] ${id} → ${streams.length} streams (${ownedCount} owned, ${externalCount} external)`);
       return result;
     })();
@@ -191,8 +231,30 @@ async function getPublicStreams({ config, tmdbApiKey, type, id, lang, customStre
 
 // Fingerprint of poster/rating config so caches are keyed per config, not shared
 function posterFp(config) {
-  const { erdbToken = '', rpdbKey = '', fanartKey = '', omdbKey = '', posterProvider = '', enhanceBackground = false, enhanceLogo = false } = config;
-  return hashShort([posterProvider, erdbToken, rpdbKey, fanartKey, omdbKey, enhanceBackground ? 1 : 0, enhanceLogo ? 1 : 0].join('|'));
+  const { erdbToken = '', rpdbKey = '', fanartKey = '', omdbKey = '', posterProvider = '', customPosterTemplate = '', enhanceBackground = false, enhanceLogo = false } = config;
+  const pictorium = posterProvider === 'pictorium'
+    ? `${config.pictoriumUrl || ''}|${JSON.stringify(config.pictoriumOptions || {})}`
+    : '';
+  return hashShort([posterProvider, erdbToken, rpdbKey, fanartKey, omdbKey, customPosterTemplate, enhanceBackground ? 1 : 0, enhanceLogo ? 1 : 0, pictorium].join('|'));
+}
+
+function posterEnhance(config = {}) {
+  return {
+    erdbToken: config.erdbToken,
+    rpdbKey: config.rpdbKey,
+    fanartKey: config.fanartKey,
+    omdbKey: config.omdbKey,
+    posterProvider: config.posterProvider,
+    customPosterTemplate: config.customPosterTemplate,
+    enhanceBackground: config.enhanceBackground,
+    enhanceLogo: config.enhanceLogo,
+    pictorium: {
+      enabled: config.posterProvider === 'pictorium',
+      token: config.__pictoriumToken || '',
+      origin: String(process.env.BASE_URL || '').replace(/\/+$/, ''),
+      options: config.pictoriumOptions || {},
+    },
+  };
 }
 
 const app = express();
@@ -290,7 +352,7 @@ if (HOSTED) {
 app.get('/health', async (req, res) => {
   // Keep Docker liveness independent of Redis statistics and upstream work.
   // A slow provider must never make the whole addon look dead.
-  res.json({ status: 'ok', version: '5.0.2' });
+  res.json({ status: 'ok', version: APP_VERSION });
 });
 
 // A deliberately empty URL used only to let Nuvio render informational stream
@@ -334,8 +396,14 @@ if (createWebRoutes) app.use(createWebRoutes(resolveConfig, { hosted: HOSTED }))
 // merges them back on every stream/meta request.
 app.post('/api/save-config', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) => {
   try {
-    const config = req.body && req.body.config;
+    let config = req.body && req.body.config;
     if (!config || typeof config !== 'object') return res.status(400).json({ error: 'Missing config' });
+    config = validateCustomStreamsConfig(config);
+    if (config.posterProvider === 'custom') {
+      const checked = require('./website/public/poster-template').validate(config.customPosterTemplate);
+      if (!checked.ok) return res.status(400).json({ error: checked.error });
+      config.customPosterTemplate = checked.value;
+    }
     // For an opaque account token, persist the full (key-stripped) config so the
     // saved install URL picks up edits without re-pushing. Legacy base64 tokens
     // carry the config themselves: nothing to store.
@@ -369,6 +437,9 @@ app.post('/api/save-config', rateLimit({ windowMs: 60000, max: 30 }), async (req
       }
     }
     const userKey = await require('./src/configstore').saveStreamSettings(configForStore);
+    if (!userKey && Array.isArray(configForStore.customStreams) && configForStore.customStreams.length > 0) {
+      return res.json({ ok: true, selfContained: true });
+    }
     if (!userKey) return res.status(400).json({ error: 'Config has no usable API keys' });
     // Keep Configure and account Configure on the one catalogue cache path.
     // An install explicitly waits for this work so its new Nuvio folders are
@@ -381,7 +452,7 @@ app.post('/api/save-config', rateLimit({ windowMs: 60000, max: 30 }), async (req
       : (warm.catch((err) => console.warn('[Collection cache] Background warm failed:', err.message)), null);
     res.json({ ok: true, userKey, ...(warmResult ? { collectionCache: warmResult } : {}) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.statusCode || 500).json({ error: err.message, ...(err.details ? { details: err.details } : {}) });
   }
 });
 
@@ -395,7 +466,9 @@ app.get('/api/config/:token', rateLimit({ windowMs: 60000, max: 60 }), async (re
   if (!config) return res.status(400).json({ error: 'Invalid token' });
   try {
     const userKey = providers.getUserKey(config);
-    const stored = userKey ? await require('./src/configstore').loadStreamSettings(config) : null;
+    const stored = (userKey || config.__configScope?.type === 'account')
+      ? await require('./src/configstore').loadStreamSettings(config)
+      : null;
     res.json(stored || null);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -452,6 +525,9 @@ async function resolveConfig(token) {
     Object.defineProperty(legacy, '__configScope', {
       value: { type: 'legacy' }, enumerable: false, configurable: true,
     });
+    Object.defineProperty(legacy, '__pictoriumToken', {
+      value: token, enumerable: false, configurable: true,
+    });
     return legacy;
   }
   if (!token || typeof token !== 'string' || token.length > 64) return null;
@@ -460,6 +536,9 @@ async function resolveConfig(token) {
     if (config && typeof config === 'object') {
       Object.defineProperty(config, '__configScope', {
         value: { type: 'account', token }, enumerable: false, configurable: true,
+      });
+      Object.defineProperty(config, '__pictoriumToken', {
+        value: token, enumerable: false, configurable: true,
       });
     }
     return config;
@@ -489,8 +568,106 @@ function parseExtra(str) {
   return extra;
 }
 
+// ── Pictorium poster proxy ──────────────────────────────────────────
+// Pictorium is a separate AGPL-3.0 service (src/pictorium.js). The user's TMDB
+// key is filled in here, server-side, so it never reaches the client. On any
+// upstream failure the client is sent to its normal TMDB poster when that is
+// known, otherwise a soft 404, so a bad poster can never break a grid.
+const pictoriumPosterCache = new Map();
+const PICTORIUM_CACHE_MAX = 150;
+const PICTORIUM_CACHE_TTL = 24 * 60 * 60 * 1000;
+
+function pictoriumCacheGet(key) {
+  const hit = pictoriumPosterCache.get(key);
+  if (!hit) return null;
+  if (hit.exp < Date.now()) { pictoriumPosterCache.delete(key); return null; }
+  pictoriumPosterCache.delete(key);
+  pictoriumPosterCache.set(key, hit);
+  return hit;
+}
+
+function pictoriumCacheSet(key, value) {
+  pictoriumPosterCache.set(key, value);
+  while (pictoriumPosterCache.size > PICTORIUM_CACHE_MAX) {
+    pictoriumPosterCache.delete(pictoriumPosterCache.keys().next().value);
+  }
+}
+
+// A light per-IP cap on poster renders, in its own bucket so it can never
+// inflate the config/verify limits. A cold library grid fits comfortably; a
+// hostile client can no longer flood Pictorium's shared render slots. On
+// overflow the client is sent to its normal TMDB poster instead of an error.
+const PICTORIUM_POSTER_MAX = 600;
+function pictoriumPosterExceeded(req) {
+  const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+  const key = `pictorium:${ip}`;
+  const now = Date.now();
+  let bucket = rateLimitBuckets.get(key);
+  if (!bucket || now - bucket.start > 60000) {
+    bucket = { start: now, count: 0 };
+    rateLimitBuckets.set(key, bucket);
+  }
+  bucket.count++;
+  return bucket.count > PICTORIUM_POSTER_MAX;
+}
+
+app.get('/:token/pictorium/:type/:id', async (req, res) => {
+  const pictorium = require('./src/pictorium');
+  const optionsModule = require('./website/public/pictorium-options');
+  const type = req.params.type === 'movie' ? 'movie' : 'series';
+  const id = String(req.params.id || '').replace(/\.jpg$/i, '');
+  if (!/^(?:tt\d{1,20}|\d{1,10})$/i.test(id)) return res.status(400).end();
+  const fallback = pictorium.safeFallback(req.query.fallback);
+  const preview = req.query.preview === '1';
+  const redirectFallback = () => (fallback ? res.redirect(302, fallback) : res.status(404).end());
+  if (pictoriumPosterExceeded(req)) return redirectFallback();
+  try {
+    const config = await require('./src/configstore').mergeStoredConfig(await resolveConfig(req.params.token));
+    // The Studio preview must work before the first save, so it only needs a
+    // TMDB key. Real catalogue posters stay gated on the provider being on.
+    if (!config || !config.tmdbApiKey || (config.posterProvider !== 'pictorium' && !preview)) return redirectFallback();
+    const opts = optionsModule.fromQuery(req.query);
+    const base = pictorium.resolveBase(config);
+    const mdblistKey = config.mdblistKey || '';
+    const upstream = pictorium.requestUrl({
+      base, apiKey: config.tmdbApiKey, type, id,
+      title: req.query.title, releaseDate: req.query.rd, imdbId: req.query.imdbId,
+      lang: req.query.lang, region: req.query.region, mdblistKey, options: opts,
+    });
+    // The user's MDBList key changes the aggregate rating, so scope the shared
+    // image cache to a key hash: one user's ratings never fill another's entry.
+    const mdbFp = mdblistKey ? hashShort(mdblistKey) : 'none';
+    const cacheKey = [base, type, id, optionsModule.toQuery(opts), req.query.title || '', req.query.rd || '', req.query.lang || '', req.query.region || '', mdbFp].join('|');
+    let hit = preview ? null : pictoriumCacheGet(cacheKey);
+    if (!hit) {
+      const upstreamRes = await axiosImg.get(upstream, {
+        responseType: 'arraybuffer',
+        timeout: 30000,
+        maxContentLength: 6 * 1024 * 1024,
+        validateStatus: () => true,
+        headers: { 'x-api-key': config.tmdbApiKey },
+      });
+      if (upstreamRes.status !== 200 || !upstreamRes.data) return redirectFallback();
+      hit = {
+        buf: Buffer.from(upstreamRes.data),
+        type: upstreamRes.headers['content-type'] || 'image/jpeg',
+        exp: Date.now() + PICTORIUM_CACHE_TTL,
+      };
+      if (!preview) pictoriumCacheSet(cacheKey, hit);
+    }
+    res.setHeader('Content-Type', hit.type);
+    res.setHeader('Cache-Control', preview ? 'no-store' : 'public, max-age=86400, immutable');
+    return res.end(hit.buf);
+  } catch (err) {
+    return redirectFallback();
+  }
+});
+
 const TYPES   = ['movie', 'series', 'anime'];
 const REFRESH = 2 * 60 * 1000;
+// Increment when matching/classification semantics change so durable Redis
+// projections rebuild once even when the provider download list is unchanged.
+const LIBRARY_PROJECTION_VERSION = 'v5';
 
 // Background refresh is per provider-key set, not per installed token. One
 // account may deliberately have several Nuvio profiles/tokens; scanning the
@@ -595,7 +772,7 @@ async function buildAndCacheForConfigInner(token, config) {
     // user changes poster/rating providers even if their downloads did not,
     // otherwise a warm franchise cache can keep serving the old artwork until
     // the library itself changes.
-    const newHash   = `${hashDownloads(downloads)}:${posterFp(config)}:${libraryIdMode || 'torbox'}`;
+    const newHash   = `${LIBRARY_PROJECTION_VERSION}:${hashDownloads(downloads)}:${posterFp(config)}:${libraryIdMode || 'torbox'}`;
     // Cache comparison must be projection-scoped. Two tokens can share a
     // provider library but choose different language/artwork/sort settings;
     // a single shared hash made them continually invalidate each other's rows.
@@ -614,7 +791,7 @@ async function buildAndCacheForConfigInner(token, config) {
       // projection recovers on its own. Catalog rows stay cached.
       if (getCollections(userKey, lang).length === 0) {
         try {
-          const collMetas = await buildCollectionsCatalog(downloads, tmdbApiKey, lang, { erdbToken, rpdbKey });
+          const collMetas = await buildCollectionsCatalog(downloads, tmdbApiKey, lang, posterEnhance(config));
           cacheCollections(userKey, lang, collMetas);
           const collKey = cache.makeKey('cat', 'collections', 'collections', sortBy, '', '0', userKey, lang, posterFp(config));
           await cache.set(collKey, { metas: collMetas }, TTL_CATALOG);
@@ -643,20 +820,22 @@ async function buildAndCacheForConfigInner(token, config) {
       ? active.map(id => ({ key: providers.PROVIDER_META[id].cat, downloads: providers.downloadsFor(downloads, id) }))
       : [{ key: 'merged', downloads }];
 
-    await Promise.all(sources.flatMap(({ key, downloads: dl }) =>
+    // Build every first page in memory before replacing anything. If a TMDB
+    // or provider-dependent build fails, the previous complete projection is
+    // left untouched. This work uses the one shared provider snapshot fetched
+    // above; invalidating rendered pages never causes another TorBox request.
+    const catalogPages = await Promise.all(sources.flatMap(({ key, downloads: dl }) =>
       TYPES.map(async type => {
-        const metas    = await buildCatalog(dl, tmdbApiKey, type, sortBy, { skip: 0, search: '' }, lang, { erdbToken, rpdbKey }, { userKey, hideAnime, libraryIdMode, config });
+        const metas    = await buildCatalog(dl, tmdbApiKey, type, sortBy, { skip: 0, search: '' }, lang, posterEnhance(config), { userKey, hideAnime, libraryIdMode, config, deferCacheInvalidation: true });
         const cacheKey = cache.makeKey('cat', key, type, sortBy, '', '0', userKey, lang, posterFp(config), libraryIdMode);
-        await cache.set(cacheKey, { metas }, TTL_CATALOG);
         console.log(`[Cache] ${key}:${type} → ${metas.length} items`);
+        return { key: cacheKey, value: { metas }, ttl: TTL_CATALOG };
       })
     ));
 
     // Collections catalog: merged across all providers, additive.
-    const collMetas = await buildCollectionsCatalog(downloads, tmdbApiKey, lang, { erdbToken, rpdbKey });
-    cacheCollections(userKey, lang, collMetas);
+    const collMetas = await buildCollectionsCatalog(downloads, tmdbApiKey, lang, posterEnhance(config));
     const collKey = cache.makeKey('cat', 'collections', 'collections', sortBy, '', '0', userKey, lang, posterFp(config));
-    await cache.set(collKey, { metas: collMetas }, TTL_CATALOG);
     console.log(`[Cache] collections → ${collMetas.length} items`);
 
     // Pre-warm Trending / Popular so their first on-screen load is instant
@@ -664,7 +843,7 @@ async function buildAndCacheForConfigInner(token, config) {
     // Uses buildDiscoveryCatalog so the cached rows carry this user's poster
     // providers and are keyed by the poster fingerprint.
     const { buildDiscoveryCatalog } = require('./src/discovery');
-    const discEnhance = { erdbToken, rpdbKey, fanartKey, posterProvider: config.posterProvider };
+    const discEnhance = posterEnhance(config);
     const discFp = posterFp(config);
     if (config.catalogTrending) {
       await Promise.allSettled([
@@ -680,6 +859,17 @@ async function buildAndCacheForConfigInner(token, config) {
       ]);
       console.log('[Cache] popular pre-warmed');
     }
+
+    // A library reorder/removal can change every 50-item page even when all
+    // titles were matched previously. Remove all of this user's old rendered
+    // pages only now that the replacement first pages are ready, then restore
+    // those first pages immediately. Later pages refill on demand from the
+    // already-cached provider snapshot. No additional provider call is made.
+    await cache.replacePattern(`cat:*${userKey}*`, [
+      ...catalogPages,
+      { key: collKey, value: { metas: collMetas }, ttl: TTL_CATALOG },
+    ], TTL_CATALOG);
+    cacheCollections(userKey, lang, collMetas);
 
     // Only update hash and invalidate caches after ALL catalogs built successfully
     await cache.set(hashKey, newHash, 7200);
@@ -745,7 +935,7 @@ function getLogoUrl(baseUrl) {
 function getBaseManifest(baseUrl) {
   const manifest = {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-    version: '5.0.2',
+    version: APP_VERSION,
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -839,6 +1029,7 @@ function getConfiguredManifest(baseUrl, config = {}, { watchlist = [], collectio
   // ~38 catalogue entries. Hidden from Nuvio Home via `showInHome: false`;
   // Stremio ignores that field so the row still appears in Discover.
   function buildCollectionsRow() {
+    if (active.length === 0) return;
     if (config.catalogFranchises === false && !selectedHomeCatalogs.has('torbox-collections')) return;
     const userKey = providers.getUserKey(config);
     const collLang = config.lang || 'en-US';
@@ -867,19 +1058,36 @@ function getConfiguredManifest(baseUrl, config = {}, { watchlist = [], collectio
 
   function buildSearchRows() {
     const scope = ['combined', 'library', 'tmdb'].includes(config.searchScope) ? config.searchScope : 'combined';
-    // One normal search surface can now include both TMDB and owned titles.
-    // Keep the library-only routes distinct: they are useful for people who
-    // deliberately never want public results in their search screen.
+    // Search groups stay separate. Public rows always return canonical IMDb
+    // results; owned rows keep their normal library identity and cache path.
     if (scope !== 'library') {
-      catalogs.push({ id: 'lelibrary-search-movies', type: 'movie', name: scope === 'combined' ? 'LeLibrary + My Movies' : 'LeLibrary', showInHome: false, extra: [{ name: 'search', isRequired: true }] });
-      catalogs.push({ id: 'lelibrary-search-series', type: 'series', name: scope === 'combined' ? 'LeLibrary + My Shows' : 'LeLibrary', showInHome: false, extra: [{ name: 'search', isRequired: true }] });
+      catalogs.push({ id: 'lelibrary-search-movies', type: 'movie', name: 'LeLibrary · Movies', showInHome: false, extra: [{ name: 'search', isRequired: true }] });
+      catalogs.push({ id: 'lelibrary-search-series', type: 'series', name: 'LeLibrary · Series', showInHome: false, extra: [{ name: 'search', isRequired: true }] });
     }
-    if (scope === 'library') {
+    if (scope !== 'tmdb' && active.length) {
       // These are separate Search sections, so their labels must mirror the
       // labels the person chose for the matching Home rows, emojis included.
-      catalogs.push({ id: 'lelibrary-search-my-movies', type: 'movie', name: catName('🎬 My Movies', catNameMovies), showInHome: false, extra: [{ name: 'search', isRequired: true }] });
-      catalogs.push({ id: 'lelibrary-search-my-series', type: 'series', name: catName('📺 My Series', catNameSeries), showInHome: false, extra: [{ name: 'search', isRequired: true }] });
-      catalogs.push({ id: 'lelibrary-search-collections', type: 'movie', name: config.collectionsName || 'LeLibrary Collections', showInHome: false, extra: [{ name: 'search', isRequired: true }] });
+      if (config.catalogMovies !== false) catalogs.push({ id: 'lelibrary-search-my-movies', type: 'movie', name: catName('🎬 My Movies', catNameMovies), showInHome: false, extra: [{ name: 'search', isRequired: true }] });
+      if (config.catalogSeries !== false) catalogs.push({ id: 'lelibrary-search-my-series', type: 'series', name: catName('📺 My Series', catNameSeries), showInHome: false, extra: [{ name: 'search', isRequired: true }] });
+      if (config.catalogFranchises !== false) catalogs.push({ id: 'lelibrary-search-collections', type: 'movie', name: config.collectionsName || 'LeLibrary Collections', showInHome: false, extra: [{ name: 'search', isRequired: true }] });
+    }
+  }
+
+  function buildCustomStreamRows() {
+    if (!config.tmdbApiKey) return;
+    for (const type of ['movie', 'series']) {
+      if (customStreamCatalogEntries(config.customStreams, type).length === 0) continue;
+      const catalogId = `custom-stream-${type === 'movie' ? 'movies' : 'series'}`;
+      const selected = selectedHomeCatalogs.has(catalogId);
+      if (config.wizard === true && integration === 'stremio' && !selected) continue;
+      const row = {
+        id: catalogId,
+        type,
+        name: `Custom Streams — ${type === 'movie' ? 'Movies' : 'Series'}`,
+        extra: CAT_EXTRA,
+      };
+      if (config.wizard === true && integration === 'nuvio' && !selected) row.showInHome = false;
+      catalogs.push(row);
     }
   }
 
@@ -892,8 +1100,8 @@ function getConfiguredManifest(baseUrl, config = {}, { watchlist = [], collectio
         (folder.catalogSources || []).some(ref => String(ref.addonId || '') === '__lelibrary__'))));
     const types = new Set(Array.isArray(importedTypes) ? importedTypes : []);
     if (hasImportedNativeSource) types.add('movie').add('series');
-    if (types.has('movie')) catalogs.push({ id: 'lelibrary-import-movie', type: 'movie', name: 'LeLibrary Imported Movies', showInHome: false, extra: [{ name: 'genre', isRequired: false }, { name: 'skip' }] });
-    if (types.has('series')) catalogs.push({ id: 'lelibrary-import-series', type: 'series', name: 'LeLibrary Imported Series', showInHome: false, extra: [{ name: 'genre', isRequired: false }, { name: 'skip' }] });
+    if (types.has('movie')) catalogs.push({ id: 'lelibrary-import-movie', type: 'movie', name: 'LeLibrary', showInHome: false, extra: [{ name: 'genre', isRequired: false }, { name: 'skip' }] });
+    if (types.has('series')) catalogs.push({ id: 'lelibrary-import-series', type: 'series', name: 'LeLibrary', showInHome: false, extra: [{ name: 'genre', isRequired: false }, { name: 'skip' }] });
   }
 
   // ── Watchlist rows (Simkl / MDBList / Trakt): pure tt: ids ──
@@ -1002,8 +1210,8 @@ function getConfiguredManifest(baseUrl, config = {}, { watchlist = [], collectio
   // the real TMDB-wide search results rather than library rows. They are
   // excluded from Home/Discover (required search extra + showInHome: false),
   // so their position does not affect any other surface.
-  if (config.searchEnabled !== false) buildSearchRows();
-  const DEFAULT_ORDER = ['trendingMovies','trendingSeries','popularMovies','popularSeries','movies','series','anime','franchises','watchlist','library','imports'];
+  if (config.searchEnabled !== false && config.tmdbApiKey) buildSearchRows();
+  const DEFAULT_ORDER = ['trendingMovies','trendingSeries','popularMovies','popularSeries','movies','series','anime','customStreams','franchises','watchlist','library','imports'];
   const orderRaw = Array.isArray(config.catalogOrder) && config.catalogOrder.length
     ? config.catalogOrder.slice()
     : DEFAULT_ORDER.slice();
@@ -1028,6 +1236,8 @@ function getConfiguredManifest(baseUrl, config = {}, { watchlist = [], collectio
       catalogs.push({ id: 'torbox-popular-series', type: 'series', name: DISCOVERY.popularSeries, extra: CAT_EXTRA });
     } else if (key === 'movies' || key === 'series' || key === 'anime') {
       buildLibrary(key);
+    } else if (key === 'customStreams') {
+      buildCustomStreamRows();
     } else if (key === 'franchises') {
       buildCollectionsRow();
     } else if (key === 'watchlist') {
@@ -1052,7 +1262,7 @@ function getConfiguredManifest(baseUrl, config = {}, { watchlist = [], collectio
 
   return {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-    version: '5.0.2',
+    version: APP_VERSION,
     name: (REGISTRY && REGISTRY.name) || 'LeLibrary (Self-Hosted)',
     description: (REGISTRY && REGISTRY.description) || 'Your movies, series & anime from every debrid provider, beautifully organized with TMDB artwork and ratings.',
     logo: getLogoUrl(baseUrl),
@@ -1115,8 +1325,14 @@ app.get('/manifest.json', (req, res) => {
   res.json(getBaseManifest(req.protocol + '://' + req.get('host')));
 });
 
-app.get('/:token/manifest.json', async (req, res) => {
+app.get('/api/client-integrations', (req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.json({ clients: listClientIntegrations() });
+});
+
+async function handleConfiguredManifest(req, res) {
   const config = await resolveConfig(req.params.token);
+  markClientIntegrationStage(req, 'config');
   if (!config) return res.status(400).json({ error: 'Invalid token' });
   // Trigger a background build so catalogs are ready for the Nuvio collections
   // profile.
@@ -1135,12 +1351,13 @@ app.get('/:token/manifest.json', async (req, res) => {
       const persistent = await cache.get(persistentKey);
       if (Array.isArray(persistent?.metas) && persistent.metas.length > 0) {
         cacheCollections(userKey, lang, persistent.metas);
-        console.log(`[Collections] Manifest: restored ${persistent.metas.length} cached collections (${req.params.token})`);
+        console.log(`[Collections] Manifest: restored ${persistent.metas.length} cached collections`);
       }
     }
   } catch (err) {
     console.warn(`[Collections] Manifest: cache restore failed: ${err.message}`);
   }
+  markClientIntegrationStage(req, 'collection-cache');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
@@ -1150,7 +1367,8 @@ app.get('/:token/manifest.json', async (req, res) => {
   let collectionRefs = [];
   let homeRows = [];
   let importedTypes = [];
-  const requestedIntegration = req.query.integration === 'stremio' ? 'stremio' : 'nuvio';
+  const requestedIntegration = req.clientIntegration?.manifestMode
+    || (req.query.integration === 'stremio' ? 'stremio' : 'nuvio');
   try {
     if (!HOSTED) throw new Error('Hosted account extension unavailable');
     const profileId = typeof req.query.profile_id === 'string' ? req.query.profile_id : 'default';
@@ -1172,6 +1390,7 @@ app.get('/:token/manifest.json', async (req, res) => {
       collections: ownsStoredContext ? stored.collections : [],
       homeRows: ownsStoredContext ? stored.home_rows : [],
       sources: ownsStoredContext ? stored.sources : [],
+      externalSources: ownsStoredContext ? stored.external_sources : [],
       manifestId: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
       integration: requestedIntegration,
       hideAnime: config.hideAnime === true,
@@ -1182,8 +1401,13 @@ app.get('/:token/manifest.json', async (req, res) => {
   } catch (err) {
     console.warn('[watchlist] manifest resolve failed:', err.message);
   }
-  res.json(getConfiguredManifest(req.protocol + '://' + req.get('host'), config, { watchlist, collectionRefs, homeRows, importedTypes, token: req.params.token, integration: requestedIntegration }));
-});
+  markClientIntegrationStage(req, 'account-context');
+  const manifest = getConfiguredManifest(req.protocol + '://' + req.get('host'), config, { watchlist, collectionRefs, homeRows, importedTypes, token: req.params.token, integration: requestedIntegration });
+  markClientIntegrationStage(req, 'projection');
+  res.json(req.clientIntegration ? req.clientIntegration.manifest({ manifest, context: { token: req.params.token } }) : manifest);
+}
+
+app.get('/:token/manifest.json', handleConfiguredManifest);
 
 // Strip the "Collection" suffix for the per-franchise movie row names
 // ("James Bond Collection" → "James Bond"). Also strips the common localized
@@ -1347,6 +1571,7 @@ async function handleNuvioProfile(req, res) {
         collections: stored.collections,
         homeRows: stored.home_rows,
         sources: stored.sources,
+        externalSources: stored.external_sources,
         manifestId: addonId,
         integration: req.query.integration === 'stremio' ? 'stremio' : 'nuvio',
         hideAnime: config.hideAnime === true,
@@ -1433,9 +1658,8 @@ app.get('/:token/collections.json', handleNuvioProfile);
 app.get('/:token/nuvio-collections/manifest.json', handleNuvioProfile);
 app.get('/:token/nuvio-collections.json', handleNuvioProfile);
 
-// Native search normally queries TMDB. Add a small, targeted pass over the
-// cached provider library so a user's own titles are discoverable too, without
-// re-matching their entire library on every keystroke.
+// Owned search uses a small, targeted pass over the provider library without
+// mixing those results into the canonical TMDB search rows.
 async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lang, enhance, userKey }) {
   const words = String(query || '')
     .toLowerCase()
@@ -1455,7 +1679,7 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
     });
     if (!candidates.length) return [];
     return buildCatalog(candidates, tmdbApiKey, type, sortBy, { search: query }, lang,
-      { erdbToken: enhance.erdbToken, rpdbKey: enhance.rpdbKey },
+      enhance,
       { userKey, hideAnime: config.hideAnime === true, libraryIdMode: config.libraryIdMode || 'torbox', config });
   } catch (err) {
     console.warn('[Search] owned-library search failed:', err.message);
@@ -1463,25 +1687,7 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
   }
 }
 
-function mergeSearchResults(...groups) {
-  const seen = new Set();
-  const merged = [];
-  for (const group of groups) {
-    for (const row of (Array.isArray(group) ? group : [])) {
-      if (!row) continue;
-      // Library rows normally use torbox ids while TMDB uses IMDb ids. Match
-      // on media type/title/year instead, keeping the owned copy first.
-      const key = [row.type || '', String(row.name || '').toLowerCase().trim(), row.releaseInfo || row.year || ''].join(':');
-      if (seen.has(key)) continue;
-      seen.add(key);
-      merged.push(row);
-      if (merged.length >= 50) return merged;
-    }
-  }
-  return merged;
-}
-
-function searchCollectionFilms({ userKey, lang, query, libraryIdMode }) {
+function searchCollectionFilms({ userKey, lang, query, libraryIdMode, config = {} }) {
   const words = String(query || '').toLowerCase().split(/[^a-z0-9]+/).filter(word => word.length > 1);
   if (!words.length) return [];
   const rows = [];
@@ -1490,13 +1696,17 @@ function searchCollectionFilms({ userKey, lang, query, libraryIdMode }) {
       const title = String(video.title || '').toLowerCase();
       if (!words.every(word => title.includes(word))) continue;
       const tmdbId = video.tmdbId || Number(String(video.id || '').split(':').pop());
-      rows.push({
+      const row = {
         id: libraryIdMode === 'tt' && video.imdbId ? video.imdbId : `torbox:movie:${tmdbId}`,
         type: 'movie', name: video.title, tmdbId,
+        imdbId: video.imdbId || undefined,
         poster: video.thumbnail ? video.thumbnail.replace('/w300', '/w500') : null,
         releaseInfo: String(video.released || '').slice(0, 4) || undefined,
         released: video.released || undefined,
-      });
+      };
+      rows.push(config.posterProvider === 'custom'
+        ? require('./website/public/poster-template').apply(row, config.customPosterTemplate)
+        : row);
     }
   }
   return rows.filter(row => row.poster).slice(0, 50);
@@ -1504,6 +1714,7 @@ function searchCollectionFilms({ userKey, lang, query, libraryIdMode }) {
 
 async function handleCatalog(req, res) {
   const config = await require('./src/configstore').mergeStoredConfig(await resolveConfig(req.params.token));
+  markClientIntegrationStage(req, 'config');
   if (!config) return res.json({ metas: [] });
 
   const { tmdbApiKey, sortBy = 'data_adicao', lang = 'en-US', rdCatalog = 'merge', erdbToken, rpdbKey, omdbKey, fanartKey, posterProvider, hideAnime, libraryIdMode } = config;
@@ -1517,30 +1728,54 @@ async function handleCatalog(req, res) {
 
   const catalogId = req.params.catalogId;
 
+  const customCatalogMatch = catalogId.match(/^custom-stream-(movies|series)$/);
+  if (customCatalogMatch) {
+    const type = customCatalogMatch[1] === 'movies' ? 'movie' : 'series';
+    const extra = parseExtra(req.params.extra || '');
+    const skip = Math.max(0, parseInt(extra.skip) || 0);
+    const search = String(extra.search || '').trim().toLowerCase();
+    const entries = customStreamCatalogEntries(config.customStreams, type)
+      .filter(entry => !search || entry.name.toLowerCase().includes(search))
+      .slice(skip, skip + 50);
+    const metas = [];
+    for (let offset = 0; offset < entries.length; offset += 6) {
+      const batch = await Promise.all(entries.slice(offset, offset + 6).map(async entry => {
+        const item = await require('./src/tmdb').findByImdbId(tmdbApiKey, entry.id);
+        if (!item) return null;
+        const date = item.release_date || item.first_air_date || '';
+        const meta = {
+          id: entry.id,
+          imdbId: entry.id,
+          tmdbId: item.id,
+          type,
+          name: item.title || item.name || entry.name,
+          poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined,
+          background: item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : undefined,
+          posterShape: 'poster',
+          releaseInfo: date.slice(0, 4) || undefined,
+          released: date ? new Date(date).toISOString() : undefined,
+          description: item.overview || undefined,
+        };
+        return require('./src/builder').enhanceMeta(meta, posterEnhance(config));
+      }));
+      metas.push(...batch.filter(Boolean));
+    }
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    return res.json({ metas });
+  }
+
   const searchMatch = catalogId.match(/^lelibrary-search-(movies|series)$/);
   const ownedSearchMatch = catalogId.match(/^lelibrary-search-my-(movies|series)$/);
   if (searchMatch) {
     const extra = parseExtra(req.params.extra || '');
     const query = extra.search || '';
     const type = searchMatch[1] === 'movies' ? 'movie' : 'series';
-    const enhance = { erdbToken, rpdbKey, omdbKey, fanartKey, posterProvider, enhanceBackground: config.enhanceBackground, enhanceLogo: config.enhanceLogo };
-    const tmdbMetas = await searchCatalog({
+    const enhance = posterEnhance(config);
+    const metas = await searchCatalog({
       apiKey: tmdbApiKey, query, type, lang,
       enhance,
       enhanceFingerprint: posterFp(config),
     });
-    const scope = ['combined', 'library', 'tmdb'].includes(config.searchScope) ? config.searchScope : 'combined';
-    let metas = tmdbMetas;
-    if (scope === 'combined') {
-      const owned = await searchOwnedLibrary({
-        config, tmdbApiKey, type, query, sortBy, lang,
-        enhance: { erdbToken, rpdbKey }, userKey: providers.getUserKey(config),
-      });
-      const collectionFilms = type === 'movie'
-        ? searchCollectionFilms({ userKey: providers.getUserKey(config), lang, query, libraryIdMode })
-        : [];
-      metas = mergeSearchResults(owned, collectionFilms, tmdbMetas);
-    }
     res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     return res.json(withCacheHints({ metas }, { cacheMaxAge: 60, staleRevalidate: 300, staleError: 1800 }));
   }
@@ -1549,14 +1784,14 @@ async function handleCatalog(req, res) {
     const type = ownedSearchMatch[1] === 'movies' ? 'movie' : 'series';
     const metas = await searchOwnedLibrary({
       config, tmdbApiKey, type, query: extra.search || '', sortBy, lang,
-      enhance: { erdbToken, rpdbKey }, userKey: providers.getUserKey(config),
+      enhance: posterEnhance(config), userKey: providers.getUserKey(config),
     });
     res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     return res.json(withCacheHints({ metas }, { cacheMaxAge: 60, staleRevalidate: 300, staleError: 1800 }));
   }
   if (catalogId === 'lelibrary-search-collections' && req.params.type === 'movie') {
     const extra = parseExtra(req.params.extra || '');
-    const metas = searchCollectionFilms({ userKey: providers.getUserKey(config), lang, query: extra.search || '', libraryIdMode });
+    const metas = searchCollectionFilms({ userKey: providers.getUserKey(config), lang, query: extra.search || '', libraryIdMode, config });
     res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     return res.json(withCacheHints({ metas }, { cacheMaxAge: 60, staleRevalidate: 300, staleError: 1800 }));
   }
@@ -1578,12 +1813,23 @@ async function handleCatalog(req, res) {
       const definition = importedSourceId
         ? await HOSTED.resolveImportedSource(req.params.token, importedSourceId, type)
         : await HOSTED.resolveImportedSourceByLabel(req.params.token, importedLabel, type);
-      if (!definition) return res.json({ metas: [] });
       try {
-        metas = await require('./src/libcatalog').buildNormalizedImportedCatalog({
-          definition, tmdbApiKey, lang, skip, search,
-          enhance: { erdbToken, rpdbKey, fanartKey, posterProvider }, posterFp: posterFp(config),
-        });
+        if (definition) {
+          metas = await require('./src/libcatalog').buildNormalizedImportedCatalog({
+            definition, tmdbApiKey, lang, skip, search,
+            enhance: posterEnhance(config), posterFp: posterFp(config), mdblistKey: config.mdblistKey || '',
+          });
+        } else if (!importedSourceId && HOSTED?.resolveExternalSourceByLabel) {
+          const external = await HOSTED.resolveExternalSourceByLabel(req.params.token, importedLabel, type);
+          if (!external) return res.json({ metas: [] });
+          metas = await require('./src/accounts/external-catalog').fetchExternalCatalog(external, {
+            skip,
+            search,
+            genre: external.genre || '',
+          });
+        } else {
+          return res.json({ metas: [] });
+        }
       } catch (error) {
         console.warn(`[Imported catalog] ${error.code || 'upstream_error'}`);
         const messages = {
@@ -1592,6 +1838,13 @@ async function handleCatalog(req, res) {
           provider_not_configured: 'This source provider is not configured on LeLibrary.',
           rate_limited: 'The source provider is temporarily rate limiting requests.',
           temporary_upstream_error: 'The source provider is temporarily unavailable.',
+          blocked_external_host: 'This external catalogue address is not permitted.',
+          external_catalog_missing: 'The configured addon no longer provides this catalogue.',
+          external_catalog_empty: 'The external catalogue returned no compatible public titles.',
+          external_timeout: 'The external catalogue took too long to respond.',
+          unsupported_external_transport: 'This external addon does not expose a compatible catalogue route.',
+          invalid_external_response: 'The external addon returned an invalid catalogue response.',
+          external_source_unavailable: 'The external catalogue is temporarily unavailable.',
         };
         return res.json({ metas: [], sourceError: { code: error.code || 'upstream_error', message: messages[error.code] || 'This imported source is unavailable.' } });
       }
@@ -1599,9 +1852,9 @@ async function handleCatalog(req, res) {
       // Read-only compatibility for existing pre-normalization imports. New
       // imports never create these recipe strings.
       const ref = String(extra.genre || '');
-      metas = await require('./src/libcatalog').buildImportedCatalog({ tmdbApiKey, ref, type, lang, userKey: providers.getUserKey(config), skip, search, enhance: { erdbToken, rpdbKey, fanartKey, posterProvider }, posterFp: posterFp(config), mdblistKey: config.mdblistKey });
+      metas = await require('./src/libcatalog').buildImportedCatalog({ tmdbApiKey, ref, type, lang, userKey: providers.getUserKey(config), skip, search, enhance: posterEnhance(config), posterFp: posterFp(config), mdblistKey: config.mdblistKey });
     }
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    setPrivateResponseCache(res, TTL_CATALOG);
     return res.json(withCacheHints({ metas }, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
   }
 
@@ -1631,11 +1884,11 @@ async function handleCatalog(req, res) {
     const { buildLibraryCatalog } = require('./src/libcatalog');
     let metas = [];
     try {
-      metas = await buildLibraryCatalog({ tmdbApiKey, catalogId: libId, lang, userKey, skip, search, enhance: { erdbToken, rpdbKey, fanartKey, posterProvider }, posterFp: posterFp(config), mdblistKey: config.mdblistKey });
+      metas = await buildLibraryCatalog({ tmdbApiKey, catalogId: libId, lang, userKey, skip, search, enhance: posterEnhance(config), posterFp: posterFp(config), mdblistKey: config.mdblistKey });
     } catch (err) {
       console.error(`[Curated] ${libId} error:`, err.message);
     }
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    setPrivateResponseCache(res, TTL_CATALOG);
     return res.json(withCacheHints({ metas }, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
   }
 
@@ -1667,7 +1920,7 @@ async function handleCatalog(req, res) {
         if (metas.length === 0) {
           const all = await providers.fetchDownloads(config);
           if (!Array.isArray(all) || all.length === 0) return res.json({ metas: [] });
-          metas = await buildCollectionsCatalog(all, tmdbApiKey, lang, { erdbToken, rpdbKey });
+          metas = await buildCollectionsCatalog(all, tmdbApiKey, lang, posterEnhance(config));
           if (metas.length > 0) cacheCollections(userKey, lang, metas);
         }
       } catch (err) {
@@ -1679,7 +1932,7 @@ async function handleCatalog(req, res) {
       .filter((film) => !search || (film.name || '').toLowerCase().includes(search.toLowerCase()));
     const paginated = filmMetas.slice(skip, skip + 50);
     console.log(`[Collections] Dynamic movie catalog ${collectionId} → ${paginated.length} films`);
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    setPrivateResponseCache(res, TTL_CATALOG);
     return res.json(withCacheHints({ metas: paginated }, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
   }
 
@@ -1722,7 +1975,7 @@ async function handleCatalog(req, res) {
             console.warn(`[Collections] Film catalog: provider returned no downloads (${key})`);
             return res.json({ metas: [] });
           }
-          metas = await buildCollectionsCatalog(all, tmdbApiKey, lang, { erdbToken, rpdbKey });
+          metas = await buildCollectionsCatalog(all, tmdbApiKey, lang, posterEnhance(config));
           if (metas.length > 0) cacheCollections(userKey, lang, metas);
           console.log(`[Collections] Film catalog: rebuilt → ${metas.length} collections (${key})`);
         }
@@ -1751,7 +2004,7 @@ async function handleCatalog(req, res) {
 
     const paginated = filmMetas.slice(skip, skip + 50);
     console.log(`[Collections] Film catalog "${key}" → ${paginated.length} films`);
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    setPrivateResponseCache(res, TTL_CATALOG);
     return res.json(withCacheHints({ metas: paginated }, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
   }
 
@@ -1767,12 +2020,12 @@ async function handleCatalog(req, res) {
     const { buildLibraryCatalog } = require('./src/libcatalog');
     let paginated = [];
     try {
-      paginated = await buildLibraryCatalog({ tmdbApiKey, catalogId: libId, lang, userKey, skip, search, enhance: { erdbToken, rpdbKey, fanartKey, posterProvider }, posterFp: posterFp(config), mdblistKey: config.mdblistKey });
+      paginated = await buildLibraryCatalog({ tmdbApiKey, catalogId: libId, lang, userKey, skip, search, enhance: posterEnhance(config), posterFp: posterFp(config), mdblistKey: config.mdblistKey });
     } catch (err) {
       console.error(`[LibCat] ${libId} error:`, err.message);
     }
     console.log(`[LibCat] ${libId} → ${paginated.length} rows`);
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    setPrivateResponseCache(res, TTL_CATALOG);
     return res.json(withCacheHints({ metas: paginated }, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
   }
 
@@ -1796,7 +2049,7 @@ async function handleCatalog(req, res) {
       console.error(`[Watchlist] ${wlProvider} ${wlType} error:`, err.message);
     }
     console.log(`[Watchlist] ${wlProvider}:${wlType} → ${paginated.length} rows`);
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    setPrivateResponseCache(res, 300);
     return res.json(withCacheHints({ metas: paginated }, { cacheMaxAge: 300, staleRevalidate: 300, staleError: 1800 }));
   }
 
@@ -1815,13 +2068,13 @@ async function handleCatalog(req, res) {
     const userKey  = providers.getUserKey(config);
     let paginated;
     try {
-      paginated = await buildDiscoveryCatalog({ tmdbApiKey, kind, apiType, lang, userKey, skip, search, enhance: { erdbToken, rpdbKey, fanartKey, posterProvider }, posterFp: posterFp(config) });
+      paginated = await buildDiscoveryCatalog({ tmdbApiKey, kind, apiType, lang, userKey, skip, search, enhance: posterEnhance(config), posterFp: posterFp(config) });
     } catch (err) {
       console.error(`[Discovery] ${kind} ${apiType} error:`, err.message);
       return res.json({ metas: [] });
     }
     console.log(`[Discovery] ${kind} ${apiType} → ${paginated.length} metas (skip=${skip})`);
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    setPrivateResponseCache(res, TTL_CATALOG);
     return res.json(withCacheHints({ metas: paginated }, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
   }
 
@@ -1861,7 +2114,7 @@ async function handleCatalog(req, res) {
             console.warn('[Collections] Movie catalog: provider returned no downloads');
             return res.json({ metas: [] });
           }
-          metas = await buildCollectionsCatalog(all, tmdbApiKey, lang, { erdbToken, rpdbKey });
+          metas = await buildCollectionsCatalog(all, tmdbApiKey, lang, posterEnhance(config));
           if (metas.length > 0) cacheCollections(userKey, lang, metas);
         }
       } catch (err) {
@@ -1892,7 +2145,7 @@ async function handleCatalog(req, res) {
       .filter(f => !search || (f.name || '').toLowerCase().includes(search.toLowerCase()));
     const paginated = filtered.slice(skip, skip + 50);
     console.log(`[Collections] Movie catalog "${genre || 'all'}" → ${paginated.length} films`);
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    setPrivateResponseCache(res, TTL_CATALOG);
     return res.json(withCacheHints({ metas: paginated }, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
   }
 
@@ -1918,7 +2171,7 @@ async function handleCatalog(req, res) {
     } else {
       try {
         const all = await providers.fetchDownloads(config);
-        metas = await buildCollectionsCatalog(all, tmdbApiKey, lang, { erdbToken, rpdbKey });
+        metas = await buildCollectionsCatalog(all, tmdbApiKey, lang, posterEnhance(config));
         cacheCollections(userKey, lang, metas);
         await cache.set(collKey, { metas }, TTL_CATALOG);
         console.log(`[Collections] Built → ${metas.length} items`);
@@ -1929,7 +2182,7 @@ async function handleCatalog(req, res) {
     }
     if (search) metas = metas.filter(m => (m.name || '').toLowerCase().includes(search.toLowerCase()));
     const paginated = metas.slice(skip, skip + 50);
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    setPrivateResponseCache(res, TTL_CATALOG);
     return res.json(withCacheHints({ metas: paginated }, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
   }
 
@@ -1979,8 +2232,8 @@ async function handleCatalog(req, res) {
   if (cached && Array.isArray(cached.metas) && cached.metas.length > 0) {
     console.log(`[Catalog] Cache hit → ${cached.metas.length} items`);
     populateTmdbIndexFromMetas(cached.metas, userKey);
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
-    return res.json(withCacheHints(cached, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
+    setPrivateResponseCache(res, OWNED_CATALOG_CLIENT_TTL);
+    return res.json(withCacheHints(cached, { cacheMaxAge: OWNED_CATALOG_CLIENT_TTL, staleRevalidate: OWNED_CATALOG_CLIENT_TTL, staleError: 1800 }));
   }
 
   try {
@@ -1994,7 +2247,7 @@ async function handleCatalog(req, res) {
     const projectionFp = hashShort(JSON.stringify({
       sortBy, lang, rdCatalog, poster: posterFp(config), libraryIdMode: libraryIdMode || 'torbox', hideAnime: !!hideAnime,
     }));
-    const newHash = `${hashDownloads(downloads)}:${posterFp(config)}:${libraryIdMode || 'torbox'}`;
+    const newHash = `${LIBRARY_PROJECTION_VERSION}:${hashDownloads(downloads)}:${posterFp(config)}:${libraryIdMode || 'torbox'}`;
     const hashKey = cache.makeKey('dlhash', 'v2', userKey, projectionFp);
     const oldHash = await cache.get(hashKey);
     const hashChanged = oldHash !== newHash;
@@ -2007,13 +2260,13 @@ async function handleCatalog(req, res) {
       if (stale) {
         console.log('[Catalog] Empty provider response: serving cached catalog instead of blanking');
         await cache.touchPattern(`cat:*${userKey}*`, TTL_CATALOG);
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+        setPrivateResponseCache(res, 60);
         return res.json(withCacheHints(stale, { cacheMaxAge: 60, staleRevalidate: 60, staleError: 1800 }));
       }
     }
 
     // Progressive: return already-known items immediately, complete the rest in the background
-    const built = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey }, { progressive: true, userKey, hideAnime, libraryIdMode, config });
+    const built = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, posterEnhance(config), { progressive: true, userKey, hideAnime, libraryIdMode, config });
     const isPartial = !!built.completion;
     const metas     = built.metas || built;
 
@@ -2021,12 +2274,12 @@ async function handleCatalog(req, res) {
       console.log(`[Catalog] Fast-returning ${metas.length} metas, completing ${built._fresh || 0} in background`);
       // Serve partial immediately (short cache so the client re-fetches once complete)
       await cache.set(cacheKey, { metas }, 10);
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+      setPrivateResponseCache(res, 10);
       res.json(withCacheHints({ metas }, { cacheMaxAge: 10, staleRevalidate: 10, staleError: 1800 }));
       // Finish matching + rebuild full catalog in the background
       built.completion.then(async () => {
         try {
-          const full = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, { erdbToken, rpdbKey }, { userKey, hideAnime, libraryIdMode, config });
+          const full = await buildCatalog(downloads, tmdbApiKey, type, sortBy, { skip, search }, lang, posterEnhance(config), { userKey, hideAnime, libraryIdMode, config });
           const result = { metas: full };
           if (hashChanged) {
             await cache.set(hashKey, newHash, 7200);
@@ -2057,8 +2310,8 @@ async function handleCatalog(req, res) {
       metas.length > 0 ? cache.set(catlastKey, result, 7 * 86400) : Promise.resolve(),
     ]);
 
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
-    res.json(withCacheHints(result, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
+    setPrivateResponseCache(res, OWNED_CATALOG_CLIENT_TTL);
+    res.json(withCacheHints(result, { cacheMaxAge: OWNED_CATALOG_CLIENT_TTL, staleRevalidate: OWNED_CATALOG_CLIENT_TTL, staleError: 1800 }));
   } catch (err) {
     console.error('[Catalog] Error:', err.message);
     // If we had a last-good snapshot, serve it as fallback instead of empty
@@ -2140,16 +2393,55 @@ app.post('/api/preview', express.json({ limit: '2mb' }), rateLimit({ windowMs: 6
   }
 });
 
+// Small, live TMDB picker endpoints used by the Custom Streams editor. These
+// deliberately fetch one selected season at a time; expanding full metadata
+// for every season made long-running series unnecessarily slow and expensive.
+app.get('/:token/custom-streams/series/:id/seasons.json', async (req, res) => {
+  try {
+    const base = await resolveConfig(req.params.token);
+    if (!base) return res.status(404).json({ seasons: [] });
+    const config = await require('./src/configstore').mergeStoredConfig(base);
+    if (!config.tmdbApiKey || !/^tt\d+$/.test(req.params.id)) return res.status(400).json({ seasons: [] });
+    const { imdbToTmdbCached, getSeriesSeasons } = require('./src/tmdb');
+    const selectedTmdbId = Number(req.query.tmdbId);
+    const mapped = Number.isSafeInteger(selectedTmdbId) && selectedTmdbId > 0
+      ? { tmdbId: selectedTmdbId, type: 'series' }
+      : await imdbToTmdbCached(config.tmdbApiKey, req.params.id);
+    const seasons = mapped?.type === 'series' ? await getSeriesSeasons(config.tmdbApiKey, mapped.tmdbId, config.lang || 'en-US') : [];
+    res.setHeader('Cache-Control', 'private, no-cache');
+    res.json({ seasons: Array.isArray(seasons) ? seasons : [] });
+  } catch { res.status(502).json({ seasons: [] }); }
+});
+
+app.get('/:token/custom-streams/series/:id/season/:season.json', async (req, res) => {
+  try {
+    const base = await resolveConfig(req.params.token);
+    if (!base) return res.status(404).json({ episodes: [] });
+    const config = await require('./src/configstore').mergeStoredConfig(base);
+    const season = Number(req.params.season);
+    if (!config.tmdbApiKey || !/^tt\d+$/.test(req.params.id) || !Number.isInteger(season) || season < 0) return res.status(400).json({ episodes: [] });
+    const { imdbToTmdbCached, getSeasonEpisodes } = require('./src/tmdb');
+    const selectedTmdbId = Number(req.query.tmdbId);
+    const mapped = Number.isSafeInteger(selectedTmdbId) && selectedTmdbId > 0
+      ? { tmdbId: selectedTmdbId, type: 'series' }
+      : await imdbToTmdbCached(config.tmdbApiKey, req.params.id);
+    const episodes = mapped?.type === 'series' ? await getSeasonEpisodes(config.tmdbApiKey, mapped.tmdbId, season, config.lang || 'en-US') : [];
+    res.setHeader('Cache-Control', 'private, no-cache');
+    res.json({ episodes });
+  } catch { res.status(502).json({ episodes: [] }); }
+});
+
 // ─── META ─────────────────────────────────────────────────────────────────────
-app.get('/:token/meta/:type/:id.json', async (req, res) => {
+async function handleMeta(req, res) {
   const baseConfig = await resolveConfig(req.params.token);
   if (!baseConfig) return res.json({ meta: null });
   const config = await require('./src/configstore').mergeStoredConfig(baseConfig);
+  markClientIntegrationStage(req, 'config');
 
   const { tmdbApiKey, lang = 'en-US', erdbToken, rpdbKey, omdbKey, fanartKey, enhanceBackground, enhanceLogo, customStreams } = config;
   const active = providers.activeProviders(config);
   const { type, id } = req.params;
-  if (!tmdbApiKey || active.length === 0) return res.json({ meta: null });
+  if (!tmdbApiKey || (active.length === 0 && !hasCustomStreams(customStreams))) return res.json({ meta: null });
 
   console.log(`[Meta] Request: type=${type} id=${id}`);
 
@@ -2169,7 +2461,7 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
     const cached = await cache.get(cacheKey);
     if (cached) {
       console.log(`[Collections] Meta cache hit: ${id}`);
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+      setPrivateResponseCache(res, 86400, 86400, 604800);
       return res.json(withCacheHints(cached, { cacheMaxAge: 86400, staleRevalidate: 86400, staleError: 604800 }));
     }
     if (!knownConfigs.has(req.params.token)) {
@@ -2181,7 +2473,7 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
       console.log(`[Collections] Meta not in memory cache (${id}): building`);
       try {
         const all = await providers.fetchDownloads(config);
-        const metas = await buildCollectionsCatalog(all, tmdbApiKey, lang, { erdbToken, rpdbKey });
+        const metas = await buildCollectionsCatalog(all, tmdbApiKey, lang, posterEnhance(config));
         cacheCollections(userKey, lang, metas);
         meta = getCollectionMeta(userKey, lang, id.split(':')[2]);
         console.log(`[Collections] Meta rebuilt → ${meta ? 'found' : 'STILL NULL'} (${id})`);
@@ -2196,7 +2488,7 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
     }
     const result = { meta };
     await cache.set(cacheKey, result, 86400);
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    setPrivateResponseCache(res, 86400, 86400, 604800);
     return res.json(withCacheHints(result, { cacheMaxAge: 86400, staleRevalidate: 86400, staleError: 604800 }));
   }
 
@@ -2211,6 +2503,7 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
   } else {
     return res.json({ meta: null });
   }
+  markClientIntegrationStage(req, 'identity');
 
   const userKey = providers.getUserKey(config);
   // Discovery (tt:) metas are proxied from the TMDB metadata addon with the
@@ -2219,20 +2512,22 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
   const discovery = !!ttId;
   const cacheKey = cache.makeKey('meta', 'v3', `torbox:${type}:${tmdbId}`, discovery ? 'tt' : '', lang, userKey, posterFp(config));
   const cached   = await cache.get(cacheKey);
+  markClientIntegrationStage(req, 'cache');
 
   if (cached) {
     console.log(`[Meta] Cache hit: ${id} → ${cached.meta?.videos?.length || 0} eps`);
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    setPrivateResponseCache(res, 86400, 86400, 604800);
     return res.json(withCacheHints(discovery ? { meta: { ...cached.meta, id: ttId } } : cached, { cacheMaxAge: 86400, staleRevalidate: 86400, staleError: 604800 }));
   }
 
   console.log(`[Meta] Building: ${id} (tmdbId=${tmdbId})`);
   try {
-    const enhance = { erdbToken, rpdbKey, omdbKey, fanartKey, posterProvider: config.posterProvider, enhanceBackground, enhanceLogo };
+    const enhance = posterEnhance(config);
     const meta   = discovery
       ? await buildDiscoveryMeta({ tmdbApiKey, tmdbId, type, lang, enhance, imdbId: ttId })
       : await buildMeta(tmdbId, type, tmdbApiKey, lang, config, enhance, userKey, !discovery);
     const result = { meta };
+    markClientIntegrationStage(req, 'metadata');
 
     // Resilience: don't cache hollow results for 24h. A series with zero
     // episodes (provider down/empty) or a meta that failed to build (TMDB
@@ -2241,6 +2536,7 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
     const metaTtl = (!meta || (type !== 'movie' && (!meta.videos || meta.videos.length === 0))) ? 300 : 86400;
 
     await cache.set(cacheKey, result, metaTtl);
+    markClientIntegrationStage(req, 'cache-write');
 
     // "More from this saga": for movies that belong to a built collection, add
     // a Stremio detail link that opens the franchise's movie catalog (plain
@@ -2254,7 +2550,8 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
     if (meta && type === 'movie') {
       const saga = getCollectionForMovie(userKey, lang, tmdbId);
       if (saga) {
-        const manifestUrl = `${req.protocol}://${req.get('host')}/${req.params.token}/manifest.json`;
+        const integrationPath = req.clientIntegration ? `/i/${req.clientIntegration.id}` : '';
+        const manifestUrl = `${req.protocol}://${req.get('host')}/${req.params.token}${integrationPath}/manifest.json`;
         meta.links = [
           ...(meta.links || []).filter(l => l && l.category !== 'saga'),
           { name: `More from the ${saga.name} saga`, category: 'saga', url: `stremio:///discover/${encodeURIComponent(manifestUrl)}/movie/torbox-collections?genre=${encodeURIComponent(franchiseRowName(saga.name))}` },
@@ -2264,7 +2561,7 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
       }
     }
 
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    setPrivateResponseCache(res, metaTtl, metaTtl, 604800);
     res.json(withCacheHints(discovery ? { meta: { ...result.meta, id: ttId } } : result, { cacheMaxAge: metaTtl, staleRevalidate: metaTtl, staleError: 604800 }));
 
     // Playback links are deliberately created only by the stream route below.
@@ -2276,19 +2573,23 @@ app.get('/:token/meta/:type/:id.json', async (req, res) => {
     console.error('[Meta] Error:', err.message);
     res.json({ meta: null });
   }
-});
+}
 
-app.get('/:token/stream/:type/:id.json', async (req, res) => {
+app.get('/:token/meta/:type/:id.json', handleMeta);
+
+async function handleStream(req, res) {
   const baseConfig = await resolveConfig(req.params.token);
   if (!baseConfig) return res.json({ streams: [] });
   // Merge server-side stream settings (addons + format) stored in Redis by the
   // configure page: the token stays small and these survive reloads/device
   // switches. Falls back to the token's own fields when nothing is stored.
   const config = await require('./src/configstore').mergeStoredConfig(baseConfig);
+  markClientIntegrationStage(req, 'config');
 
   const { tmdbApiKey, lang = 'en-US', customStreams } = config;
   const active = providers.activeProviders(config);
-  if (!tmdbApiKey || active.length === 0) return res.json({ streams: [] });
+  const customEnabled = hasCustomStreams(customStreams);
+  if ((!tmdbApiKey || active.length === 0) && !customEnabled) return res.json({ streams: [] });
 
   const { type, id } = req.params;
   if (!id.startsWith('torbox:') && !id.startsWith('tt') && !id.startsWith('kitsu:')) {
@@ -2307,7 +2608,7 @@ app.get('/:token/stream/:type/:id.json', async (req, res) => {
   // The stream-notices toggle joins both fingerprints so flipping it takes
   // effect immediately instead of serving stale notice rows.
   const fmtFp = libraryStreamFmtFp(config);
-  let tmdbId, season, episode;
+  let tmdbId, season, episode, mappingImdbId;
   let buildType = type;
 
   try {
@@ -2331,6 +2632,9 @@ app.get('/:token/stream/:type/:id.json', async (req, res) => {
       const parts = id.split(':');
       const kitsuId = parts[1];
       episode = parts[2];
+      if (!tmdbApiKey) {
+        tmdbId = `kitsu-${kitsuId}`;
+      } else {
       const axios = require('axios');
       const kitsuRes = await axios.get(`https://kitsu.io/api/edge/anime/${kitsuId}`, { timeout: 5000 });
       const title = kitsuRes.data?.data?.attributes?.canonicalTitle;
@@ -2339,44 +2643,157 @@ app.get('/:token/stream/:type/:id.json', async (req, res) => {
       const search = await searchMetadata(tmdbApiKey, title, 'tv', undefined, lang);
       if (!search) return res.json({ streams: [] });
       tmdbId = search.id;
+      }
     }
 
     // ── tt: id + stream addons → owned copy first, then external addons ──
     if (id.startsWith('tt')) {
-      const { result } = await getPublicStreams({
+      markClientIntegrationStage(req, 'identity');
+      const { result, cacheHit } = await getPublicStreams({
         config, tmdbApiKey, type, id, lang, customStreams, userKey, externalAddons,
+        requestPolicy: req.clientIntegration?.requestPolicy,
       });
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
-      return res.json(withCacheHints(result, { cacheMaxAge: TTL_STREAM, staleRevalidate: TTL_STREAM, staleError: 604800 }));
+      markClientIntegrationStage(req, cacheHit ? 'cache' : 'stream-bridge');
+      const responseTtl = streamResponseTtl(result);
+      setPrivateResponseCache(res, responseTtl, responseTtl, 604800);
+      return res.json(withCacheHints(result, { cacheMaxAge: responseTtl, staleRevalidate: responseTtl, staleError: 604800 }));
     }
+
+    // Owned library ids stay in the torbox namespace. Resolve only the mapping
+    // lookup key back to IMDb so the same explicit row also answers a library
+    // card; never rewrite the public catalog/meta id.
+    if (hasMappedCustomStreams(customStreams) && tmdbApiKey && tmdbId && !String(tmdbId).startsWith('kitsu-')) {
+      const { getImdbId } = require('./src/tmdb');
+      const apiType = buildType === 'movie' ? 'movie' : 'tv';
+      mappingImdbId = await getImdbId(tmdbApiKey, apiType, tmdbId).catch(() => null);
+    }
+    markClientIntegrationStage(req, 'identity');
 
     // Include the stream-format fingerprint so changing the preset/templates
     // invalidates cached streams instead of serving stale names for the TTL.
     const streamCacheKey = cache.makeKey('stream', buildType, tmdbId, season || '', episode || '', userKey + fmtFp);
     const cachedStreams  = await cache.get(streamCacheKey);
+    markClientIntegrationStage(req, 'cache');
     if (cachedStreams) {
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
-      return res.json(withCacheHints(cachedStreams, { cacheMaxAge: TTL_STREAM, staleRevalidate: TTL_STREAM, staleError: 604800 }));
+      const responseTtl = streamResponseTtl(cachedStreams);
+      setPrivateResponseCache(res, responseTtl, responseTtl, 604800);
+      return res.json(withCacheHints(cachedStreams, { cacheMaxAge: responseTtl, staleRevalidate: responseTtl, staleError: 604800 }));
     }
 
-    const streams = await buildStreams(config, tmdbApiKey, buildType, tmdbId, season, episode, lang, customStreams, userKey);
-    const noticed  = await applyStreamNotices(streams, { config, tmdbApiKey, tmdbId, type: buildType });
+    const streams = await buildStreams(config, tmdbApiKey, buildType, tmdbId, season, episode, lang, customStreams, userKey, { imdbId: mappingImdbId });
+    markClientIntegrationStage(req, 'owned-streams');
+    // A providerless Custom Streams install is a sparse stream-only mapping:
+    // unknown IDs must remain empty so LeLibrary does not add a notice row to
+    // every title in the client.
+    const noticeConfig = active.length > 0 ? config : { ...config, streamNotices: 'off' };
+    const noticed  = await applyStreamNotices(streams, { config: noticeConfig, tmdbApiKey, tmdbId, type: buildType });
+    markClientIntegrationStage(req, 'notices');
 
     const result  = { streams: noticed };
     // Don't cache hollow results for the full TTL: a provider blip (e.g. TorBox
     // rate-limiting requestdl) would otherwise blank streams for 10 minutes.
     // Notice-only results count as hollow (the fallback row isn't a stream).
-    const hasRealStreams = noticed.some(s => !s._notice);
-    const streamTtl = hasRealStreams ? TTL_STREAM : 60;
+    const streamTtl = streamResponseTtl(result);
     await cache.set(streamCacheKey, result, streamTtl);
+    markClientIntegrationStage(req, 'cache-write');
 
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
-    res.json(withCacheHints(result, { cacheMaxAge: TTL_STREAM, staleRevalidate: TTL_STREAM, staleError: 604800 }));
+    setPrivateResponseCache(res, streamTtl, streamTtl, 604800);
+    res.json(withCacheHints(result, { cacheMaxAge: streamTtl, staleRevalidate: streamTtl, staleError: 604800 }));
   } catch (err) {
     console.error('[Stream] Error:', err.message);
     res.json({ streams: [] });
   }
-});
+}
+
+app.get('/:token/stream/:type/:id.json', handleStream);
+
+function integrationIdNamespace(id) {
+  const value = String(id || '');
+  if (value.startsWith('tt')) return 'tt';
+  if (value.startsWith('torbox:')) return 'torbox';
+  if (value.startsWith('kitsu:')) return 'kitsu';
+  return value ? 'other' : 'none';
+}
+
+function captureIntegrationResponse(handler, req) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let statusCode = 200;
+    const headers = new Map();
+    const finish = body => {
+      if (settled) return;
+      settled = true;
+      resolve({ body, statusCode, headers });
+    };
+    const response = {
+      setHeader(name, value) { headers.set(name, value); },
+      getHeader(name) { return headers.get(name); },
+      status(value) { statusCode = Number(value) || 200; return response; },
+      json(body) { finish(body); return response; },
+      send(body) { finish(body); return response; },
+      end(body) { finish(body); return response; },
+    };
+    Promise.resolve(handler(req, response)).then(() => {
+      if (!settled) finish(null);
+    }, reject);
+  });
+}
+
+async function runClientIntegration(req, res, routeClass, handler, fallbackBody) {
+  const adapter = getClientIntegration(req.params.client, { fallback: false });
+  if (!adapter) return res.status(404).json({ error: 'Unknown client integration' });
+  req.clientIntegration = adapter;
+  const requestId = crypto.randomBytes(6).toString('hex');
+  const started = Date.now();
+  req.clientIntegrationTrace = { last: process.hrtime.bigint(), stages: [] };
+  const budget = Number(adapter.requestPolicy?.[`${routeClass}Ms`]) || 0;
+  if (req.params.type && !adapter.capabilities.types?.includes(req.params.type)) {
+    res.setHeader('X-LeLibrary-Request-Id', requestId);
+    return res.json(fallbackBody);
+  }
+  let timer;
+  try {
+    const work = captureIntegrationResponse(handler, req);
+    const outcome = budget > 0
+      ? await Promise.race([
+          work,
+          new Promise(resolve => { timer = setTimeout(() => resolve({ timedOut: true }), budget); }),
+        ])
+      : await work;
+    clearTimeout(timer);
+    res.setHeader('X-LeLibrary-Request-Id', requestId);
+    if (outcome?.timedOut) {
+      const stages = finishClientIntegrationStages(req);
+      res.setHeader('Server-Timing', clientIntegrationTimingHeader(stages));
+      console.warn(`[ClientIntegration] id=${requestId} client=${adapter.id} route=${routeClass} type=${req.params.type || 'none'} namespace=${integrationIdNamespace(req.params.id)} latencyMs=${Date.now() - started} stages=${clientIntegrationTimingLog(stages)} outcome=timeout`);
+      return res.status(routeClass === 'manifest' ? 504 : 200).json(fallbackBody);
+    }
+    for (const [name, value] of outcome.headers || []) res.setHeader(name, value);
+    const body = typeof adapter.response === 'function'
+      ? adapter.response({ route: routeClass, body: outcome.body, context: { type: req.params.type } })
+      : outcome.body;
+    const count = Array.isArray(body?.streams) ? body.streams.length : Array.isArray(body?.metas) ? body.metas.length : body?.meta ? 1 : 0;
+    const stages = finishClientIntegrationStages(req);
+    res.setHeader('Server-Timing', clientIntegrationTimingHeader(stages));
+    console.log(`[ClientIntegration] id=${requestId} client=${adapter.id} route=${routeClass} type=${req.params.type || 'none'} namespace=${integrationIdNamespace(req.params.id)} latencyMs=${Date.now() - started} stages=${clientIntegrationTimingLog(stages)} count=${count} outcome=ok`);
+    return res.status(outcome.statusCode || 200).json(body);
+  } catch (error) {
+    clearTimeout(timer);
+    const stages = finishClientIntegrationStages(req);
+    res.setHeader('Server-Timing', clientIntegrationTimingHeader(stages));
+    console.warn(`[ClientIntegration] id=${requestId} client=${adapter.id} route=${routeClass} type=${req.params.type || 'none'} namespace=${integrationIdNamespace(req.params.id)} latencyMs=${Date.now() - started} stages=${clientIntegrationTimingLog(stages)} outcome=error`);
+    return res.status(routeClass === 'manifest' ? 502 : 200).json(fallbackBody);
+  }
+}
+
+// Stable path-based client facade. Some clients derive every resource URL by
+// stripping `/manifest.json`, so the integration identity must live in the
+// path—not a query string—and all resource routes must remain siblings.
+app.get('/:token/i/:client/manifest.json', (req, res) => runClientIntegration(req, res, 'manifest', handleConfiguredManifest, { error: 'Manifest unavailable' }));
+app.get('/:token/i/:client/catalog/:type/:catalogId.json', (req, res) => runClientIntegration(req, res, 'catalog', handleCatalog, { metas: [] }));
+app.get('/:token/i/:client/catalog/:type/:catalogId/:extra.json', (req, res) => runClientIntegration(req, res, 'catalog', handleCatalog, { metas: [] }));
+app.get('/:token/i/:client/meta/:type/:id.json', (req, res) => runClientIntegration(req, res, 'meta', handleMeta, { meta: null }));
+app.get('/:token/i/:client/stream/:type/:id.json', (req, res) => runClientIntegration(req, res, 'stream', handleStream, { streams: [] }));
 
 // Terminal error handler. Async rejections land here via the auto-wrapper
 // above; without it Express 4's default would leak a stack trace as HTML.
@@ -2406,3 +2823,4 @@ module.exports = app;
 // Exported for tests: the manifest Home-visibility rules (wizard-managed vs
 // legacy/self-host installs) are verified in test/manifest-home.test.js.
 module.exports.getConfiguredManifest = getConfiguredManifest;
+module.exports.posterFp = posterFp;

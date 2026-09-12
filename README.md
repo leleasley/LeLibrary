@@ -47,23 +47,140 @@ LeLibrary turns downloads from TorBox, Real-Debrid, AllDebrid and Premiumize int
 
 ### Self-hosted installation
 
+Create an empty directory for LeLibrary and generate its local secret:
+
 ```bash
-git clone https://github.com/leleasley/LeLibrary.git
-cd LeLibrary
-cp .env.example .env
-cp compose.example.yml compose.yml
-# Generate and save the required secret:
-sed -i "s|^SELFHOST_CONFIGS_SECRET=.*|SELFHOST_CONFIGS_SECRET=$(openssl rand -hex 32)|" .env
-docker compose up -d --build
+mkdir lelibrary && cd lelibrary
+umask 077
+printf 'SELFHOST_CONFIGS_SECRET=%s\n' "$(openssl rand -hex 32)" > .env
 ```
 
-Then open `http://localhost:7860/configure`.
+Save the following as `compose.yml` in that directory:
+
+```yaml
+services:
+  lelibrary:
+    image: ghcr.io/leleasley/lelibrary:latest
+    container_name: lelibrary
+    restart: unless-stopped
+    ports:
+      - "7860:7860"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # Loaded automatically from the .env file generated above.
+      # Compose refuses to start when the value is missing or empty.
+      SELFHOST_CONFIGS_SECRET: ${SELFHOST_CONFIGS_SECRET:?Generate SELFHOST_CONFIGS_SECRET in .env first}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7860/health"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: lelibrary-redis
+    restart: unless-stopped
+    volumes:
+      - lelibrary-data:/data
+    command: redis-server --save 60 1 --loglevel warning --maxmemory 512mb --maxmemory-policy allkeys-lfu
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  lelibrary-data:
+```
+
+Start the stack, then open `http://localhost:7860/configure`:
+
+```bash
+docker compose up -d
+```
+
+This deployment pulls the official GitHub Container Registry image and does
+not require Git or a copy of the source repository. Redis is kept private
+inside the Compose network; the `lelibrary-data` volume stores saved setups and
+caches across upgrades and container recreation.
+
+The image supports 64-bit Intel/AMD and ARM systems. Stable releases publish
+`vX.Y.Z`, `vX.Y`, `vX` and `latest` tags. Preview releases publish only their
+exact version tag. To pin or roll back, change the tag directly on the `image:`
+line in `compose.yml`, for example:
+
+```yaml
+image: ghcr.io/leleasley/lelibrary:v5.1.0
+```
+
+Then run `docker compose pull && docker compose up -d`. Keep the generated
+secret in `.env`; the selected image version and any port or memory-limit
+customisation belong in `compose.yml`.
+
+Useful maintenance commands:
+
+```bash
+# Check container health and recent output
+docker compose ps
+docker compose logs --tail=100 lelibrary
+
+# Upgrade within the selected image tag
+docker compose pull
+docker compose up -d
+
+# Back up Redis before maintenance
+docker compose exec redis redis-cli SAVE
+docker compose cp redis:/data/dump.rdb ./lelibrary-redis-backup.rdb
+```
+
+`docker compose down` preserves saved setups and caches. `docker compose down
+-v` permanently removes the Redis volume and resets all self-hosted saved data.
+Restore a backup only while Redis is stopped, then start the stack again.
+
+```bash
+docker compose stop redis
+docker compose cp ./lelibrary-redis-backup.rdb redis:/data/dump.rdb
+docker compose start redis
+```
 
 Self-hosted saved setups require `SELFHOST_CONFIGS_SECRET` in `.env`. The Configure page uses it automatically; command-line requests can authenticate with the `x-selfhost-secret` header. Keep this value private and regenerate it if the instance is exposed publicly. Without it, the saved-setups list on the Configure page shows as disabled rather than failing silently.
 
-Your saved setups, library caches and stream settings live in the `redis_data` volume. `docker compose down` and rebuilds are safe; `docker compose down -v` wipes them.
+Your saved setups, library caches and stream settings live in the `lelibrary-data` volume. `docker compose down` and upgrades are safe; `docker compose down -v` wipes them.
 
 No account is needed to self-host: the update check, key verification, catalogue library and curated packs all work without signing in. The provider status pill and `/status` page are hosted-only and hidden on self-hosted installs.
+
+### Verifying image provenance
+
+Images published by the Release workflow include a GitHub/Sigstore-signed SLSA
+build-provenance attestation and an SBOM. Verify a specific released image with
+the GitHub CLI:
+
+```bash
+gh attestation verify \
+  oci://ghcr.io/leleasley/lelibrary:vX.Y.Z \
+  --repo leleasley/LeLibrary \
+  --signer-workflow leleasley/LeLibrary/.github/workflows/release.yml
+```
+
+Replace `vX.Y.Z` with the exact release tag, or preferably pin the image by its
+digest. A failed verification means the image was not produced by LeLibrary's
+Release workflow.
+
+### Build from source
+
+Contributors who deliberately clone the repository can replace the `image:`
+line in `compose.yml` with `build: .` and run `docker compose up -d --build`.
+Release users should prefer the standalone published GHCR image above.
+
+The normal `Dockerfile` is for local and hosted development builds.
+`Dockerfile.ghcr` and its matching `Dockerfile.ghcr.dockerignore` are reserved
+for the public release workflow. The dedicated ignore file prevents hosted
+account code, private website files, secrets and development files from entering
+the GHCR build context.
 
 ## Providers
 
@@ -84,7 +201,11 @@ LeLibrary uses two public identity modes:
 - Bare IMDb IDs such as `tt0468569` are used by discovery, native search and optional Main IDs mode. These IDs allow Nuvio and Stremio to use their normal metadata and stream ecosystem.
 - Anime integrations may use `kitsu:...` IDs where appropriate.
 
-Search is built into the addon. Search for a title normally inside Stremio or Nuvio and LeLibrary can return movies and series with real posters, years, metadata and canonical IMDb IDs.
+Search is built into the addon. The combined setting shows separate global
+Movies and Series results followed by My Movies, My Shows and LeLibrary
+Collections. You can instead show only the global TMDB-backed sections or only
+your owned-library sections. Global results use canonical IMDb IDs; owned
+results keep your selected library ID mode.
 
 ## Collections and accounts
 
@@ -110,6 +231,9 @@ TMDB is used for the main metadata layer and is required for the richest experie
 - RPDB for rating artwork.
 - Fanart.tv for additional posters, backgrounds and logos.
 - OMDB for additional ratings and awards information.
+- Custom Poster URL templates for direct artwork from a compatible HTTPS image
+  service. Templates must contain an IMDb or TMDB ID placeholder and may use
+  `{type}` for `movie` or `series` artwork.
 
 These options are configured from the hosted configure page.
 

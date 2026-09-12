@@ -7,6 +7,10 @@ function sourceCatalogId(source = {}) {
   return String(source.catalogId || source.id || '').trim();
 }
 
+function companionGatewayLabel(binding = {}) {
+  return `${String(binding.label || binding.addonName || binding.catalogId || 'External catalogue').slice(0, 100)} · ${String(binding.catalogId || '').slice(0, 240)}`.slice(0, 160);
+}
+
 function isLeLibrarySource(source = {}, manifestId = '') {
   const addonId = String(source.addonId || '').trim();
   return !addonId || addonId === manifestId || addonId === 'community.lelibrary' || addonId === 'community.lelibrary.dev';
@@ -27,6 +31,9 @@ function cloneSource(source = {}, manifestId = '') {
     catalogId,
     type: source.type === 'series' ? 'series' : 'movie',
     genre: typeof source.genre === 'string' ? source.genre : '',
+    ...(typeof source.externalSourceId === 'string' && source.externalSourceId.trim()
+      ? { externalSourceId: source.externalSourceId.trim() }
+      : {}),
   };
 }
 
@@ -61,7 +68,7 @@ function isAnimeCollection(collection = {}) {
   );
 }
 
-function compileCollectionPlan({ collections = [], homeRows = [], sources = [], manifestId = '', integration = 'nuvio', hideAnime = false } = {}) {
+function compileCollectionPlan({ collections = [], homeRows = [], sources = [], externalSources = [], manifestId = '', integration = 'nuvio', hideAnime = false } = {}) {
   const safeCollections = Array.isArray(collections) ? collections : [];
   const safeHomeRows = Array.isArray(homeRows) ? homeRows : [];
   // LeLibrary Collections is a native collection, not a Home row. It is always
@@ -89,6 +96,8 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
   const importedTypes = new Set();
   const warnings = [];
   const importedDefinitions = new Map();
+  const companionDefinitions = new Map();
+  const usedCompanionDefinitions = new Map();
   for (const source of Array.isArray(sources) ? sources : []) {
     try {
       const normalized = require('./import-sources/definition').normalizeImportedSourceDefinition(source);
@@ -96,6 +105,11 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
     } catch {
       warnings.push('An invalid imported source definition was ignored.');
     }
+  }
+  for (const binding of Array.isArray(externalSources) ? externalSources : []) {
+    const id = String(binding?.id || '').trim();
+    if (!/^ext_[a-f0-9]{64}$/.test(id) || binding?.resolution !== 'companion') continue;
+    companionDefinitions.set(id, binding);
   }
 
   function visit(source, placement = 'folder') {
@@ -153,8 +167,29 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
       normalized.catalogId = `lelibrary-import-${normalized.type}`;
       normalized.genre = String(definition.label || definition.id).slice(0, 160);
     }
+    if (normalized.externalSourceId) {
+      const binding = companionDefinitions.get(normalized.externalSourceId);
+      const exact = binding
+        && String(binding.addonId || '') === normalized.addonId
+        && String(binding.catalogId || '') === normalized.catalogId
+        && String(binding.mediaType || '') === normalized.type
+        && String(binding.genre || '') === normalized.genre;
+      if (!exact) {
+        warnings.push('A missing or mismatched companion addon reference was ignored.');
+        normalized.catalogId = '';
+        return normalized;
+      }
+      if (typeof binding.manifestUrl === 'string' && binding.manifestUrl) {
+        externalAddons.set(`${normalized.addonId}\u0000${binding.manifestUrl}`, { addonId: normalized.addonId, addonUrl: binding.manifestUrl });
+      }
+      importedTypes.add(normalized.type);
+      usedCompanionDefinitions.set(binding.id, {
+        ...binding,
+        gatewayLabel: companionGatewayLabel(binding),
+      });
+    }
     if (!isLeLibrarySource(source, manifestId) && normalized.addonId && normalized.addonUrl) {
-      externalAddons.set(normalized.addonId, normalized.addonUrl);
+      externalAddons.set(`${normalized.addonId}\u0000${normalized.addonUrl}`, { addonId: normalized.addonId, addonUrl: normalized.addonUrl });
     }
     return normalized;
   }
@@ -196,8 +231,9 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
     folderLibraryIds: [...folderLibraryIds],
     homeLibraryIds: [...homeLibraryIds],
     selectedCatalogIds: [...selectedCatalogIds],
-    externalAddons: [...externalAddons.entries()].map(([addonId, addonUrl]) => ({ addonId, addonUrl })),
+    externalAddons: [...externalAddons.values()],
     importedTypes: [...importedTypes].sort(),
+    externalBindings: [...usedCompanionDefinitions.values()],
     warnings,
     nativeFranchiseCollection: nativeFranchiseRow && {
       enabled: nativeFranchiseRow.row?.enabled !== false,
@@ -206,4 +242,4 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
   };
 }
 
-module.exports = { compileCollectionPlan, isLeLibrarySource, isAnimeSource, sourceCatalogId };
+module.exports = { compileCollectionPlan, isLeLibrarySource, isAnimeSource, sourceCatalogId, companionGatewayLabel };

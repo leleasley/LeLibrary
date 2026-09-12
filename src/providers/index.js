@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const cache = require('../cache');
-const { getTorBoxDownloads, getTorBoxFiles, getTorBoxStreamLink } = require('../torbox');
+const { getTorBoxDownloads, getTorBoxFiles, getTorBoxStreamLink, getTorBoxPlaybackStatus } = require('../torbox');
 const { getRealDebridDownloads, getRealDebridFiles, getRealDebridStreamLink } = require('../realdebrid');
 const alldebrid = require('./alldebrid');
 const premiumize = require('./premiumize');
@@ -180,6 +180,19 @@ async function getStreamLink(config, item, fileId) {
   return null;
 }
 
+// Return privacy-safe, user-facing playback state only for providers that were
+// actually attempted. Provider adapters keep credentials and anonymous cache
+// identities private; callers receive only a label and rounded retry time.
+async function getPlaybackRateLimits(config = {}, providerIds = []) {
+  const attempted = new Set(providerIds);
+  const notices = [];
+  if (attempted.has('torbox') && config.torboxApiKey) {
+    const status = await getTorBoxPlaybackStatus(config.torboxApiKey);
+    if (status?.rateLimited) notices.push({ ...status, label: PROVIDER_META.torbox.label });
+  }
+  return notices;
+}
+
 module.exports = {
   PROVIDER_META,
   PROVIDER_ORDER,
@@ -193,4 +206,5 @@ module.exports = {
   downloadsFor,
   getFiles,
   getStreamLink,
+  getPlaybackRateLimits,
 };

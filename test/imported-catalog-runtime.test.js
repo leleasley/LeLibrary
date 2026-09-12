@@ -37,6 +37,20 @@ test('TMDB Discover translates logical skip across upstream pages and deduplicat
   assert.equal(rows[0].tmdbId, 27);
 });
 
+test('imported TMDB trending source uses the public trending route', async () => {
+  const source = definition('trending', 'series', {});
+  const calls = [];
+  const rows = await buildNormalizedImportedCatalog({
+    definition: source, tmdbApiKey: 'synthetic',
+    runtime: { cache: memoryCache(), convertTmdb, request: async (url, options) => {
+      calls.push({ url, page: options.params.page });
+      return { data: { results: [{ id: 7 }], total_pages: 1 } };
+    } },
+  });
+  assert.deepEqual(calls, [{ url: 'https://api.themoviedb.org/3/trending/tv/day', page: 1 }]);
+  assert.equal(rows[0].type, 'series');
+});
+
 test('TMDB v4 public list paginates and filters mixed media before conversion', async () => {
   const source = definition('list', 'series', { listId: 10 });
   const calls = [];
@@ -86,6 +100,38 @@ test('Trakt sends explicit pagination and can continue past page one', async () 
   } finally {
     if (previous == null) delete process.env.TRAKT_CLIENT_ID; else process.env.TRAKT_CLIENT_ID = previous;
   }
+});
+
+test('imported MDBList sources use the account key and keep credential caches separate', async () => {
+  const source = normalizeImportedSourceDefinition({ provider: 'mdblist', engine: 'list', mediaType: 'movie', params: { listId: 158684 }, label: 'Latest Movies' });
+  const store = memoryCache();
+  const calls = [];
+  const run = (mdblistKey) => buildNormalizedImportedCatalog({
+    definition: source, tmdbApiKey: 'synthetic', mdblistKey,
+    runtime: {
+      cache: store,
+      backfillPosters: async (_key, _type, rows) => rows,
+      request: async (url, options) => {
+        calls.push({ url, key: options.params.apikey, offset: options.params.offset });
+        return { data: { movies: [{ imdb_id: mdblistKey === 'key-a' ? 'tt0000001' : 'tt0000002', title: 'Movie' }], shows: [{ imdb_id: 'tt9999999', title: 'Show' }] } };
+      },
+    },
+  });
+  const a = await run('key-a');
+  const b = await run('key-b');
+  assert.deepEqual(a.map(row => row.id), ['tt0000001']);
+  assert.deepEqual(b.map(row => row.id), ['tt0000002']);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].url, 'https://api.mdblist.com/lists/158684/items');
+  assert.deepEqual(calls.map(call => call.offset), [0, 0]);
+});
+
+test('imported MDBList sources explain when no MDBList key is configured', async () => {
+  const source = normalizeImportedSourceDefinition({ provider: 'mdblist', engine: 'list', mediaType: 'movie', params: { listId: 1 }, label: 'List' });
+  await assert.rejects(() => buildNormalizedImportedCatalog({
+    definition: source, tmdbApiKey: 'synthetic', mdblistKey: '',
+    runtime: { cache: memoryCache(), request: async () => { throw new Error('must not fetch'); } },
+  }), error => error instanceof ImportedSourceUpstreamError && error.code === 'provider_not_configured');
 });
 
 test('temporary upstream failures use last-known-good but permanent failures do not', async () => {

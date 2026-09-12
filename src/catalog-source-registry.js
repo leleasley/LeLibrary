@@ -9,7 +9,7 @@ const { catalogs } = require('./catalogdefs');
 const HANDLERS = new Set([
   'tmdb_source', 'tmdb_provider', 'tmdb_genre', 'tmdb_company',
   'tmdb_person', 'tmdb_keyword', 'tmdb_collection', 'tmdb_network',
-  'mdb_list', 'trakt',
+  'tmdb_discover', 'mdb_list', 'trakt',
 ]);
 
 const FEATURED_IDS = new Set([

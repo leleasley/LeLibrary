@@ -108,6 +108,20 @@ test('the Hub sits immediately above Movie Collections when both are enabled', (
   );
 });
 
+test('the Hub stays at the bottom even when Movie Collections is disabled', () => {
+  const hub = { id: 'collection-lelibrary-hub', title: 'LeLibrary', pinToTop: true };
+  const regular = { id: 'collection-lelibrary-discover', title: 'Discover' };
+  assert.deepEqual(
+    mergeCollectionsInPlace([{ id: 'collection-external', title: 'External' }], [hub, regular])
+      .map((collection) => [collection.id, collection.pinToTop]),
+    [
+      ['collection-external', undefined],
+      ['collection-lelibrary-discover', undefined],
+      ['collection-lelibrary-hub', false],
+    ]
+  );
+});
+
 test('collection sync respects the wizard order for existing LeLibrary collections', () => {
   const existing = [
     { id: 'collection-lelibrary-first', title: 'First' },

@@ -1,10 +1,11 @@
 services:
   lelibrary:
-    build: .
+    image: ghcr.io/leleasley/lelibrary:latest
     container_name: lelibrary
     restart: unless-stopped
     ports:
-      - "7860:7860"
+      - "${LELIBRARY_PORT:-7860}:7860"
+    mem_limit: ${LELIBRARY_MEMORY_LIMIT:-1g}
     env_file:
       - ./.env
     depends_on:
@@ -22,6 +23,7 @@ services:
     restart: unless-stopped
     volumes:
       - redis_data:/data
+    mem_limit: ${REDIS_CONTAINER_MEMORY_LIMIT:-768m}
     # Cache data is disposable: cap it so a burst of large collection imports
     # cannot consume all host memory. allkeys-lfu retains the hottest catalogues.
     command: redis-server --save 60 1 --loglevel warning --maxmemory ${REDIS_MAXMEMORY:-512mb} --maxmemory-policy allkeys-lfu

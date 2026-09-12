@@ -11,10 +11,18 @@
   <meta name="theme-color" content="#09090b" />
   <title>Configure | LeLibrary</title>
     <link rel="stylesheet" href="/configure.css?v=80" />
+  <link rel="stylesheet" href="/custom-streams.css?v=6" />
+  <link rel="stylesheet" href="/client-integrations.css?v=2" />
+  <link rel="stylesheet" href="/pictorium-studio.css?v=4" />
   <link rel="stylesheet" href="/toast.css?v=2" />
-  <script src="/formatter.js?v=7"></script>
+  <script src="/formatter.js?v=8"></script>
   <script src="/badge-packs.js?v=5"></script>
-  <script src="/token-map.js?v=1"></script>
+  <script src="/token-map.js?v=2"></script>
+  <script src="/custom-streams-editor.js?v=6"></script>
+  <script src="/poster-template.js?v=2"></script>
+  <script src="/pictorium-options.js?v=4"></script>
+  <script src="/pictorium-studio.js?v=7"></script>
+  <script src="/client-integrations.js?v=2"></script>
   <script src="/toast.js?v=2"></script>
 </head>
 <body>
@@ -141,7 +149,7 @@
           <!-- STEP 2: PROVIDERS -->
           <div class="step-panel" id="panel-2">
             <div class="step">
-              <div class="step-head"><div><h2>Choose your providers</h2><p>Pick one or more: your library is pulled from whichever you enable.</p></div></div>
+              <div class="step-head"><div><h2>Choose your providers</h2><p>Pick one or more for My Movies and My Shows, or skip this when Custom Streams is your only stream source.</p></div></div>
               <div class="provider-grid">
                 <div class="provider-card" id="tbCard">
                   <div class="pc-head" onclick="toggleProviderCard('torbox')">
@@ -232,7 +240,7 @@
                     <button class="btn-icon" type="button" onclick="toggleVis('tmdbApiKey',this)" aria-label="Show/hide">👁</button>
                     <button class="btn-verify" type="button" onclick="verifyKey('tmdb')" id="verifyTmdb" title="Verify key">✓</button>
                   </div>
-                  <p class="field-hint">Copy <strong style="color:var(--text)">API Key (v3)</strong> from your TMDB account settings: a 32-character string.</p>
+                  <p class="field-hint">Required for title search, metadata, posters and exact episode choices. Copy the 32-character <strong style="color:var(--text)">API Key (v3)</strong> from your TMDB account settings.</p>
                   <div class="url-warning" id="tmdbV4Warning" style="display:none">⚠️ That looks like a TMDB <strong>v4 Read Access Token</strong>, not the v3 API key. v4 tokens expire. Use your <strong>v3 API key</strong> instead.</div>
                 </div>
                 <div class="field-row">
@@ -263,7 +271,7 @@
                   <label class="cg-advanced-item"><input type="checkbox" id="editHideAnime" onchange="toggleHideAnime(this.checked)" /><div><strong>Hide anime</strong><p class="field-hint" style="margin:6px 0 0">Removes only anime sources from your library and collections. Mixed collections keep their non-anime sources.</p></div></label>
                   <input type="checkbox" id="hideAnime" style="display:none" />
                   <label class="cg-advanced-item"><input type="checkbox" id="libraryIdMode" onchange="checkChanged()" /><div><strong>Use Main metadata</strong><p class="field-hint" style="margin:6px 0 0">Use IMDb IDs for My Movies, My Shows and LeLibrary Collections, with richer metadata, external streams and scrobbling support.</p></div></label>
-                  <div class="field" style="margin-top:14px"><div class="field-label">Search</div><select id="searchScope" onchange="checkChanged()"><option value="combined">Movies &amp; Series + Your Library</option><option value="library">Only your Library</option><option value="tmdb">Only Movies &amp; Series from TMDB</option></select><p class="field-hint" style="margin:6px 0 0">Choose whether addon search includes TMDB, your owned movies and shows, or both.</p></div>
+                  <div class="field" style="margin-top:14px"><div class="field-label">Search</div><select id="searchScope" onchange="checkChanged()"><option value="combined">Movies &amp; Series + Your Library</option><option value="library">Only your Library</option><option value="tmdb">Only Movies &amp; Series from TMDB</option></select><p class="field-hint" style="margin:6px 0 0">Choose which separate search sections appear. The combined option keeps global Movies and Series separate from My Movies, My Shows and Collections.</p></div>
                 </div>
                 <div class="field" style="margin-top:16px">
                   <div class="field-label">Stream notices</div>
@@ -490,8 +498,24 @@
                       <option value="erdb">ERDB: EasyRatingsDB (ratings on posters)</option>
                       <option value="rpdb">RPDB: Rating Poster DB (ratings on posters)</option>
                       <option value="betterposter">BetterPosters: btttr.cc artwork</option>
+                      <option value="pictorium">Pictorium: build your own posters (free)</option>
                       <option value="fanart">Fanart.tv (high-res alternative art)</option>
+                      <option value="custom">Custom Poster (URL template)</option>
                     </select>
+                  </div>
+                  <div class="field" id="pictoriumField" style="display:none;margin-bottom:14px">
+                    <div class="field-label">Pictorium Poster Studio</div>
+                    <div class="input-row">
+                      <button class="pictorium-open-btn" type="button" onclick="openPictoriumStudio()">Open Poster Studio</button>
+                      <span class="field-hint" id="pictoriumSummary" style="margin:0"></span>
+                    </div>
+                    <input type="url" id="pictoriumUrl" placeholder="Optional: your own Pictorium URL" autocomplete="off" oninput="checkChanged()" style="margin-top:10px" />
+                    <p class="field-hint">Leave empty to use the built-in Poster Studio. Only enter a URL if you run your own Pictorium instance, and it must be a public HTTPS address. Powered by <a href="https://github.com/Eful97/Pictorium" target="_blank" rel="noopener">Pictorium</a>; uses your existing TMDB key, no paid poster key needed.</p>
+                  </div>
+                  <div class="field" id="customPosterField" style="display:none;margin-bottom:14px">
+                    <div class="field-label">Custom poster URL template</div>
+                    <input type="url" id="customPosterTemplate" placeholder="https://posters.example/poster/{imdb_id}.jpg?type={type}" oninput="updatePosterPreview();checkChanged()" />
+                    <p class="field-hint" id="customPosterHint">Use HTTPS and include at least one of <code>{imdbId}</code>, <code>{imdb_id}</code>, <code>{tmdbId}</code> or <code>{tmdb_id}</code>. Optional: <code>{type}</code>.</p>
                   </div>
                   <div class="field" id="betterposterField" style="display:none;margin-bottom:14px">
                     <div class="field-label">BetterPosters</div>
@@ -545,21 +569,35 @@
 
               <div class="coll-card">
                 <div class="coll-header" onclick="toggleCollCard(this)">
-                  <div class="coll-header-left"><span class="coll-icon">🔗</span><span class="coll-label">Custom Streams</span><span class="coll-sub">Inject direct URLs</span></div>
+                  <div class="coll-header-left"><span class="coll-icon">🔗</span><span class="coll-label">Custom Streams</span><span class="coll-sub">Map your own media URLs</span></div>
                   <span class="coll-arrow">▸</span>
                 </div>
                 <div class="coll-body">
-                  <p class="field-hint" style="margin:0 0 12px 0">Inject your own direct stream URLs alongside debrid streams in Stremio.</p>
+                  <p class="field-hint" style="margin:0 0 12px 0">Search for a movie or series, choose the exact episode when needed, then paste its direct media URL.</p>
+                  <div class="cs-requirement" id="customStreamRequirementNotice">A TMDB key is required. Debrid providers are optional when Custom Streams is your only playback source.</div>
                   <div id="customStreamsList"></div>
-                  <div class="field-row" style="grid-template-columns:2fr 3fr 1fr auto;align-items:end">
-                    <div class="field" style="gap:2px"><div class="field-label" style="font-size:0.75rem">Name</div><input type="text" id="csName" placeholder="My Plex" /></div>
-                    <div class="field" style="gap:2px"><div class="field-label" style="font-size:0.75rem">URL</div><input type="text" id="csUrl" placeholder="https://..." /></div>
-                    <div class="field" style="gap:2px"><div class="field-label" style="font-size:0.75rem">Type</div>
-                      <select id="csType"><option value="*">All</option><option value="movie">Movies</option><option value="series">Series</option></select>
+                  <div class="cs-editor">
+                    <div class="cs-editor-grid">
+                      <div class="field cs-wide cs-target-fields" id="csTargetFields">
+                        <div class="field-label">Movie or series</div>
+                        <div class="cs-search-line"><input type="search" id="csTitleSearch" placeholder="Search a movie or series…" autocomplete="off" oninput="customStreamSearchChanged()" /></div>
+                        <div id="csSearchResults" class="cs-search-results" hidden></div>
+                      </div>
+                      <div class="cs-selected cs-wide" id="csSelected" hidden></div>
+                      <div class="field-row cs-wide cs-episode-fields" id="csEpisodeFields" hidden>
+                        <div class="field"><div class="field-label">Season</div><select id="csSeason" onchange="customStreamSeasonChanged()" disabled><option value="">Choose a season</option></select></div>
+                        <div class="field"><div class="field-label">Episode</div><select id="csEpisode" disabled><option value="">Choose an episode</option></select></div>
+                        <p class="field-hint cs-episode-status" id="csEpisodeStatus">Select a series to load its episodes.</p>
+                      </div>
+                      <div class="field cs-wide"><div class="field-label">Direct media URL</div><input type="url" id="csUrl" maxlength="4096" placeholder="https://… direct stream URL" /></div>
+                      <div class="field cs-wide"><div class="field-label">Automatic expiry</div><select id="csExpiry"><option value="1800">Expires in 30 minutes</option><option value="3600">Expires in 1 hour</option><option value="10800" selected>Expires in 3 hours</option><option value="21600">Expires in 6 hours</option><option value="43200">Expires in 12 hours</option><option value="86400">Expires in 24 hours</option></select></div>
                     </div>
-                    <button class="btn-main" type="button" onclick="addCustomStream()" style="padding:8px 16px;font-size:0.82rem;white-space:nowrap">+ Add</button>
+                    <div class="cs-editor-actions">
+                      <button class="btn-main btn-gen" id="csSaveButton" type="button" onclick="addCustomStream()">Add stream</button>
+                      <button class="btn-verify" id="csCancelEdit" type="button" onclick="cancelCustomStreamEdit()" hidden>Cancel edit</button>
+                    </div>
                   </div>
-                  <div id="csEmpty" style="text-align:center;padding:16px;color:var(--border2);font-size:0.85rem">No custom streams added yet.</div>
+                  <div id="csEmpty" hidden>No custom streams active.</div>
                 </div>
               </div>
             </div>
@@ -573,7 +611,7 @@
                 <div class="field-label">Push to</div>
                 <div class="platform-toggle" id="installPlatformTabs">
                   <button type="button" class="ptab" data-plat="stremio" onclick="selectPlatform('stremio')"><img src="/stremio.svg" alt="" onerror="this.style.display='none'" /> Stremio</button>
-                  <button type="button" class="ptab" data-plat="nuvio" onclick="selectPlatform('nuvio')"><img src="/nuvio.svg" alt="" onerror="this.onerror=null;this.src='/nuvio.png'" /> Nuvio</button>
+                  <button type="button" class="ptab" data-plat="nuvio" onclick="selectPlatform('nuvio')"><img src="/nuvio.png" alt="" /> Nuvio</button>
                 </div>
               </div>
               <div id="installPush"></div>
@@ -642,6 +680,7 @@
                   </div>
                 </div>
               </div>
+              <section id="clientIntegrations" class="client-integrations"></section>
               <div class="preview-wrap" style="margin-top:14px">
                 <button class="preview-btn" id="previewToggle" onclick="togglePreview()">
                   <span>Streams Preview</span><span class="arr">›</span>
@@ -670,7 +709,7 @@
             <div class="privacy-grid">
               <div class="info-card"><h4>How LeLibrary works</h4><ul class="info-list"><li>Reads your enabled debrid downloads and groups episodes into series</li><li>Fetches TMDB metadata for posters, ratings and detail pages</li><li>Serves it all as a Stremio / Nuvio addon</li></ul></div>
               <div class="info-card"><h4>Your privacy</h4><ul class="info-list"><li>API keys are encoded in the addon URL</li><li>Keys are never stored in a database or logged</li><li>No tracking, analytics, or third-party requests</li></ul></div>
-              <div class="info-card"><h4>Requirements</h4><ul class="info-list"><li>A TorBox and/or Real-Debrid account with downloads</li><li>A free TMDB API key</li><li style="color:var(--border2);font-size:0.78rem">Poster/Ratings/Stream enhancements are all optional</li></ul></div>
+              <div class="info-card"><h4>Requirements</h4><ul class="info-list"><li>A free TMDB API key for title matching and metadata</li><li>A supported debrid provider for My Movies/My Shows, or at least one Custom Stream</li><li style="color:var(--border2);font-size:0.78rem">Debrid providers are optional for Custom Streams-only playback</li></ul></div>
             </div>
           </div>
         </div>
@@ -782,7 +821,7 @@
     </div>
   </div>
 
-    <script src="/configure.js?v=101"></script>
+    <script src="/configure.js?v=109"></script>
   <script src="/configure-state.js?v=1"></script>
   <script src="/configure-ui.js?v=1"></script>
 </body>

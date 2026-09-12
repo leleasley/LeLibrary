@@ -1,8 +1,10 @@
 const axios = require('axios');
 const NodeCache = require('node-cache');
+const sharedCache = require('./cache');
 
 const TMDB_BASE  = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE = 'https://image.tmdb.org/t/p';
+const TMDB_ADDON_BASE = 'https://tmdb.elfhosted.com';
 
 // useClones:true is REQUIRED on these caches: getMetadata() returns cached
 // metas to every user sharing the language, and callers (buildMeta's episode
@@ -134,7 +136,14 @@ function pickBestResult(query, results, year) {
   // still orders entries, so remakes and weekly-show variants are unaffected.
   const scored = results.map(r => ({ r, exact: titleScore(query, r) === 100
     && (!y || resultYear(r) === 0 || Math.abs(resultYear(r) - y) <= 1) }));
-  const pool = scored.some(s => s.exact) ? scored.filter(s => s.exact) : scored;
+  // An exact title always outranks a partial one, even when the year does not
+  // line up. Otherwise a year bonus can lift a spin-off whose name merely
+  // starts with the query ("Stranger Things: Tales from '85" over the 2016
+  // show) above the real exact-title entry. Plausible-year exact titles stay
+  // the first tier; when none exist, any exact title wins over partials.
+  const plausibleExact = scored.filter(s => s.exact);
+  const exactTier = scored.filter(s => titleScore(query, s.r) === 100);
+  const pool = plausibleExact.length ? plausibleExact : (exactTier.length ? exactTier : scored);
   let best = pool[0].r;
   let bestScore = titleScore(query, best) + yearBonus(y, best);
   let bestVotes = best.vote_count || 0;
@@ -303,14 +312,25 @@ async function discoverByGenre(apiKey, genreId, type, lang = 'en-US') {
 }
 
 async function fetchSeasonVideos(auth, tmdbId, season, lang, fallbackPoster, idBase) {
+  const seasonKey = sharedCache.makeKey('tmdbseason:v1', tmdbId, season.season_number, lang);
+  const lastGoodKey = sharedCache.makeKey('tmdbseason-lkg:v1', tmdbId, season.season_number, lang);
+  let seasonData = await sharedCache.get(seasonKey);
+  const lastGood = seasonData || await sharedCache.get(lastGoodKey);
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const res = await axios.get(`${TMDB_BASE}/tv/${tmdbId}/season/${season.season_number}`, {
-        headers: auth.headers,
-        params: { ...auth.params, language: lang },
-        timeout: 8000,
-      });
-      const eps = res.data?.episodes || [];
+      if (!seasonData) {
+        const res = await axios.get(`${TMDB_BASE}/tv/${tmdbId}/season/${season.season_number}`, {
+          headers: auth.headers,
+          params: { ...auth.params, language: lang },
+          timeout: 8000,
+        });
+        seasonData = res.data || {};
+        await Promise.all([
+          sharedCache.set(seasonKey, seasonData, 24 * 60 * 60),
+          sharedCache.set(lastGoodKey, seasonData, 30 * 24 * 60 * 60),
+        ]);
+      }
+      const eps = seasonData.episodes || [];
       return eps.map(ep => {
         const rawName = ep.name || '';
         let title;
@@ -336,8 +356,23 @@ async function fetchSeasonVideos(auth, tmdbId, season, lang, fallbackPoster, idB
       if (attempt === 0) await new Promise(r => setTimeout(r, 600));
     }
   }
+  if (lastGood) {
+    seasonData = lastGood;
+    const eps = seasonData.episodes || [];
+    return eps.map(ep => ({
+      id: `${idBase}:${season.season_number}:${ep.episode_number}`,
+      title: ep.name && !new RegExp(`^episode\\s+${ep.episode_number}\\b`, 'i').test(ep.name)
+        ? `Episode ${ep.episode_number}: ${ep.name}` : (ep.name || `Episode ${ep.episode_number}`),
+      season: season.season_number,
+      episode: ep.episode_number,
+      overview: ep.overview || '',
+      thumbnail: ep.still_path ? `${TMDB_IMAGE}/w300${ep.still_path}` : (season.poster_path ? `${TMDB_IMAGE}/w300${season.poster_path}` : fallbackPoster),
+      released: ep.air_date ? new Date(ep.air_date).toISOString() : undefined,
+      rating: ep.vote_average?.toFixed(1),
+    }));
+  }
   console.error(`[TMDB] Season ${season.season_number} fetch failed for ${tmdbId}: omitting episodes`);
-  return [];
+  throw new Error(`TMDB season ${season.season_number} unavailable`);
 }
 
 async function getMetadata(apiKey, tmdbId, type, lang = 'en-US', opts = {}) {
@@ -350,22 +385,23 @@ async function getMetadata(apiKey, tmdbId, type, lang = 'en-US', opts = {}) {
   const auth = tmdbAuth(apiKey);
   const baseParams = { ...auth.params, language: lang };
 
-  const [detailRes, creditsRes, externalRes, extraRes] = await Promise.allSettled([
-    axios.get(`${TMDB_BASE}${endpoint}`, { headers: auth.headers, params: { ...baseParams, append_to_response: 'videos,images' }, timeout: 10000 }),
-    axios.get(`${TMDB_BASE}${endpoint}/credits`, { headers: auth.headers, params: baseParams, timeout: 8000 }),
-    axios.get(`${TMDB_BASE}${endpoint}/external_ids`, { headers: auth.headers, params: auth.params, timeout: 8000 }),
-    // Movies: per-country release dates (certifications included). Series:
-    // per-country content ratings. Both feed the app_extras block below.
-    type === 'movie'
-      ? axios.get(`${TMDB_BASE}/movie/${tmdbId}/release_dates`, { headers: auth.headers, params: auth.params, timeout: 8000 })
-      : axios.get(`${TMDB_BASE}/tv/${tmdbId}/content_ratings`, { headers: auth.headers, params: auth.params, timeout: 8000 }),
-  ]);
-
-  const detail   = detailRes.status   === 'fulfilled' ? detailRes.value.data   : null;
-  const credits  = creditsRes.status  === 'fulfilled' ? creditsRes.value.data  : null;
-  const external = externalRes.status === 'fulfilled' ? externalRes.value.data : null;
-  const extra    = extraRes.status    === 'fulfilled' ? extraRes.value.data    : null;
+  let detail = null;
+  try {
+    // TMDB supports comma-separated append_to_response. Keeping these fields
+    // on one request removes three round trips from every cold detail page.
+    const appended = type === 'movie' ? 'videos,images,credits,external_ids,release_dates' : 'videos,images,credits,external_ids,content_ratings';
+    const response = await axios.get(`${TMDB_BASE}${endpoint}`, {
+      headers: auth.headers,
+      params: { ...baseParams, append_to_response: appended },
+      timeout: 10000,
+    });
+    detail = response.data;
+  } catch { /* handled by the null return below */ }
   if (!detail) return null;
+
+  const credits = detail.credits || null;
+  const external = detail.external_ids || null;
+  const extra = type === 'movie' ? detail.release_dates : detail.content_ratings;
 
   const imdbId    = external?.imdb_id || null;
   const cast      = (credits?.cast || []).slice(0, 8).map(c => c.name);
@@ -374,7 +410,7 @@ async function getMetadata(apiKey, tmdbId, type, lang = 'en-US', opts = {}) {
     : (detail.created_by || []).map(c => c.name);
 
   // Nuvio app_extras: cast/directors/writers with photos, plus release dates
-  // and certification: the same block AIOMetadata serves.
+  // and certification used by imported catalogue definitions.
   const person = c => ({
     id: c.id,
     name: c.name,
@@ -440,7 +476,9 @@ async function getMetadata(apiKey, tmdbId, type, lang = 'en-US', opts = {}) {
     tmdbCache.set(cacheKey, result);
     return result;
   } else {
-    const rawSeasons = (detail.seasons || []).filter(s => s.season_number > 0);
+    // Season 0 is TMDB's Specials season. Include it when populated so owned
+    // S00 packs appear alongside normal seasons instead of being discarded.
+    const rawSeasons = (detail.seasons || []).filter(s => s.season_number >= 0 && (s.episode_count || 0) > 0);
     // Discovery (tt:) metas carry tt:-based episode ids so the player routes
     // every episode to the external stream addons; owned metas keep torbox:
     // episode ids (isolated, LeLibrary-only streams).
@@ -450,9 +488,10 @@ async function getMetadata(apiKey, tmdbId, type, lang = 'en-US', opts = {}) {
     // failed season yields [] instead of failing the whole meta, and the
     // failure count shortens the cache TTL below.
     let seasonFailures = 0;
-    const episodeLists = await Promise.all(
-      rawSeasons.map(s => fetchSeasonVideos(auth, tmdbId, s, lang, poster, epIdBase).catch(() => { seasonFailures++; return []; }))
-    );
+    const episodeLists = await pLimit(rawSeasons.map(s => async () => {
+      try { return await fetchSeasonVideos(auth, tmdbId, s, lang, poster, epIdBase); }
+      catch { seasonFailures++; return []; }
+    }), 4);
     const videos = episodeLists.flat();
 
     const links = imdbId ? [{ name: 'IMDB', category: 'imdb', url: `https://www.imdb.com/title/${imdbId}` }] : [];
@@ -547,7 +586,7 @@ async function findEpisodeByAirDate(apiKey, tmdbId, airDate, lang = 'en-US') {
         params: { ...auth.params, language: lang },
         timeout: 8000,
       });
-      seasons = (res.data?.seasons || []).filter(s => s.season_number > 0);
+      seasons = (res.data?.seasons || []).filter(s => s.season_number >= 0 && (s.episode_count || 0) > 0);
       tvDetailCache.set(`tv:${tmdbId}:${lang}`, seasons);
     }
     if (seasons.length === 0) { tmdbCache.set(cacheKey, null); return null; }
@@ -620,6 +659,115 @@ async function getSeasonEpisodeCounts(apiKey, tmdbId, lang = 'en-US') {
   }
 }
 
+async function getSeriesSeasons(apiKey, tmdbId, lang = 'en-US') {
+  const cacheKey = `tv-picker:${tmdbId}:${lang}`;
+  const cached = tvDetailCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  try {
+    const auth = tmdbAuth(apiKey);
+    const res = await axios.get(`${TMDB_BASE}/tv/${tmdbId}`, {
+      headers: auth.headers,
+      params: { ...auth.params, language: lang },
+      timeout: 8000,
+    });
+    const seasons = (res.data?.seasons || []).map((season) => ({
+      season: Number(season.season_number),
+      count: Number(season.episode_count) || 0,
+      name: season.name || (Number(season.season_number) === 0 ? 'Specials' : `Season ${season.season_number}`),
+    })).filter((season) => Number.isInteger(season.season) && season.season >= 0);
+    if (seasons.length) {
+      tvDetailCache.set(cacheKey, seasons);
+      return seasons;
+    }
+  } catch {}
+
+  const videos = await getSeriesPickerFallback(tmdbId);
+  const seasons = seriesSeasonsFromVideos(videos);
+  if (seasons.length) tvDetailCache.set(cacheKey, seasons);
+  return seasons;
+}
+
+// Lightweight season picker data for Configure. Unlike getMetadata(), this
+// fetches only the season the person selected instead of expanding every
+// season of a long-running show such as WWE or Doctor Who.
+async function getSeasonEpisodes(apiKey, tmdbId, seasonNumber, lang = 'en-US') {
+  const season = Number(seasonNumber);
+  if (!Number.isInteger(season) || season < 0) return [];
+  const cacheKey = `season-picker:${tmdbId}:${season}:${lang}`;
+  const cached = seasonCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  try {
+    const auth = tmdbAuth(apiKey);
+    const res = await axios.get(`${TMDB_BASE}/tv/${tmdbId}/season/${season}`, {
+      headers: auth.headers,
+      params: { ...auth.params, language: lang },
+      timeout: 8000,
+    });
+    const episodes = (res.data?.episodes || []).map((episode) => ({
+      season: Number(episode.season_number),
+      episode: Number(episode.episode_number),
+      name: episode.name || `Episode ${episode.episode_number}`,
+      released: episode.air_date || null,
+    })).filter((episode) => Number.isInteger(episode.episode) && episode.episode >= 1);
+    if (episodes.length) {
+      seasonCache.set(cacheKey, episodes);
+      return episodes;
+    }
+  } catch {}
+
+  const videos = await getSeriesPickerFallback(tmdbId);
+  const episodes = seasonEpisodesFromVideos(videos, season);
+  if (episodes.length) seasonCache.set(cacheKey, episodes);
+  return episodes;
+}
+
+function seriesSeasonsFromVideos(videos) {
+  const episodesBySeason = new Map();
+  for (const video of Array.isArray(videos) ? videos : []) {
+    const season = Number(video?.season);
+    const episode = Number(video?.episode ?? video?.number);
+    if (!Number.isInteger(season) || season < 0 || !Number.isInteger(episode) || episode < 1) continue;
+    if (!episodesBySeason.has(season)) episodesBySeason.set(season, new Set());
+    episodesBySeason.get(season).add(episode);
+  }
+  return [...episodesBySeason.entries()].sort((a, b) => a[0] - b[0]).map(([season, episodes]) => ({
+    season,
+    count: episodes.size,
+    name: season === 0 ? 'Specials' : `Season ${season}`,
+  }));
+}
+
+function seasonEpisodesFromVideos(videos, seasonNumber) {
+  const season = Number(seasonNumber);
+  if (!Number.isInteger(season) || season < 0) return [];
+  const seen = new Set();
+  return (Array.isArray(videos) ? videos : []).map((video) => ({
+    season: Number(video?.season),
+    episode: Number(video?.episode ?? video?.number),
+    name: video?.name || video?.title || '',
+    released: video?.released || video?.firstAired || null,
+  })).filter((episode) => episode.season === season
+    && Number.isInteger(episode.episode) && episode.episode >= 1
+    && !seen.has(episode.episode) && seen.add(episode.episode))
+    .sort((a, b) => a.episode - b.episode);
+}
+
+async function getSeriesPickerFallback(tmdbId) {
+  const numericId = Number(tmdbId);
+  if (!Number.isSafeInteger(numericId) || numericId <= 0) return [];
+  const cacheKey = `series-picker-fallback:${numericId}`;
+  const cached = seasonCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  try {
+    const res = await axios.get(`${TMDB_ADDON_BASE}/meta/series/tmdb%3A${numericId}.json`, { timeout: 12000 });
+    const videos = Array.isArray(res.data?.meta?.videos) ? res.data.meta.videos : [];
+    if (videos.length) seasonCache.set(cacheKey, videos);
+    return videos;
+  } catch {
+    return [];
+  }
+}
+
 function clearCaches() {
   tmdbCache.flushAll();
   tvDetailCache.flushAll();
@@ -658,6 +806,12 @@ async function getImdbId(apiKey, apiType, tmdbId) {
   const cacheKey = `imdb:${apiType}:${tmdbId}`;
   const cached = tmdbCache.get(cacheKey);
   if (cached !== undefined) return cached;
+  const persistentKey = sharedCache.makeKey('tmdb2imdb:v1', apiType, tmdbId);
+  const persistent = await sharedCache.get(persistentKey);
+  if (persistent && Object.prototype.hasOwnProperty.call(persistent, 'imdbId')) {
+    tmdbCache.set(cacheKey, persistent.imdbId, persistent.imdbId ? 86400 : 21600);
+    return persistent.imdbId;
+  }
   try {
     const auth = tmdbAuth(apiKey);
     const res = await axios.get(`${TMDB_BASE}/${apiType}/${tmdbId}/external_ids`, {
@@ -666,10 +820,12 @@ async function getImdbId(apiKey, apiType, tmdbId) {
       timeout: 8000,
     });
     const imdbId = res.data?.imdb_id || null;
-    tmdbCache.set(cacheKey, imdbId);
+    const ttl = imdbId ? 30 * 24 * 60 * 60 : 6 * 60 * 60;
+    tmdbCache.set(cacheKey, imdbId, ttl);
+    await sharedCache.set(persistentKey, { imdbId }, ttl);
     return imdbId;
   } catch {
-    tmdbCache.set(cacheKey, null);
+    tmdbCache.set(cacheKey, null, 600);
     return null;
   }
 }
@@ -692,7 +848,7 @@ async function buildDiscoveryMetas(apiKey, items, lang, apiType) {
       tmdbId: item.id, // tmdb-keyed providers (fanart) need this on the row
       type: apiType === 'movie' ? 'movie' : 'series',
       name,
-      poster: item.poster_path ? `${TMDB_IMAGE}/w500${item.poster_path}` : null,
+      poster: item.poster_path ? `${TMDB_IMAGE}/w342${item.poster_path}` : null,
       background: item.backdrop_path ? `${TMDB_IMAGE}/w1280${item.backdrop_path}` : null,
       posterShape: 'poster',
       releaseInfo: date.slice(0, 4) || undefined,
@@ -752,4 +908,4 @@ async function getPopular(apiKey, apiType, lang = 'en-US', pages = 1) {
   }
 }
 
-module.exports = { searchMetadata, searchCandidates, searchPersonCredits, discoverByGenre, findByImdbId, getMetadata, imdbToTmdb, imdbToTmdbCached, findEpisodeByAirDate, getSeasonEpisodeCounts, titleScore, pickBestResult, clearCaches, getTrending, getPopular, getImdbId, getMovieReleaseInfo };
+module.exports = { searchMetadata, searchCandidates, searchPersonCredits, discoverByGenre, findByImdbId, getMetadata, imdbToTmdb, imdbToTmdbCached, findEpisodeByAirDate, getSeasonEpisodeCounts, getSeriesSeasons, getSeasonEpisodes, seriesSeasonsFromVideos, seasonEpisodesFromVideos, titleScore, pickBestResult, clearCaches, getTrending, getPopular, getImdbId, getMovieReleaseInfo };

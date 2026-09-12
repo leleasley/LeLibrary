@@ -167,8 +167,11 @@ function collectionKey(name, id) {
 // Poster providers applied to the films inside collections (TMDB ids only -
 // matching and poster URLs never depend on IMDb ids). Same services and URL
 // shapes the movie catalog rows already use.
-function enhancedPosterUrl(tmdbId, enhance) {
-  const { erdbToken, rpdbKey } = enhance || {};
+function enhancedPosterUrl(tmdbId, imdbId, enhance) {
+  const { erdbToken, rpdbKey, posterProvider, customPosterTemplate } = enhance || {};
+  if (posterProvider === 'custom') {
+    return require('../website/public/poster-template').resolve(customPosterTemplate, { tmdbId, imdbId, type: 'movie' });
+  }
   if (erdbToken && tmdbId) return `https://easyratingsdb.com/${erdbToken}/poster/tmdb:movie:${tmdbId}`;
   if (rpdbKey && tmdbId) return `https://api.ratingposterdb.com/${rpdbKey}/tmdb/poster-default/movie-${tmdbId}.jpg?fallback=true`;
   return null;
@@ -290,12 +293,13 @@ async function buildCollectionsCatalog(downloads, tmdbApiKey, lang = 'en-US', en
       app_extras: cast.length ? { cast } : undefined,
       videos: ownedMovies.map((m, i) => {
         const year = (m.result.release_date || '').slice(0, 4);
-        const enhanced = enhancedPosterUrl(m.result.id, enhance);
+        const imdbId = imdbByTmdb.get(String(m.result.id)) || null;
+        const enhanced = enhancedPosterUrl(m.result.id, imdbId, enhance);
         return {
           id: `torbox:collection:${key}:${m.result.id}`,
           title: `${m.result.title || m.title}${year ? ` (${year})` : ''}`,
           tmdbId: m.result.id,
-          imdbId: imdbByTmdb.get(String(m.result.id)) || null,
+          imdbId,
           season: 1,
           episode: i + 1,
           released: m.result.release_date || undefined,

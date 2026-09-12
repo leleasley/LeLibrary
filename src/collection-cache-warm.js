@@ -54,6 +54,7 @@ async function warmConfiguredLibraryCatalogs(config = {}, { limit = 3 } = {}) {
     rpdbKey: config.rpdbKey,
     fanartKey: config.fanartKey,
     posterProvider: config.posterProvider,
+    customPosterTemplate: config.customPosterTemplate,
   };
   const eligible = ids.filter((id) => !!getSourceDefinition(id));
   let warmed = 0;
@@ -66,6 +67,7 @@ async function warmConfiguredLibraryCatalogs(config = {}, { limit = 3 } = {}) {
         lang: config.lang || 'en-US',
         userKey: providers.getUserKey(config),
         enhance,
+        posterFp: require('./config/wizard-shared').posterFp(config),
         mdblistKey: config.mdblistKey,
       });
       warmed++;

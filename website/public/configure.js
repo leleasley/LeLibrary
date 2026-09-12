@@ -78,8 +78,11 @@
 
     async function saveCurrentConfig() {
       const cfg = getCurrentConfig();
-      if (!cfg.provider || cfg.provider === 'none') { showToast('Configure the addon first before saving', 'error'); return; }
-      const label = await showNameModal('Name this config', cfg.provider + ' setup');
+      const customOnly = Array.isArray(cfg.customStreams) && cfg.customStreams.length > 0;
+      if ((!cfg.provider || cfg.provider === 'none') && !customOnly) { showToast('Select a provider or add a Custom Stream before saving', 'error'); return; }
+      if (!cfg.tmdbApiKey) { showToast('Add the required TMDB key before saving', 'error'); return; }
+      if (!validateCustomPosterSelection()) return;
+      const label = await showNameModal('Name this config', customOnly && (!cfg.provider || cfg.provider === 'none') ? 'Custom Streams setup' : cfg.provider + ' setup');
       if (label === null) return;
       try {
         const r = await fetch('/api/selfhost-configs', {
@@ -257,6 +260,7 @@
     let lastUrls = null;   // { manifestUrl, collectionsUrl, encoded, ... } from the last generate()
     let initialConfig = null;
     let customStreams = [];
+    let pictoriumOptions = {};
     let hasExistingToken = false;
     // Account-backed tokens keep their source of truth on the server. Do not
     // persist drafts or platform credentials in this browser for those URLs.
@@ -360,6 +364,9 @@
       if (cfg.sortBy) document.getElementById('sortBy').value = cfg.sortBy;
       if (cfg.lang) document.getElementById('lang').value = cfg.lang;
       if (document.getElementById('searchScope')) document.getElementById('searchScope').value = ['combined', 'library', 'tmdb'].includes(cfg.searchScope) ? cfg.searchScope : 'combined';
+      if (cfg.customPosterTemplate && document.getElementById('customPosterTemplate')) document.getElementById('customPosterTemplate').value = cfg.customPosterTemplate;
+      if (cfg.pictoriumOptions && typeof cfg.pictoriumOptions === 'object') pictoriumOptions = cfg.pictoriumOptions;
+      if (cfg.pictoriumUrl && document.getElementById('pictoriumUrl')) document.getElementById('pictoriumUrl').value = cfg.pictoriumUrl;
       if (cfg.posterProvider) {
         document.getElementById('posterProvider').value = cfg.posterProvider;
         onPosterChange();
@@ -660,6 +667,7 @@
       const sortBy = document.getElementById('sortBy').value;
       const lang = document.getElementById('lang').value;
       const posterProvider = document.getElementById('posterProvider').value;
+      const customPosterTemplate = document.getElementById('customPosterTemplate')?.value.trim() || '';
       const erdbToken = document.getElementById('erdbToken').value.trim();
       const rpdbKey = document.getElementById('rpdbKey').value.trim();
       const fanartKey = document.getElementById('fanartKey').value.trim();
@@ -679,6 +687,12 @@
         if (posterProvider === 'erdb' && erdbToken) cfg.erdbToken = erdbToken;
         else if (posterProvider === 'rpdb' && rpdbKey) cfg.rpdbKey = rpdbKey;
         else if (posterProvider === 'fanart' && fanartKey) cfg.fanartKey = fanartKey;
+        else if (posterProvider === 'custom' && customPosterTemplate) cfg.customPosterTemplate = customPosterTemplate;
+        else if (posterProvider === 'pictorium') {
+          const pictoriumUrl = document.getElementById('pictoriumUrl')?.value.trim() || '';
+          if (pictoriumUrl) cfg.pictoriumUrl = pictoriumUrl;
+          if (pictoriumOptions && Object.keys(pictoriumOptions).length) cfg.pictoriumOptions = pictoriumOptions;
+        }
         if (posterProvider === 'erdb' || posterProvider === 'rpdb') {
           cfg.enhanceBackground = enhanceBackground;
           cfg.enhanceLogo = enhanceLogo;
@@ -734,6 +748,17 @@
       if (catNames.popularSeries && catNames.popularSeries !== '⭐ Popular Series') cfg.popularSeriesName = catNames.popularSeries;
       if (catNames.franchises && catNames.franchises !== 'LeLibrary Collections') cfg.collectionsName = catNames.franchises;
       if (catOrder && JSON.stringify(catOrder) !== JSON.stringify(DEFAULT_CAT_ORDER)) cfg.catalogOrder = catOrder.slice();
+      // A providerless legacy install has no server-side user key to scope this
+      // data to, so its mappings must travel in the self-contained token.
+      if (!ACCOUNT_TOKEN && getProviderSet().length === 0 && customStreams.length) {
+        cfg.customStreams = JSON.parse(JSON.stringify(customStreams));
+        if (document.getElementById('streamPreset')?.value === 'custom') {
+          const nameTemplate = document.getElementById('streamNameTemplate')?.value.trim();
+          const descTemplate = document.getElementById('streamDescTemplate')?.value.trim();
+          if (nameTemplate) cfg.streamNameTemplate = nameTemplate;
+          if (descTemplate) cfg.streamDescTemplate = descTemplate;
+        }
+      }
       // Stream/filter heavy state is now in Redis (saveConfigToServer), not the token — keeps the URL tiny.
       // Notices are also in Redis; the token stays minimal.
       return cfg;
@@ -786,7 +811,7 @@
       const tmdb = document.getElementById('tmdbApiKey').value.trim();
       document.getElementById('setupTmdb').textContent = !tmdb ? 'Not set' : looksLikeV4Token(tmdb) ? '⚠️ v4: use v3' : '✓ Set';
 
-      const posters = { '': 'TMDB', erdb: 'ERDB', rpdb: 'RPDB', betterposter: 'BetterPosters', fanart: 'Fanart.tv' };
+      const posters = { '': 'TMDB', erdb: 'ERDB', rpdb: 'RPDB', betterposter: 'BetterPosters', fanart: 'Fanart.tv', custom: 'Custom Poster' };
       document.getElementById('setupPoster').textContent = posters[document.getElementById('posterProvider').value] || 'TMDB';
 
       const presetVal = document.getElementById('streamPreset').value;
@@ -806,13 +831,62 @@
       document.getElementById('rpdbField').style.display = val === 'rpdb' ? 'flex' : 'none';
       document.getElementById('fanartField').style.display = val === 'fanart' ? 'flex' : 'none';
       document.getElementById('betterposterField').style.display = val === 'betterposter' ? 'flex' : 'none';
+      document.getElementById('customPosterField').style.display = val === 'custom' ? 'flex' : 'none';
+      const pictoriumField = document.getElementById('pictoriumField');
+      if (pictoriumField) pictoriumField.style.display = val === 'pictorium' ? 'block' : 'none';
       document.getElementById('posterToggles').style.display = (val === 'erdb' || val === 'rpdb') ? 'flex' : 'none';
+      updatePictoriumSummary();
       updatePosterPreview();
       checkChanged();
     }
 
+    function pictoriumPreviewToken() {
+      try {
+        const current = currentToken();
+        if (ACCOUNT_TOKEN && current) return current;
+        return encodeConfig(buildSavedConfig());
+      } catch (_) { return ''; }
+    }
+
+    function updatePictoriumSummary() {
+      const el = document.getElementById('pictoriumSummary');
+      if (!el) return;
+      if (document.getElementById('posterProvider').value !== 'pictorium') { el.textContent = ''; return; }
+      const opts = window.LePictoriumOptions ? window.LePictoriumOptions.sanitize(pictoriumOptions || {}) : null;
+      if (!opts) { el.textContent = 'Defaults'; return; }
+      const bits = [opts.bs, opts.badges === '1' ? 'badges on' : 'badges off'];
+      const sources = opts.rsrc ? opts.rsrc.split(',').filter(Boolean) : ['imdb', 'tmdb'];
+      bits.push(sources.length + ' rating ' + (sources.length === 1 ? 'source' : 'sources'));
+      if (opts.pre === '1') bits.push('coming soon');
+      el.textContent = bits.join(' · ');
+    }
+
+    function openPictoriumStudio() {
+      if (!window.PictoriumStudio) { showToast('Poster Studio failed to load', 'error'); return; }
+      const token = pictoriumPreviewToken();
+      const url = document.getElementById('pictoriumUrl')?.value.trim() || '';
+      window.PictoriumStudio.open({ token, options: pictoriumOptions, url }).then((result) => {
+        if (!result) return;
+        pictoriumOptions = result.options || {};
+        const urlInput = document.getElementById('pictoriumUrl');
+        if (urlInput) urlInput.value = result.url || '';
+        updatePictoriumSummary();
+        updatePosterPreview();
+        checkChanged();
+      });
+    }
+
     function updatePosterPreview() {
       const provider = document.getElementById('posterProvider').value;
+      const customTemplate = document.getElementById('customPosterTemplate')?.value.trim() || '';
+      const customCheck = window.LePosterTemplate?.validate(customTemplate);
+      const customUrl = customCheck?.ok ? window.LePosterTemplate.resolve(customTemplate, { imdbId: 'tt0133093', tmdbId: 603, type: 'movie' }) : null;
+      const customHint = document.getElementById('customPosterHint');
+      const customInput = document.getElementById('customPosterTemplate');
+      if (provider === 'custom' && customHint) customHint.innerHTML = customCheck?.ok
+        ? `Example: <code>${escHtml(customUrl)}</code>`
+        : escHtml(customCheck?.error || 'Enter a valid template.');
+      if (customInput) customInput.classList.toggle('invalid', provider === 'custom' && !!customTemplate && !customCheck?.ok);
       const samples = { erdb: { url: () => {
         const t = document.getElementById('erdbToken').value.trim();
         return t ? `https://easyratingsdb.com/${encodeURIComponent(t)}/poster/tt0133093.jpg` : null;
@@ -824,6 +898,16 @@
       let html;
       if (!provider) {
         html = '<span>Select a poster service above<br>to see a live preview</span>';
+      } else if (provider === 'custom') {
+        html = customUrl
+          ? `<div style="display:grid;place-items:center;gap:8px"><img src="${escHtml(customUrl)}" alt="Custom poster preview" style="max-width:150px;max-height:225px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3)" onload="this.nextElementSibling.textContent='Live preview'" onerror="this.hidden=true;this.nextElementSibling.textContent='The poster service could not load this example.'" /><span style="font-size:0.68rem;color:var(--muted)">Loading live preview…</span></div>`
+          : '<span>Enter a valid Custom Poster template<br>to see a live preview</span>';
+      } else if (provider === 'pictorium') {
+        const token = pictoriumPreviewToken();
+        const qs = window.LePictoriumOptions ? window.LePictoriumOptions.toQuery(pictoriumOptions || {}) : '';
+        html = token
+          ? `<img src="/${encodeURIComponent(token)}/pictorium/movie/550.jpg?preview=1&_=${Date.now()}&title=Fight%20Club${qs ? '&' + qs : ''}" alt="Pictorium poster preview" style="max-width:150px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3)" onerror="this.parentElement.innerHTML='<span style=color:var(--error);font-size:0.78rem>Add a TMDB key to preview</span>'" />`
+          : '<span>Add a TMDB key above<br>to preview Pictorium posters</span>';
       } else if (provider === 'fanart') {
         html = '<span style="font-size:0.78rem;color:var(--muted)">Fanart.tv doesn\'t embed ratings on posters -<br>configure a service above to preview</span>';
       } else if (!s || !s.url()) {
@@ -833,6 +917,16 @@
       }
       document.getElementById('sidebarPosterPreview').innerHTML = html;
       document.getElementById('mobilePosterPreview').innerHTML = html;
+    }
+
+    function validateCustomPosterSelection() {
+      if (document.getElementById('posterProvider').value !== 'custom') return true;
+      const input = document.getElementById('customPosterTemplate');
+      const checked = window.LePosterTemplate?.validate(input?.value || '') || { ok: false, error: 'Custom Poster validation is unavailable.' };
+      input?.classList.toggle('invalid', !checked.ok);
+      updatePosterPreview();
+      if (!checked.ok) showToast(checked.error, 'error');
+      return checked.ok;
     }
 
     function onProviderChange() {
@@ -871,6 +965,7 @@
         lang: document.getElementById('lang').value,
         searchScope: document.getElementById('searchScope')?.value || 'combined',
         posterProvider: document.getElementById('posterProvider').value,
+        customPosterTemplate: document.getElementById('customPosterTemplate')?.value.trim() || '',
         erdbToken: document.getElementById('erdbToken').value.trim(),
         rpdbKey: document.getElementById('rpdbKey').value.trim(),
         fanartKey: document.getElementById('fanartKey').value.trim(),
@@ -1018,40 +1113,55 @@
       }
     }
 
-    function addCustomStream() {
-      const name = document.getElementById('csName').value.trim();
-      const url  = document.getElementById('csUrl').value.trim();
-      const type = document.getElementById('csType').value;
-      if (!name || !url) { showToast('Enter a name and URL'); return; }
-      customStreams.push({ name, url, type });
-      document.getElementById('csName').value = '';
-      document.getElementById('csUrl').value = '';
-      renderCustomStreams();
-      checkChanged();
-    }
+    let customStreamEditor = null;
 
-    function removeCustomStream(i) {
-      customStreams.splice(i, 1);
-      renderCustomStreams();
-      checkChanged();
-    }
-
-    function renderCustomStreams() {
-      const container = document.getElementById('customStreamsList');
-      const empty = document.getElementById('csEmpty');
-      if (customStreams.length === 0) {
-        container.innerHTML = '';
-        empty.style.display = 'block';
-        return;
+    function getCustomStreamEditor() {
+      if (!customStreamEditor) {
+        customStreamEditor = new window.LeCustomStreamsEditor.Editor({
+          getRows: () => customStreams,
+          setRows: rows => { customStreams = rows; },
+          toast: showToast,
+          changed: () => { checkChanged(); updateCustomStreamRequirements(); },
+          escape: escHtml,
+          accountSearch: ACCOUNT_TOKEN,
+          getSearchToken: () => {
+            const token = currentToken();
+            if (token) return token;
+            const tmdbApiKey = document.getElementById('tmdbApiKey')?.value.trim();
+            return tmdbApiKey ? encodeConfig({ provider: 'none', tmdbApiKey, searchScope: 'tmdb' }) : '';
+          },
+        });
+        customStreamEditor.modeChanged();
       }
-      empty.style.display = 'none';
-      container.innerHTML = customStreams.map((cs, i) =>
-        `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:0.82rem">
-          <span style="flex:1">${escHtml(cs.name)} <span style="color:var(--border2)">- ${escHtml(cs.url)}</span></span>
-          <span style="font-size:0.7rem;padding:2px 8px;background:var(--surface);border-radius:4px;color:var(--border2)">${cs.type === '*' ? 'All' : cs.type}</span>
-          <button class="btn-icon" type="button" onclick="removeCustomStream(${i})" style="width:30px;color:var(--error)" title="Remove">✕</button>
-        </div>`
-      ).join('');
+      return customStreamEditor;
+    }
+
+    function addCustomStream() { getCustomStreamEditor().save(); }
+    function editCustomStream(i) { getCustomStreamEditor().edit(i); }
+    function removeCustomStream(i) { getCustomStreamEditor().remove(i); }
+    function cancelCustomStreamEdit() { getCustomStreamEditor().reset(); }
+    function renderCustomStreams() { getCustomStreamEditor().render(); updateCustomStreamRequirements(); }
+    function customStreamModeChanged() { getCustomStreamEditor().modeChanged(); }
+    function customStreamTypeChanged() { getCustomStreamEditor().typeChanged(); }
+    function searchCustomStreamTitles() { return getCustomStreamEditor().search(); }
+    function customStreamSearchChanged() { return getCustomStreamEditor().searchChanged(); }
+    function customStreamSeasonChanged() { return getCustomStreamEditor().seasonChanged(); }
+    function selectCustomStreamTitle(i) { getCustomStreamEditor().selectSearch(i); }
+    function clearCustomStreamSelection() { getCustomStreamEditor().clearSelection(); }
+    function verifyCustomStreamUrl() { return getCustomStreamEditor().verify(); }
+    function importCustomStreams(input) { return getCustomStreamEditor().importFile(input); }
+    function exportCustomStreams() { getCustomStreamEditor().exportRows(); }
+
+    function updateCustomStreamRequirements() {
+      const customOnlyReady = customStreams.length > 0;
+      const notice = document.getElementById('customStreamRequirementNotice');
+      if (notice) {
+        notice.textContent = customOnlyReady
+          ? 'Custom Streams is active. Your TMDB key remains required; debrid providers are optional unless you want My Movies or My Shows.'
+          : 'A TMDB key is required. Add a Custom Stream if you want to continue without a debrid provider.';
+        notice.classList.toggle('ready', customOnlyReady);
+      }
+      updateCataloguesUI();
     }
 
     function escHtml(s) {
@@ -1229,7 +1339,8 @@
     async function generate(opts = {}) {
       const { skipVerify = false, skipSave = false, suppressReinstall = false } = opts;
       const provider     = document.getElementById('provider').value;
-      if (provider === 'none' || provider === '') { showToast('Select at least one provider'); return; }
+      const mappingOnly = (provider === 'none' || provider === '') && customStreams.length > 0;
+      if ((provider === 'none' || provider === '') && !mappingOnly) { showToast('Select at least one provider or add a Custom Stream'); return; }
       const providerSet  = getProviderSet();
       const KEY_FIELD = { torbox: 'torboxApiKey', realdebrid: 'rdApiKey', alldebrid: 'adApiKey', premiumize: 'pmApiKey' };
       const torboxApiKey = document.getElementById('torboxApiKey').value.trim();
@@ -1241,6 +1352,7 @@
       const sortBy       = document.getElementById('sortBy').value;
       const lang         = document.getElementById('lang').value;
       const posterProvider = document.getElementById('posterProvider').value;
+      if (!validateCustomPosterSelection()) return;
       const erdbToken    = document.getElementById('erdbToken').value.trim();
       const rpdbKey      = document.getElementById('rpdbKey').value.trim();
       const fanartKey    = document.getElementById('fanartKey').value.trim();
@@ -1263,7 +1375,7 @@
       if (!tmdbApiKey) {
         tmdbEl.classList.add('invalid');
         valid = false;
-      } else if (looksLikeV4Token(tmdbApiKey)) {
+      } else if (tmdbApiKey && looksLikeV4Token(tmdbApiKey)) {
         // v4 Read Access Tokens expire: force users onto the v3 API key
         tmdbEl.classList.add('invalid');
         showV4Warning(true);
@@ -1286,14 +1398,14 @@
       // Verify the required API keys before producing install links.
       // If a provider can't be reached (network), proceed anyway rather than
       // blocking a valid user on our own verification hiccup.
-      if (!skipVerify) {
+      if (!skipVerify && (providerSet.length > 0 || tmdbApiKey)) {
         const labels = { tmdb: 'TMDB', torbox: 'TorBox', realdebrid: 'Real-Debrid', alldebrid: 'AllDebrid', premiumize: 'Premiumize' };
         const checks = [];
         for (const id of providerSet) {
           const el = document.getElementById(KEY_FIELD[id]);
           checks.push({ service: id, key: (el && el.value.trim()) || '', el });
         }
-        checks.push({ service: 'tmdb', key: tmdbApiKey, el: tmdbEl });
+        if (tmdbApiKey) checks.push({ service: 'tmdb', key: tmdbApiKey, el: tmdbEl });
 
         btn.disabled = true;
         document.getElementById('genBtnTitle').textContent = 'Generating…';
@@ -1342,6 +1454,11 @@
       }
 
       const cfg = buildSavedConfig();
+      const urls = buildUrls(cfg);
+      if (!ACCOUNT_TOKEN && mappingOnly && urls.encoded.length > 2000) {
+        showToast('This self-contained mapping is too large for a safe install link. Sign in for encrypted storage or reduce the number of streams.', 'error');
+        return;
+      }
       if (!skipSave) {
         saveConfigToServer(cfg);
         // A real Save/Push persisted the config: the in-progress draft is no
@@ -1349,7 +1466,6 @@
         clearDraft();
       }
 
-      const urls = buildUrls(cfg);
       lastUrls = urls;
       const { manifestUrl, stremioDeep, stremioWeb, nuvioDeep } = urls;
 
@@ -1446,7 +1562,7 @@
       // Don't let Reset's own change handlers re-save an empty draft: a reload
       // right after Reset should bring back the token config, not a blank form.
       draftSuppressUntil = Date.now() + 1000;
-      ['torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey'].forEach(id => {
+      ['torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'customPosterTemplate'].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         el.value = '';
@@ -1481,7 +1597,7 @@
       goToStep(1);
     }
 
-    const APP_VERSION = '5.0.2';
+    const APP_VERSION = '5.1.0';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');
@@ -2200,7 +2316,7 @@
     // the browser never persists this state.
     const STREMIO_API = 'https://api.strem.io/api';
     const NUVIO_API_BASE        = 'https://api.nuvio.tv';
-    const NUVIO_PUBLISHABLE_KEY = 'sb_publishable_1Clq8rlTVACkdcZuqr6_AD__xUUC_EN';
+    const NUVIO_PUBLISHABLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzgxNTIxMzQ2LCJleHAiOjE5MzkyMDEzNDZ9.tmQaj682pwzehpqlgCDMnySOqiUvpgRbrE43T4VJpDI';
     const CONNECT_STORAGE_KEY   = 'lelibrary_connect';
     const NUVIO_CLIENT_ID_KEY   = 'lelibrary_nuvio_client_id';
 
@@ -3950,7 +4066,6 @@
     }
     function importedDependencyName(id) {
       const value = String(id);
-      if (/aio.?metadata/i.test(value)) return 'AIOMetadata';
       if (/aio.?streams/i.test(value)) return 'AIOStreams';
       if (/xperience/i.test(value)) return 'Xperience';
       return value;
@@ -4023,6 +4138,11 @@
       return Array.isArray(requirements.addons) ? requirements.addons.filter(Boolean) : [];
     }
 
+    function nuvioCommunityRequirementState(item) {
+      const requirements = nuvioCommunityRequirements(item);
+      return { hasRequirements: requirements.length > 0, label: 'Needs addon' };
+    }
+
     function nuvioCommunityItems(data) {
       const candidates = [];
       const visit = (value, depth = 0) => {
@@ -4037,6 +4157,26 @@
         if (items.length || values.length === 0) return items;
       }
       return [];
+    }
+
+    async function refreshStandaloneNuvioSession() {
+      if (ACCOUNT_TOKEN || !connectState.nuvioRefresh) return false;
+      try {
+        const response = await fetch(`${NUVIO_API_BASE}/auth/v1/token?grant_type=refresh_token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: NUVIO_PUBLISHABLE_KEY },
+          body: JSON.stringify({ refresh_token: connectState.nuvioRefresh }),
+          signal: AbortSignal.timeout(20000),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.access_token) return false;
+        connectState.nuvioToken = data.access_token;
+        connectState.nuvioRefresh = data.refresh_token || connectState.nuvioRefresh;
+        persistConnect();
+        return true;
+      } catch {
+        return false;
+      }
     }
 
     async function fetchNuvioCommunity(path, params = {}) {
@@ -4061,10 +4201,12 @@
           }catch{}
         }
         if (!connectState.nuvioToken) throw new Error('Connect Nuvio in Step 1 before browsing its public collections.');
-        response = await fetch(`/api/nuvio-community/${suffix}`, {
+        const request = () => fetch(`/api/nuvio-community/${suffix}`, {
           headers: { 'X-Nuvio-Access-Token': connectState.nuvioToken },
           cache: 'no-store',
         });
+        response = await request();
+        if (response.status === 401 && await refreshStandaloneNuvioSession()) response = await request();
       }
       const data = await response.json().catch(() => ({}));
       if (ACCOUNT_TOKEN && response.status === 401 && data.error === 'Not signed in') {
@@ -4109,10 +4251,11 @@
         const image = safeExternalUrl(item.image_url || item.imageUrl || item.coverImageUrl || item.envelope?.coverImageUrl || item.envelope?.collection?.coverImageUrl);
         const stats = item.stats || {};
         const requirements = nuvioCommunityRequirements(item);
+        const requirementState = nuvioCommunityRequirementState(item);
         const collectionCount = Number(stats.collectionCount || stats.collection_count || 1);
         const folderCount = Number(stats.folderCount || stats.folder_count || 0);
         const sourceCount = Number(stats.sourceCount || stats.source_count || 0);
-        return `<article class="nuvio-public-card"><div class="nuvio-public-art">${image ? `<img src="${escHtml(image)}" alt="" loading="lazy" onerror="this.style.display='none'">` : '<span>▦</span>'}<span class="nuvio-public-art-label">COMMUNITY PACK</span></div><div class="nuvio-public-copy"><div class="nuvio-public-title"><div><span class="nuvio-public-eyebrow">NUVIO COLLECTION</span><strong>${escHtml(title)}</strong></div>${requirements.length ? '<span class="nuvio-public-state needs">Needs addon</span>' : '<span class="nuvio-public-state ready">Ready to import</span>'}</div><p>${escHtml(description)}</p><div class="nuvio-public-meta"><span>${collectionCount} collection${collectionCount === 1 ? '' : 's'}</span><span>${folderCount} folders</span><span>${sourceCount} sources</span></div>${requirements.length ? nuvioCommunityAddonPills(requirements) : ''}</div><div class="nuvio-public-actions"><button type="button" class="curated-pack-view" onclick="openNuvioPublicCollectionDetail(${jsStr(id)})">Preview</button><button type="button" class="curated-pack-edit" onclick="importNuvioPublicCollection(${jsStr(id)})">Import</button></div></article>`;
+        return `<article class="nuvio-public-card"><div class="nuvio-public-art">${image ? `<img src="${escHtml(image)}" alt="" loading="lazy" onerror="this.style.display='none'">` : '<span>▦</span>'}<span class="nuvio-public-art-label">COMMUNITY PACK</span></div><div class="nuvio-public-copy"><div class="nuvio-public-title"><div><span class="nuvio-public-eyebrow">NUVIO COLLECTION</span><strong>${escHtml(title)}</strong></div>${requirementState.hasRequirements ? `<span class="nuvio-public-state needs">${escHtml(requirementState.label)}</span>` : '<span class="nuvio-public-state ready">Ready to import</span>'}</div><p>${escHtml(description)}</p><div class="nuvio-public-meta"><span>${collectionCount} collection${collectionCount === 1 ? '' : 's'}</span><span>${folderCount} folders</span><span>${sourceCount} sources</span></div>${requirementState.hasRequirements ? nuvioCommunityAddonPills(requirements) : ''}</div><div class="nuvio-public-actions"><button type="button" class="curated-pack-view" onclick="openNuvioPublicCollectionDetail(${jsStr(id)})">Preview</button><button type="button" class="curated-pack-edit" onclick="importNuvioPublicCollection(${jsStr(id)})">Import</button></div></article>`;
       }).join('') : nuvioCommunityBrowse.error
         ? `<div class="imported-empty">${escHtml(nuvioCommunityBrowse.error)}<br><button type="button" class="curated-pack-edit" style="margin-top:10px" onclick="loadNuvioPublicCollections({reset:true})">Try again</button></div>`
         : '<div class="imported-empty">No public collections match that search.</div>';
@@ -4151,7 +4294,7 @@
       document.getElementById('nuvioPublicCollectionsModal')?.remove();
       const modal = document.createElement('div');
       modal.id = 'nuvioPublicCollectionsModal'; modal.className = 'curated-edit-modal';
-      modal.innerHTML = `<div class="curated-edit-dialog nuvio-public-dialog"><div class="curated-edit-head"><div><span class="section-kicker">NUVIO COMMUNITY</span><h3>Browse Public Collections</h3><p>Import a community collection directly into your LeLibrary Nuvio setup.</p></div><button type="button" onclick="this.closest('.curated-edit-modal').remove()">×</button></div><div class="curated-edit-body"><div class="nuvio-public-toolbar"><form onsubmit="event.preventDefault();searchNuvioPublicCollections()"><input id="nuvioPublicCollectionsSearch" class="cg-search" placeholder="Search collections…"><button type="submit" class="search-btn">Search</button></form><select id="nuvioPublicCollectionsSort" onchange="searchNuvioPublicCollections()"><option value="popular">Popular</option><option value="recent">Recent</option></select><select id="nuvioPublicCollectionsFilter" onchange="setNuvioPublicCollectionFilter(this.value)"><option value="">All</option><option value="ready">No addon needed</option><option value="needs">Needs addon</option></select></div><div class="nuvio-public-note"><strong>Compatibility is shown before import</strong><span>Collections with required addons show every declared addon. Where Nuvio provides a manifest/setup URL, use the Open setup link before importing.</span></div><p id="nuvioPublicCollectionsStatus" class="field-hint">Loading public collections…</p><div id="nuvioPublicCollectionsList" class="nuvio-public-list"></div><button id="nuvioPublicCollectionsMore" type="button" class="btn-copy-url nuvio-public-more" onclick="loadNuvioPublicCollections()" hidden>Load more</button></div><div class="curated-edit-actions"><span></span><span></span><button type="button" class="btn-copy-url" onclick="this.closest('.curated-edit-modal').remove()">Close</button></div></div>`;
+      modal.innerHTML = `<div class="curated-edit-dialog nuvio-public-dialog"><div class="curated-edit-head"><div><span class="section-kicker">NUVIO COMMUNITY</span><h3>Browse Public Collections</h3><p>Import a community collection directly into your LeLibrary Nuvio setup.</p></div><button type="button" onclick="this.closest('.curated-edit-modal').remove()">×</button></div><div class="curated-edit-body"><div class="nuvio-public-toolbar"><form onsubmit="event.preventDefault();searchNuvioPublicCollections()"><input id="nuvioPublicCollectionsSearch" class="cg-search" placeholder="Search collections…"><button type="submit" class="search-btn">Search</button></form><select id="nuvioPublicCollectionsSort" onchange="searchNuvioPublicCollections()"><option value="popular">Popular</option><option value="recent">Recent</option></select><select id="nuvioPublicCollectionsFilter" onchange="setNuvioPublicCollectionFilter(this.value)"><option value="">All</option><option value="ready">No addon needed</option><option value="needs">Needs addon</option></select></div><div class="nuvio-public-note"><strong>Addon requirements are shown before import</strong><span>Packs that use another addon keep that dependency. Install it in the same Nuvio profile so its folders can load.</span></div><p id="nuvioPublicCollectionsStatus" class="field-hint">Loading public collections…</p><div id="nuvioPublicCollectionsList" class="nuvio-public-list"></div><button id="nuvioPublicCollectionsMore" type="button" class="btn-copy-url nuvio-public-more" onclick="loadNuvioPublicCollections()" hidden>Load more</button></div><div class="curated-edit-actions"><span></span><span></span><button type="button" class="btn-copy-url" onclick="this.closest('.curated-edit-modal').remove()">Close</button></div></div>`;
       modal.addEventListener('click', event => { if (event.target === modal) modal.remove(); });
       document.body.appendChild(modal);
       nuvioCommunityBrowse = { items: [], page: 1, hasNextPage: false, loading: false, error: '', search: '', sort: 'popular' };
@@ -4169,7 +4312,7 @@
       const modal = document.getElementById('nuvioPublicCollectionsModal');
       const body = modal?.querySelector('.curated-edit-body');
       if (!body) return;
-      body.innerHTML = '<div class="nuvio-public-toolbar"><form onsubmit="event.preventDefault();searchNuvioPublicCollections()"><input id="nuvioPublicCollectionsSearch" class="cg-search" placeholder="Search collections…"><button type="submit" class="search-btn">Search</button></form><select id="nuvioPublicCollectionsSort" onchange="searchNuvioPublicCollections()"><option value="popular">Popular</option><option value="recent">Recent</option></select><select id="nuvioPublicCollectionsFilter" onchange="setNuvioPublicCollectionFilter(this.value)"><option value="">All</option><option value="ready">No addon needed</option><option value="needs">Needs addon</option></select></div><div class="nuvio-public-note"><strong>Compatibility is shown before import</strong><span>Collections with required addons show every declared addon. Where Nuvio provides a manifest/setup URL, use the Open setup link before importing.</span></div><p id="nuvioPublicCollectionsStatus" class="field-hint"></p><div id="nuvioPublicCollectionsList" class="nuvio-public-list"></div><button id="nuvioPublicCollectionsMore" type="button" class="btn-copy-url nuvio-public-more" onclick="loadNuvioPublicCollections()" hidden>Load more</button>';
+      body.innerHTML = '<div class="nuvio-public-toolbar"><form onsubmit="event.preventDefault();searchNuvioPublicCollections()"><input id="nuvioPublicCollectionsSearch" class="cg-search" placeholder="Search collections…"><button type="submit" class="search-btn">Search</button></form><select id="nuvioPublicCollectionsSort" onchange="searchNuvioPublicCollections()"><option value="popular">Popular</option><option value="recent">Recent</option></select><select id="nuvioPublicCollectionsFilter" onchange="setNuvioPublicCollectionFilter(this.value)"><option value="">All</option><option value="ready">No addon needed</option><option value="needs">Needs addon</option></select></div><div class="nuvio-public-note"><strong>Addon requirements are shown before import</strong><span>Packs that use another addon keep that dependency. Install it in the same Nuvio profile so its folders can load.</span></div><p id="nuvioPublicCollectionsStatus" class="field-hint"></p><div id="nuvioPublicCollectionsList" class="nuvio-public-list"></div><button id="nuvioPublicCollectionsMore" type="button" class="btn-copy-url nuvio-public-more" onclick="loadNuvioPublicCollections()" hidden>Load more</button>';
       body.querySelector('#nuvioPublicCollectionsSearch').value = nuvioCommunityBrowse.search;
       body.querySelector('#nuvioPublicCollectionsSort').value = nuvioCommunityBrowse.sort;
       body.querySelector('#nuvioPublicCollectionsFilter').value = nuvioCommunityBrowse.filter || '';
@@ -4249,7 +4392,7 @@
       modal.className = 'curated-edit-modal';
       modal.dataset.importMode = mode;
       const manifestFields = collections ? '' : `<label class="field-label">Manifest URL<input id="importedUrl" class="cg-search" placeholder="https://example.com/manifest/.../manifest.json"></label><button type="button" class="imported-add-url" onclick="addImportedManifestUrl()">＋ Add another manifest URL</button><div id="importedManifestUrls"></div><p class="field-hint">A manifest imports catalogue rows for Home. It does not contain native Nuvio folders.</p>`;
-      const collectionFields = collections ? `<div class="import-file-drop"><span class="import-file-icon">⇧</span><strong>Choose collections.json</strong><small>Upload the export from Nuvio or another collection manager</small><label class="btn-copy-url">Choose file<input id="importedJsonFile" type="file" accept=".json,application/json" onchange="importedFileSelected(this)"></label></div><div class="imported-divider"><span>or paste the JSON below</span></div><textarea id="importedJson" class="imported-json-input" placeholder="[{ &quot;id&quot;: &quot;...&quot;, &quot;title&quot;: &quot;...&quot;, &quot;folders&quot;: [...] }, ...]"></textarea><p class="field-hint">Collections JSON preserves groups, folders, artwork and the addon that owns each catalogue.</p><div class="imported-dependency-warning"><strong>External sources are preserved</strong><span>Some folders may use AIOMetadata, AIOStreams, Xperience or another addon. Those addons must also be installed and enabled in the same Nuvio profile.</span></div>` : '';
+      const collectionFields = collections ? `<div class="import-file-drop"><span class="import-file-icon">⇧</span><strong>Choose collections.json</strong><small>Upload the export from Nuvio or another collection manager</small><label class="btn-copy-url">Choose file<input id="importedJsonFile" type="file" accept=".json,application/json" onchange="importedFileSelected(this)"></label></div><div class="imported-divider"><span>or paste the JSON below</span></div><textarea id="importedJson" class="imported-json-input" placeholder="[{ &quot;id&quot;: &quot;...&quot;, &quot;title&quot;: &quot;...&quot;, &quot;folders&quot;: [...] }, ...]"></textarea><p class="field-hint">Collections JSON preserves groups, folders, artwork and the addon that owns each catalogue.</p><div class="imported-dependency-warning"><strong>External sources are preserved</strong><span>Some folders may use another addon. Install and enable each required addon in the same Nuvio profile.</span></div>` : '';
       modal.innerHTML = `<div class="curated-edit-dialog imported-dialog"><div class="curated-edit-head"><div><span class="section-kicker">${collections ? 'NATIVE NUVIO SETUP' : 'CATALOGUE SOURCES'}</span><h3>${collections ? 'Import Collections' : 'Import Manifest'}</h3><p>${collections ? 'Bring in a collections.json export with its folders and presentation settings.' : 'Bring catalogue rows from a Stremio-compatible manifest.'}</p></div><button type="button" onclick="this.closest('.curated-edit-modal').remove()">×</button></div><div class="curated-edit-body">${manifestFields}${collectionFields}<div id="importedPreview" class="imported-preview"></div><div class="curated-edit-actions"><button type="button" class="btn-copy-url" onclick="this.closest('.curated-edit-modal').remove()">Cancel</button><button type="button" class="btn-main btn-gen" onclick="importImportedConfiguration()">${collections ? 'Import Collections' : 'Fetch Manifest'}</button></div></div></div>`;
       modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
       document.body.appendChild(modal);
@@ -4829,12 +4972,13 @@
     // provider + TMDB key must be set on the Setup tab before we can push them.
     function setupComplete() {
       const provider = document.getElementById('provider').value;
-      if (!provider || provider === 'none') return false;
+      const hasTmdb = !!document.getElementById('tmdbApiKey').value.trim();
+      if (!provider || provider === 'none') return customStreams.length > 0 && hasTmdb;
       const KEY_FIELD = { torbox: 'torboxApiKey', realdebrid: 'rdApiKey', alldebrid: 'adApiKey', premiumize: 'pmApiKey' };
       for (const id of getProviderSet()) {
         if (!(document.getElementById(KEY_FIELD[id])?.value.trim())) return false;
       }
-      return !!document.getElementById('tmdbApiKey').value.trim();
+      return hasTmdb;
     }
 
     function updateCataloguesUI() {
@@ -5530,8 +5674,11 @@
       // silently dropped from the pushed token. Uses the trimmed config so the
       // token stays under the server's 2048-char limit.
       const provider = document.getElementById('provider').value;
-      if (!provider || provider === 'none') return null;
-      try { return buildUrls(buildSavedConfig()); } catch { return null; }
+      if ((!provider || provider === 'none') && customStreams.length === 0) return null;
+      try {
+        const urls = buildUrls(buildSavedConfig());
+        return !ACCOUNT_TOKEN && urls.encoded.length > 2000 ? null : urls;
+      } catch { return null; }
     }
 
     function setSyncProgress(step) {
@@ -5661,7 +5808,7 @@
       connectState.platform = platform;
       if (!setupComplete()) {
         updateCataloguesUI();
-        showToast('Complete the Setup tab first: providers and a TMDB key are needed', 'error');
+        showToast('Add a Custom Stream, or complete Setup with a provider and TMDB key', 'error');
         document.getElementById('setupGuard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         return;
       }
@@ -5689,7 +5836,7 @@
         btn.disabled = false;
         label.textContent = origLabel;
         small.textContent = origSmall;
-        showToast('Fill in your providers and keys on the Setup tab first');
+        showToast('Add a Custom Stream, or fill in your providers and keys on Setup');
         return;
       }
       try {
@@ -5783,6 +5930,7 @@
               });
               await nuvioRpc(connectState.nuvioToken, '/rest/v1/rpc/sync_push_profiles', {
                 p_profiles: pushed,
+                p_client_max_profiles: 5,
                 p_origin_client_id: nuvioOriginClientId(),
               });
               console.log('[Push] Profile switched to own addons');
@@ -6210,3 +6358,12 @@
         loadConnectedWatchlists(true);
       }
     };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!window.LeClientIntegrations) return;
+      window.LeClientIntegrations.mount(document.getElementById('clientIntegrations'), {
+        getManifestUrl: () => document.getElementById('manifestUrl')?.textContent
+          || (currentToken() ? `${location.origin}/${encodeURIComponent(currentToken())}/manifest.json` : ''),
+        toast: showToast,
+      });
+    });

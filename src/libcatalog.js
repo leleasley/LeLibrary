@@ -10,6 +10,7 @@
 
 const cache = require('./cache');
 const axios = require('axios');
+const crypto = require('node:crypto');
 const { getTrending, getPopular, buildDiscoveryMetas, getImdbId } = require('./tmdb');
 const { normalizeImdbId } = require('./identity');
 const { buildErdbUrl, buildRpdbUrl, buildBetterPosterUrl, getFanartArt } = require('./builder');
@@ -42,11 +43,12 @@ function hashShort(s) {
 // Popular. This used to be missing, leaving every curated folder on TMDB art.
 async function enhanceCatalogRows(rows, enhance = {}) {
   if (!Array.isArray(rows) || !rows.length) return rows;
-  const { erdbToken, rpdbKey, fanartKey, posterProvider } = enhance;
-  if (!erdbToken && !rpdbKey && !fanartKey && posterProvider !== 'betterposter') return rows;
+  const { erdbToken, rpdbKey, fanartKey, posterProvider, customPosterTemplate } = enhance;
+  if (!erdbToken && !rpdbKey && !fanartKey && !['betterposter', 'custom'].includes(posterProvider)) return rows;
   return Promise.all(rows.map(async (row) => {
     if (!row || typeof row !== 'object') return row;
     const imdbId = normalizeImdbId(row.id || row.imdbId);
+    if (posterProvider === 'custom') return require('../website/public/poster-template').apply({ ...row, imdbId }, customPosterTemplate);
     if (erdbToken && imdbId) return { ...row, poster: buildErdbUrl(erdbToken, 'poster', imdbId) };
     if (rpdbKey && imdbId) return { ...row, poster: buildRpdbUrl(rpdbKey, 'imdb', 'poster-default', imdbId) };
     if (posterProvider === 'betterposter' && imdbId) return { ...row, poster: buildBetterPosterUrl(imdbId, row.type), posterShape: 'poster' };
@@ -91,7 +93,7 @@ async function backfillPosters(tmdbApiKey, apiType, rows, limit = 8) {
       const row = rows[i++];
       if (!row || row.poster || !row.tmdbId) continue;
       const path = await tmdbPosterPath(tmdbApiKey, apiType, row.tmdbId);
-      if (path) row.poster = `${TMDB_IMAGE}/w500${path}`;
+      if (path) row.poster = `${TMDB_IMAGE}/w342${path}`;
     }
   }
   await Promise.all(Array.from({ length: Math.min(limit, rows.length) }, worker));
@@ -125,7 +127,7 @@ async function tmdbItemsToRows(tmdbApiKey, apiType, items, type) {
       tmdbId: item.id,
       type,
       name,
-      poster: item.poster_path ? `${TMDB_IMAGE}/w500${item.poster_path}` : null,
+      poster: item.poster_path ? `${TMDB_IMAGE}/w342${item.poster_path}` : null,
       background: item.backdrop_path ? `${TMDB_IMAGE}/w1280${item.backdrop_path}` : null,
       posterShape: 'poster',
       releaseInfo: date.slice(0, 4) || undefined,
@@ -159,13 +161,32 @@ function importedTtls(definition) {
   return { upstream: 60 * 60, rendered: 30 * 60 };
 }
 
-async function fetchNormalizedImportedPage({ definition, page, tmdbApiKey, lang, request, convertTmdb }) {
+async function fetchNormalizedImportedPage({ definition, page, tmdbApiKey, mdblistKey, lang, request, convertTmdb, backfill }) {
   const mediaType = definition.mediaType;
   const apiType = mediaType === 'series' ? 'tv' : 'movie';
   try {
     if (definition.provider === 'tmdb' && definition.engine === 'discover') {
+      const filters = { ...definition.params.filters };
+      let sortBy = definition.params.sortBy;
+      if (mediaType === 'movie' && filters.with_release_type) {
+        if (sortBy.startsWith('primary_release_date.')) sortBy = sortBy.replace('primary_release_date.', 'release_date.');
+        if (!filters.region) {
+          const region = String(lang || '').split('-')[1];
+          if (region && /^[A-Za-z]{2}$/.test(region)) filters.region = region.toUpperCase();
+        }
+      }
       const response = await request(`https://api.themoviedb.org/3/discover/${apiType}`, {
-        params: { api_key: tmdbApiKey, language: lang, page, sort_by: definition.params.sortBy, ...definition.params.filters }, timeout: 15000,
+        params: { api_key: tmdbApiKey, language: lang, page, sort_by: sortBy, ...filters }, timeout: 15000,
+      });
+      const items = Array.isArray(response.data?.results) ? response.data.results : [];
+      return {
+        rows: await convertTmdb(tmdbApiKey, apiType, items, mediaType),
+        terminal: page >= Number(response.data?.total_pages || page) || items.length < 20,
+      };
+    }
+    if (definition.provider === 'tmdb' && definition.engine === 'trending') {
+      const response = await request(`https://api.themoviedb.org/3/trending/${apiType}/day`, {
+        params: { api_key: tmdbApiKey, language: lang, page }, timeout: 15000,
       });
       const items = Array.isArray(response.data?.results) ? response.data.results : [];
       return {
@@ -215,6 +236,37 @@ async function fetchNormalizedImportedPage({ definition, page, tmdbApiKey, lang,
       const pageCount = Number(response.headers?.['x-pagination-page-count'] || 0);
       return { rows, terminal: pageCount ? page >= pageCount : items.length < 100 };
     }
+    if (definition.provider === 'mdblist' && definition.engine === 'list') {
+      if (!mdblistKey) throw new ImportedSourceUpstreamError('MDBList is not configured', { provider: 'mdblist', code: 'provider_not_configured' });
+      const response = await request(`https://api.mdblist.com/lists/${definition.params.listId}/items`, {
+        params: { apikey: mdblistKey, limit: 100, offset: (page - 1) * 100, unified: 'true' }, timeout: 20000,
+      });
+      const data = response.data || {};
+      const items = [
+        ...(Array.isArray(data.movies) ? data.movies.map(item => ({ ...item, _lelibraryType: 'movie' })) : []),
+        ...(Array.isArray(data.shows) ? data.shows.map(item => ({ ...item, _lelibraryType: 'series' })) : []),
+      ];
+      const rows = [];
+      for (const item of items) {
+        const itemType = item._lelibraryType;
+        if (itemType !== mediaType) continue;
+        const imdbId = normalizeImdbId(item.imdb_id || item.imdbId);
+        if (!imdbId) continue;
+        const posterPath = item.poster_path || item.poster || '';
+        rows.push({
+          id: imdbId,
+          tmdbId: item.id != null ? Number(item.id) : undefined,
+          type: mediaType,
+          name: item.title || item.name || '',
+          poster: typeof posterPath === 'string' && posterPath.startsWith('/') ? `${TMDB_IMAGE}/w342${posterPath}` : undefined,
+          posterShape: 'poster',
+          year: item.release_year || item.year ? String(item.release_year || item.year) : undefined,
+          releaseInfo: item.release_year || item.year ? String(item.release_year || item.year) : undefined,
+        });
+      }
+      await backfill(tmdbApiKey, apiType, rows);
+      return { rows, terminal: items.length < 100 };
+    }
     return { rows: [], terminal: true };
   } catch (error) {
     if (error instanceof ImportedSourceUpstreamError) throw error;
@@ -224,7 +276,7 @@ async function fetchNormalizedImportedPage({ definition, page, tmdbApiKey, lang,
 
 async function buildNormalizedImportedCatalog({
   definition, tmdbApiKey, lang = 'en-US', skip = 0, search = '', enhance = {}, posterFp = '',
-  pageSize = 50, maxSkip = 5000, runtime = {},
+  mdblistKey = '', pageSize = 50, maxSkip = 5000, runtime = {},
 }) {
   const { normalizeImportedSourceDefinition } = require('./import-sources/definition');
   const source = normalizeImportedSourceDefinition(definition);
@@ -236,9 +288,12 @@ async function buildNormalizedImportedCatalog({
   const convertTmdb = runtime.convertTmdb || tmdbItemsToRows;
   const backfill = runtime.backfillPosters || backfillPosters;
   const ttls = importedTtls(source);
+  const credentialScope = source.provider === 'mdblist'
+    ? crypto.createHash('sha256').update(String(mdblistKey)).digest('hex').slice(0, 24)
+    : 'public';
   // Cache only public/base rows. Enhanced poster URLs can contain an account
   // token in their path and must never be persisted in an imported cache.
-  const renderedKey = cache.makeKey('cat', 'imp-render-v1', source.signature, lang, String(logicalSkip), String(logicalSize));
+  const renderedKey = cache.makeKey('cat', 'imp-render-v1', source.signature, credentialScope, lang, String(logicalSkip), String(logicalSize));
   const rendered = await cacheStore.get(renderedKey);
   if (Array.isArray(rendered)) {
     let output = await enhanceCatalogRows(rendered, enhance);
@@ -249,15 +304,15 @@ async function buildNormalizedImportedCatalog({
   const rows = [];
   const seen = new Set();
   for (let page = 1; page <= 250 && rows.length < wanted; page++) {
-    const upstreamKey = cache.makeKey('cat', 'imp-up-v1', source.signature, lang, String(page));
-    const lkgKey = cache.makeKey('cat', 'imp-lkg-v1', source.signature, lang, String(page));
+    const upstreamKey = cache.makeKey('cat', 'imp-up-v1', source.signature, credentialScope, lang, String(page));
+    const lkgKey = cache.makeKey('cat', 'imp-lkg-v1', source.signature, credentialScope, lang, String(page));
     let pageValue = await cacheStore.get(upstreamKey);
     if (!pageValue || !Array.isArray(pageValue.rows)) {
       try {
         pageValue = await singleFlight(upstreamKey, async () => {
           const again = await cacheStore.get(upstreamKey);
           if (again && Array.isArray(again.rows)) return again;
-          const fresh = await fetchNormalizedImportedPage({ definition: source, page, tmdbApiKey, lang, request, convertTmdb });
+          const fresh = await fetchNormalizedImportedPage({ definition: source, page, tmdbApiKey, mdblistKey, lang, request, convertTmdb, backfill });
           await cacheStore.set(upstreamKey, fresh, ttls.upstream);
           await cacheStore.set(lkgKey, fresh, 7 * 24 * 60 * 60);
           return fresh;
@@ -396,7 +451,7 @@ async function buildCatalogRows(tmdbApiKey, def, lang = 'en-US', mdblistKey = ''
           type: stremioType,
           name,
           poster: posterPath && typeof posterPath === 'string' && posterPath.startsWith('/')
-            ? `${TMDB_IMAGE}/w500${posterPath}`
+            ? `${TMDB_IMAGE}/w342${posterPath}`
             : null,
           posterShape: 'poster',
           releaseInfo: year ? String(year) : undefined,

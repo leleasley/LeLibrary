@@ -26,6 +26,7 @@
     l:   'lang',
     sq:  'searchScope',
     pp:  'posterProvider',
+    pt:  'customPosterTemplate',
     et:  'erdbToken',
     rk:  'rpdbKey',
     fk:  'fanartKey',
@@ -60,6 +61,7 @@
     cn:  'collectionsName',
     co:  'catalogOrder',
     sa:  'streamAddons',
+    cu:  'customStreams',
     fr:  'filterResolutions',
     fx:  'filterMaxSize',
     fo:  'filterCachedOnly'

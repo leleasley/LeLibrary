@@ -9,6 +9,7 @@
 // providers are, and those go into the cache key via posterFp).
 
 const cache = require('./cache');
+const { cachedRows, flight } = require('./catalog-cache');
 const axios = require('axios');
 const crypto = require('node:crypto');
 const { getTrending, getPopular, buildDiscoveryMetas, getImdbId } = require('./tmdb');
@@ -46,6 +47,10 @@ async function enhanceCatalogRows(rows, enhance = {}) {
   const { erdbToken, rpdbKey, fanartKey, posterProvider, customPosterTemplate } = enhance;
   const pictoriumOn = !!(enhance.pictorium && enhance.pictorium.enabled && enhance.pictorium.token);
   if (!erdbToken && !rpdbKey && !fanartKey && !pictoriumOn && !['betterposter', 'custom'].includes(posterProvider)) return rows;
+  if (fanartKey) {
+    const { fanartKey: artworkKey } = require('./artwork-cache');
+    await cache.mget(rows.filter(row => row?.tmdbId).map(row => artworkKey(fanartKey, row.tmdbId, row.type === 'movie' ? 'movie' : 'tv')));
+  }
   return Promise.all(rows.map(async (row) => {
     if (!row || typeof row !== 'object') return row;
     const imdbId = normalizeImdbId(row.id || row.imdbId);
@@ -61,7 +66,7 @@ async function enhanceCatalogRows(rows, enhance = {}) {
     if (rpdbKey && imdbId) return { ...row, poster: buildRpdbUrl(rpdbKey, 'imdb', 'poster-default', imdbId) };
     if (posterProvider === 'betterposter' && imdbId) return { ...row, poster: buildBetterPosterUrl(imdbId, row.type), posterShape: 'poster' };
     if (fanartKey && row.tmdbId) {
-      const art = await getFanartArt(fanartKey, row.tmdbId, row.type === 'movie' ? 'movie' : 'tv').catch(() => null);
+      const art = await getFanartArt(fanartKey, row.tmdbId, row.type === 'movie' ? 'movie' : 'tv', { background: true }).catch(() => null);
       if (art?.poster) return { ...row, poster: art.poster };
     }
     return row;
@@ -80,21 +85,33 @@ async function discover(tmdbApiKey, apiType, params, lang = 'en-US') {
 
 // Poster path lookup with an in-process memo. trakt_list / mdb_list rows carry
 // a tmdbId but no artwork; without this they rendered blank cards.
-const _posterMemo = new Map();
-async function tmdbPosterPath(tmdbApiKey, apiType, tmdbId) {
+async function tmdbPosterPath(tmdbApiKey, apiType, tmdbId, runtime = {}) {
   if (!tmdbApiKey || !tmdbId) return null;
-  const key = `${apiType}:${tmdbId}`;
-  if (_posterMemo.has(key)) return _posterMemo.get(key);
-  try {
-    const res = await axios.get(`https://api.themoviedb.org/3/${apiType}/${tmdbId}`, { params: { api_key: tmdbApiKey }, timeout: 10000 });
-    const path = (res.data && res.data.poster_path) || null;
-    _posterMemo.set(key, path);
-    return path;
-  } catch { return null; }
+  const store = runtime.cache || cache;
+  const request = runtime.request || axios.get;
+  const key = `artwork:tmdb-path-v1:${apiType}:${tmdbId}`;
+  const cached = await store.get(key);
+  if (cached && Object.hasOwn(cached, 'path')) return cached.path;
+  return flight(store, key, async () => {
+    const again = await store.get(key);
+    if (again && Object.hasOwn(again, 'path')) return again.path;
+    try {
+      const res = await request(`https://api.themoviedb.org/3/${apiType}/${tmdbId}`, { params: { api_key: tmdbApiKey }, timeout: 10000 });
+      const path = res.data?.poster_path || null;
+      await store.set(key, { path }, path ? 7 * 24 * 3600 : 300);
+      return path;
+    } catch { return null; } // A timeout is not evidence that artwork is absent.
+  });
 }
 // Bounded-concurrency enrichment so a 100-item list doesn't fire 100
 // simultaneous TMDB calls (rate-limit ban risk for the owner's key).
 async function backfillPosters(tmdbApiKey, apiType, rows, limit = 8) {
+  const candidates = rows.filter(row => row && !row.poster && row.tmdbId);
+  const paths = await cache.mget(candidates.map(row => `artwork:tmdb-path-v1:${apiType}:${row.tmdbId}`));
+  candidates.forEach(row => {
+    const path = paths.get(`artwork:tmdb-path-v1:${apiType}:${row.tmdbId}`)?.path;
+    if (path) row.poster = `${TMDB_IMAGE}/w342${path}`;
+  });
   let i = 0;
   async function worker() {
     while (i < rows.length) {
@@ -302,48 +319,48 @@ async function buildNormalizedImportedCatalog({
   // Cache only public/base rows. Enhanced poster URLs can contain an account
   // token in their path and must never be persisted in an imported cache.
   const renderedKey = cache.makeKey('cat', 'imp-render-v1', source.signature, credentialScope, lang, String(logicalSkip), String(logicalSize));
-  const rendered = await cacheStore.get(renderedKey);
-  if (Array.isArray(rendered)) {
-    let output = await enhanceCatalogRows(rendered, enhance);
-    return search ? output.filter(row => (row.name || '').toLowerCase().includes(search.toLowerCase())) : output;
-  }
-
-  const wanted = logicalSkip + logicalSize;
-  const rows = [];
-  const seen = new Set();
-  for (let page = 1; page <= 250 && rows.length < wanted; page++) {
-    const upstreamKey = cache.makeKey('cat', 'imp-up-v1', source.signature, credentialScope, lang, String(page));
-    const lkgKey = cache.makeKey('cat', 'imp-lkg-v1', source.signature, credentialScope, lang, String(page));
-    let pageValue = await cacheStore.get(upstreamKey);
-    if (!pageValue || !Array.isArray(pageValue.rows)) {
-      try {
-        pageValue = await singleFlight(upstreamKey, async () => {
-          const again = await cacheStore.get(upstreamKey);
-          if (again && Array.isArray(again.rows)) return again;
-          const fresh = await fetchNormalizedImportedPage({ definition: source, page, tmdbApiKey, mdblistKey, lang, request, convertTmdb, backfill });
-          await cacheStore.set(upstreamKey, fresh, ttls.upstream);
-          await cacheStore.set(lkgKey, fresh, 7 * 24 * 60 * 60);
-          return fresh;
-        });
-      } catch (error) {
-        const lkg = error.temporary ? await cacheStore.get(lkgKey) : null;
-        if (lkg && Array.isArray(lkg.rows)) pageValue = lkg;
-        else throw error;
+  const result = await cachedRows({ store: cacheStore, key: renderedKey, ttl: ttls.rendered,
+    // Credential-protected sources revalidate before serving expired data.
+    allowStale: source.provider !== 'mdblist',
+    load: async () => {
+      const wanted = logicalSkip + logicalSize;
+      const rows = [];
+      const seen = new Set();
+      for (let page = 1; page <= 250 && rows.length < wanted; page++) {
+        const upstreamKey = cache.makeKey('cat', 'imp-up-v1', source.signature, credentialScope, lang, String(page));
+        const lkgKey = cache.makeKey('cat', 'imp-lkg-v1', source.signature, credentialScope, lang, String(page));
+        let pageValue = await cacheStore.get(upstreamKey);
+        if (!pageValue || !Array.isArray(pageValue.rows)) {
+          try {
+            pageValue = await singleFlight(upstreamKey, async () => {
+              const again = await cacheStore.get(upstreamKey);
+              if (again && Array.isArray(again.rows)) return again;
+              const fresh = await fetchNormalizedImportedPage({ definition: source, page, tmdbApiKey, mdblistKey, lang, request, convertTmdb, backfill });
+              await cacheStore.set(upstreamKey, fresh, ttls.upstream);
+              await cacheStore.set(lkgKey, fresh, 7 * 24 * 60 * 60);
+              return fresh;
+            });
+          } catch (error) {
+            if (!error.temporary) await cacheStore.set(lkgKey, null, 1);
+            const lkg = error.temporary ? await cacheStore.get(lkgKey) : null;
+            if (lkg && Array.isArray(lkg.rows)) pageValue = lkg;
+            else throw error;
+          }
+        }
+        for (const row of pageValue.rows) {
+          if (!row?.id || seen.has(row.id)) continue;
+          seen.add(row.id);
+          rows.push(row);
+        }
+        if (pageValue.terminal) break;
       }
-    }
-    for (const row of pageValue.rows) {
-      if (!row?.id || seen.has(row.id)) continue;
-      seen.add(row.id);
-      rows.push(row);
-    }
-    if (pageValue.terminal) break;
-  }
-  let result = rows.slice(logicalSkip, logicalSkip + logicalSize);
-  if (source.provider === 'trakt') result = await backfill(tmdbApiKey, source.mediaType === 'series' ? 'tv' : 'movie', result);
-  await cacheStore.set(renderedKey, result, ttls.rendered);
-  result = await enhanceCatalogRows(result, enhance);
-  if (search) result = result.filter(row => (row.name || '').toLowerCase().includes(search.toLowerCase()));
-  return result;
+      let result = rows.slice(logicalSkip, logicalSkip + logicalSize);
+      if (source.provider === 'trakt') result = await backfill(tmdbApiKey, source.mediaType === 'series' ? 'tv' : 'movie', result);
+      return result;
+    },
+  });
+  const output = await enhanceCatalogRows(result, enhance);
+  return search ? output.filter(row => (row.name || '').toLowerCase().includes(search.toLowerCase())) : output;
 }
 
 // ── Handler dispatcher ───────────────────────────────────────
@@ -500,8 +517,7 @@ async function fetchMdblistItems(def, mdblistKey = '') {
     }
     return [];
   } catch (err) {
-    console.error(`[LibCat] mdblist fetch failed (${p.slug || p.listId}):`, err.message);
-    return [];
+    throw classifyImportedError(err, 'mdblist');
   }
 }
 
@@ -536,36 +552,21 @@ async function buildLibraryCatalog({ tmdbApiKey, catalogId, lang = 'en-US', user
   const credFp = (effectiveDef.handler === 'mdb_list' && effectiveDef.params && effectiveDef.params.listId) ? hashShort(mdblistKey || '') : '';
   // v3 invalidates source rows cached before the DC Universe source was moved
   // from an incomplete TMDB collection to the DCEU keyword catalogue.
-  const libCacheKey = cache.makeKey('cat', 'lib4', catalogId, rotationSlot, lang, hashShort(JSON.stringify(enhance)), credFp);
-  let rows = await cache.get(libCacheKey);
-  if (!Array.isArray(rows)) {
-    try {
-      rows = await singleFlight(libCacheKey, async () => {
-        const cached = await cache.get(libCacheKey);
-        if (Array.isArray(cached)) return cached;
-        const fresh = await buildCatalogRows(tmdbApiKey, effectiveDef, lang, mdblistKey);
-        const enhanced = await enhanceCatalogRows(fresh, enhance);
-        const lkgKey = cache.makeKey('cat', 'lib4-lkg', catalogId, lang, hashShort(JSON.stringify(enhance)), credFp);
-        // Do not let a temporarily empty upstream response replace a useful
-        // prior rotation; the next request can retry the same daily slot.
-        if (!enhanced.length) {
-          const lkg = await cache.get(lkgKey);
-          return Array.isArray(lkg) ? lkg : [];
-        }
-        if (enhanced.length) {
-          await cache.set(libCacheKey, enhanced, TTL_LIB);
-          // A longer-lived last-known-good entry protects the next rotation
-          // if TMDB is temporarily unavailable at the UTC boundary.
-          await cache.set(lkgKey, enhanced, 7 * TTL_LIB);
-        }
-        return enhanced;
-      });
-    } catch (err) {
-      console.error(`[LibCat] ${catalogId} error:`, err.message);
-      rows = await cache.get(cache.makeKey('cat', 'lib4-lkg', catalogId, lang, hashShort(JSON.stringify(enhance)), credFp));
-      if (!Array.isArray(rows)) rows = [];
-    }
-  }
+  const libCacheKey = cache.makeKey('cat', 'lib5-base', catalogId, rotationSlot, lang, credFp);
+  let rows;
+  try {
+    rows = await cachedRows({ store: cache, key: libCacheKey,
+      staleKey: cache.makeKey('cat', 'lib5-base-lkg', catalogId, lang, credFp), ttl: TTL_LIB,
+      allowStale: !credFp,
+      load: async () => {
+        const rows = await buildCatalogRows(tmdbApiKey, effectiveDef, lang, mdblistKey);
+        if (!rows.length) throw new Error('Collection temporarily empty');
+        return rows;
+      },
+    });
+  } catch { rows = []; }
+  rows = await enhanceCatalogRows(rows, enhance);
+
   if (search) rows = rows.filter(m => (m.name || '').toLowerCase().includes(search.toLowerCase()));
   return rows.slice(skip, skip + 50);
 }
@@ -643,13 +644,13 @@ async function buildImportedCatalog({ tmdbApiKey, ref, type, lang = 'en-US', use
   }
   if (!def) return [];
   const cacheId = `import-${ref}-${type}`;
-  const cacheKey = cache.makeKey('cat', 'lib', cacheId, lang, hashShort(JSON.stringify(enhance)));
-  let rows = await cache.get(cacheKey);
-  if (!Array.isArray(rows)) {
-    try { rows = await buildCatalogRows(tmdbApiKey, def, lang, mdblistKey); }
-    catch (err) { console.error(`[LibCat] imported ${ref} error:`, err.message); rows = []; }
-    if (rows.length) await cache.set(cacheKey, rows, TTL_LIB);
-  }
+  const cacheKey = cache.makeKey('cat', 'lib-import-base-v2', cacheId, lang);
+  let rows;
+  try {
+    rows = await cachedRows({ store: cache, key: cacheKey, ttl: TTL_LIB,
+      load: () => buildCatalogRows(tmdbApiKey, def, lang, mdblistKey) });
+  } catch { rows = []; }
+  rows = await enhanceCatalogRows(rows, enhance);
   if (search) rows = rows.filter(m => (m.name || '').toLowerCase().includes(search.toLowerCase()));
   return rows.slice(skip, skip + 50);
 }
@@ -657,5 +658,5 @@ async function buildImportedCatalog({ tmdbApiKey, ref, type, lang = 'en-US', use
 module.exports = {
   buildLibraryCatalog, buildImportedCatalog, buildNormalizedImportedCatalog, buildCatalogRows,
   tmdbItemsToRows, enhanceCatalogRows, backfillPosters, fetchNormalizedImportedPage,
-  classifyImportedError, ImportedSourceUpstreamError,
+  classifyImportedError, ImportedSourceUpstreamError, tmdbPosterPath,
 };

@@ -1597,7 +1597,7 @@
       goToStep(1);
     }
 
-    const APP_VERSION = '5.1.4';
+    const APP_VERSION = '5.1.5';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');
@@ -3160,7 +3160,7 @@
         const metas = Array.isArray(data.metas) ? data.metas : [];
         if (data.error === 'missing_keys') { grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--amber);padding:14px 0">Enter your provider and TMDB keys first: the catalogue would be empty until then.</div>'; head.textContent = 'Previewing "' + label + '"'; return; }
         if (!metas.length) { grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:14px 0">No titles yet: check your keys, or add files to your provider account.</div>'; head.textContent = 'Previewing "' + label + '"'; return; }
-        grid.innerHTML = metas.map(m => `<div style="text-align:center">${m.poster ? `<img src="${escHtml(m.poster)}" alt="${escHtml(m.name || '')}" loading="lazy" style="width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:8px;background:var(--panel);border:1px solid var(--border)" onerror="this.style.opacity=0.25" />` : '<div style="width:100%;aspect-ratio:2/3;border-radius:8px;background:var(--panel);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.6rem;padding:4px;box-sizing:border-box">No poster</div>'}<div style="font-size:0.6rem;color:var(--muted);margin-top:4px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(m.name || '')}">${escHtml(m.name || '')}</div></div>`).join('');
+        grid.innerHTML = metas.map((m, index) => `<div style="text-align:center">${m.poster ? `<img src="${escHtml(m.poster)}" alt="${escHtml(m.name || '')}" loading="${index < 6 ? 'eager' : 'lazy'}" fetchpriority="${index < 2 ? 'high' : 'auto'}" decoding="async" style="width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:8px;background:var(--panel);border:1px solid var(--border)" onerror="this.style.opacity=0.25" />` : '<div style="width:100%;aspect-ratio:2/3;border-radius:8px;background:var(--panel);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.6rem;padding:4px;box-sizing:border-box">No poster</div>'}<div style="font-size:0.6rem;color:var(--muted);margin-top:4px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(m.name || '')}">${escHtml(m.name || '')}</div></div>`).join('');
         head.textContent = 'Previewing "' + label + '": first ' + metas.length + (data.total > metas.length ? ' of ' + data.total : '') + ' titles';
         foot.textContent = data.total > metas.length ? 'Showing the first ' + metas.length + ' of ' + data.total + ' titles: the full catalogue loads when installed.' : 'Rendered from the same pipeline Stremio and Nuvio receive';
       } catch (e) { if (controller.signal.aborted) return; grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--error);padding:14px 0">Preview failed: ' + escHtml(e.message || e) + '</div>'; head.textContent = 'Previewing "' + label + '"'; }
@@ -3248,7 +3248,7 @@
             strip.innerHTML = metas.map((m) => `
               <div class="fp-card">
                 ${m.poster
-                  ? `<img src="${escHtml(m.poster)}" alt="${escHtml(m.name || '')}" loading="lazy" onerror="this.style.opacity=0.25">`
+                  ? `<img src="${escHtml(m.poster)}" alt="${escHtml(m.name || '')}" loading="lazy" decoding="async" onerror="this.style.opacity=0.25">`
                   : '<div style="aspect-ratio:2/3;border-radius:8px;background:var(--panel,#1a1a1f);border:1px solid var(--border,#26262c);display:flex;align-items:center;justify-content:center;color:var(--muted,#9a9aa5);font-size:0.55rem;padding:4px;box-sizing:border-box">No poster</div>'}
                 <div class="fp-name" title="${escHtml(m.name || '')}">${escHtml(m.name || '')}</div>
               </div>`).join('');
@@ -3434,7 +3434,7 @@
         const sources = (folder.catalogSources || []).map((source) => source.title || friendlyCatalogSourceName(source.catalogId, source.type)).filter(Boolean).join(' · ');
         const art = folder.focusGifUrl || folder.coverImageUrl || '';
         const artHtml = art
-          ? `<img class="curated-folder-art" src="${escHtml(art)}" alt="" loading="lazy" />`
+          ? `<img class="curated-folder-art" src="${escHtml(art)}" alt="" loading="lazy" decoding="async" />`
           : '<span class="curated-folder-art curated-folder-art-fallback">▦</span>';
         return `<div class="curated-folder-item">${artHtml}<span><strong>${escHtml(folder.title || 'Untitled folder')}</strong><small>${escHtml(sources || 'Curated catalogue source')}</small></span></div>`;
       };
@@ -4255,7 +4255,7 @@
         const collectionCount = Number(stats.collectionCount || stats.collection_count || 1);
         const folderCount = Number(stats.folderCount || stats.folder_count || 0);
         const sourceCount = Number(stats.sourceCount || stats.source_count || 0);
-        return `<article class="nuvio-public-card"><div class="nuvio-public-art">${image ? `<img src="${escHtml(image)}" alt="" loading="lazy" onerror="this.style.display='none'">` : '<span>▦</span>'}<span class="nuvio-public-art-label">COMMUNITY PACK</span></div><div class="nuvio-public-copy"><div class="nuvio-public-title"><div><span class="nuvio-public-eyebrow">NUVIO COLLECTION</span><strong>${escHtml(title)}</strong></div>${requirementState.hasRequirements ? `<span class="nuvio-public-state needs">${escHtml(requirementState.label)}</span>` : '<span class="nuvio-public-state ready">Ready to import</span>'}</div><p>${escHtml(description)}</p><div class="nuvio-public-meta"><span>${collectionCount} collection${collectionCount === 1 ? '' : 's'}</span><span>${folderCount} folders</span><span>${sourceCount} sources</span></div>${requirementState.hasRequirements ? nuvioCommunityAddonPills(requirements) : ''}</div><div class="nuvio-public-actions"><button type="button" class="curated-pack-view" onclick="openNuvioPublicCollectionDetail(${jsStr(id)})">Preview</button><button type="button" class="curated-pack-edit" onclick="importNuvioPublicCollection(${jsStr(id)})">Import</button></div></article>`;
+        return `<article class="nuvio-public-card"><div class="nuvio-public-art">${image ? `<img src="${escHtml(image)}" alt="" loading="lazy" decoding="async" onerror="this.style.display='none'">` : '<span>▦</span>'}<span class="nuvio-public-art-label">COMMUNITY PACK</span></div><div class="nuvio-public-copy"><div class="nuvio-public-title"><div><span class="nuvio-public-eyebrow">NUVIO COLLECTION</span><strong>${escHtml(title)}</strong></div>${requirementState.hasRequirements ? `<span class="nuvio-public-state needs">${escHtml(requirementState.label)}</span>` : '<span class="nuvio-public-state ready">Ready to import</span>'}</div><p>${escHtml(description)}</p><div class="nuvio-public-meta"><span>${collectionCount} collection${collectionCount === 1 ? '' : 's'}</span><span>${folderCount} folders</span><span>${sourceCount} sources</span></div>${requirementState.hasRequirements ? nuvioCommunityAddonPills(requirements) : ''}</div><div class="nuvio-public-actions"><button type="button" class="curated-pack-view" onclick="openNuvioPublicCollectionDetail(${jsStr(id)})">Preview</button><button type="button" class="curated-pack-edit" onclick="importNuvioPublicCollection(${jsStr(id)})">Import</button></div></article>`;
       }).join('') : nuvioCommunityBrowse.error
         ? `<div class="imported-empty">${escHtml(nuvioCommunityBrowse.error)}<br><button type="button" class="curated-pack-edit" style="margin-top:10px" onclick="loadNuvioPublicCollections({reset:true})">Try again</button></div>`
         : '<div class="imported-empty">No public collections match that search.</div>';
@@ -4341,7 +4341,7 @@
           const builtInCount = allSources.filter(source => ['tmdb', 'trakt'].includes(String(source?.provider || '').toLowerCase())).length;
           const sourceLabel = `${allSources.length} source${allSources.length === 1 ? '' : 's'}`;
           const providerNote = builtInCount ? ` · ${builtInCount === allSources.length ? 'Nuvio built-in' : `${allSources.length - builtInCount} addon + ${builtInCount} built-in`}` : '';
-          return `<article class="nuvio-public-folder"><div class="nuvio-public-folder-art">${art ? `<img src="${escHtml(art)}" alt="" loading="lazy" onerror="this.style.display='none'">` : '<span>▦</span>'}</div><div><strong>${escHtml(folder?.title || folder?.name || 'Untitled folder')}</strong><small>${sourceLabel}${providerNote}${folder?.tileShape ? ` · ${escHtml(String(folder.tileShape).toLowerCase())}` : ''}</small></div></article>`;
+          return `<article class="nuvio-public-folder"><div class="nuvio-public-folder-art">${art ? `<img src="${escHtml(art)}" alt="" loading="lazy" decoding="async" onerror="this.style.display='none'">` : '<span>▦</span>'}</div><div><strong>${escHtml(folder?.title || folder?.name || 'Untitled folder')}</strong><small>${sourceLabel}${providerNote}${folder?.tileShape ? ` · ${escHtml(String(folder.tileShape).toLowerCase())}` : ''}</small></div></article>`;
         }).join('') : '<p class="field-hint">No folders were included in this collection.</p>'}</div></section>`;
       }).join('') : '<div class="imported-empty">Nuvio did not provide the folder preview for this item, but it can still be imported.</div>';
       body.innerHTML = `<button type="button" class="nuvio-public-back" onclick="restoreNuvioPublicBrowseView()">← Back to browse</button><section class="nuvio-public-detail-hero">${image ? `<img src="${escHtml(image)}" alt="">` : '<div class="nuvio-public-detail-fallback">▦</div>'}<div><span class="section-kicker">NUVIO COMMUNITY COLLECTION</span><h3>${escHtml(title)}</h3><p>${escHtml(description)}</p>${nuvioCommunityAddonPills(requirements)}</div></section><div class="nuvio-public-detail-summary"><span>${collections.length} collection${collections.length === 1 ? '' : 's'}</span><span>${collections.reduce((count, collection) => count + (collection?.folders?.length || 0), 0)} folders</span><span>${requirements.length ? 'Additional addon required' : 'No additional addon'}</span></div><div class="nuvio-public-detail-packs">${collectionMarkup}</div><div class="nuvio-public-detail-actions"><button type="button" class="btn-copy-url" onclick="restoreNuvioPublicBrowseView()">Back</button><button type="button" class="btn-main btn-gen" onclick="importNuvioPublicCollection(${jsStr(id)})">Import collection</button></div>`;
@@ -4584,7 +4584,7 @@
           const enabled = priority >= 0;
           return `<div class="stream-priority-card${enabled ? ' enabled' : ''}" draggable="${enabled}" ondragstart="streamAddonDragStart(event, '${addon.id}')" ondragover="streamAddonDragOver(event, '${addon.id}')" ondragleave="streamAddonDragLeave(event)" ondrop="streamAddonDrop(event, '${addon.id}')" ondragend="streamAddonDragEnd()">
             <span class="stream-priority-rank">${enabled ? priority + 1 : '–'}</span>
-            <img src="${escHtml(addon.logo)}" alt="${escHtml(addon.name)}" loading="lazy" onerror="this.style.display='none'" />
+            <img src="${escHtml(addon.logo)}" alt="${escHtml(addon.name)}" loading="lazy" decoding="async" onerror="this.style.display='none'" />
             <span class="stream-priority-copy"><strong>${escHtml(addon.name)}</strong><small>${escHtml(addon.desc)}</small></span>
             <span class="stream-priority-controls">
               <button type="button" aria-label="Move ${escHtml(addon.name)} up" ${!enabled || priority === 0 ? 'disabled' : ''} onclick="moveStreamAddon('${addon.id}', -1)">↑</button>

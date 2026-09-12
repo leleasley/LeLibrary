@@ -556,26 +556,7 @@ async function getOmdbRatings(apiKey, imdbId) {
   }
 }
 
-async function getFanartArt(apiKey, tmdbId, type) {
-  if (!apiKey || !tmdbId) return null;
-  const endpoint = type === 'movie' ? `/movies/${tmdbId}` : `/tv/${tmdbId}`;
-  const cacheKey = `fanart:${type}:${tmdbId}`;
-  const cached = omdbCache.get(cacheKey);
-  if (cached !== undefined) return cached;
-  try {
-    const res = await axios.get(`https://webservice.fanart.tv/v3${endpoint}`, { params: { api_key: apiKey }, timeout: 8000 });
-    const art = {
-      poster: res.data.movieposter?.[0]?.url || res.data.tvposter?.[0]?.url || null,
-      background: res.data.moviebackground?.[0]?.url || res.data.showbackground?.[0]?.url || null,
-      logo: res.data.hdmovieclearart?.[0]?.url || res.data.hdtvlogo?.[0]?.url || null,
-    };
-    omdbCache.set(cacheKey, art);
-    return art;
-  } catch {
-    omdbCache.set(cacheKey, null);
-    return null;
-  }
-}
+const { getFanartArt } = require('./artwork-cache');
 
 function isTmdbAnime(result) {
   return result && (result.isJapaneseAnimation === true);

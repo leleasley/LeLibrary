@@ -1,5 +1,15 @@
 # Changelog
 
+## [5.1.5]
+
+### Faster fetching and collections
+
+- TorBox download sources fetch concurrently and overlapping profiles share one scan. Account and endpoint rate limits are isolated, HTTP/API errors are handled correctly, and temporary source failures retain the previous library data.
+- Public collections show cached rows immediately while refreshing in the background. Protected lists revalidate expired data and discard stale results when access is revoked.
+- Poster lookups persist across restarts and overlapping requests share work. Optional Fanart artwork loads in the background without delaying catalogue rows, and website previews prioritise their first visible posters.
+- Playback concurrency slots are released reliably, and optional performance diagnostics report aggregate timings without exposing download details.
+- Series matching strips pack and season markers from titles so valid shows are not dropped.
+
 ## [5.1.4]
 
 ### Fixes

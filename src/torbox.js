@@ -3,29 +3,13 @@ const crypto = require('crypto');
 
 const TORBOX_BASE = 'https://api.torbox.app/v1/api';
 
-let usenetUnavailableLogged = false;
-let webdlUnavailableLogged = false;
-
 // ── Rate limiting / circuit breaker ────────────────────────────────────
-// TorBox limits: 300 req/min per API token across ALL endpoints (documented).
-// requestdl is stricter (~100 calls before 429, measured May 2026).
-// 429 is a cliff: 100% requests fail for ~5 minutes (Retry-After: 300).
-// The budget is per token, not per IP: multiple instances sharing a key
-// must split the 300/min.  Default 120/min (safe for 2+ instances);
-// set TORBOX_RATE_LIMIT to use the full budget on a single instance.
-
-const TB_RATE_LIMIT   = parseInt(process.env.TORBOX_RATE_LIMIT, 10) || 120; // req/min
-const TB_RATE_WINDOW  = 60_000;
-const TB_MAX_CONCURRENT = parseInt(process.env.TORBOX_MAX_CONCURRENT, 10) || 16;
-const TB_429_DEFAULT_BACKOFF = 300_000; // 5 minutes if no Retry-After header
-
-// Token bucket: refills smoothly over the window
-let tbTokens = TB_RATE_LIMIT;
-let tbLastRefill = Date.now();
-// requestdl has a much tighter TorBox limit than catalog/list endpoints. Keep
-// their backoffs separate so a burst of playback requests cannot blank a
-// user's library catalogue.
-let tbDataCircuitOpenUntil = 0;
+// TorBox documents per-key, per-endpoint budgets. Keep conservative account
+// budgets plus a process-wide concurrency cap; playback has a separate gate.
+const TB_RATE_LIMIT = Math.max(1, parseInt(process.env.TORBOX_RATE_LIMIT, 10) || 120);
+const TB_RATE_WINDOW = 60_000;
+const TB_MAX_CONCURRENT = Math.max(1, parseInt(process.env.TORBOX_MAX_CONCURRENT, 10) || 16);
+const TB_429_DEFAULT_BACKOFF = 300_000;
 // requestdl has its own, much lower limit. Keep this limiter per account: a
 // 429 from one hosted user must never suppress another user's playback.
 const TB_REQUESTDL_RATE = parseInt(process.env.TORBOX_REQUESTDL_RATE, 10) || 30; // per minute/account
@@ -48,7 +32,7 @@ function createRequestDlLimiter({ ratePerMinute = TB_REQUESTDL_RATE, burst = TB_
         let oldestKey = null;
         let oldestAt = Infinity;
         for (const [key, value] of gates) {
-          if (value.inFlight === 0 && value.lastUsed < oldestAt) { oldestAt = value.lastUsed; oldestKey = key; }
+          if (value.inFlight === 0 && value.cooldownUntil <= at && at - value.lastRefill >= TB_RATE_WINDOW && value.lastUsed < oldestAt) { oldestAt = value.lastUsed; oldestKey = key; }
         }
         if (oldestKey) gates.delete(oldestKey);
       }
@@ -154,28 +138,6 @@ async function getTorBoxPlaybackStatus(apiKey) {
   }
 }
 
-function tbRefill() {
-  const now = Date.now();
-  const elapsed = now - tbLastRefill;
-  if (elapsed > 0) {
-    tbTokens = Math.min(TB_RATE_LIMIT, tbTokens + (elapsed / TB_RATE_WINDOW) * TB_RATE_LIMIT);
-    tbLastRefill = now;
-  }
-}
-
-async function tbAcquire() {
-  while (true) {
-    tbRefill();
-    if (tbTokens >= 1) {
-      tbTokens -= 1;
-      return;
-    }
-    // Wait until the next token arrives
-    const waitMs = Math.ceil((1 - tbTokens) / (TB_RATE_LIMIT / TB_RATE_WINDOW));
-    await new Promise(r => setTimeout(r, Math.max(waitMs, 50)));
-  }
-}
-
 // Concurrency gate: max TB_MAX_CONCURRENT in-flight requests
 let tbInFlight = 0;
 const tbQueue = [];
@@ -197,173 +159,101 @@ function tbConcurrencyRelease() {
 
 // ── Core HTTP helper ───────────────────────────────────────────────────
 
-async function torboxGet(path, apiKey, params = {}) {
-  if (!apiKey || apiKey.length < 10) {
-    console.error('[TorBox] API key invalid or missing');
-    return { error: 'API key invalid', status: 401 };
-  }
+function retryAfterMs(value, now = Date.now()) {
+  const seconds = Number(value);
+  if (value != null && Number.isFinite(seconds) && seconds >= 0) return Math.max(1000, seconds * 1000);
+  const date = Date.parse(value);
+  return Number.isFinite(date) && date > now ? date - now : TB_429_DEFAULT_BACKOFF;
+}
 
-  // Circuit open: bail immediately, don't add to the pile
-  if (Date.now() < tbDataCircuitOpenUntil) {
-    const waitSec = Math.ceil((tbDataCircuitOpenUntil - Date.now()) / 1000);
-    return { error: `TorBox throttled, retry in ${waitSec}s`, status: 429 };
-  }
-
-  await tbAcquire();
-  await tbConcurrencyWait();
-
-  // Library refreshes pass `bypass_cache=true`, but send the HTTP directives
-  // too.  Some intermediary/CDN paths have historically served a stale list
-  // response even when the query flag was present; a library poll must always
-  // observe TorBox's current state before we decide whether Redis can stay
-  // warm.
-  const headers = {
-    Authorization: `Bearer ${apiKey}`,
-    'Cache-Control': 'no-cache, no-store, max-age=0',
-    Pragma: 'no-cache',
+function createDataClient({ request = options => axios.request(options),
+  limiter = createRequestDlLimiter({ ratePerMinute: TB_RATE_LIMIT, burst: 6, maxConcurrent: 4 }),
+  enter = tbConcurrencyWait, leave = tbConcurrencyRelease } = {}) {
+  return async function dataRequest(method, path, apiKey, params = {}, data) {
+    if (!apiKey || apiKey.length < 10) return { error: 'API key invalid', status: 401 };
+    const identity = `${requestDlIdentity(apiKey)}:${path}`;
+    const queuedAt = Date.now();
+    if (!await limiter.acquire(identity)) return { error: 'TorBox temporarily rate limited', status: 429 };
+    await enter();
+    const started = Date.now();
+    let status = 0;
+    try {
+      // Recheck after waiting for the global concurrency gate.
+      if (limiter.status(identity).cooldownUntil > Date.now()) {
+        status = 429;
+        return { error: 'TorBox temporarily rate limited', status };
+      }
+      const res = await request({ method, url: `${TORBOX_BASE}${path}`, data, params,
+        headers: { Authorization: `Bearer ${apiKey}`, ...(params.bypass_cache ? { 'Cache-Control': 'no-cache, no-store, max-age=0', Pragma: 'no-cache' } : {}) },
+        timeout: 45000, validateStatus: () => true });
+      status = res.status;
+      if (status === 429) limiter.cooldown(identity, retryAfterMs(res.headers?.['retry-after']));
+      if (status < 200 || status >= 300 || res.data?.success === false || res.data?.error) {
+        return { error: 'TorBox request failed', status };
+      }
+      return { data: res.data, status };
+    } catch (err) {
+      status = err.response?.status || 0;
+      if (status === 429) limiter.cooldown(identity, retryAfterMs(err.response?.headers?.['retry-after']));
+      return { error: 'TorBox request failed', status };
+    } finally {
+      leave();
+      limiter.release(identity);
+      if (process.env.PROVIDER_TIMINGS === 'true') console.log(`[TorBox timing] queueMs=${started - queuedAt} requestMs=${Date.now() - started} status=${status}`);
+    }
   };
-
-  try {
-    const res = await axios.get(`${TORBOX_BASE}${path}`, {
-      headers,
-      params,
-      timeout: 45000,
-      validateStatus: (status) => status < 500
-    });
-    tbConcurrencyRelease();
-    return { data: res.data, status: res.status };
-  } catch (err) {
-    tbConcurrencyRelease();
-    const status = err.response?.status ?? null;
-    const message = err.response?.data?.detail || err.response?.data?.error || err.message;
-
-    if (status === 429) {
-      // Respect Retry-After header; fall back to 5 minutes (measured default)
-      const retryAfter = parseInt(err.response?.headers?.['retry-after'], 10);
-      const backoff = (retryAfter && retryAfter > 0 ? retryAfter : 300) * 1000;
-      tbDataCircuitOpenUntil = Date.now() + backoff;
-      console.error(`[TorBox] 429: circuit breaker open for ${Math.round(backoff / 1000)}s (${path})`);
-    } else {
-      console.error(`[TorBox] Error ${status}: ${message}`);
-    }
-
-    return { error: message, status };
-  }
 }
 
-async function torboxPost(path, apiKey, data = {}, params = {}) {
-  if (!apiKey || apiKey.length < 10) {
-    return { error: 'API key invalid', status: 401 };
-  }
-  if (Date.now() < tbDataCircuitOpenUntil) {
-    const waitSec = Math.ceil((tbDataCircuitOpenUntil - Date.now()) / 1000);
-    return { error: `TorBox throttled, retry in ${waitSec}s`, status: 429 };
-  }
-
-  await tbAcquire();
-  await tbConcurrencyWait();
-
-  const headers = { Authorization: `Bearer ${apiKey}` };
-
-  try {
-    const res = await axios.post(`${TORBOX_BASE}${path}`, data, {
-      headers, params, timeout: 45000,
-      validateStatus: (status) => status < 500
-    });
-    tbConcurrencyRelease();
-    return { data: res.data, status: res.status };
-  } catch (err) {
-    tbConcurrencyRelease();
-    const status = err.response?.status ?? null;
-    const message = err.response?.data?.detail || err.response?.data?.error || err.message;
-    if (status === 429) {
-      const retryAfter = parseInt(err.response?.headers?.['retry-after'], 10);
-      const backoff = (retryAfter && retryAfter > 0 ? retryAfter : 300) * 1000;
-      tbDataCircuitOpenUntil = Date.now() + backoff;
-      console.error(`[TorBox] 429: circuit breaker open for ${Math.round(backoff / 1000)}s (${path})`);
-    } else {
-      console.error(`[TorBox] Error ${status}: ${message}`);
-    }
-    return { error: message, status };
-  }
-}
+const dataRequest = createDataClient();
+const torboxGet = (path, key, params) => dataRequest('GET', path, key, params);
 
 // Fetch all pages from a paginated TorBox endpoint.  The API caps at 1000
 // items per request; this loops until an empty page is returned.
-async function torboxPaginate(path, apiKey, params = {}, limit = 1000) {
+async function torboxPaginate(path, apiKey, params = {}, limit = 1000, get = torboxGet) {
   let offset = 0;
   const all = [];
   while (true) {
-    const result = await torboxGet(path, apiKey, { ...params, offset, limit });
+    const result = await get(path, apiKey, { ...params, offset, limit });
     if (result.error) return result;
     const data = result.data?.data;
-    const list = Array.isArray(data) ? data : (data ? [data] : []);
-    all.push(...list);
-    if (list.length < limit) break;
+    if (!Array.isArray(data)) return { error: 'Invalid TorBox list response', status: 502 };
+    all.push(...data);
+    if (data.length < limit) break;
     offset += limit;
   }
   return { data: { data: all }, status: 200 };
 }
 
+async function fetchDownloadSources(apiKey, params = { bypass_cache: true }, {
+  paginate = torboxPaginate, store = require('./cache'),
+} = {}) {
+  return require('./catalog-cache').flight(store, `tb-scan:${requestDlIdentity(apiKey)}`, async () => {
+    const results = await Promise.all(['torrents', 'usenet', 'webdl'].map(async (endpoint) => {
+      const key = store.makeKey('tb-source-v1', requestDlIdentity(apiKey), endpoint);
+      const result = await paginate(`/${endpoint}/mylist`, apiKey, params);
+      if (!result.error) {
+        const rows = result.data.data;
+        await store.set(key, rows, 7 * 24 * 3600);
+        return rows.map(row => ({ ...row, source: endpoint === 'torrents' ? 'torrent' : endpoint }));
+      }
+      const status = result.status;
+      if (status === 401 || status === 403) {
+        await store.del(key);
+        if (endpoint !== 'torrents') return [];
+        throw new Error('TorBox authentication failed');
+      }
+      const previous = await store.get(key);
+      if (Array.isArray(previous)) return previous.map(row => ({ ...row, source: endpoint === 'torrents' ? 'torrent' : endpoint }));
+      throw new Error('TorBox library refresh unavailable');
+    }));
+    return results.flat();
+  });
+}
+
 async function getTorBoxDownloads(apiKey) {
   const params = { bypass_cache: true };
 
-  // Fetch each endpoint sequentially to stay within the shared 300/min budget.
-  // Parallel requests across endpoints can burst past the limit.
-  const torrentsResult = await torboxPaginate('/torrents/mylist', apiKey, params);
-  const usenetResult   = await torboxPaginate('/usenet/mylist',   apiKey, params);
-  const webdlResult    = await torboxPaginate('/webdl/mylist',    apiKey, params);
-
-  if (torrentsResult.error) {
-    const s = torrentsResult.status;
-    const msg = s === 403
-      ? '[TorBox] Torrents: access denied (403). Check that your API key is correct and active.'
-      : s === 401
-      ? '[TorBox] Torrents: API key invalid (401).'
-      : `[TorBox] Torrents: error ${s ?? 'unknown'}: ${torrentsResult.error}`;
-    console.error(msg);
-    throw new Error(msg);
-  }
-
-  let items = [];
-
-  {
-    const data = torrentsResult.data?.data;
-    const list = Array.isArray(data) ? data : (data ? [data] : []);
-    items = items.concat(list.map(t => ({ ...t, source: 'torrent' })));
-  }
-
-  if (!usenetResult.error) {
-    const data = usenetResult.data?.data;
-    const list = Array.isArray(data) ? data : (data ? [data] : []);
-    items = items.concat(list.map(u => ({ ...u, source: 'usenet' })));
-  } else {
-    const s = usenetResult.status;
-    if (s === 403 || s === 401) {
-      if (!usenetUnavailableLogged) {
-        console.log('[TorBox] Usenet: not available on this plan (ignoring).');
-        usenetUnavailableLogged = true;
-      }
-    } else {
-      console.error(`[TorBox] Usenet: error ${s ?? 'unknown'}: ${usenetResult.error}`);
-    }
-  }
-
-  if (!webdlResult.error) {
-    const data = webdlResult.data?.data;
-    const list = Array.isArray(data) ? data : (data ? [data] : []);
-    items = items.concat(list.map(w => ({ ...w, source: 'webdl' })));
-  } else {
-    const s = webdlResult.status;
-    if (s === 403 || s === 401) {
-      if (!webdlUnavailableLogged) {
-        console.log('[TorBox] Web Downloads: not available on this plan (ignoring).');
-        webdlUnavailableLogged = true;
-      }
-    } else {
-      console.error(`[TorBox] Web Downloads: error ${s ?? 'unknown'}: ${webdlResult.error}`);
-    }
-  }
+  const items = await fetchDownloadSources(apiKey, params);
 
   // Log all unique fields across items to spot blocked/restricted indicators
   const allKeys = new Set();
@@ -389,7 +279,6 @@ async function getTorBoxDownloads(apiKey) {
   // Filter out torrents TorBox marks as errored/unavailable at CDN level
   const healthy = completed.filter(i => {
     if (i.error) {
-      console.log(`[TorBox] Skipping errored torrent id=${i.id} name=${(i.name || '').substring(0, 60)} error=${JSON.stringify(i.error)}`);
       return false;
     }
     return true;
@@ -454,29 +343,23 @@ async function requestTorBoxStreamLink(apiKey, source, itemId, fileId, cache, ck
     console.log(`[TorBox] requestdl skipped for this account (cooldown ${Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000))}s)`);
     return null;
   }
-  await tbAcquire();
   await tbConcurrencyWait();
 
   try {
     const headers = { Authorization: `Bearer ${apiKey}` };
     const res = await axios.get(endpoint, { headers, params, timeout: 30000 });
-    tbConcurrencyRelease();
-    requestDlLimiter.release(limiterIdentity);
-    const url = res.data?.data || null;
+    const url = res.data?.success !== false && !res.data?.error && typeof res.data?.data === 'string' ? res.data.data : null;
     const respErr = res.data?.error;
     const respDetail = res.data?.detail;
     if (respErr || respDetail) {
-      console.log(`[TorBox] requestdl hint (${source} id=${itemId} file=${fileId}): error=${JSON.stringify(respErr)} detail=${JSON.stringify(respDetail)}`);
+      console.log('[TorBox] requestdl returned a provider hint');
     }
     if (url) await cache.set(ck, url, TBDL_TTL);
     return url;
   } catch (err) {
-    tbConcurrencyRelease();
-    requestDlLimiter.release(limiterIdentity);
     const s = err.response?.status;
     if (s === 429) {
-      const retryAfter = parseInt(err.response?.headers?.['retry-after'], 10);
-      const backoff = (retryAfter && retryAfter > 0 ? retryAfter : 300) * 1000;
+      const backoff = retryAfterMs(err.response?.headers?.['retry-after']);
       requestDlLimiter.cooldown(limiterIdentity, backoff);
       requestDlCooldownChecks.set(limiterIdentity, Date.now());
       const cooldownUntil = Date.now() + backoff;
@@ -485,38 +368,25 @@ async function requestTorBoxStreamLink(apiKey, source, itemId, fileId, cache, ck
         { cooldownUntil },
         Math.max(1, Math.ceil(backoff / 1000))
       );
-      console.error(`[TorBox] requestdl 429: this account paused for ${Math.round(backoff / 1000)}s (${source} id=${itemId} file=${fileId})`);
+      console.error(`[TorBox] requestdl 429: this account paused for ${Math.round(backoff / 1000)}s`);
     } else {
-      const body = err.response?.data?.detail || err.response?.data?.message || err.response?.data?.error || '';
-      console.error(`[TorBox] requestdl error ${s ?? '?'} (${source} id=${itemId} file=${fileId}): ${body || err.message}`);
+      console.error(`[TorBox] requestdl failed status=${s || 0}`);
     }
     if (s && s !== 429) await cache.del(ck);
     return null;
+  } finally {
+    tbConcurrencyRelease();
+    requestDlLimiter.release(limiterIdentity);
   }
 }
 
 async function getTorBoxFiles(apiKey, source, itemId) {
-  const headers = { Authorization: `Bearer ${apiKey}` };
-  const endpoint = source === 'torrent'
-    ? `${TORBOX_BASE}/torrents/mylist`
-    : source === 'webdl'
-    ? `${TORBOX_BASE}/webdl/mylist`
-    : `${TORBOX_BASE}/usenet/mylist`;
-
-  try {
-    const res = await axios.get(endpoint, {
-      headers,
-      params: { id: itemId, bypass_cache: false },
-      timeout: 30000,
-    });
-    const data = res.data?.data;
-    const item = Array.isArray(data) ? data[0] : data;
-    return item?.files || [];
-  } catch (err) {
-    const s = err.response?.status;
-    console.error(`[TorBox] Files erro ${s ?? '?'} (${source} id=${itemId}): ${err.message}`);
-    return [];
-  }
+  const family = source === 'torrent' ? 'torrents' : source === 'webdl' ? 'webdl' : 'usenet';
+  const result = await torboxGet(`/${family}/mylist`, apiKey, { id: itemId, bypass_cache: false });
+  if (result.error) return [];
+  const data = result.data?.data;
+  const item = Array.isArray(data) ? data[0] : data;
+  return item?.files || [];
 }
 
 const VIDEO_EXTENSIONS = ['.mkv', '.mp4', '.avi', '.mov', '.m4v', '.ts', '.wmv', '.webm', '.m2ts', '.mpg', '.mpeg', '.flv', '.vob', '.divx'];
@@ -549,16 +419,9 @@ function isJunkVideo(name = '') {
 module.exports = { getTorBoxDownloads, getTorBoxStreamLink, getTorBoxFiles, getTorBoxPlaybackStatus, isVideoFile, isJunkVideo, torboxRateStatus };
 
 function torboxRateStatus() {
-  return {
-    circuitOpen: Date.now() < tbDataCircuitOpenUntil,
-    circuitOpenUntil: tbDataCircuitOpenUntil,
-    circuitWaitSec: Math.max(0, Math.ceil((tbDataCircuitOpenUntil - Date.now()) / 1000)),
-    inFlight: tbInFlight,
-    queued: tbQueue.length,
-    tokens: Math.floor(tbTokens),
-  };
+  return { inFlight: tbInFlight, queued: tbQueue.length, ratePerAccountEndpoint: TB_RATE_LIMIT };
 }
 
 // Exported only for deterministic unit tests; runtime callers use the module
 // singleton above and never receive raw API-key material.
-module.exports.__test = { createRequestDlLimiter, requestDlIdentity, normalizePlaybackCooldown };
+module.exports.__test = { createRequestDlLimiter, requestDlIdentity, normalizePlaybackCooldown, createDataClient, retryAfterMs, fetchDownloadSources, torboxPaginate };

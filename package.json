@@ -1,6 +1,6 @@
 {
   "name": "lelibrary",
-  "version": "5.1.2",
+  "version": "5.1.3",
   "description": "LeLibrary: TorBox & Real-Debrid addon with TMDB metadata",
   "main": "index.js",
   "scripts": {

@@ -1,5 +1,11 @@
 # Changelog
 
+## [5.1.3]
+
+### Fixes
+
+- **Pushing to Nuvio now finishes straight away**: On a cold start the push could spend a minute preparing every collection before it responded, so the browser gave up and showed "Push failed" even though the install had actually completed. The push now answers immediately and finishes preparing collections in the background. If you saw a failed push before, just try again.
+
 ## [5.1.2]
 
 ### Fixes

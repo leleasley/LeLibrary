@@ -1,5 +1,11 @@
 # Changelog
 
+## [5.1.4]
+
+### Fixes
+
+- **Wizard push uses the updated code immediately**: The Collections Wizard script is now cache-busted, so the faster push fix from 5.1.3 is picked up without a hard refresh.
+
 ## [5.1.3]
 
 ### Fixes

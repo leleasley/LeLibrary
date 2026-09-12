@@ -1,5 +1,11 @@
 # Changelog
 
+## [5.1.2]
+
+### Fixes
+
+- **Misnamed packs find their show**: A download whose name is cut short, such as a torrent called "Law" that actually contains Law & Order episodes, is now matched to the real series so its season and episodes appear instead of being dropped.
+
 ## [5.1.1]
 
 ### Fixes

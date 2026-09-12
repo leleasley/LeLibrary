@@ -322,9 +322,14 @@ function buildMatchMeta(result, type, item, season, episode, episodeEnd, seasonS
 // meta or null. Never throws.
 async function tryMatchPackFiles(item, config, type, tmdbApiKey, lang, outerInfo, name, cacheKey) {
   const outerTitle = outerInfo?.title || null;
+  const inspectable = embeddedItemFiles(item)
+    .map(file => file?.name || file?.short_name || '')
+    .filter(n => isVideoFile(n) && !isJunkVideo(n)).length >= 2;
   // Gate on the outer title first (TMDB search is cache-backed): obvious
-  // non-series items must not each cost a provider file listing.
-  if (outerTitle) {
+  // non-series items must not each cost a provider file listing. That listing
+  // is free when the item already carries its files, so a truncated outer name
+  // such as a torrent called "Law" still reaches the inner episode probe.
+  if (outerTitle && !inspectable) {
     let pre = null;
     try {
       pre = await searchMetadata(tmdbApiKey, outerTitle, 'series', outerInfo?.year, lang);

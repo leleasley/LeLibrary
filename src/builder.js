@@ -175,6 +175,27 @@ const packEpisodeProbeInFlight = new Map();
 // { title, year, season, episode, isAnime }. One distinct episode resolves
 // exactly; one season resolves as a season pack (episode null); several
 // seasons resolve as the whole show (season null → 'all').
+// Pack file lists and torrent folder names frequently carry the season range or
+// a "Complete"/"BoxSet" marker in the title portion ("The Sopranos S01-S06",
+// "Gilmore Girls Complete S01-s07"). TMDB search then fails on the polluted
+// title and the whole show silently drops out of the library, so strip those
+// trailing markers before the title is used for matching.
+function cleanPackTitle(title) {
+  if (!title) return title;
+  let out = String(title).trim();
+  let prev;
+  do {
+    prev = out;
+    out = out
+      .replace(/[\s._-]+S\d{1,3}(?:[\s._-]*-[\s._-]*S?\d{1,3})?$/i, '')
+      .replace(/[\s._-]+Season[\s._-]*\d{1,3}(?:[\s._-]*(?:-|to)[\s._-]*\d{1,3})?$/i, '')
+      .replace(/[\s._-]+Complete$/i, '')
+      .replace(/[\s._-]+Box[\s._-]*Set$/i, '')
+      .trim();
+  } while (out !== prev);
+  return out || title;
+}
+
 function summarizePackEpisodes(fileNames) {
   const counts = new Map();
   let best = null;
@@ -183,8 +204,9 @@ function summarizePackEpisodes(fileNames) {
     if (!isVideoFile(raw) || isJunkVideo(raw)) continue;
     const info = guessMediaInfo(raw);
     if (!info || !info.isSeries || info.episode == null) continue;
-    const key = `${info.title}|${info.year || ''}`;
-    const entry = counts.get(key) || { title: info.title, year: info.year ?? null, n: 0, pairs: new Set(), seasons: new Set(), isAnime: false };
+    const cleanTitle = cleanPackTitle(info.title);
+    const key = `${cleanTitle}|${info.year || ''}`;
+    const entry = counts.get(key) || { title: cleanTitle, year: info.year ?? null, n: 0, pairs: new Set(), seasons: new Set(), isAnime: false };
     entry.n += 1;
     entry.isAnime ||= info.isAnime;
     entry.pairs.add(`${info.season ?? ''}:${info.episode}`);
@@ -621,6 +643,10 @@ async function matchItem(item, tmdbApiKey, type, lang, config = null) {
   if (isJunkVideo(name)) return null;
   const tmdbType = type === 'movie' ? 'movie' : 'series';
   const parsedForKey = guessMediaInfo(name);
+  // Strip pack markers from the outer title too: a torrent named
+  // "Game of Thrones Complete S01-S08" parses to a title TMDB cannot find, so
+  // the show would drop out entirely without this.
+  if (parsedForKey && parsedForKey.title) parsedForKey.title = cleanPackTitle(parsedForKey.title);
   const cacheKey = matchCacheKey(type, lang, name, parsedForKey);
 
   // Some renamed multi-season downloads still look like one episode on the

@@ -54,6 +54,12 @@ test/source-import-route.test.js
 test/source-import-security.test.js
 test/import-source-migration-audit.test.js
 test/foundations.test.js
+test/custom-stream-mapping.test.js
+test/custom-stream-store.test.js
+test/external-catalog-gateway.test.js
+test/nuvio-community-import.test.js
+test/wizard-artwork-ui.test.js
+test/wizard-mdblist-ui.test.js
 
 # Retired V5 My Library UI and generated hosted artwork
 website/public/my-library/

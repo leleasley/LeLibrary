@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "node --test test",
+    "test": "node --test test/*.test.js",
     "audit:imported-sources": "node scripts/audit-imported-sources.js",
     "check:curated-artwork": "node scripts/check-curated-artwork.js"
   },

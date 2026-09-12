@@ -238,3 +238,25 @@ test('an item with no embedded file list is left untouched', () => {
   const entry = embeddedPackEntry({ item: { name: 'American.Horror.Story.S03E01.mkv' }, season: 3, episode: 1 });
   assert.equal(entry.episode, 1);
 });
+
+test('a truncated movie name whose files are a series pack is rejected as a movie', async () => {
+  const item = {
+    source: 'torrent', id: 'synthetic-law', name: 'Law',
+    files: [
+      { name: 'Law & Order (1990) Season 18 S18/Law and Order (1990) - S18E01 - Called Home.mkv' },
+      { name: 'Law & Order (1990) Season 18 S18/Law and Order (1990) - S18E02 - Darkness.mkv' },
+    ],
+  };
+  const info = guessMediaInfo('Law');
+  assert.equal(info.isSeries, false);
+  assert.equal(await isEpisodePackMisreadAsMovie(item, { provider: 'torbox' }, info, { id: 718893, title: 'LAW' }), true);
+});
+
+test('a normal movie with embedded extras is still accepted', async () => {
+  const item = {
+    source: 'torrent', id: 'synthetic-movie', name: 'Fight Club 1999 1080p',
+    files: [{ name: 'Fight.Club.1999.1080p.mkv' }, { name: 'Featurette.mkv' }],
+  };
+  const info = guessMediaInfo('Fight Club 1999 1080p');
+  assert.equal(await isEpisodePackMisreadAsMovie(item, { provider: 'torbox' }, info, { id: 550, title: 'Fight Club' }), false);
+});

@@ -1,5 +1,13 @@
 # Changelog
 
+## [5.1.1]
+
+### Fixes
+
+- **Collections use your selected posters**: Curated and owned collection folders now apply the poster provider you chose, including the new Poster Studio, instead of keeping the old artwork.
+- **Posters default to English**: Genre labels now read as Drama, Action and Comedy instead of Italian. You can still choose another language and region in the Poster Studio.
+- **No more phantom movies**: A download whose name is cut short, such as a torrent named "Law" that actually contains Law & Order episodes, is no longer added to My Movies as an obscure film. It is matched to the real series instead.
+
 ## [5.1.0]
 
 ### Better search in Nuvio and Stremio

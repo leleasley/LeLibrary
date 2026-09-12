@@ -280,7 +280,16 @@ async function probePackEpisodes(item, config) {
 }
 
 async function isEpisodePackMisreadAsMovie(item, config, info, result) {
-  if (!config || !info || info.isSeries || !result || titleScore(info.title, result) >= 100) return false;
+  if (!config || !info || info.isSeries || !result) return false;
+  // Embedded files are free to inspect, and a truncated outer name like "Law"
+  // can still be an exact title match for an obscure film while the files
+  // inside are clearly a series pack. Check them before the exact-title
+  // shortcut so such packs are rejected as movies and re-matched as series.
+  const embedded = embeddedItemFiles(item)
+    .map(file => file?.name || file?.short_name || '')
+    .filter(name => isVideoFile(name) && !isJunkVideo(name));
+  if (embedded.length >= 2 && summarizePackEpisodes(embedded)) return true;
+  if (titleScore(info.title, result) >= 100) return false;
   const probe = await probePackEpisodes(item, config);
   return !!probe.summary;
 }

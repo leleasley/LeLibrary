@@ -1597,7 +1597,7 @@
       goToStep(1);
     }
 
-    const APP_VERSION = '5.1.0';
+    const APP_VERSION = '5.1.1';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');

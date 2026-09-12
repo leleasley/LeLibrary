@@ -13,7 +13,7 @@ const axios = require('axios');
 const crypto = require('node:crypto');
 const { getTrending, getPopular, buildDiscoveryMetas, getImdbId } = require('./tmdb');
 const { normalizeImdbId } = require('./identity');
-const { buildErdbUrl, buildRpdbUrl, buildBetterPosterUrl, getFanartArt } = require('./builder');
+const { buildErdbUrl, buildRpdbUrl, buildBetterPosterUrl, buildPictoriumPosterUrl, getFanartArt } = require('./builder');
 const { applyRotation } = require('./catalog-rotation');
 
 const TTL_LIB = 24 * 60 * 60; // 24h: these rows don't change often
@@ -44,11 +44,19 @@ function hashShort(s) {
 async function enhanceCatalogRows(rows, enhance = {}) {
   if (!Array.isArray(rows) || !rows.length) return rows;
   const { erdbToken, rpdbKey, fanartKey, posterProvider, customPosterTemplate } = enhance;
-  if (!erdbToken && !rpdbKey && !fanartKey && !['betterposter', 'custom'].includes(posterProvider)) return rows;
+  const pictoriumOn = !!(enhance.pictorium && enhance.pictorium.enabled && enhance.pictorium.token);
+  if (!erdbToken && !rpdbKey && !fanartKey && !pictoriumOn && !['betterposter', 'custom'].includes(posterProvider)) return rows;
   return Promise.all(rows.map(async (row) => {
     if (!row || typeof row !== 'object') return row;
     const imdbId = normalizeImdbId(row.id || row.imdbId);
     if (posterProvider === 'custom') return require('../website/public/poster-template').apply({ ...row, imdbId }, customPosterTemplate);
+    if (pictoriumOn) {
+      const url = buildPictoriumPosterUrl(enhance, {
+        type: row.type, id: row.tmdbId || imdbId, title: row.name,
+        releaseDate: row.released, imdbId, fallback: row.poster,
+      });
+      if (url) return { ...row, poster: url, posterShape: 'poster' };
+    }
     if (erdbToken && imdbId) return { ...row, poster: buildErdbUrl(erdbToken, 'poster', imdbId) };
     if (rpdbKey && imdbId) return { ...row, poster: buildRpdbUrl(rpdbKey, 'imdb', 'poster-default', imdbId) };
     if (posterProvider === 'betterposter' && imdbId) return { ...row, poster: buildBetterPosterUrl(imdbId, row.type), posterShape: 'poster' };

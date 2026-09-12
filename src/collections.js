@@ -172,6 +172,10 @@ function enhancedPosterUrl(tmdbId, imdbId, enhance) {
   if (posterProvider === 'custom') {
     return require('../website/public/poster-template').resolve(customPosterTemplate, { tmdbId, imdbId, type: 'movie' });
   }
+  if (enhance?.pictorium?.enabled && enhance.pictorium.token) {
+    const url = require('./builder').buildPictoriumPosterUrl(enhance, { type: 'movie', id: tmdbId || imdbId, imdbId, fallback: '' });
+    if (url) return url;
+  }
   if (erdbToken && tmdbId) return `https://easyratingsdb.com/${erdbToken}/poster/tmdb:movie:${tmdbId}`;
   if (rpdbKey && tmdbId) return `https://api.ratingposterdb.com/${rpdbKey}/tmdb/poster-default/movie-${tmdbId}.jpg?fallback=true`;
   return null;

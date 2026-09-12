@@ -46,6 +46,9 @@ test('pictorium options toQuery stays a small ordered whitelist', () => {
 test('pictorium region, language and coming-soon defaults', () => {
   assert.equal(options.sanitize({}).pre, '1');
   assert.equal(options.sanitize({ pre: '0' }).pre, '');
+  // Never send an empty language: Pictorium would fall back to Italian labels.
+  assert.equal(options.sanitize({}).lang, 'en');
+  assert.equal(options.sanitize({ lang: '' }).lang, 'en');
   assert.equal(options.sanitize({ region: 'gb' }).region, 'GB');
   assert.equal(options.sanitize({ lang: 'EN' }).lang, 'en');
   assert.equal(options.sanitize({ region: 'USA' }).region, '');

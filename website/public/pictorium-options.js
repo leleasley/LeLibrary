@@ -63,7 +63,7 @@
     side: '',
     ac: '',
     pre: '1',
-    lang: '',
+    lang: 'en',
     region: '',
   });
 
@@ -135,8 +135,9 @@
     out.gradHeight = clampInt(raw.gradHeight, 5, 100, DEFAULTS.gradHeight);
     out.blur = clampInt(raw.blur, 0, 30, DEFAULTS.blur);
     out.ac = hex(raw.ac);
-    out.lang = code(raw.lang, 2, false);
-    out.region = code(raw.region, 2, true);
+    // Pictorium's own language default is Italian, so never send an empty one.
+    out.lang = code(raw.lang, 2, false) || DEFAULTS.lang;
+    out.region = code(raw.region, 2, true) || DEFAULTS.region;
     return out;
   }
 

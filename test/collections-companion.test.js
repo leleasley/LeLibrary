@@ -6,6 +6,15 @@ const express = require('express');
 const EXT_ID = 'ext_' + 'a'.repeat(64);
 const OTHER_EXT_ID = 'ext_' + 'b'.repeat(64);
 
+// The account area is private: it ships only on the hosted instance, so it is
+// absent for self-hosters and in CI. This file exercises the private accounts
+// router, so it skips cleanly instead of failing where that code is missing.
+const HAS_ACCOUNT_AREA = (() => {
+  try { require.resolve('../src/accounts/db'); require.resolve('../src/accounts/index.js'); return true; }
+  catch { return false; }
+})();
+const NO_ACCOUNT_AREA = HAS_ACCOUNT_AREA ? false : 'private account area not present';
+
 function installMocks(t, { existingExternal = null } = {}) {
   const previousKey = process.env.ENCRYPTION_KEY;
   process.env.ENCRYPTION_KEY = '2'.repeat(64);
@@ -63,7 +72,7 @@ function collectionsWith(refId) {
   }] }];
 }
 
-test('missing companion refs are stripped with a warning instead of failing the save', async (t) => {
+test('missing companion refs are stripped with a warning instead of failing the save', { skip: NO_ACCOUNT_AREA }, async (t) => {
   const { queries } = installMocks(t);
   const endpoint = await startServer(t);
   const res = await putConfig(endpoint, {
@@ -81,7 +90,7 @@ test('missing companion refs are stripped with a warning instead of failing the 
   assert.equal(stored[0].folders[0].catalogSources[0].catalogId, 'lib-trending_movies');
 });
 
-test('stored companion bindings survive a save that does not re-send them', async (t) => {
+test('stored companion bindings survive a save that does not re-send them', { skip: NO_ACCOUNT_AREA }, async (t) => {
   const { queries, pool } = installMocks(t);
   const enc = require('../src/accounts/encrypt');
   const manifestUrl = 'https://example.com/manifest.json';

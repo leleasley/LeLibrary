@@ -5,6 +5,15 @@ const express = require('express');
 const TOKEN = 'share-setup-token';
 const EXT_ID = 'ext_' + 'c'.repeat(64);
 
+// The account area is private: it ships only on the hosted instance, so it is
+// absent for self-hosters and in CI. This file exercises the private accounts
+// router, so it skips cleanly instead of failing where that code is missing.
+const HAS_ACCOUNT_AREA = (() => {
+  try { require.resolve('../src/accounts/db'); require.resolve('../src/accounts/index.js'); return true; }
+  catch { return false; }
+})();
+const NO_ACCOUNT_AREA = HAS_ACCOUNT_AREA ? false : 'private account area not present';
+
 function contextRow() {
   return {
     collections: [{ id: 'c1', title: 'Shared', folders: [{
@@ -77,7 +86,7 @@ async function startServer(t) {
 
 const authed = { 'content-type': 'application/json', cookie: 'll_session=synthetic-session', 'x-csrf-token': 'synthetic-csrf' };
 
-test('share link serves a key-free profile snapshot, then revokes', async (t) => {
+test('share link serves a key-free profile snapshot, then revokes', { skip: NO_ACCOUNT_AREA }, async (t) => {
   const state = { token: true, context: true, shares: [], payload: null, shareId: null };
   installPool(t, state);
   const endpoint = await startServer(t);
@@ -114,7 +123,7 @@ test('share link serves a key-free profile snapshot, then revokes', async (t) =>
   assert.equal((await (await fetch(`${endpoint}/share/collections/${share.shareId}`)).json()).error, 'Unknown share');
 });
 
-test('sharing requires a saved setup', async (t) => {
+test('sharing requires a saved setup', { skip: NO_ACCOUNT_AREA }, async (t) => {
   const state = { token: true, context: false, shares: [], payload: null, shareId: null };
   installPool(t, state);
   const endpoint = await startServer(t);

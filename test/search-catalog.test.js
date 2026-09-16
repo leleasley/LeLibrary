@@ -17,6 +17,7 @@ require.cache[cachePath] = { id: cachePath, filename: cachePath, loaded: true, e
 require.cache[tmdbPath] = { id: tmdbPath, filename: tmdbPath, loaded: true, exports: {
   searchCandidates: async () => { calls++; return candidates; },
   getImdbId: async (_key, _type, id) => `tt${id}`,
+  getImdbIds: async (_key, _type, ids) => new Map((ids || []).map((id) => [id, `tt${id}`])),
   titleScore: () => 100,
 } };
 const { searchCatalog, normalize, resultScore } = require('../src/search');

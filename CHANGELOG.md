@@ -1,5 +1,75 @@
 # Changelog
 
+## [5.2.0]
+
+### A much faster library
+
+- LeLibrary now keeps a local index of your Debrid library and refreshes it in the background, so My Movies, My Shows and My Anime open without waiting on your provider or on a fresh round of metadata lookups. This is now the core of how LeLibrary works and it is on by default.
+- The included Docker setup now runs a small Postgres service to hold that index, so self-hosters get the faster library automatically with no extra setup. Running without a database is still fine: LeLibrary keeps its previous behaviour, and the index can be turned off if you prefer.
+- Catalogs, search and detail pages are served from the local index. Warm requests are near instant, and opening the addon no longer triggers a full library scan.
+- Searching your own library uses the index, results are remembered, and repeat searches are instant.
+- The library survives restarts, so a redeploy does not rebuild everything from scratch, and a routine refresh only touches titles that actually changed.
+- On a brand new setup the first request uses the previous path until the first build finishes, so your library is never briefly empty.
+- Setup health and a per install sync status let you check the library engine without touching any keys.
+
+### Smarter matching, TV and anime
+
+- Titles are now matched across several metadata sources instead of TMDB alone. TV series pick up TheTVDB identities, and anime resolves through Kitsu, AniList and MyAnimeList, including alternate, romaji and native titles.
+- Anime is identified from real signals rather than a filename keyword, and a show confirmed as anime now appears in the anime catalogue automatically.
+- Releases that use a show's shorthand or a renamed scene title now find the right series instead of being dropped or mixed up. This covers weekly shows such as Raw and SmackDown, plus renamed shows like CSI Las Vegas.
+- Movies and shows released under a different name now match the right title too, because matching also checks each candidate's known alternative titles.
+- Weekly, date named shows such as WWE Raw now show only the episodes you actually own, and each episode lists its own correct file, instead of showing the whole series or mixing files between episodes.
+- When sources disagree on episode numbers, LeLibrary can match the episode by its title, so the right episode plays instead of showing no sources or the wrong one.
+- Fixed episodes you do not own showing a different episode's file. Opening a missing episode now correctly reports no streams instead of playing episode one or two from another season.
+- Fixed a number of series that showed no sources because of differing season and episode numbering between sources.
+- The scene-title dataset refreshes itself daily, so this replaces a growing pile of one-off fixes. Operators can add their own aliases with a simple list.
+
+### Optional TheTVDB key
+
+- You can now save a TheTVDB API key in Settings on both the normal and account Configure pages. It is completely optional: without it everything still works using the existing metadata.
+- TheTVDB adds extra series matching and episode data in the background, and when a key is saved, episode details and alternate titles are stored locally so episode pages open without a live lookup. A "Get key" link is included, the key can be verified in the page, and TVDB has its own logo next to the other services.
+
+### Speed across LeLibrary
+
+- The two-minute refresh now updates title matches in batches and only touches titles that changed, so large libraries cost far less time and CPU per cycle.
+- Cached results are kept in memory for as long as they are valid, searches resolve their ids in one pass, and repeated searches are served instantly and stay warm across restarts.
+- A local cross-provider id map is loaded in the background, so converting between IMDb and TMDB ids is instant instead of an API call. It is saved to disk so restarts are immediate, and any title missing from it still falls back to TMDB as before.
+- Streams reuse the file list already held for your library instead of asking the provider again for every copy, link resolution no longer fires everything at once, and large Real-Debrid libraries scan their remaining pages in parallel.
+- Collections build in parallel and share their TMDB data, so several requests never rebuild the same collection at once.
+- Pictorium posters are generated and cached ahead of time in a lighter size, so grids fill in quickly. If one is not ready your normal TMDB poster shows instantly and the Pictorium version takes over, and choosing ERDB works the same way.
+- Fixed Trending and Popular rows ignoring your chosen poster provider: they now respect Pictorium instead of always using another service.
+- Search now retries once and shares duplicate requests, so a slow metadata moment no longer leaves the Movies and Series sections empty in Nuvio.
+- The Configure page's collections and catalogue lists are built once and kept in memory, and text responses are compressed so self-hosted and direct connections move far less data.
+- Startup no longer blocks while reading the saved match cache, simultaneous lookups for the same new title share one request, long-running memory use is capped, and a restart now finishes in-flight requests and saves pending results instead of dropping them.
+
+### Streams
+
+- The default LeLibrary stream format now includes the file name along with source, codec, audio, languages and size, in a cleaner layout, for both your own files and external streams.
+- Stream notices can now be turned on or off individually: No streams found, Provider rate limit and Digital release not found. You can keep the helpful ones and hide the rest.
+- Very large result lists are trimmed to a sensible size, so stream menus open faster without missing your own copies.
+
+### My AIOStreams (optional)
+
+- You can now connect your own AIOStreams setup to LeLibrary. Paste your configured AIOStreams manifest link on the Configure page, confirm the loop warning, and its streams join your public IMDb rows after your own copies.
+- The link is stored encrypted on the server and is never added to your LeLibrary install link or shown again after connecting. You can test, replace or remove it at any time.
+- Off by default, and never used for My Library or Collections unless you enable Use Main metadata.
+
+### A friendlier way to configure
+
+- Quick Setup is now a separate connection screen beneath the familiar LeLibrary header: choose a player, enter provider and TMDB keys, and generate a private manifest with Pictorium posters selected by default. The full editor remains available without losing your entries.
+- Quick Setup validates keys and waits for saving to succeed before showing install links. Failed saves keep your entries available for retry.
+- Opening the main Configure page now offers a choice: Quick setup for the essentials, or Full setup for every option. Install links and saved setups still open the full editor directly.
+- Quick Setup on the main page now includes the full Custom Streams editor: search a title, pick the exact episode when needed, paste its direct link and set an expiry, just like the full editor.
+- The Pictorium panel cycles through pairs of real posters on its own, one film and one series each, with a smooth crossfade. Rotation pauses off-screen, every pair is tried once, and verifying your TMDB key now loads the preview straight away.
+- The full editor's poster preview rotates through the same film and series examples with the same gentle fade, across every poster service (ERDB, RPDB, BetterPoster, Custom and Pictorium).
+
+### Hosted account guide
+
+- A searchable account guide covers first setup, service keys, Stremio and Nuvio installation, Home rows, collections and troubleshooting. It is available from the account navigation and matches the account styling.
+- Setup health is now a real page: it checks saved keys, providers and install tokens, and offers a small, non-sensitive diagnostics download. Guide and Setup health appear in the account menu on both desktop and mobile.
+- The setup guide has been rebuilt with product screenshots for each section, and the Google and GitHub sign-in confirmation screen now fits mobile screens properly instead of appearing zoomed out.
+- The account guide remains exclusive to the hosted account area. Self-hosted installations receive Quick Setup on the normal Configure page.
+
 ## [5.1.5]
 
 ### Faster fetching and collections

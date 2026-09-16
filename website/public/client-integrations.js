@@ -9,10 +9,10 @@
   };
 
   const LOGOS = {
-    strmr: '/client-logos/strmr.png',
-    fusion: '/client-logos/fusion.jpg',
-    vidi: '/client-logos/vidi.png',
-    wuplay: '/client-logos/wuplay.png',
+    strmr: '/client-logos/strmr.png?v=2',
+    fusion: '/client-logos/fusion.jpg?v=2',
+    vidi: '/client-logos/vidi.png?v=2',
+    wuplay: '/client-logos/wuplay.png?v=2',
   };
 
   function integrationManifest(legacyUrl, client) {

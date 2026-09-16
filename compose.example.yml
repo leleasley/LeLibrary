@@ -8,14 +8,51 @@ services:
     mem_limit: ${LELIBRARY_MEMORY_LIMIT:-1g}
     env_file:
       - ./.env
+    environment:
+      # The index-first library engine is the default core and keeps a local
+      # index of your debrid library in Postgres. Set DB_PASSWORD in .env to a
+      # strong value. Without DATABASE_URL the addon automatically falls back to
+      # the legacy request-time path, so a database is optional.
+      DATABASE_URL: postgres://lelibrary:${DB_PASSWORD:-lelibrary}@postgres:5432/lelibrary
     depends_on:
       redis:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:7860/health"]
       interval: 60s
       timeout: 5s
       retries: 3
+    # Cap container logs so a long-running instance cannot fill the disk.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: lelibrary-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lelibrary
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-lelibrary}
+      POSTGRES_DB: lelibrary
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    mem_limit: ${POSTGRES_CONTAINER_MEMORY_LIMIT:-512m}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lelibrary -d lelibrary"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Deliberately not published: only the LeLibrary container needs to reach it.
 
   redis:
     image: redis:7-alpine
@@ -32,6 +69,12 @@ services:
       interval: 30s
       timeout: 3s
       retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   redis_data:
+  postgres_data:

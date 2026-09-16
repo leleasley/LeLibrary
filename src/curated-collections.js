@@ -9,6 +9,15 @@ const { getSourceDefinition } = require('./catalog-source-registry');
 const fs = require('fs');
 const path = require('path');
 
+// Bump when the bundled collection cover/backdrop art changes. Long-lived
+// immutable caching (Cloudflare + express.static) otherwise keeps serving the
+// previous bytes for up to 30 days under the same URL.
+const COLLECTION_ASSET_VERSION = '3';
+function versionAsset(url) {
+  if (typeof url !== 'string' || !url.startsWith('/collection-assets/')) return url;
+  return url.includes('?') ? url : `${url}?v=${COLLECTION_ASSET_VERSION}`;
+}
+
 function artwork(category, name, extension = 'png', focus = false, coverFile = '', focusFile = '', focusUrl = '', coverUrl = '', backdropUrl = '') {
   return {
     _assetKind: 'collection',
@@ -37,19 +46,20 @@ function folder(id, title, sourceId, art = {}, extraSourceIds = []) {
   if (asset._assetKind === 'collection') {
     asset.coverImageUrl = `/collection-assets/collections/covers/${asset._coverFile || `${id}.${asset._coverExtension}`}`;
     if (asset._coverUrl) asset.coverImageUrl = asset._coverUrl;
-    asset.focusGifUrl = asset._focusUrl
+    asset.coverImageUrl = versionAsset(asset.coverImageUrl);
+    asset.focusGifUrl = versionAsset(asset._focusUrl
       || (asset._focusFile ? `/collection-assets/collections/gifs/${asset._focusFile}` : '')
-      || (asset._hasFocusGif ? `/collection-assets/collections/gifs/${id}-focus.gif` : '');
+      || (asset._hasFocusGif ? `/collection-assets/collections/gifs/${id}-focus.gif` : ''));
     // If an artwork definition supplies a GIF URL, it should be live by
     // default. Older pack entries often supplied a focus file/URL without
     // also setting the separate boolean, leaving the animation invisible.
     asset.focusGifEnabled = !!(asset._hasFocusGif || asset.focusGifUrl);
-    if (asset._backdropUrl) asset.heroBackdropUrl = asset._backdropUrl;
+    if (asset._backdropUrl) asset.heroBackdropUrl = versionAsset(asset._backdropUrl);
   } else if (asset._assetKind === 'person') {
-    asset.coverImageUrl = `/collection-assets/people/covers/${id}.png`;
-    asset.focusGifUrl = `/collection-assets/people/gifs/${id}.gif`;
+    asset.coverImageUrl = versionAsset(`/collection-assets/people/covers/${id}.png`);
+    asset.focusGifUrl = versionAsset(`/collection-assets/people/gifs/${id}.gif`);
     asset.focusGifEnabled = true;
-    asset.heroBackdropUrl = `/collection-assets/people/backdrops/${id}.jpg`;
+    asset.heroBackdropUrl = versionAsset(`/collection-assets/people/backdrops/${id}.jpg`);
   }
   delete asset._assetKind;
   delete asset._coverExtension;
@@ -510,22 +520,22 @@ const CURATED_COLLECTIONS = mergeCompatibleMediaSources([
   {
     id: 'preset-directors', title: 'Directors', icon: '🎬', category: 'People', refresh: 'daily',
     description: 'A filmography shelf for the directors everyone looks up.',
-    coverImageUrl: '/collection-assets/collections/covers/preset-directors.png',
-    backdropUrl: '/collection-assets/collections/covers/preset-directors.png',
+    coverImageUrl: '/collection-assets/collections/covers/preset-directors.png?v=2',
+    backdropUrl: '/collection-assets/collections/covers/preset-directors.png?v=2',
     folders: DIRECTOR_PACK_FOLDERS,
   },
   {
     id: 'preset-decades', title: 'By Decade', icon: '📅', category: 'Discover', refresh: 'daily',
     description: 'The most popular films and shows from each decade.',
-    coverImageUrl: '/collection-assets/collections/covers/preset-by-decade.png',
-    backdropUrl: '/collection-assets/collections/covers/preset-by-decade.png',
+    coverImageUrl: '/collection-assets/collections/covers/preset-by-decade.png?v=2',
+    backdropUrl: '/collection-assets/collections/covers/preset-by-decade.png?v=2',
     folders: DECADE_PACK_FOLDERS,
   },
   {
     id: 'preset-world-cinema', title: 'World Cinema', icon: '🌍', category: 'World Cinema', refresh: 'daily',
     description: 'Popular films and series by original language.',
-    coverImageUrl: '/collection-assets/collections/covers/preset-world-cinema.png',
-    backdropUrl: '/collection-assets/collections/covers/preset-world-cinema.png',
+    coverImageUrl: '/collection-assets/collections/covers/preset-world-cinema.png?v=2',
+    backdropUrl: '/collection-assets/collections/covers/preset-world-cinema.png?v=2',
     folders: WORLD_CINEMA_FOLDERS,
   },
   {
@@ -843,7 +853,7 @@ function validateCuratedCollections() {
         const value = item[key];
         if (!value) continue;
         if (value.startsWith('/collection-assets/')) {
-          const diskPath = path.join(__dirname, '..', 'website', 'public', value);
+          const diskPath = path.join(__dirname, '..', 'website', 'public', value.split('?')[0].split('#')[0]);
           if (!fs.existsSync(diskPath)) errors.push(`${pack.id}/${item.id}: missing local ${key}`);
         } else if (!/^https:\/\//.test(value)) {
           errors.push(`${pack.id}/${item.id}: ${key} must use HTTPS or /collection-assets/`);

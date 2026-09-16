@@ -12,9 +12,9 @@ const cache = require('./cache');
 const { cachedRows, flight } = require('./catalog-cache');
 const axios = require('axios');
 const crypto = require('node:crypto');
-const { getTrending, getPopular, buildDiscoveryMetas, getImdbId } = require('./tmdb');
+const { getTrending, getPopular, buildDiscoveryMetas, getImdbId, getImdbIds } = require('./tmdb');
 const { normalizeImdbId } = require('./identity');
-const { buildErdbUrl, buildRpdbUrl, buildBetterPosterUrl, buildPictoriumPosterUrl, getFanartArt } = require('./builder');
+const { buildErdbUrl, erdbProxyUrl, buildRpdbUrl, buildBetterPosterUrl, buildPictoriumPosterUrl, getFanartArt } = require('./builder');
 const { applyRotation } = require('./catalog-rotation');
 
 const TTL_LIB = 24 * 60 * 60; // 24h: these rows don't change often
@@ -62,7 +62,7 @@ async function enhanceCatalogRows(rows, enhance = {}) {
       });
       if (url) return { ...row, poster: url, posterShape: 'poster' };
     }
-    if (erdbToken && imdbId) return { ...row, poster: buildErdbUrl(erdbToken, 'poster', imdbId) };
+    if (erdbToken && imdbId) return { ...row, poster: erdbProxyUrl(enhance, 'poster', imdbId, row.poster) || row.poster };
     if (rpdbKey && imdbId) return { ...row, poster: buildRpdbUrl(rpdbKey, 'imdb', 'poster-default', imdbId) };
     if (posterProvider === 'betterposter' && imdbId) return { ...row, poster: buildBetterPosterUrl(imdbId, row.type), posterShape: 'poster' };
     if (fanartKey && row.tmdbId) {
@@ -130,20 +130,11 @@ async function backfillPosters(tmdbApiKey, apiType, rows, limit = 8) {
 // re-fetching imdb ids one-by-one: we batch them via getImdbId below).
 async function tmdbItemsToRows(tmdbApiKey, apiType, items, type) {
   const input = Array.isArray(items) ? items : [];
-  const enriched = new Array(input.length);
-  let cursor = 0;
-  async function worker() {
-    while (cursor < input.length) {
-      const index = cursor++;
-      const item = input[index];
-      let imdbId = null;
-      try { imdbId = await getImdbId(tmdbApiKey, apiType, item.id); } catch {}
-      enriched[index] = { item, imdbId };
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(8, input.length) }, worker));
+  // One batched lookup for the whole row instead of a per-title round trip.
+  const imdbIds = await getImdbIds(tmdbApiKey, apiType, input.map((item) => item.id));
   const rows = [];
-  for (const { item, imdbId } of enriched) {
+  for (const item of input) {
+    const imdbId = imdbIds.get(item.id);
     if (!imdbId) continue;
     const name = item.title || item.name || item.original_title || item.original_name || '';
     const date = item.release_date || item.first_air_date || '';

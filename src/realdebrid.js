@@ -41,16 +41,23 @@ async function getRealDebridDownloads(apiKey) {
   }
   if (first.length === 0) return [];
 
-  // If first page is already full, fetch additional pages in parallel (up to 10 pages = 1000 items)
+  // If the first page is already full, fetch the remaining pages in parallel
+  // (up to 10 pages = 1000 items), then keep them in order and stop at the
+  // first short/empty page. Parallel is safe here: pages are independent, and
+  // RD allows far more than nine requests a minute.
   let allPages = [first];
   if (first.length === 100) {
-    let page = 2;
-    while (page <= 10) {
-      const { data } = await rdGet('/torrents', apiKey, { page, limit: 100 });
-      if (!Array.isArray(data) || data.length === 0) break;
+    const rest = await Promise.all(
+      Array.from({ length: 9 }, (_, index) => index + 2).map((page) =>
+        rdGet('/torrents', apiKey, { page, limit: 100 })
+          .then((r) => (Array.isArray(r.data) ? r.data : []))
+          .catch(() => [])
+      )
+    );
+    for (const data of rest) {
+      if (!data.length) break;
       allPages.push(data);
       if (data.length < 100) break;
-      page++;
     }
   }
 

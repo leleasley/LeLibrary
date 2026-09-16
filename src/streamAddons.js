@@ -13,6 +13,7 @@
 // (config.streamAddons, e.g. ["torrentio","comet"]) is stored.
 
 const axios = require('axios');
+const { fetchAioStreams } = require('./aiostreams');
 
 const SERVICE_NAMES = {
   torbox: 'torbox',
@@ -331,9 +332,10 @@ function compareExternalProviderPriority(a, b) {
 // that made Comet/MediaFusion hide slower enabled addons such as Torrentio and
 // Jackettio. The response now includes every selected addon that answers
 // before the deadline.
-const EXTERNAL_TIME_BUDGET_MS = Math.max(4000, Math.min(15000, parseInt(process.env.EXTERNAL_STREAM_BUDGET_MS, 10) || 10000));
-async function fetchExternalStreams(addonIds, config, type, ttId, timeBudgetMs = EXTERNAL_TIME_BUDGET_MS) {
-  const ids = Array.isArray(addonIds) ? addonIds.filter(id => ADDONS[id]) : [];
+const EXTERNAL_TIME_BUDGET_MS = Math.max(4000, Math.min(15000, parseInt(process.env.EXTERNAL_STREAM_BUDGET_MS, 10) || 6000));
+async function fetchExternalStreams(addonIds, config, type, ttId, timeBudgetMs = EXTERNAL_TIME_BUDGET_MS, runtime = {}) {
+  const AIOSTREAMS_ID = 'aiostreams';
+  const ids = Array.isArray(addonIds) ? addonIds.filter(id => ADDONS[id] || id === AIOSTREAMS_ID) : [];
   if (ids.length === 0) return [];
   const normType = type === 'anime' ? 'series' : type;
   const budgetMs = Number.isFinite(timeBudgetMs)
@@ -348,6 +350,26 @@ async function fetchExternalStreams(addonIds, config, type, ttId, timeBudgetMs =
   const responses = await Promise.all(ids.map(async (id, priority) => {
     try {
       const remaining = Math.max(2000, deadline - Date.now());
+      if (id === AIOSTREAMS_ID) {
+        // Personal AIOStreams connector. Its configured URL is server-held, so
+        // it arrives via runtime (never config/token/cache). The connector core
+        // handles coalescing, cooldown, SSRF checks and the recursion fuse.
+        const url = runtime.aioStreams && runtime.aioStreams.url;
+        if (!url) return [];
+        const { streams } = await fetchAioStreams({
+          url, type: normType, id: ttId,
+          timeoutMs: remaining,
+          userKeyHash: runtime.aioStreams.userKeyHash || '',
+        });
+        return streams.map(stream => ({
+          ...stream,
+          _sourceAddon: 'AIOStreams',
+          _sourceAddonId: AIOSTREAMS_ID,
+          name: stream.name ? `${stream.name}` : 'AIOStreams',
+          description: stream.description ? `${stream.description}\n⚡ AIOStreams` : '⚡ AIOStreams',
+          _externalPriority: priority,
+        }));
+      }
       const streams = await fetchAddonStreams(id, config, normType, ttId, remaining);
       return streams.map(stream => ({ ...stream, _externalPriority: priority }));
     } catch (err) {

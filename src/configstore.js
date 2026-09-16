@@ -18,7 +18,7 @@ const { getUserKey } = require('./providers');
 const { validateCustomStreamsConfig } = require('./custom-streams');
 const crypto = require('crypto');
 
-const STREAM_FIELDS = ['streamAddons', 'streamPreset', 'streamNameTemplate', 'streamDescTemplate', 'nuvioBadgePack', 'nuvioBadgeUrl', 'customStreams', 'streamNotices', 'filterResolutions', 'filterResOrder', 'filterQualities', 'filterSources', 'filterCodecs', 'filterHdr', 'filterAudio', 'filterMinSize', 'filterMaxSize', 'filterCachedOnly', 'nuvioCollectionPacks', 'nuvioCollectionOverrides', 'importedRows', 'libraryCatalogs', 'libHomeHidden', 'posterProvider', 'pictoriumUrl', 'pictoriumOptions'];
+const STREAM_FIELDS = ['streamAddons', 'streamPreset', 'streamNameTemplate', 'streamDescTemplate', 'nuvioBadgePack', 'nuvioBadgeUrl', 'customStreams', 'streamNotices', 'streamNoticeTypes', 'filterResolutions', 'filterResOrder', 'filterQualities', 'filterSources', 'filterCodecs', 'filterHdr', 'filterAudio', 'filterMinSize', 'filterMaxSize', 'filterCachedOnly', 'nuvioCollectionPacks', 'nuvioCollectionOverrides', 'importedRows', 'libraryCatalogs', 'libHomeHidden', 'posterProvider', 'pictoriumUrl', 'pictoriumOptions'];
 // Object-valued fields are stored as JSON strings so the store stays a flat
 // key/value shape; they are parsed back on load.
 const OBJECT_FIELDS = new Set(['pictoriumOptions']);

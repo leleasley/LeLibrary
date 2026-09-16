@@ -23,6 +23,19 @@ const ANIME_GROUP_RE = new RegExp(`^\\[(${ANIME_GROUPS.join('|')})[^\\]]*\\]`, '
 const ANIME_EP_RE  = /\s[-–]\s+(\d{1,3})(?:v\d+)?\s*(?:\[|$)/;
 const ANIME_EP2_RE = /^(.+?)\s+(\d{2,3})(?:v\d+)?\s*[\[(]/;
 
+// Absolute-episode anime numbering ("Naruto 12 [1080p]") collides with
+// episode-count phrasing in multi-voiceover releases ("Серии 1-6 из 12
+// [2025, ...]", "... из 13 (Director, ...)"): the trailing number is a
+// total, not an episode. Only accept the pattern when the context does not
+// read as a count, otherwise a plain US series lands in the anime catalog.
+const COUNT_CONTEXT_RE = /(\d+\s*[-–]\s*\d+|сери[яйию]|серий|эпизод|episodes?)\D{0,16}$/i;
+const BRACKET_YEAR_RE = /^(19|20)\d{2}\b/;
+function looksLikeEpisodeCount(prefix, afterBracket) {
+  if (COUNT_CONTEXT_RE.test(String(prefix || ''))) return true;
+  if (BRACKET_YEAR_RE.test(String(afterBracket || '').trim())) return true;
+  return false;
+}
+
 const SEASON_ORD_EN_RE = /\b(\d+)(?:st|nd|rd|th)\s+season\b/i;
 
 const DATE_RE   = /\b(19[5-9]\d|20[0-3]\d)[\s.\-](0?[1-9]|1[0-2])[\s.\-](0?[1-9]|[12]\d|3[01])\b/;
@@ -62,6 +75,9 @@ function decodeHtml(s) {
     .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 }
 
+// Bounded FIFO memo: filenames are unbounded across users, and a parse is
+// cheap to redo, so evict the oldest entries instead of growing forever.
+const PARSE_CACHE_MAX = Math.max(1000, parseInt(process.env.PARSE_CACHE_MAX, 10) || 50000);
 const _parseCache = new Map();
 function clearParseCache() { _parseCache.clear(); }
 
@@ -82,6 +98,7 @@ function guessMediaInfo(raw) {
 
   let isSeries = false, season = null, seasonStart = null, seasonEnd = null, episode = null, episodeEnd = null, airDate = null, airDates = null;
   let serieCut = norm.length;
+  let epEndIndex = null;
 
   const epMatch = norm.match(EP_RE);
   if (epMatch) {
@@ -91,6 +108,7 @@ function guessMediaInfo(raw) {
     if (epMatch[3]) episodeEnd = parseInt(epMatch[3], 10);
     else if (epMatch[4]) episodeEnd = parseInt(epMatch[4], 10);
     serieCut = epMatch.index;
+    epEndIndex = epMatch.index + epMatch[0].length;
   }
 
   if (!isSeries) {
@@ -154,12 +172,14 @@ function guessMediaInfo(raw) {
   let animeEp = null;
   if (!isSeries || episode === null) {
     const ae = norm.match(ANIME_EP_RE);
-    if (ae) {
+    if (ae && !looksLikeEpisodeCount(norm.slice(0, ae.index), norm.slice(ae.index + ae[0].length))) {
       if (!isSeries) { isSeries = true; serieCut = ae.index; }
       animeEp = parseInt(ae[1], 10);
     } else if (!isSeries) {
       const ae2 = norm.match(ANIME_EP2_RE);
-      if (ae2) { isSeries = true; animeEp = parseInt(ae2[2], 10); serieCut = ae2[1].length; }
+      if (ae2 && !looksLikeEpisodeCount(ae2[1], norm.slice(ae2[0].length))) {
+        isSeries = true; animeEp = parseInt(ae2[2], 10); serieCut = ae2[1].length;
+      }
     }
   }
 
@@ -174,6 +194,21 @@ function guessMediaInfo(raw) {
   const ym = norm.match(YEAR_RE);
   let year = null;
   if (ym) { year = parseInt(ym[1], 10); if (ym.index < techCut) techCut = ym.index; }
+
+  // Episode title for episode-title matching: the text between the SxxExx
+  // marker and the first technical token. Left null when absent, numeric, or
+  // merged with a date, so it is only used when it is a real title.
+  let episodeTitle = null;
+  if (isSeries && epEndIndex != null && epEndIndex < techCut) {
+    const cleaned = norm.slice(epEndIndex, techCut)
+      .replace(/^[\s.\-_\u2013]+/, '')
+      .replace(/\s*\([^)]*\)/g, ' ')
+      .replace(/\s*\[[^\]]*\]/g, ' ')
+      .replace(/[\s\-\u2013]+$/, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+    if (cleaned && cleaned.length >= 3 && !/^[\d\s.-]+$/.test(cleaned)) episodeTitle = cleaned;
+  }
 
   const cutindex = Math.min(serieCut, techCut);
   let title = norm.substring(0, cutindex);
@@ -193,7 +228,11 @@ function guessMediaInfo(raw) {
     .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(' ');
 
-  const result = { title, year, isSeries, isAnime, season, seasonStart, seasonEnd, episode: episode ?? animeEp, episodeEnd, airDate, airDates };
+  const result = { title, year, isSeries, isAnime, season, seasonStart, seasonEnd, episode: episode ?? animeEp, episodeEnd, airDate, airDates, episodeTitle };
+  if (_parseCache.size >= PARSE_CACHE_MAX) {
+    const oldest = _parseCache.keys().next().value;
+    if (oldest !== undefined) _parseCache.delete(oldest);
+  }
   _parseCache.set(raw, result);
   return result;
 }

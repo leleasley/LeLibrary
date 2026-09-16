@@ -3,6 +3,7 @@ const fs      = require('fs');
 const path    = require('path');
 const crypto  = require('crypto');
 const cache   = require('./src/cache');
+const pictoriumWarm = require('./src/pictorium-warm');
 const providers = require('./src/providers');
 const { buildCatalog, buildMeta, buildStreams, populateTmdbIndexFromMetas, applyStreamNotices, libraryStreamFmtFp } = require('./src/builder');
 const { buildDiscoveryCatalog, buildDiscoveryMeta, buildDiscoveryStreams, discoveryStreamKeyParts } = require('./src/discovery');
@@ -14,6 +15,7 @@ const { searchCatalog } = require('./src/search');
 const { decodeConfig } = require('./src/config/token');
 const { validateCustomStreamsConfig, hasCustomStreams, hasMappedCustomStreams, customStreamsFingerprint, customStreamCatalogEntries } = require('./src/custom-streams');
 const { getClientIntegration, listClientIntegrations } = require('./src/client-integrations');
+const libraryEngine = require('./src/library/engine');
 const { version: APP_VERSION } = require('./package.json');
 
 let createWebRoutes = null;
@@ -105,6 +107,13 @@ function rememberConfig(token, config) {
 }
 
 function registerBackgroundRefresh(token, config) {
+  // Index-first engine: remember the scope so the sync worker keeps its local
+  // index warm. Cheap and synchronous; a no-op unless LIBRARY_ENGINE=indexed.
+  libraryEngine.noteConfig(token, config);
+  // When the indexed engine owns the library read path, do NOT also run the
+  // legacy full provider scan + TMDB rebuild on every route. The worker syncs
+  // the same provider snapshot into the index instead.
+  if (libraryEngine.isIndexed()) return;
   // Opaque ids are already the account cache namespace. Persist only that
   // non-secret id, never a legacy config token (which embeds credentials), so
   // an active account install resumes its normal refresh loop after restart.
@@ -144,9 +153,11 @@ async function restoreAccountRefreshRegistry() {
     // provider-key snapshots still coalesce sibling profiles, but one fresh
     // startup pass makes newly-added downloads visible as soon as the app is
     // back rather than after the first timer tick.
-    await Promise.allSettled(
-      [...knownConfigs.entries()].map(([token, config]) => buildAndCacheForConfig(token, config))
-    );
+    if (!libraryEngine.isIndexed()) {
+      await Promise.allSettled(
+        [...knownConfigs.entries()].map(([token, config]) => buildAndCacheForConfig(token, config))
+      );
+    }
   }
 }
 // Coalesce cold public-ID stream requests in this process. Stremio/Nuvio can
@@ -199,16 +210,17 @@ function hashShort(s) {
   return (h >>> 0).toString(36);
 }
 
-function publicStreamCacheKey({ config, type, id, userKey, externalAddons, customStreams }) {
+function publicStreamCacheKey({ config, type, id, userKey, externalAddons, customStreams, aioFp }) {
   const addonFp = ':' + hashShort([
     ...(externalAddons || []).slice().sort(),
     customStreamsFingerprint(customStreams),
+    aioFp || '',
   ].join('|'));
   return cache.makeKey('stream', type, id, '', '', userKey + addonFp + discoveryStreamKeyParts(config).fmtFp);
 }
 
-async function getPublicStreams({ config, tmdbApiKey, type, id, lang, customStreams, userKey, externalAddons, requestPolicy }) {
-  const discKey = publicStreamCacheKey({ config, type, id, userKey, externalAddons, customStreams });
+async function getPublicStreams({ config, tmdbApiKey, type, id, lang, customStreams, userKey, externalAddons, requestPolicy, aioStreams }) {
+  const discKey = publicStreamCacheKey({ config, type, id, userKey, externalAddons, customStreams, aioFp: aioStreams && aioStreams.fingerprint });
   const cached = await cache.get(discKey);
   if (cached) return { result: cached, cacheHit: true };
 
@@ -217,6 +229,7 @@ async function getPublicStreams({ config, tmdbApiKey, type, id, lang, customStre
     pending = (async () => {
       const { streams, ownedCount, externalCount } = await buildDiscoveryStreams({
         config, tmdbApiKey, type, id, lang, customStreams, userKey, externalAddons, requestPolicy,
+        runtime: { aioStreams },
       });
       const result = { streams };
       await cache.set(discKey, result, streamResponseTtl(result));
@@ -259,6 +272,13 @@ function posterEnhance(config = {}) {
 
 const app = express();
 app.disable('x-powered-by');
+
+// Compress text responses (JSON/HTML/CSS/JS) at the app level. Hosted
+// deployments sit behind a Brotli proxy, but self-hosted setups expose Node
+// directly, so this keeps large catalog/configure payloads and text assets
+// small on the wire. The default filter skips images and already-encoded
+// responses, and compression patches ETag handling for the compressed body.
+app.use(require('compression')({ threshold: 1024 }));
 
 // Express 4 does not forward rejected promises from async handlers to the
 // error middleware: one thrown error inside an async route (DB blip, crafted
@@ -358,6 +378,41 @@ app.get('/health', async (req, res) => {
 // A deliberately empty URL used only to let Nuvio render informational stream
 // rows. It is not media and returns no content if someone selects the notice.
 app.get('/stream-notice', (req, res) => res.status(204).end());
+
+// ── Index-first library engine status / manual sync ───────────────────────
+// Aggregate, privacy-safe observability: counts and timings only, never keys,
+// titles, ids or URLs. `/api/library/status` is instance-wide; the token route
+// reports one scope's sync state.
+app.get('/api/library/status', rateLimit({ windowMs: 60000, max: 120 }), (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(libraryEngine.status());
+});
+
+app.get('/:token/library/status', rateLimit({ windowMs: 60000, max: 120 }), async (req, res) => {
+  if (!libraryEngine.isIndexed()) return res.json({ enabled: false });
+  const config = await resolveConfig(req.params.token);
+  if (!config) return res.status(400).json({ error: 'Invalid token' });
+  const scopeId = providers.getUserKey(config);
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    res.json({ enabled: true, scope: scopeId, status: await libraryEngine.scopeStatus(scopeId) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/:token/library/sync', rateLimit({ windowMs: 60000, max: 10 }), async (req, res) => {
+  if (!libraryEngine.isIndexed()) return res.status(409).json({ error: 'Indexed engine disabled' });
+  const config = await resolveConfig(req.params.token);
+  if (!config) return res.status(400).json({ error: 'Invalid token' });
+  try {
+    const status = await libraryEngine.triggerSync(req.params.token, config);
+    res.json({ ok: true, status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // Proxy TMDB images to avoid CORS blocking (must be BEFORE web routes so the
 // router's 404 catch-all does not intercept image requests)
@@ -574,10 +629,17 @@ function parseExtra(str) {
 // upstream failure the client is sent to its normal TMDB poster when that is
 // known, otherwise a soft 404, so a bad poster can never break a grid.
 const pictoriumPosterCache = new Map();
-const PICTORIUM_CACHE_MAX = 150;
-const PICTORIUM_CACHE_TTL = 24 * 60 * 60 * 1000;
+// In-memory cap raised and made configurable: 150 entries thrashed while a user
+// simply scrolled a large library, forcing re-renders. Redis below is the
+// durable authority, so this only bounds process memory.
+const PICTORIUM_CACHE_MAX = Math.max(100, parseInt(process.env.PICTORIUM_CACHE_MAX, 10) || 2000);
+const PICTORIUM_CACHE_TTL = 24 * 60 * 60 * 1000; // ms, in-memory mirror
+const PICTORIUM_REDIS_TTL = 24 * 60 * 60;        // seconds, durable
+const PICTORIUM_REDIS_PREFIX = 'pictcache:';
 
-function pictoriumCacheGet(key) {
+function pictoriumRedisKey(key) { return PICTORIUM_REDIS_PREFIX + hashShort(key); }
+
+function pictoriumCacheGetMem(key) {
   const hit = pictoriumPosterCache.get(key);
   if (!hit) return null;
   if (hit.exp < Date.now()) { pictoriumPosterCache.delete(key); return null; }
@@ -586,11 +648,108 @@ function pictoriumCacheGet(key) {
   return hit;
 }
 
-function pictoriumCacheSet(key, value) {
+function pictoriumCacheSetMem(key, value) {
   pictoriumPosterCache.set(key, value);
   while (pictoriumPosterCache.size > PICTORIUM_CACHE_MAX) {
     pictoriumPosterCache.delete(pictoriumPosterCache.keys().next().value);
   }
+}
+
+// Renders persist in Redis so a deploy/restart does not wipe every poster and
+// force a full re-render. Base64 keeps the value a plain JSON string instead of
+// a Buffer object (which JSON.stringify would explode into a byte array).
+async function pictoriumCacheGet(key) {
+  const mem = pictoriumCacheGetMem(key);
+  if (mem) return mem;
+  try {
+    const stored = await cache.get(pictoriumRedisKey(key));
+    if (stored && stored.b64) {
+      const value = { buf: Buffer.from(stored.b64, 'base64'), type: stored.type || 'image/jpeg', exp: Date.now() + PICTORIUM_CACHE_TTL };
+      pictoriumCacheSetMem(key, value);
+      return value;
+    }
+  } catch { /* Redis blip: fall through to a render */ }
+  return null;
+}
+
+async function pictoriumCacheSet(key, value) {
+  pictoriumCacheSetMem(key, value);
+  try {
+    await cache.set(pictoriumRedisKey(key), { b64: value.buf.toString('base64'), type: value.type }, PICTORIUM_REDIS_TTL);
+  } catch { /* best effort */ }
+}
+
+// ── ERDB poster proxy cache ────────────────────────────────────────────────
+// ERDB composes rating posters on demand upstream (measured 6-14s each). When
+// the user has chosen ERDB, their posters are routed here so the first view
+// falls back to the normal TMDB poster and the composed image is cached for
+// every later view (memory + Redis, survives restarts).
+const erdbImageCache = new Map();
+const ERDB_CACHE_MAX = Math.max(100, parseInt(process.env.ERDB_CACHE_MAX, 10) || 2000);
+const ERDB_CACHE_TTL = 24 * 60 * 60 * 1000;
+const ERDB_REDIS_TTL = 24 * 60 * 60;
+const ERDB_REDIS_PREFIX = 'erdbcache:';
+
+function erdbCacheGetMem(key) {
+  const hit = erdbImageCache.get(key);
+  if (!hit) return null;
+  if (hit.exp < Date.now()) { erdbImageCache.delete(key); return null; }
+  erdbImageCache.delete(key);
+  erdbImageCache.set(key, hit);
+  return hit;
+}
+function erdbCacheSetMem(key, value) {
+  erdbImageCache.set(key, value);
+  while (erdbImageCache.size > ERDB_CACHE_MAX) {
+    erdbImageCache.delete(erdbImageCache.keys().next().value);
+  }
+}
+async function erdbCacheGet(key) {
+  const mem = erdbCacheGetMem(key);
+  if (mem) return mem;
+  try {
+    const stored = await cache.get(ERDB_REDIS_PREFIX + hashShort(key));
+    if (stored && stored.b64) {
+      const value = { buf: Buffer.from(stored.b64, 'base64'), type: stored.type || 'image/jpeg', exp: Date.now() + ERDB_CACHE_TTL };
+      erdbCacheSetMem(key, value);
+      return value;
+    }
+  } catch { /* fall through */ }
+  return null;
+}
+async function erdbCacheSet(key, value) {
+  erdbCacheSetMem(key, value);
+  try {
+    await cache.set(ERDB_REDIS_PREFIX + hashShort(key), { b64: value.buf.toString('base64'), type: value.type }, ERDB_REDIS_TTL);
+  } catch { /* best effort */ }
+}
+
+// Stremio recommends poster files under 100KB (50KB preferred). Pictorium can
+// render larger, so cap the cached bytes at the same width TMDB catalog
+// artwork uses. sharp is already a dependency; require it lazily so startup
+// stays fast and self-hosters without it just pass the original through.
+const PICTORIUM_POSTER_WIDTH = 342;
+const PICTORIUM_POSTER_QUALITY = 82;
+let sharpModule;
+function pictoriumSharp() {
+  if (sharpModule === undefined) {
+    try { sharpModule = require('sharp'); } catch { sharpModule = null; }
+  }
+  return sharpModule;
+}
+async function pictoriumDownscale(buffer) {
+  const sharp = pictoriumSharp();
+  if (!sharp) return null;
+  try {
+    const image = sharp(buffer, { failOn: 'none' });
+    const meta = await image.metadata();
+    if (!meta || !meta.width || meta.width <= PICTORIUM_POSTER_WIDTH) return null;
+    const out = await image
+      .resize({ width: PICTORIUM_POSTER_WIDTH, withoutEnlargement: true })
+      .jpeg({ quality: PICTORIUM_POSTER_QUALITY, mozjpeg: true })
+      .toBuffer();
+    return out && out.length ? out : null;
+  } catch { return null; }
 }
 
 // A light per-IP cap on poster renders, in its own bucket so it can never
@@ -619,8 +778,12 @@ app.get('/:token/pictorium/:type/:id', async (req, res) => {
   if (!/^(?:tt\d{1,20}|\d{1,10})$/i.test(id)) return res.status(400).end();
   const fallback = pictorium.safeFallback(req.query.fallback);
   const preview = req.query.preview === '1';
+  // Background warm requests are internal loopback calls: they must render and
+  // cache even when the client fast path would redirect, and they must not be
+  // limited by the client poster bucket (all share 127.0.0.1).
+  const warm = req.query.warm === '1';
   const redirectFallback = () => (fallback ? res.redirect(302, fallback) : res.status(404).end());
-  if (pictoriumPosterExceeded(req)) return redirectFallback();
+  if (!warm && pictoriumPosterExceeded(req)) return redirectFallback();
   try {
     const config = await require('./src/configstore').mergeStoredConfig(await resolveConfig(req.params.token));
     // The Studio preview must work before the first save, so it only needs a
@@ -638,8 +801,20 @@ app.get('/:token/pictorium/:type/:id', async (req, res) => {
     // image cache to a key hash: one user's ratings never fill another's entry.
     const mdbFp = mdblistKey ? hashShort(mdblistKey) : 'none';
     const cacheKey = [base, type, id, optionsModule.toQuery(opts), req.query.title || '', req.query.rd || '', req.query.lang || '', req.query.region || '', mdbFp].join('|');
-    let hit = preview ? null : pictoriumCacheGet(cacheKey);
+    let hit = preview ? null : await pictoriumCacheGet(cacheKey);
     if (!hit) {
+      // Fast path: never make a client wait seconds for a Pictorium render.
+      // Serve the normal TMDB poster now and render Pictorium in the
+      // background; the next request (or any after a restart, via Redis) gets
+      // the composed image.
+      if (!preview && !warm && fallback && pictoriumWarm.enabled()) {
+        pictoriumWarm.enqueue(req.originalUrl);
+        // no-store: the fallback must never be cached as "the poster". The
+        // client re-requests on the next render and gets the composed Pictorium
+        // image as soon as the background render finishes.
+        res.setHeader('Cache-Control', 'no-store');
+        return res.redirect(302, fallback);
+      }
       const upstreamRes = await axiosImg.get(upstream, {
         responseType: 'arraybuffer',
         timeout: 30000,
@@ -648,15 +823,65 @@ app.get('/:token/pictorium/:type/:id', async (req, res) => {
         headers: { 'x-api-key': config.tmdbApiKey },
       });
       if (upstreamRes.status !== 200 || !upstreamRes.data) return redirectFallback();
+      let buf = Buffer.from(upstreamRes.data);
+      let type = upstreamRes.headers['content-type'] || 'image/jpeg';
+      const smaller = await pictoriumDownscale(buf);
+      if (smaller) { buf = smaller; type = 'image/jpeg'; }
       hit = {
-        buf: Buffer.from(upstreamRes.data),
-        type: upstreamRes.headers['content-type'] || 'image/jpeg',
+        buf,
+        type,
         exp: Date.now() + PICTORIUM_CACHE_TTL,
       };
-      if (!preview) pictoriumCacheSet(cacheKey, hit);
+      if (!preview) await pictoriumCacheSet(cacheKey, hit);
     }
+    if (warm) return res.status(204).end();
     res.setHeader('Content-Type', hit.type);
     res.setHeader('Cache-Control', preview ? 'no-store' : 'public, max-age=86400, immutable');
+    return res.end(hit.buf);
+  } catch (err) {
+    return redirectFallback();
+  }
+});
+
+// ERDB poster proxy. Same speed strategy as Pictorium: serve the normal TMDB
+// poster instantly while the ERDB image is composed and cached in the
+// background, then serve the cached ERDB image on every later request.
+app.get('/:token/erdb/:type/:id', async (req, res) => {
+  const type = ['poster', 'backdrop', 'logo'].includes(req.params.type) ? req.params.type : 'poster';
+  const id = String(req.params.id || '').replace(/\.jpg$/i, '');
+  if (!/^(?:tt\d{1,20}|tmdb:[a-z]+:\d{1,12}|\d{1,12})$/i.test(id)) return res.status(400).end();
+  const fallback = typeof req.query.fallback === 'string' && /^https?:\/\//i.test(req.query.fallback)
+    ? req.query.fallback.slice(0, 2048) : '';
+  const warm = req.query.warm === '1';
+  const redirectFallback = () => (fallback ? res.redirect(302, fallback) : res.status(404).end());
+  try {
+    const config = await require('./src/configstore').mergeStoredConfig(await resolveConfig(req.params.token));
+    const token = config && config.erdbToken;
+    if (!token) return redirectFallback();
+    const upstream = `https://easyratingsdb.com/${encodeURIComponent(token)}/${encodeURIComponent(type)}/${encodeURIComponent(id)}.jpg`;
+    const cacheKey = `erdb|${hashShort(token)}|${type}|${id}`;
+    let hit = await erdbCacheGet(cacheKey);
+    if (!hit) {
+      if (!warm && fallback && pictoriumWarm.enabled()) {
+        pictoriumWarm.enqueue(req.originalUrl);
+        res.setHeader('Cache-Control', 'no-store');
+        return res.redirect(302, fallback);
+      }
+      const up = await axiosImg.get(upstream, {
+        responseType: 'arraybuffer', timeout: 20000,
+        maxContentLength: 6 * 1024 * 1024, validateStatus: () => true,
+      });
+      if (up.status !== 200 || !up.data) return redirectFallback();
+      let buf = Buffer.from(up.data);
+      let ctype = up.headers['content-type'] || 'image/jpeg';
+      const smaller = await pictoriumDownscale(buf);
+      if (smaller) { buf = smaller; ctype = 'image/jpeg'; }
+      hit = { buf, type: ctype, exp: Date.now() + ERDB_CACHE_TTL };
+      await erdbCacheSet(cacheKey, hit);
+    }
+    if (warm) return res.status(204).end();
+    res.setHeader('Content-Type', hit.type);
+    res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
     return res.end(hit.buf);
   } catch (err) {
     return redirectFallback();
@@ -677,6 +902,15 @@ const LIBRARY_PROJECTION_VERSION = 'v5';
 // cache and artwork settings.
 async function refreshDownloadsForUser(config, userKey) {
   const now = Date.now();
+  // The snapshot map holds a full downloads array per provider-key set. Account
+  // tokens that stop refreshing must not pin that memory forever, so prune
+  // stale entries once the map grows.
+  if (providerRefreshSnapshots.size > 500) {
+    const cutoff = now - 30 * 60 * 1000;
+    for (const [key, entry] of providerRefreshSnapshots) {
+      if (!entry || !entry.at || entry.at < cutoff) providerRefreshSnapshots.delete(key);
+    }
+  }
   const recent = providerRefreshSnapshots.get(userKey);
   if (recent && now - recent.at < REFRESH) {
     if (recent.error) throw recent.error;
@@ -703,41 +937,34 @@ async function refreshDownloadsForUser(config, userKey) {
 // edits (renames, file changes) also trigger a rebuild, not just add/remove -
 // Real-Debrid items have no updated_at, so name is what catches renames there.
 function hashDownloads(downloads) {
-  const stableValue = (value) => {
-    if (Array.isArray(value)) return value.map(stableValue).sort();
-    if (value && typeof value === 'object') return Object.keys(value).sort().reduce((out, key) => {
-      out[key] = stableValue(value[key]);
-      return out;
-    }, {});
-    return value == null ? '' : value;
-  };
-  const fingerprint = downloads
-    .map(d => {
-      // A provider can add files to an existing completed download without
-      // changing its name or creation time. Include stable structural fields
-      // (never volatile progress/speed) so the shared two-minute refresh sees
-      // that change and rebuilds the normal Redis catalogue caches.
-      // TorBox's list response may represent files as either an array or a
-      // keyed object. Keep its stable library identity fields too: adding a
-      // completed torrent or changing its selected-file layout then changes
-      // this fingerprint even when the list's updated_at is unchanged.
-      const files = Array.isArray(d.files) ? d.files : (d.files && typeof d.files === 'object' ? Object.values(d.files) : []);
-      return stableValue({
-        source: d.source, id: d.id, name: d.name || d.filename,
-        updated: d.updated_at || d.created_at || d.last_state_change,
-        size: d.size || d.bytes || d.total_size,
-        fileCount: d.file_count || d.fileCount || files.length,
-        state: d.download_finished === true ? 'finished' : (d.download_state || d.status || ''),
-        hash: d.hash, magnet: d.magnet, torrentFile: d.torrent_file,
-        downloadPath: d.download_path, totalDownloaded: d.total_downloaded,
-        tags: d.tags, alternateHashes: d.alternative_hashes,
-        files: files.map(file => ({ id: file?.id, name: file?.name || file?.path || file?.filename, size: file?.size || file?.bytes, path: file?.path })),
-      });
-    })
-    .map(item => JSON.stringify(item))
-    .sort()
-    .join('|');
-  return crypto.createHash('sha256').update(fingerprint).digest('hex');
+  // Change-detection fingerprint. Built as compact per-download lines rather
+  // than a deep, key-sorted object graph: the old form recursively sorted every
+  // object and stringified every file, which was the most CPU-heavy step in the
+  // two-minute refresh (and ran again on catalog cache misses) for large
+  // libraries. Fields are chosen so add/remove/rename, a new completed item, a
+  // changed selected-file layout, or an updated state all change the hash.
+  // Volatile progress/speed fields stay out.
+  const lines = [];
+  for (const d of downloads) {
+    const files = Array.isArray(d.files) ? d.files
+      : (d.files && typeof d.files === 'object' ? Object.values(d.files) : []);
+    let fileSig = '';
+    for (const file of files) {
+      fileSig += `${file?.id ?? ''}\u0001${file?.name || file?.path || file?.filename || ''}\u0001${file?.size || file?.bytes || ''}\u0002`;
+    }
+    lines.push([
+      d.source, d.id, d.name || d.filename,
+      d.updated_at || d.created_at || d.last_state_change,
+      d.size || d.bytes || d.total_size,
+      d.file_count || d.fileCount || files.length,
+      d.download_finished === true ? 'finished' : (d.download_state || d.status || ''),
+      d.hash, d.magnet, d.torrent_file, d.download_path, d.total_downloaded,
+      JSON.stringify(d.tags || ''), JSON.stringify(d.alternative_hashes || ''),
+      fileSig,
+    ].join('\u0001'));
+  }
+  lines.sort();
+  return crypto.createHash('sha256').update(lines.join('\u0003')).digest('hex');
 }
 
 async function buildAndCacheForConfigInner(token, config) {
@@ -800,8 +1027,15 @@ async function buildAndCacheForConfigInner(token, config) {
           console.warn('[Cache] collections recovery failed:', err.message);
         }
       }
-      // Keep long-TTL catalog cache warm so it doesn't expire and force a slow rebuild
-      await cache.touchPattern(`cat:*${userKey}*`, TTL_CATALOG);
+      // Keep long-TTL catalog cache warm so it doesn't expire and force a slow
+      // rebuild, but do not SCAN the user's whole keyspace every 2 minutes: a
+      // per-user marker limits the touch to at most once every 20 minutes.
+      const touchMarkerKey = cache.makeKey('cattouch', userKey);
+      const recentlyTouched = await cache.exists(touchMarkerKey).catch(() => false);
+      if (!recentlyTouched) {
+        await cache.touchPattern(`cat:*${userKey}*`, TTL_CATALOG);
+        await cache.set(touchMarkerKey, 1, 20 * 60).catch(() => {});
+      }
       await cache.expire(hashKey, 7200);
       return;
     }
@@ -811,7 +1045,12 @@ async function buildAndCacheForConfigInner(token, config) {
     // silently-failing key) shouldn't blank someone's library for hours.
     if (downloads.length === 0 && oldHash) {
       console.log('[Cache] Downloads empty but we had content: keeping existing catalog');
-      await cache.touchPattern(`cat:*${userKey}*`, TTL_CATALOG);
+      const touchMarkerKey = cache.makeKey('cattouch', userKey);
+      const recentlyTouched = await cache.exists(touchMarkerKey).catch(() => false);
+      if (!recentlyTouched) {
+        await cache.touchPattern(`cat:*${userKey}*`, TTL_CATALOG);
+        await cache.set(touchMarkerKey, 1, 20 * 60).catch(() => {});
+      }
       await cache.expire(hashKey, 7200);
       return;
     }
@@ -906,6 +1145,7 @@ let backgroundRefreshRunning = false;
 const BACKGROUND_REFRESH_CONCURRENCY = 4;
 setInterval(async () => {
   if (backgroundRefreshRunning) return;
+  if (libraryEngine.isIndexed()) return; // index worker owns background work
   backgroundRefreshRunning = true;
   try {
     const entries = [...knownConfigs.entries()];
@@ -1334,9 +1574,12 @@ async function handleConfiguredManifest(req, res) {
   const config = await resolveConfig(req.params.token);
   markClientIntegrationStage(req, 'config');
   if (!config) return res.status(400).json({ error: 'Invalid token' });
+  // Register the scope with the index-first engine (no-op unless enabled) so a
+  // manifest request alone starts background indexing.
+  libraryEngine.noteConfig(req.params.token, config);
   // Trigger a background build so catalogs are ready for the Nuvio collections
-  // profile.
-  if (!knownConfigs.has(req.params.token)) {
+  // profile. The indexed engine starts its own sync from noteConfig instead.
+  if (!knownConfigs.has(req.params.token) && !libraryEngine.isIndexed()) {
     rememberConfig(req.params.token, config);
     buildAndCacheForConfig(req.params.token, config).catch(() => {});
   }
@@ -1776,24 +2019,34 @@ async function handleCatalog(req, res) {
       enhance,
       enhanceFingerprint: posterFp(config),
     });
-    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
-    return res.json(withCacheHints({ metas }, { cacheMaxAge: 60, staleRevalidate: 300, staleError: 1800 }));
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
+    return res.json(withCacheHints({ metas }, { cacheMaxAge: 300, staleRevalidate: 1800, staleError: 1800 }));
   }
   if (ownedSearchMatch) {
     const extra = parseExtra(req.params.extra || '');
     const type = ownedSearchMatch[1] === 'movies' ? 'movie' : 'series';
-    const metas = await searchOwnedLibrary({
-      config, tmdbApiKey, type, query: extra.search || '', sortBy, lang,
-      enhance: posterEnhance(config), userKey: providers.getUserKey(config),
-    });
-    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
-    return res.json(withCacheHints({ metas }, { cacheMaxAge: 60, staleRevalidate: 300, staleError: 1800 }));
+    let metas;
+    if (libraryEngine.isIndexed()) {
+      // Index-first: search the persisted local index (Postgres), never the
+      // provider library or a fresh TMDB round trip.
+      metas = await libraryEngine.search({
+        token: req.params.token, config, type, query: extra.search || '',
+        libraryIdMode, lang, enhance: posterEnhance(config),
+      });
+    } else {
+      metas = await searchOwnedLibrary({
+        config, tmdbApiKey, type, query: extra.search || '', sortBy, lang,
+        enhance: posterEnhance(config), userKey: providers.getUserKey(config),
+      });
+    }
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
+    return res.json(withCacheHints({ metas }, { cacheMaxAge: 300, staleRevalidate: 1800, staleError: 1800 }));
   }
   if (catalogId === 'lelibrary-search-collections' && req.params.type === 'movie') {
     const extra = parseExtra(req.params.extra || '');
     const metas = searchCollectionFilms({ userKey: providers.getUserKey(config), lang, query: extra.search || '', libraryIdMode, config });
-    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
-    return res.json(withCacheHints({ metas }, { cacheMaxAge: 60, staleRevalidate: 300, staleError: 1800 }));
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
+    return res.json(withCacheHints({ metas }, { cacheMaxAge: 300, staleRevalidate: 1800, staleError: 1800 }));
   }
 
   const importedMatch = catalogId.match(/^lelibrary-import-(movie|series)(?:,(imp_[a-f0-9]{64}))?$/);
@@ -2206,15 +2459,45 @@ async function handleCatalog(req, res) {
   const skip   = parseInt(extra.skip) || 0;
   const search = extra.search || '';
 
-  console.log(`[Catalog] catalog=${catalogId} type=${type} skip=${skip} lang=${lang}`);
-
   const token = req.params.token;
-  if (!knownConfigs.has(token)) {
+  if (!knownConfigs.has(token) && !libraryEngine.isIndexed()) {
     rememberConfig(token, config);
     buildAndCacheForConfig(token, config).catch(() => {});
   }
 
   const userKey  = providers.getUserKey(config);
+
+  // ── Index-first library catalogs (LIBRARY_ENGINE=indexed) ──
+  // My Movies / My Shows / My Anime (and per-provider rows in separate mode)
+  // are served from the persistent local index: one SQL query plus in-memory
+  // assembly, with no provider scan and no TMDB search on the request path. A
+  // `search` extra falls through to the dedicated owned-search catalogs above,
+  // so we only take this branch for plain reads.
+  if (libraryEngine.isIndexed() && !search && !req.forceLegacyCatalog) {
+    try {
+      const out = await libraryEngine.buildCatalog({
+        token, config, type, sortBy, skip, libraryIdMode, lang,
+        enhance: posterEnhance(config),
+        provider: separate ? catalogProviderId : null,
+      });
+      const metas = out.metas || [];
+      // A scope that has never completed a sync must not serve an empty library
+      // on the very first request: fall through to the legacy path, which scans
+      // the provider and caches rows while the index catches up.
+      if (out.ready || metas.length) {
+        console.log(`[Catalog:index] ${catalogId} → ${metas.length}${out.syncing ? ' (syncing)' : ''}`);
+        setPrivateResponseCache(res, OWNED_CATALOG_CLIENT_TTL);
+        return res.json(withCacheHints({ metas }, { cacheMaxAge: OWNED_CATALOG_CLIENT_TTL, staleRevalidate: OWNED_CATALOG_CLIENT_TTL, staleError: 1800 }));
+      }
+      console.log(`[Catalog:index] ${catalogId} index not ready, using legacy path`);
+      // fall through to the legacy path below
+    } catch (err) {
+      console.error(`[Catalog:index] ${catalogId} failed, using legacy path:`, err.message);
+      // fall through to the legacy path below
+    }
+  }
+
+  console.log(`[Catalog] catalog=${catalogId} type=${type} skip=${skip} lang=${lang}`);
   const catKey   = separate ? providers.PROVIDER_META[catalogProviderId].cat : 'merged';
   // hideAnime is part of the key: installs sharing provider keys but differing
   // in hide-anime used to serve each other's rows for the whole TTL.
@@ -2348,7 +2631,7 @@ app.get('/:token/preview/:type/:catalogId.json', rateLimit({ windowMs: 60000, ma
 
     const captured = {};
     const fakeRes = { setHeader() {}, json(body) { captured.body = body; } };
-    const fakeReq = { params: { token: req.params.token, type: req.params.type, catalogId: req.params.catalogId, extra: extraStr } };
+    const fakeReq = { params: { token: req.params.token, type: req.params.type, catalogId: req.params.catalogId, extra: extraStr }, forceLegacyCatalog: true };
     await handleCatalog(fakeReq, fakeRes);
 
     const metas = Array.isArray(captured.body && captured.body.metas) ? captured.body.metas : [];
@@ -2382,7 +2665,7 @@ app.post('/api/preview', express.json({ limit: '2mb' }), rateLimit({ windowMs: 6
     const token = tokenMap.encodeConfig(config);
     const captured = {};
     const fakeRes = { setHeader() {}, json(b) { captured.body = b; } };
-    const fakeReq = { params: { token, type, catalogId, extra: extraStr } };
+    const fakeReq = { params: { token, type, catalogId, extra: extraStr }, forceLegacyCatalog: true };
     await handleCatalog(fakeReq, fakeRes);
     const metas = Array.isArray(captured.body && captured.body.metas) ? captured.body.metas : [];
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
@@ -2437,6 +2720,7 @@ async function handleMeta(req, res) {
   if (!baseConfig) return res.json({ meta: null });
   const config = await require('./src/configstore').mergeStoredConfig(baseConfig);
   markClientIntegrationStage(req, 'config');
+  libraryEngine.noteConfig(req.params.token, config);
 
   const { tmdbApiKey, lang = 'en-US', erdbToken, rpdbKey, omdbKey, fanartKey, enhanceBackground, enhanceLogo, customStreams } = config;
   const active = providers.activeProviders(config);
@@ -2520,6 +2804,13 @@ async function handleMeta(req, res) {
     return res.json(withCacheHints(discovery ? { meta: { ...cached.meta, id: ttId } } : cached, { cacheMaxAge: 86400, staleRevalidate: 86400, staleError: 604800 }));
   }
 
+  // Index-first: seed the owned-episode index from the persisted local library
+  // so buildMeta never has to scan the provider for a title we already
+  // indexed. Only runs on a cold meta (cache miss).
+  if (libraryEngine.isIndexed() && !discovery && tmdbId) {
+    try { await libraryEngine.hydrateOwnedIndex({ userKey, tmdbId }); } catch { /* best effort */ }
+  }
+
   console.log(`[Meta] Building: ${id} (tmdbId=${tmdbId})`);
   try {
     const enhance = posterEnhance(config);
@@ -2585,6 +2876,7 @@ async function handleStream(req, res) {
   // switches. Falls back to the token's own fields when nothing is stored.
   const config = await require('./src/configstore').mergeStoredConfig(baseConfig);
   markClientIntegrationStage(req, 'config');
+  libraryEngine.noteConfig(req.params.token, config);
 
   const { tmdbApiKey, lang = 'en-US', customStreams } = config;
   const active = providers.activeProviders(config);
@@ -2649,9 +2941,20 @@ async function handleStream(req, res) {
     // ── tt: id + stream addons → owned copy first, then external addons ──
     if (id.startsWith('tt')) {
       markClientIntegrationStage(req, 'identity');
+      // Resolve the personal AIOStreams connector server-side (account vault or
+      // sealed self-host reference). It must never enter the config, token,
+      // response, logs or cache key; only its fingerprint joins the cache key.
+      let aioStreams = null;
+      if (externalAddons.includes('aiostreams')) {
+        try {
+          const aioUrl = await require('./src/aiostreams-store').resolveAioStreamsUrl(config, req.params.token);
+          if (aioUrl) aioStreams = { url: aioUrl, userKeyHash: userKey, fingerprint: require('./src/aiostreams').connectorFingerprint(aioUrl) };
+        } catch { /* connector unavailable: continue without it */ }
+      }
       const { result, cacheHit } = await getPublicStreams({
         config, tmdbApiKey, type, id, lang, customStreams, userKey, externalAddons,
         requestPolicy: req.clientIntegration?.requestPolicy,
+        aioStreams,
       });
       markClientIntegrationStage(req, cacheHit ? 'cache' : 'stream-bridge');
       const responseTtl = streamResponseTtl(result);
@@ -2678,6 +2981,12 @@ async function handleStream(req, res) {
       const responseTtl = streamResponseTtl(cachedStreams);
       setPrivateResponseCache(res, responseTtl, responseTtl, 604800);
       return res.json(withCacheHints(cachedStreams, { cacheMaxAge: responseTtl, staleRevalidate: responseTtl, staleError: 604800 }));
+    }
+
+    // Index-first: seed the owned-episode index from persisted rows before the
+    // stream build, so an owned title never triggers a provider scan here.
+    if (libraryEngine.isIndexed() && tmdbId && !String(tmdbId).startsWith('kitsu-')) {
+      try { await libraryEngine.hydrateOwnedIndex({ userKey, tmdbId }); } catch { /* best effort */ }
     }
 
     const streams = await buildStreams(config, tmdbApiKey, buildType, tmdbId, season, episode, lang, customStreams, userKey, { imdbId: mappingImdbId });

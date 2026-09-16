@@ -11,26 +11,26 @@
   <link rel="manifest" href="/site.webmanifest" />
   <meta name="theme-color" content="#09090b" />
   <title>Configure | LeLibrary</title>
-    <link rel="stylesheet" href="/configure.css?v=80" />
+    <link rel="stylesheet" href="/configure.css?v=82" />
   <link rel="stylesheet" href="/custom-streams.css?v=6" />
   <link rel="stylesheet" href="/client-integrations.css?v=2" />
   <link rel="stylesheet" href="/pictorium-studio.css?v=4" />
   <link rel="stylesheet" href="/toast.css?v=2" />
-  <script src="/formatter.js?v=8"></script>
+  <script src="/formatter.js?v=9"></script>
   <script src="/badge-packs.js?v=5"></script>
   <script src="/token-map.js?v=2"></script>
   <script src="/custom-streams-editor.js?v=6"></script>
   <script src="/poster-template.js?v=2"></script>
   <script src="/pictorium-options.js?v=4"></script>
   <script src="/pictorium-studio.js?v=7"></script>
-  <script src="/client-integrations.js?v=2"></script>
+  <script src="/client-integrations.js?v=3"></script>
   <script src="/toast.js?v=2"></script>
 </head>
 <body>
 
   <header class="topbar">
     <a href="/" class="brand">
-      <img src="/LeLibrary.png?v=2" alt="LeLibrary" onerror="this.style.display='none'" />
+      <img src="/LeLibrary-128.png?v=1" alt="LeLibrary" onerror="this.style.display='none'" />
       <span class="brand-name">LeLibrary</span>
     </a>
     <div class="topbar-right">
@@ -58,10 +58,44 @@
     <button type="button" class="unsaved-btn" onclick="reviewAndSave()">Review &amp; Save</button>
   </div>
 
+  <section id="setupChooser" hidden aria-labelledby="chooserTitle">
+    <div class="chooser-inner">
+      <span class="chooser-eyebrow">SETUP</span>
+      <h1 id="chooserTitle">How do you want to <span>set up?</span></h1>
+      <p>Two ways to the same manifest. Start quick and refine later in the full editor, or open everything up front.</p>
+      <div class="chooser-grid">
+        <button type="button" class="chooser-card chooser-pick" onclick="chooseSetup('instant')">
+          <span class="chooser-rec">Recommended</span>
+          <span class="chooser-ico">⚡</span>
+          <strong>Quick setup</strong>
+          <ul class="chooser-points">
+            <li>Player, providers and TMDB key</li>
+            <li>Your own custom streams</li>
+            <li>Pictorium posters, live preview</li>
+          </ul>
+          <span class="chooser-go">Start →</span>
+        </button>
+        <button type="button" class="chooser-card" onclick="chooseSetup('full')">
+          <span class="chooser-ico">⚙</span>
+          <strong>Full setup</strong>
+          <ul class="chooser-points">
+            <li>Library, discovery and rows</li>
+            <li>Collections and artwork</li>
+            <li>Stream formats and filters</li>
+          </ul>
+          <span class="chooser-go chooser-ghost">Open →</span>
+        </button>
+      </div>
+      <p class="chooser-foot">Already have an install link? Pick <b>Full setup</b>, then Load an existing setup.</p>
+    </div>
+  </section>
+
   <div class="main">
     <!-- LEFT: FORM -->
     <div class="form-area">
             <div id="setupContent">
+<div class="quick-launch-old"><div><strong>Want the fast version?</strong><span>Choose your player, add your keys and get your manifest.</span></div><button class="btn-main btn-gen" type="button" onclick="openInstantSetup()"><span class="ico">⚡</span><span class="txt">Quick Setup</span><span class="arr">›</span></button></div>
+
       <div class="form-header" style="margin-bottom:24px">
         <h1 style="font-size:1.6rem;font-weight:700;color:var(--white);letter-spacing:-0.02em;margin-bottom:6px">Set up your addon</h1>
         <p style="font-size:0.88rem;color:var(--muted);line-height:1.5;max-width:620px">Add your debrid providers and a TMDB key, then install straight into Stremio or Nuvio. Your configuration stays in your install link.</p>
@@ -134,7 +168,7 @@
                   </div>
                   <div class="provider-card platform-card" id="platformNuvio" onclick="selectPlatform('nuvio')">
                     <div class="pc-head">
-                      <img src="/nuvio.png" alt="Nuvio" />
+                      <img src="/nuvio.png?v=2" alt="Nuvio" />
                       <div class="pc-info"><strong>Nuvio</strong><small>Collections, artwork, profiles &amp; focus GIFs</small></div>
                       <span class="pc-check">✓</span>
                     </div>
@@ -186,7 +220,7 @@
                 </div>
                 <div class="provider-card" id="adCard">
                   <div class="pc-head" onclick="toggleProviderCard('alldebrid')">
-                    <img src="/provider-logos/alldebrid.png" alt="AllDebrid" />
+                    <img src="/provider-logos/alldebrid.png?v=2" alt="AllDebrid" />
                     <div class="pc-info"><strong>AllDebrid</strong><small>Torrents</small></div>
                     <span class="pc-check">✓</span>
                   </div>
@@ -278,8 +312,13 @@
                   <div class="field-label">Stream notices</div>
                   <label style="display:flex;align-items:flex-start;gap:8px;font-size:0.85rem;color:var(--text);cursor:pointer">
                     <input type="checkbox" id="streamNotices" onchange="checkChanged()" checked />
-                    <span>Show helpful notices in the stream list, including <strong>No streams found</strong> and <strong>Digital release not found</strong>.</span>
+                    <span>Show helpful notices in the stream list. Choose which ones below.</span>
                   </label>
+                  <div style="margin:8px 0 0 26px;display:flex;flex-direction:column;gap:6px">
+                    <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--text);cursor:pointer"><input type="checkbox" id="noticeNone" onchange="checkChanged()" checked /> <span>No streams found</span></label>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--text);cursor:pointer"><input type="checkbox" id="noticeRateLimit" onchange="checkChanged()" checked /> <span>Provider rate limit</span></label>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--text);cursor:pointer"><input type="checkbox" id="noticeDigital" onchange="checkChanged()" checked /> <span>Digital release not found</span></label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -392,7 +431,7 @@
                 <div class="cg-accordion-body"><div id="curatedPackList" class="curated-pack-list"></div><p class="field-hint" style="margin:12px 0 0">Select a pack to add its folders to Nuvio Collections. Expand a pack to see every folder and its source before selecting it.</p></div>
               </details>
               <div class="cg-accordion cg-accordion--action nuvio-public-collections-section nuvio-only" id="nuvioPublicCollectionsLauncher" role="button" tabindex="0" onclick="openNuvioPublicCollectionsModal()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openNuvioPublicCollectionsModal();}">
-                <div class="cg-accordion-head"><span class="cg-section-icon nuvio-community-icon"><img src="/nuvio.png" alt=""></span><div><strong>Nuvio Public Collections</strong><small>Browse community packs, check requirements and import them into your profile</small></div><span class="cg-accordion-count">Browse</span></div>
+                <div class="cg-accordion-head"><span class="cg-section-icon nuvio-community-icon"><img src="/nuvio.png?v=2" alt=""></span><div><strong>Nuvio Public Collections</strong><small>Browse community packs, check requirements and import them into your profile</small></div><span class="cg-accordion-count">Browse</span></div>
               </div>
               <details class="cg-accordion imported-rows-section" id="importedRowsAccordion">
                 <summary class="cg-accordion-head"><span class="cg-section-icon">⬇️</span><div><strong>Import</strong><small>Import manifests, Nuvio collections, or setup project files</small></div><span class="cg-accordion-count" id="importedRowsTotal"></span></summary>
@@ -482,6 +521,9 @@
                     <p class="field-hint" style="margin:0 0 12px 0">Add streams to every row that uses a public IMDb id: <strong>Trending</strong>, <strong>Popular</strong>, imported or created Home rows, and your library or collections when <strong>Use main metadata</strong> is enabled. None are enabled by default. The default isolated TorBox library stays owned-only.</p>
                     <div class="cat-options" id="streamAddonList"></div>
                   </div>
+                  <div class="field" style="margin-bottom:2px">
+                    <div id="aioStreamsMount"></div>
+                  </div>
 
                 </div>
               </div>
@@ -560,6 +602,15 @@
                       </div>
                       <p class="field-hint">Adds IMDb, Rotten Tomatoes & Metacritic scores to detail pages. Get a free key at <a href="https://www.omdbapi.com/apikey.aspx" target="_blank">omdbapi.com</a>: 1,000 req/day.</p>
                     </div>
+                    <div class="field" style="margin-top:10px">
+                      <div class="field-label"><img src="/tvdb.png" alt="TVDB" style="height:16px;vertical-align:middle;margin-right:6px;border-radius:3px" />TheTVDB API Key <span style="font-weight:400;color:var(--border2)">(optional)</span> <a href="https://thetvdb.com/api-information" target="_blank">Get key →</a></div>
+                      <div class="input-row">
+                        <input type="password" id="tvdbApiKey" placeholder="Optional — leave blank to use TMDB only" autocomplete="off" />
+                        <button class="btn-icon" type="button" onclick="toggleVis('tvdbApiKey',this)" aria-label="Show/hide">👁</button>
+                        <button class="btn-verify" type="button" onclick="verifyKey('tvdb')" id="verifyTvdb" title="Verify key">✓</button>
+                      </div>
+                      <p class="field-hint">Not required. Adds extra series matching and episode metadata, fetched in the background. Create a free key at <a href="https://thetvdb.com/api-information" target="_blank">thetvdb.com</a>.</p>
+                    </div>
                   </div>
                   <div class="mobile-poster-preview" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);text-align:center">
                     <div class="field-label" style="margin-bottom:8px;justify-content:center">Poster Preview</div>
@@ -568,7 +619,7 @@
                 </div>
               </div>
 
-              <div class="coll-card">
+              <div class="coll-card" id="customStreamsCard">
                 <div class="coll-header" onclick="toggleCollCard(this)">
                   <div class="coll-header-left"><span class="coll-icon">🔗</span><span class="coll-label">Custom Streams</span><span class="coll-sub">Map your own media URLs</span></div>
                   <span class="coll-arrow">▸</span>
@@ -612,7 +663,7 @@
                 <div class="field-label">Push to</div>
                 <div class="platform-toggle" id="installPlatformTabs">
                   <button type="button" class="ptab" data-plat="stremio" onclick="selectPlatform('stremio')"><img src="/stremio.svg" alt="" onerror="this.style.display='none'" /> Stremio</button>
-                  <button type="button" class="ptab" data-plat="nuvio" onclick="selectPlatform('nuvio')"><img src="/nuvio.png" alt="" /> Nuvio</button>
+                  <button type="button" class="ptab" data-plat="nuvio" onclick="selectPlatform('nuvio')"><img src="/nuvio.png?v=2" alt="" /> Nuvio</button>
                 </div>
               </div>
               <div id="installPush"></div>
@@ -764,7 +815,7 @@
           <div class="txt"><span>Push to Stremio</span></div><span class="arr">›</span>
         </button>
         <button id="modalReinstallNuvio" type="button" class="btn-main btn-nuvio show" style="cursor:pointer;font-family:var(--font);justify-content:center" onclick="closeReinstallModal();pushAddonTo('nuvio')">
-          <div class="ico"><img src="/nuvio.png" alt="Nuvio" style="width:20px;height:20px" /></div>
+          <div class="ico"><img src="/nuvio.png?v=2" alt="Nuvio" style="width:20px;height:20px" /></div>
           <div class="txt"><span>Push to Nuvio</span></div><span class="arr">›</span>
         </button>
         <button class="btn-main" onclick="closeReinstallModal()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);justify-content:center;cursor:pointer;font-family:var(--font);font-size:0.85rem;padding:10px 20px;border-radius:8px">Close</button>
@@ -822,8 +873,14 @@
     </div>
   </div>
 
-    <script src="/configure.js?v=114"></script>
+    <script src="/aiostreams-ui.js?v=5"></script>
+    <script src="/configure.js?v=122"></script>
   <script src="/configure-state.js?v=1"></script>
   <script src="/configure-ui.js?v=1"></script>
-</body>
+<section id="instantSetup" class="instant-setup" hidden aria-labelledby="instantTitle">
+<div class="instant-top"><a href="/configure" class="instant-brand">LeLibrary / Quick Setup</a><button type="button" id="instantCustom">Open full editor ↗</button></div>
+<header class="instant-heading"><span class="instant-eyebrow">LESS SETUP. MORE WATCHING.</span><h1 id="instantTitle">Your library.<br><em>Ready in a few fields.</em></h1><p>Connect your services. We’ll take care of the look.</p></header>
+<div class="instant-grid"><fieldset id="instantFields" class="instant-connect"><legend class="sr-only">Quick setup connections</legend><div class="instant-section-head"><span>01</span><div><h2>Where you watch</h2><p>Choose your player. No player login needed to get a manifest.</p></div></div><div id="instantPlayer"></div><div class="instant-section-head"><span>02</span><div><h2>Your library keys</h2><p>Choose the services that hold your downloads.</p></div></div><div id="instantProviders" class="provider-grid"></div><div class="instant-section-head"><span>03</span><div><h2>Bring the details</h2><p>A TMDB v3 key powers matching and metadata.</p></div></div><div id="instantMetadata"></div><div class="instant-section-head"><span>04</span><div><h2>Your own streams</h2><p>Optional. Map your own direct media URLs to exact titles and episodes.</p></div></div><div id="instantStreams"></div></fieldset>
+<aside class="instant-package"><span class="instant-eyebrow">THE FINISHING TOUCH</span><div class="instant-poster-art" id="instantPictoriumPreview"><div class="instant-poster-empty"><span>PICTORIUM PREVIEW</span><strong>Add your TMDB key</strong><small>Your live poster examples will appear here.</small></div></div><h2>A better-looking library.</h2><p>Pictorium posters, your movies and your shows. A simple starting point you can keep customising.</p><div class="instant-preview-meta"><p class="instant-caption" id="instantPosterState">Add your TMDB key to load real Pictorium examples.</p></div><label class="instant-poster-choice"><input id="instantPictorium" type="checkbox" checked> Use Pictorium posters</label><p id="instantPreserve" class="instant-caption">Uncheck for standard TMDB artwork. Your other settings stay as they are.</p><button type="button" id="instantGenerate" class="instant-primary">Create my manifest ↗</button><p id="instantFeedback" role="status" aria-live="polite"></p><p class="instant-private">Your manifest link is private. Only paste it into a player you trust.</p></aside></div>
+<section id="instantResult" class="instant-result" hidden aria-labelledby="instantReady" tabindex="-1"><span class="instant-eyebrow">YOU’RE READY</span><h2 id="instantReady">Meet your new library.</h2><p>Copy your manifest into Stremio or Nuvio’s addon installer.</p><label for="instantManifest">Your manifest.json URL</label><div class="instant-url"><input id="instantManifest" readonly spellcheck="false" aria-label="Private manifest URL"><button type="button" id="instantCopy">Copy link</button></div><div class="instant-result-actions"><a id="instantOpen" class="instant-primary">Open in player ↗</a><button type="button" id="instantEdit">Edit connections</button></div><p class="instant-private">Keep this link private. You can refine posters, streams and rows in the full editor.</p></section></section><link rel="stylesheet" href="/instant-setup.css?v=52-11"><script src="/instant-setup.js?v=52-10"></script></body>
 </html>

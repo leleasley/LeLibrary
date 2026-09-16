@@ -277,12 +277,20 @@ function createWebRoutes(resolveConfig, options = {}) {
   // Curated Nuvio packs are consumed by the public Configure page, so this
   // route must live in the shared website router. Routes declared later in
   // app.js are unreachable after this router's 404 fallback runs.
+  // Both reference payloads are static for the process lifetime: build and
+  // validate them once, then serve the cached JSON string so a cold process
+  // does not re-run asset validation on every request.
+  let curatedPayload = null;
   router.get('/api/curated-collections', (req, res) => {
     try {
-      const curated = require('../src/curated-collections');
-      const validation = curated.validateCuratedCollections();
-      if (!validation.ok) return res.status(500).json({ error: 'Invalid curated collections', details: validation.errors });
-      res.json({ collections: curated.listCuratedCollections(), ...validation });
+      if (!curatedPayload) {
+        const curated = require('../src/curated-collections');
+        const validation = curated.validateCuratedCollections();
+        if (!validation.ok) return res.status(500).json({ error: 'Invalid curated collections', details: validation.errors });
+        curatedPayload = JSON.stringify({ collections: curated.listCuratedCollections(), ...validation });
+      }
+      res.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+      res.type('application/json').send(curatedPayload);
     } catch (err) {
       res.status(500).json({ error: 'Could not load curated collections' });
     }
@@ -290,12 +298,17 @@ function createWebRoutes(resolveConfig, options = {}) {
 
   // Catalogue library metadata is also consumed by the public Configure page.
   // Keep it in this router so it runs before the website 404 fallback.
+  let catalogLibraryPayload = null;
   router.get('/api/catalog-library', (req, res) => {
     try {
-      const { listSources, validateSourceDefinitions } = require('../src/catalog-source-registry');
-      const validation = validateSourceDefinitions();
-      if (!validation.ok) return res.status(500).json({ error: 'Invalid catalogue source registry', details: validation.errors });
-      res.json({ catalogs: listSources(), total: validation.total });
+      if (!catalogLibraryPayload) {
+        const { listSources, validateSourceDefinitions } = require('../src/catalog-source-registry');
+        const validation = validateSourceDefinitions();
+        if (!validation.ok) return res.status(500).json({ error: 'Invalid catalogue source registry', details: validation.errors });
+        catalogLibraryPayload = JSON.stringify({ catalogs: listSources(), total: validation.total });
+      }
+      res.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+      res.type('application/json').send(catalogLibraryPayload);
     } catch (err) {
       res.status(500).json({ error: 'Could not load catalogue library' });
     }
@@ -620,6 +633,50 @@ function createWebRoutes(resolveConfig, options = {}) {
         if (!selfhostAuthorized(req)) return res.status(401).json({ error: 'Invalid selfhost secret' });
         await selfhostConfigs().remove(req.params.id);
         res.json({ ok: true });
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // ── Personal AIOStreams connector (self-host) ──────────────────────────
+    // The configured URL is verified, then sealed with SELFHOST_CONFIGS_SECRET
+    // and addressed by a non-secret reference. The browser receives only safe
+    // display metadata, never the URL again.
+    router.post('/api/aiostreams', rateLimit({ windowMs: 60000, max: 20 }), async (req, res) => {
+      try {
+        if (!selfhostAuthorized(req)) return res.status(401).json({ error: 'Invalid selfhost secret' });
+        const store = require('../src/aiostreams-store');
+        if (!store.selfHostEnabled()) return res.status(409).json({ error: 'Set SELFHOST_CONFIGS_SECRET in .env to enable My AIOStreams' });
+        const url = req.body && typeof req.body.url === 'string' ? req.body.url.trim() : '';
+        if (!url) return res.status(400).json({ error: 'Missing URL' });
+        const verified = await require('../src/aiostreams').verifyManifest(url);
+        if (!verified.ok) return res.status(400).json({ ok: false, error: verified.error || 'could_not_connect' });
+        const ref = store.newRef();
+        await store.setSelfHost(ref, url);
+        res.json({ ok: true, ref, name: verified.name, version: verified.version, logo: verified.logo, fingerprint: verified.fingerprint });
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    router.delete('/api/aiostreams/:ref', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) => {
+      try {
+        if (!selfhostAuthorized(req)) return res.status(401).json({ error: 'Invalid selfhost secret' });
+        await require('../src/aiostreams-store').removeSelfHost(req.params.ref);
+        res.json({ ok: true });
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // Re-verify a saved self-host connector ("Test again"). Never returns the URL.
+    router.get('/api/aiostreams/:ref', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) => {
+      try {
+        if (!selfhostAuthorized(req)) return res.status(401).json({ error: 'Invalid selfhost secret' });
+        const url = await require('../src/aiostreams-store').getSelfHost(req.params.ref);
+        if (!url) return res.json({ connected: false });
+        const verified = await require('../src/aiostreams').verifyManifest(url);
+        res.json({ connected: true, ok: verified.ok, name: verified.name || null, version: verified.version || null, logo: verified.logo || null, fingerprint: verified.fingerprint || null });
       } catch (err) {
         res.status(500).json({ error: err.message });
       }
@@ -1083,6 +1140,22 @@ function createWebRoutes(resolveConfig, options = {}) {
     } catch { res.json({ valid: false, error: 'Verification failed' }); }
   });
 
+  // TheTVDB v4 key verify: exchange the key for a session token. TVDB is used
+  // only by the background identity worker (better series matching + episode
+  // data), never on a Nuvio request path.
+  router.post('/api/verify/tvdb', async (req, res) => {
+    const key = req.body && typeof req.body.key === 'string' ? req.body.key.trim() : '';
+    if (!key) return res.json({ valid: false, error: 'Missing TVDB API key' });
+    try {
+      const { tvdbVerifyKey } = require('../src/library/identity/providers');
+      const ok = await tvdbVerifyKey(key);
+      res.json(ok ? { valid: true } : { valid: false, error: 'Invalid TVDB API key' });
+    } catch (err) {
+      const status = err && err.status;
+      res.json({ valid: false, error: status === 401 || status === 403 ? 'Invalid TVDB API key' : 'Could not reach TheTVDB: try again' });
+    }
+  });
+
   // BetterPosters (btttr.cc) has no API key: this just confirms the service is
   // reachable so the configure page can surface it as available.
   router.post('/api/verify/betterposter', async (req, res) => {
@@ -1131,7 +1204,7 @@ function createWebRoutes(resolveConfig, options = {}) {
   // defined in app.js after this router fall through (preview, catalogs).
   router.use((req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
-    if (/^\/[^\/]+\/(?:i\/[a-z0-9-]+\/)?(preview|manifest|catalog|meta|stream|collections|custom-streams|pictorium)\b/.test(req.path)) return next();
+    if (/^\/[^\/]+\/(?:i\/[a-z0-9-]+\/)?(preview|manifest|catalog|meta|stream|collections|custom-streams|pictorium|erdb|library)\b/.test(req.path)) return next();
     serveErrorPage(res, req, 404, 'Page Not Found', ERROR_DESCRIPTIONS[404]);
   });
 

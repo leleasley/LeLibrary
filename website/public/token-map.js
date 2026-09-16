@@ -31,6 +31,9 @@
     rk:  'rpdbKey',
     fk:  'fanartKey',
     ok:  'omdbKey',
+    tvdb: 'tvdbApiKey',
+    snt: 'streamNoticeTypes',
+    asr: 'aiostreamsRef',
     eb:  'enhanceBackground',
     el:  'enhanceLogo',
     ha:  'hideAnime',
@@ -75,7 +78,7 @@
   // Small arrays are packed into comma-separated strings to drop the JSON
   // array brackets/quoting (streamAddons ids, resolution labels and catalogue
   // keys never contain commas).
-  var ARRAY_CSV = { streamAddons: true, filterResolutions: true, catalogOrder: true, libraryCatalogs: true, libHomeHidden: true, nuvioCollectionPacks: true };
+  var ARRAY_CSV = { streamAddons: true, streamNoticeTypes: true, filterResolutions: true, catalogOrder: true, libraryCatalogs: true, libHomeHidden: true, nuvioCollectionPacks: true };
 
   function base64UrlEncode(str) {
     var b64;

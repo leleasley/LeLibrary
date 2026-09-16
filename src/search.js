@@ -1,8 +1,8 @@
 const cache = require('./cache');
-const { searchCandidates, searchPersonCredits, discoverByGenre, findByImdbId, getImdbId, titleScore } = require('./tmdb');
+const { searchCandidates, searchPersonCredits, discoverByGenre, findByImdbId, getImdbId, getImdbIds, titleScore } = require('./tmdb');
 
 const LIMIT = 20;
-const CACHE_TTL = 300;
+const CACHE_TTL = 1800;
 
 function normalize(value) {
   return String(value || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
@@ -126,12 +126,12 @@ function cleanRows(rows) {
 }
 
 async function resolveRows(apiKey, items, type, apiType, lang, q, scored) {
-  const enriched = await pLimit(items.map(item => async () => {
-    const imdbId = await getImdbId(apiKey, apiType, item.id);
-    return { item, imdbId };
-  }), 6);
+  // One batched IMDb lookup for the whole result page instead of a per-title
+  // Redis GET and possible TMDB external_ids call.
+  const imdbIds = await getImdbIds(apiKey, apiType, items.map((item) => item.id));
   const rows = [];
-  for (const { item, imdbId } of enriched) {
+  for (const item of items) {
+    const imdbId = imdbIds.get(item.id);
     if (!imdbId || !/^tt\d+$/.test(imdbId)) continue;
     const row = buildRow(item, type);
     row.id = imdbId;
@@ -148,14 +148,31 @@ async function enhanceSearchRows(rows, enhance = {}) {
   // Lazy-load the enhancement module: its library-cache housekeeping interval
   // is unnecessary for plain search/unit-test calls.
   const { enhanceMeta } = require('./builder');
-  return Promise.all(rows.map(async (row) => {
+  // Bounded so a 20-row search cannot fire 20 parallel OMDb/Fanart lookups.
+  return pLimit(rows.map((row) => async () => {
     const enhanced = { ...row, imdbId: row.imdbId || row.id };
     await enhanceMeta(enhanced, enhance);
     return enhanced;
-  }));
+  }), 8);
 }
 
-async function searchCatalog({ apiKey, query, type, lang = 'en-US', limit = LIMIT, enhance = {}, enhanceFingerprint = '' }) {
+// Interactive search is requested several times concurrently by Stremio/Nuvio
+// while the user types and while the results screen retries. Coalesce identical
+// in-flight searches so a slow TMDB moment triggers ONE upstream attempt shared
+// by every duplicate, instead of a retry storm that all fail together.
+const inFlightSearches = new Map();
+
+async function searchCatalog(opts) {
+  const raw = String((opts && opts.query) || '').trim().toLowerCase().slice(0, 120);
+  const key = `${(opts && opts.type) || ''}:${(opts && opts.lang) || ''}:${(opts && opts.limit) || ''}:${(opts && opts.enhanceFingerprint) || ''}:${raw}`;
+  const existing = inFlightSearches.get(key);
+  if (existing) return existing;
+  const pending = searchCatalogInner(opts).finally(() => inFlightSearches.delete(key));
+  inFlightSearches.set(key, pending);
+  return pending;
+}
+
+async function searchCatalogInner({ apiKey, query, type, lang = 'en-US', limit = LIMIT, enhance = {}, enhanceFingerprint = '' }) {
   const raw = String(query || '').trim().slice(0, 120);
   if (raw.length < 2 || !apiKey) return [];
   const apiType = type === 'series' ? 'tv' : 'movie';

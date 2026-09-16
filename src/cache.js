@@ -9,8 +9,21 @@ let isConnected = false;
 // references: callers mutate returned objects (metas especially), and with
 // shared refs one request's edits leaked into every later reader until the
 // entry expired.
-const MEM_CACHE_MAX_KEYS = Math.max(100, parseInt(process.env.MEM_CACHE_MAX_KEYS, 10) || 3000);
+const MEM_CACHE_MAX_KEYS = Math.max(100, parseInt(process.env.MEM_CACHE_MAX_KEYS, 10) || 10000);
 const memCache = new NodeCache({ stdTTL: 3600, checkperiod: 600, useClones: true });
+// Cap how long a Redis-read value may live in the in-memory mirror. Most hot
+// reads are written here with their own TTL by set(); this only bounds values
+// first seen via a Redis read, so a long-lived key still re-syncs hourly.
+const MIRROR_TTL_CAP = Math.max(60, parseInt(process.env.MEM_CACHE_MIRROR_MAX, 10) || 3600);
+
+// Mirror TTL for a value fetched from Redis, from its remaining PTTL. -1 (no
+// expiry) and -2 (missing) fall back to the cap. This keeps the in-process
+// cache primary (AIOStreams-style) without ever holding a value past its own
+// Redis lifetime.
+function mirrorTtl(pttlMs) {
+  if (!Number.isFinite(pttlMs) || pttlMs < 0) return MIRROR_TTL_CAP;
+  return Math.max(1, Math.min(Math.ceil(pttlMs / 1000), MIRROR_TTL_CAP));
+}
 // NodeCache has no eviction policy: its optional maxKeys limit throws instead
 // of evicting. Keep a small LRU-style index ourselves so the hot in-process
 // mirror cannot steadily consume process memory. Redis remains authoritative;
@@ -110,13 +123,12 @@ async function get(key) {
     return null;
   }
   try {
-    const data = await client.get(key);
-    if (data === null) return null;
+    const [[, data], [, pttl]] = await client.multi().get(key).pttl(key).exec();
+    if (data === null || data === undefined) return null;
     const value = JSON.parse(data);
-    // Redis does not expose the remaining TTL with GET. A short mirror keeps
-    // hot request paths local without allowing a worker to hold stale state
-    // for the full authoritative lifetime.
-    setMemCache(key, value, 60);
+    // Mirror for the value's real remaining lifetime so the next read is
+    // local; Redis is only consulted again once the mirror entry expires.
+    setMemCache(key, value, mirrorTtl(pttl));
     return value;
   } catch (err) {
     console.error(`[Cache] Error fetching ${key}:`, err.message);
@@ -141,14 +153,22 @@ async function mget(keys) {
   const client = getRedisClient();
   if (!client) return found;
   try {
-    const rows = await client.mget(...missing);
-    rows.forEach((data, index) => {
-      if (data === null) return;
+    // One pipeline: the values plus each key's remaining TTL, so mirror
+    // entries can live for their real lifetime instead of a fixed short TTL.
+    const pipe = client.pipeline();
+    pipe.mget(...missing);
+    for (const key of missing) pipe.pttl(key);
+    const results = await pipe.exec();
+    const rows = (results && results[0] && results[0][1]) || [];
+    for (let index = 0; index < missing.length; index++) {
+      const data = rows[index];
+      if (data === null || data === undefined) continue;
       const key = missing[index];
       const value = JSON.parse(data);
       found.set(key, value);
-      setMemCache(key, value, 60);
-    });
+      const pttl = results[index + 1] && results[index + 1][1];
+      setMemCache(key, value, mirrorTtl(pttl));
+    }
   } catch (err) {
     console.error(`[Cache] Error fetching ${missing.length} keys:`, err.message);
   }
@@ -169,6 +189,31 @@ async function set(key, value, ttl = 3600) {
     console.error(`[Cache] Error storing ${key}:`, err.message);
     setMemCache(key, value, ttl);
     return false;
+  }
+}
+
+// Batched variant of set(): one PIPELINE for many independent writes. The
+// per-item match cache uses this so a cold library rebuild does not emit one
+// Redis round trip per title. Entries without a positive TTL are skipped
+// (SETEX requires one); memory is mirrored first so readers stay correct even
+// if the pipeline fails.
+async function mset(entries) {
+  const clean = (Array.isArray(entries) ? entries : []).filter((entry) => (
+    entry && typeof entry.key === 'string' && entry.key
+    && Object.hasOwn(entry, 'value') && Number(entry.ttl) > 0
+  ));
+  if (!clean.length) return 0;
+  for (const entry of clean) setMemCache(entry.key, entry.value, entry.ttl);
+  const client = getRedisClient();
+  if (!client) return clean.length;
+  try {
+    const pipe = client.pipeline();
+    for (const entry of clean) pipe.setex(entry.key, entry.ttl, JSON.stringify(entry.value));
+    await pipe.exec();
+    return clean.length;
+  } catch (err) {
+    console.error(`[Cache] Error storing ${clean.length} keys:`, err.message);
+    return 0;
   }
 }
 
@@ -304,6 +349,7 @@ module.exports = {
   get,
   mget,
   set,
+  mset,
   setMem,
   del,
   delPattern,

@@ -18,6 +18,8 @@
 
 const axios = require('axios');
 const NodeCache = require('node-cache');
+const crypto = require('crypto');
+const cache = require('./cache');
 const { searchMetadata, titleScore, getImdbId } = require('./tmdb');
 const { guessMediaInfo } = require('./parser');
 const { isJunkVideo } = require('./torbox');
@@ -32,6 +34,17 @@ const collMetaCache = new Map();
 const movieSagaCache = new Map();
 
 const MIN_OWNED = 2; // only show collections with ≥2 owned movies
+// Per-user meta/saga maps are bounded: a server with many accounts should not
+// accumulate every account's built collections forever. Eviction only forces a
+// rebuild when that account is next seen.
+const COLL_META_MAX_KEYS = Math.max(100, parseInt(process.env.COLL_META_MAX, 10) || 2000);
+function capMapSize(map) {
+  while (map.size > COLL_META_MAX_KEYS) {
+    const oldest = map.keys().next().value;
+    if (oldest === undefined) break;
+    map.delete(oldest);
+  }
+}
 
 async function pLimit(tasks, limit) {
   const results = [];
@@ -52,6 +65,11 @@ async function getMovieDetail(apiKey, tmdbId, lang) {
   const ck = `coll:${tmdbId}:${lang}`;
   const hit = detailCache.get(ck);
   if (hit !== undefined) return hit;
+  const redisKey = cache.makeKey('mdetail', 'v1', tmdbId, lang);
+  try {
+    const persisted = await cache.get(redisKey);
+    if (persisted) { detailCache.set(ck, persisted); return persisted; }
+  } catch { /* fall through to API */ }
   try {
     const [detailRes, creditsRes] = await Promise.allSettled([
       axios.get(`https://api.themoviedb.org/3/movie/${tmdbId}`, {
@@ -82,6 +100,7 @@ async function getMovieDetail(apiKey, tmdbId, lang) {
       cast,
     };
     detailCache.set(ck, out);
+    cache.set(redisKey, out, 7 * 24 * 60 * 60).catch(() => {});
     return out;
   } catch {
     detailCache.set(ck, null);
@@ -95,6 +114,11 @@ async function getCollectionDetails(apiKey, collectionId, lang) {
   const ck = `collparts:${collectionId}:${lang}`;
   const hit = detailCache.get(ck);
   if (hit !== undefined) return hit;
+  const redisKey = cache.makeKey('collparts', 'v1', collectionId, lang);
+  try {
+    const persisted = await cache.get(redisKey);
+    if (persisted) { detailCache.set(ck, persisted); return persisted; }
+  } catch { /* fall through to API */ }
   try {
     const res = await axios.get(`https://api.themoviedb.org/3/collection/${collectionId}`, {
       params: { api_key: apiKey, language: lang },
@@ -114,6 +138,7 @@ async function getCollectionDetails(apiKey, collectionId, lang) {
       })),
     };
     detailCache.set(ck, out);
+    cache.set(redisKey, out, 7 * 24 * 60 * 60).catch(() => {});
     return out;
   } catch {
     detailCache.set(ck, null);
@@ -181,6 +206,19 @@ function enhancedPosterUrl(tmdbId, imdbId, enhance) {
   return null;
 }
 
+const collectionsBuildInFlight = new Map();
+
+// Coalesce identical concurrent builds. The signature hashes poster settings
+// too because built metas embed per-user poster URLs (ERDB/RPDB tokens), so
+// two different users must never share a build.
+function collectionsBuildSignature(movies, lang, enhance) {
+  const h = crypto.createHash('sha1');
+  for (const m of movies) h.update(`${String(m.title || '').toLowerCase()}|${m.year || ''}\n`);
+  h.update(lang || '');
+  h.update(JSON.stringify(enhance || {}));
+  return h.digest('hex');
+}
+
 // Build collection metas for a user's downloads. Returns [{ id, type, name,
 // poster, background, description, videos }].
 async function buildCollectionsCatalog(downloads, tmdbApiKey, lang = 'en-US', enhance = {}) {
@@ -197,6 +235,17 @@ async function buildCollectionsCatalog(downloads, tmdbApiKey, lang = 'en-US', en
     seen.add(key);
     movies.push({ title: info.title, year: info.year });
   }
+
+  const signature = collectionsBuildSignature(movies, lang, enhance);
+  const running = collectionsBuildInFlight.get(signature);
+  if (running) return running;
+  const work = buildCollectionsInner(movies, tmdbApiKey, lang, enhance)
+    .finally(() => collectionsBuildInFlight.delete(signature));
+  collectionsBuildInFlight.set(signature, work);
+  return work;
+}
+
+async function buildCollectionsInner(movies, tmdbApiKey, lang = 'en-US', enhance = {}) {
 
   // 2. Match each unique title to TMDB (robust to a wrong/stale filename year)
   const searchResults = await pLimit(movies.map(m => async () => {
@@ -243,9 +292,11 @@ async function buildCollectionsCatalog(downloads, tmdbApiKey, lang = 'en-US', en
   // 5. Build metas (only collections with ≥2 owned movies). The collection
   // endpoint supplies the official name/overview/artwork and the franchise's
   // full film count, so the row shows how many films are owned vs total.
-  const metas = [];
-  for (const c of byCol.values()) {
-    if (c.movies.size < MIN_OWNED) continue;
+  // Build eligible franchises in parallel: each franchise needs one collection
+  // endpoint call plus its owned films' IMDb ids. Collection data is global and
+  // now Redis-cached, so this is mostly cache lookups after warm-up.
+  const eligible = [...byCol.values()].filter(c => c.movies.size >= MIN_OWNED);
+  const built = await pLimit(eligible.map(c => async () => {
     const coll = await getCollectionDetails(tmdbApiKey, c.id, lang);
     const name = (coll && coll.name) || c.name;
     const totalParts = coll ? coll.parts.length : c.movies.size;
@@ -275,7 +326,7 @@ async function buildCollectionsCatalog(downloads, tmdbApiKey, lang = 'en-US', en
       }
     }
     const cast = [...castMap.values()].slice(0, 20);
-    metas.push({
+    return {
       id: `torbox:collection:${key}`,
       type: 'series',
       name,
@@ -311,8 +362,9 @@ async function buildCollectionsCatalog(downloads, tmdbApiKey, lang = 'en-US', en
             || (m.result.poster_path ? `https://image.tmdb.org/t/p/w300${m.result.poster_path}` : undefined),
         };
       }),
-    });
-  }
+    };
+  }), 6);
+  const metas = built.filter(m => m && !m.error);
 
   metas.sort((a, b) => a.name.localeCompare(b.name));
   return metas;
@@ -336,6 +388,8 @@ function cacheCollections(userKey, lang, metas) {
   }
   collMetaCache.set(`${userKey}:${lang}`, map);
   movieSagaCache.set(`${userKey}:${lang}`, sagaIndex);
+  capMapSize(collMetaCache);
+  capMapSize(movieSagaCache);
 }
 
 // The saga a movie belongs to, for the current user's built collections. Used

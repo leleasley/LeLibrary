@@ -13,7 +13,7 @@ const axios = require('axios');
 const cache = require('./cache');
 const providers = require('./providers');
 const { getMetadata, getTrending, getPopular, imdbToTmdbCached } = require('./tmdb');
-const { buildStreams, reformatExternalStream, enhanceMeta, buildErdbUrl, buildRpdbUrl, buildBetterPosterUrl, getFanartArt, applyStreamNotices } = require('./builder');
+const { buildStreams, reformatExternalStream, enhanceMeta, buildErdbUrl, erdbProxyUrl, buildRpdbUrl, buildBetterPosterUrl, buildPictoriumPosterUrl, getFanartArt, applyStreamNotices } = require('./builder');
 const { fetchExternalStreams, compareExternalProviderPriority } = require('./streamAddons');
 const { normalizeImdbId } = require('./identity');
 const { matchCustomStreams } = require('./custom-streams');
@@ -26,26 +26,42 @@ const TTL_STREAM  = parseInt(process.env.CACHE_TTL_STREAM)  || 600;
 // then cached 24h. 3 pages ≈ 60 titles per row.
 const DISCOVERY_PAGES = 3;
 
+// Hard cap on streams returned for a discovery (tt:) title. External addons can
+// return 800+ near-identical results (measured 901 streams / 1.09 MB for one
+// movie), which is slow for TV clients to download and render. Owned copies are
+// always kept; the cap only trims the external tail.
+const MAX_DISCOVERY_STREAMS = Math.max(50, parseInt(process.env.MAX_DISCOVERY_STREAMS, 10) || 300);
+
 function hashShort(s) {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
   return (h >>> 0).toString(36);
 }
 
-// Apply the user's configured poster providers (erdb/rpdb/betterposter/fanart)
-// to a discovery catalog row set. Rows carry plain tt: ids (= IMDb id), which
-// is all erdb/rpdb/betterposter need; fanart is TMDB-keyed and uses the row's
-// tmdbId. Mirrors enhanceMeta's precedence: erdb > rpdb > betterposter > fanart.
+// Apply the user's configured poster providers to a discovery catalog row set.
+// Rows carry plain tt: ids (= IMDb id) plus tmdbId. Precedence MUST mirror
+// enhanceMeta: custom > pictorium > erdb > rpdb > betterposter > fanart. The old
+// order had no pictorium branch and always preferred ERDB whenever an erdbToken
+// was saved, so a Pictorium user's Trending/Popular rows were rendered by ERDB
+// instead (measured 6-14s per poster).
 async function enhanceDiscoveryMetas(metas, enhance = {}) {
   if (!Array.isArray(metas) || metas.length === 0) return metas;
   const { erdbToken, rpdbKey, fanartKey, posterProvider, customPosterTemplate } = enhance;
-  if (!erdbToken && !rpdbKey && fanartKey === undefined && !['betterposter', 'custom'].includes(posterProvider)) return metas;
+  const pictoriumOn = !!(enhance.pictorium && enhance.pictorium.enabled);
+  if (!pictoriumOn && !erdbToken && !rpdbKey && fanartKey === undefined && !['betterposter', 'custom'].includes(posterProvider)) return metas;
   return Promise.all(metas.map(async (m) => {
     if (!m || typeof m !== 'object') return m;
     const imdbId = normalizeImdbId(m.id);
     const type = m.type === 'movie' ? 'movie' : 'tv';
     if (posterProvider === 'custom') return require('../website/public/poster-template').apply({ ...m, imdbId }, customPosterTemplate);
-    if (erdbToken && imdbId) return { ...m, poster: buildErdbUrl(erdbToken, 'poster', imdbId) };
+    if (pictoriumOn && (m.tmdbId || imdbId)) {
+      const url = buildPictoriumPosterUrl(enhance, {
+        type: m.type, id: m.tmdbId || imdbId, title: m.name,
+        releaseDate: m.released, imdbId, fallback: m.poster,
+      });
+      if (url) return { ...m, poster: url, posterShape: 'poster' };
+    }
+    if (erdbToken && imdbId) return { ...m, poster: erdbProxyUrl(enhance, 'poster', imdbId, m.poster) || m.poster };
     if (rpdbKey && imdbId) return { ...m, poster: buildRpdbUrl(rpdbKey, 'imdb', 'poster-default', imdbId) };
     if (posterProvider === 'betterposter' && imdbId) return { ...m, poster: buildBetterPosterUrl(imdbId, m.type), posterShape: 'poster' };
     if (fanartKey && m.tmdbId) {
@@ -61,7 +77,9 @@ async function enhanceDiscoveryMetas(metas, enhance = {}) {
 // are pure TMDB data, identical for every user with the same poster config, so
 // the cache is deliberately shared across users (no userKey in the key).
 async function buildDiscoveryCatalog({ tmdbApiKey, kind, apiType, lang, userKey, skip = 0, search = '', enhance = {}, posterFp = '' }) {
-  const discCacheKey = cache.makeKey('cat', 'discovery', kind, apiType, lang, posterFp);
+  // v2: poster precedence fixed (pictorium before erdb); old entries under the
+  // previous key are ignored rather than served.
+  const discCacheKey = cache.makeKey('cat', 'discovery2', kind, apiType, lang, posterFp);
   let metas = await cache.get(discCacheKey);
   if (!Array.isArray(metas)) {
     metas = kind === 'trending'
@@ -287,7 +305,7 @@ function discoveryStreamKeyParts(config = {}) {
   const sortKey = (config && config.streamSort) || 'owned-size';
   // Stream notices toggle joins the fingerprint so flipping it invalidates
   // cached streams instead of serving stale notice rows.
-  const fmtFp = ':' + hashShort(['notice-v3', config.streamPreset || '', config.streamNameTemplate || '', config.streamDescTemplate || '', config.streamNotices || '', JSON.stringify(filters), sortKey].join('|'));
+  const fmtFp = ':' + hashShort(['notice-v4', config.streamPreset || '', config.streamNameTemplate || '', config.streamDescTemplate || '', config.streamNotices || '', JSON.stringify(config.streamNoticeTypes || ''), JSON.stringify(filters), sortKey, String(MAX_DISCOVERY_STREAMS)].join('|'));
   return { filters, sortKey, fmtFp };
 }
 
@@ -333,7 +351,7 @@ async function buildDiscoveryStreams({ config, tmdbApiKey, type, id, lang, custo
   // independent after IMDb→TMDB resolution, so serialising them only adds cold
   // request latency.
   const externalPromise = externalAddons.length > 0
-    ? fetchExternal(externalAddons, config, type, id, requestPolicy?.externalMs)
+    ? fetchExternal(externalAddons, config, type, id, requestPolicy?.externalMs, { aioStreams: runtime.aioStreams })
     : Promise.resolve([]);
   const [ownedStreams, allExternal] = await Promise.all([ownedPromise, externalPromise]);
 
@@ -363,6 +381,17 @@ async function buildDiscoveryStreams({ config, tmdbApiKey, type, id, lang, custo
 
   let streams = dedupeStreamsV2([...ownedTagged, ...externalFmt]);
   if (sortKey) streams = applyStreamSort(streams, sortKey);
+  // Trim the external tail to keep the payload small. Owned copies survive.
+  if (streams.length > MAX_DISCOVERY_STREAMS) {
+    const before = streams.length;
+    const kept = [];
+    for (const s of streams) {
+      if (kept.length >= MAX_DISCOVERY_STREAMS && !s._owned) continue;
+      kept.push(s);
+    }
+    streams = kept;
+    console.log(`[Stream] capped external streams ${before} → ${streams.length}`);
+  }
   const existingUrls = new Set(streams.map(stream => stream?.url).filter(Boolean));
   const personal = [...customMatch.exact, ...customMatch.global].filter(stream => {
     if (!stream.url || existingUrls.has(stream.url)) return false;

@@ -375,6 +375,7 @@
       if (cfg.rpdbKey) { document.getElementById('rpdbKey').value = cfg.rpdbKey; updatePosterPreview(); }
       if (cfg.fanartKey) document.getElementById('fanartKey').value = cfg.fanartKey;
       if (cfg.omdbKey) document.getElementById('omdbKey').value = cfg.omdbKey;
+      if (cfg.tvdbApiKey) document.getElementById('tvdbApiKey').value = cfg.tvdbApiKey;
       if (cfg.enhanceBackground != null) document.getElementById('enhanceBackground').checked = cfg.enhanceBackground;
       if (cfg.enhanceLogo != null) document.getElementById('enhanceLogo').checked = cfg.enhanceLogo;
       if (cfg.customStreams && Array.isArray(cfg.customStreams)) {
@@ -398,10 +399,14 @@
       }
       if (cfg.streamPreset) document.getElementById('streamPreset').value = cfg.streamPreset;
       if (window._badgePicker) window._badgePicker.set(cfg.nuvioBadgePack, cfg.nuvioBadgeUrl);
+      if (cfg.aiostreamsRef) window.__aioRef = cfg.aiostreamsRef;
+      window.__aioConnected = !!(cfg.aiostreamsRef && Array.isArray(cfg.streamAddons) && cfg.streamAddons.includes('aiostreams'));
+      if (window.__aioUI) window.__aioUI.refresh();
       if (cfg.streamNotices === 'off') {
         const sn = document.getElementById('streamNotices');
         if (sn) sn.checked = false;
       }
+      applyNoticeTypes(cfg.streamNoticeTypes);
       if (cfg.streamPreset === 'custom') {
         if (cfg.streamNameTemplate) document.getElementById('streamNameTemplate').value = cfg.streamNameTemplate;
         if (cfg.streamDescTemplate) document.getElementById('streamDescTemplate').value = cfg.streamDescTemplate;
@@ -609,6 +614,7 @@
       // Stream notices toggle ('on'/'off', default on): always sent so an
       // untick sticks server-side without re-pushing the link.
       serverCfg.streamNotices = (document.getElementById('streamNotices') && !document.getElementById('streamNotices').checked) ? 'off' : 'on';
+      serverCfg.streamNoticeTypes = collectNoticeTypes();
       // Heavy filter / collection state lives in Redis, not the token
       serverCfg.filterResolutions = [...filterState.resIncluded];
       serverCfg.filterResOrder = filterState.resolutions.slice();
@@ -672,6 +678,7 @@
       const rpdbKey = document.getElementById('rpdbKey').value.trim();
       const fanartKey = document.getElementById('fanartKey').value.trim();
       const omdbKey = document.getElementById('omdbKey').value.trim();
+      const tvdbApiKey = document.getElementById('tvdbApiKey')?.value.trim() || '';
       const enhanceBackground = document.getElementById('enhanceBackground').checked;
       const enhanceLogo = document.getElementById('enhanceLogo').checked;
       const hideAnime = document.getElementById('hideAnime').checked;
@@ -699,6 +706,7 @@
         }
       }
       if (omdbKey) cfg.omdbKey = omdbKey;
+      if (tvdbApiKey) cfg.tvdbApiKey = tvdbApiKey;
       const mdblistKey = document.getElementById('mdblistKey')?.value.trim();
       if (mdblistKey) cfg.mdblistKey = mdblistKey;
       if (catNames.movies && catNames.movies !== '🎬 My Movies') cfg.catNameMovies = catNames.movies;
@@ -767,7 +775,7 @@
     const PROVIDER_META = {
       torbox: { label: 'TorBox', logo: '/provider-logos/torbox.png' },
       realdebrid: { label: 'Real-Debrid', logo: '/provider-logos/realdebrid.svg' },
-      alldebrid: { label: 'AllDebrid', logo: '/provider-logos/alldebrid.png' },
+      alldebrid: { label: 'AllDebrid', logo: '/provider-logos/alldebrid.png?v=2' },
       premiumize: { label: 'Premiumize', logo: '/provider-logos/premiumize.svg' },
     };
 
@@ -876,7 +884,87 @@
       });
     }
 
+    const posterShowcaseSamples = [
+      { id: 550, imdb: 'tt0137523', title: 'Fight Club', type: 'movie' },
+      { id: 1396, imdb: 'tt0903747', title: 'Breaking Bad', type: 'series' },
+      { id: 27205, imdb: 'tt1375666', title: 'Inception', type: 'movie' },
+      { id: 66732, imdb: 'tt4574334', title: 'Stranger Things', type: 'series' },
+      { id: 155, imdb: 'tt0468569', title: 'The Dark Knight', type: 'movie' },
+      { id: 1399, imdb: 'tt0944947', title: 'Game of Thrones', type: 'series' },
+    ];
+    let posterShowcaseIndex = 0;
+    let posterShowcaseTimer = 0;
+    let posterShowcaseToken = '';
+    let posterShowcaseQuery = '';
+    let posterShowcaseUrlFor = null;
+    let posterShowcaseVisible = true;
+
+    function posterShowcaseSample() { return posterShowcaseSamples[posterShowcaseIndex % posterShowcaseSamples.length]; }
+    function erdbUrlFor(sample) {
+      const t = document.getElementById('erdbToken').value.trim();
+      return t ? 'https://easyratingsdb.com/' + encodeURIComponent(t) + '/poster/' + sample.imdb + '.jpg' : null;
+    }
+    function rpdbUrlFor(sample) {
+      const k = document.getElementById('rpdbKey').value.trim();
+      return k ? 'https://api.ratingposterdb.com/' + encodeURIComponent(k) + '/imdb/poster-default/' + sample.imdb + '.jpg?fallback=true' : null;
+    }
+    function betterposterUrlFor(sample) { return 'https://btttr.cc/poster/imdb/poster-default/' + sample.imdb + '.jpg'; }
+    function customUrlFor(sample) {
+      const template = document.getElementById('customPosterTemplate')?.value.trim() || '';
+      const check = window.LePosterTemplate?.validate(template);
+      return check?.ok ? window.LePosterTemplate.resolve(template, { imdbId: sample.imdb, tmdbId: sample.id, type: sample.type }) : null;
+    }
+    function pictoriumUrlFor(sample) {
+      return posterShowcaseToken
+        ? '/' + encodeURIComponent(posterShowcaseToken) + '/pictorium/' + sample.type + '/' + sample.id + '.jpg?preview=1&title=' + encodeURIComponent(sample.title) + (posterShowcaseQuery ? '&' + posterShowcaseQuery : '')
+        : null;
+    }
+    function posterShowcaseSrc(sample) { return posterShowcaseUrlFor ? posterShowcaseUrlFor(sample) : ''; }
+    function posterShowcaseMarkup(sample) {
+      return '<img src="' + escHtml(posterShowcaseSrc(sample)) + '" alt="' + escHtml('Poster preview for ' + sample.title) + '" style="max-width:150px;max-height:225px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3);transition:opacity .55s ease" onerror="this.parentElement.innerHTML=\'<span style=color:var(--error);font-size:0.78rem>Preview failed: check your key</span>\'" />';
+    }
+    function stopPosterShowcase() { clearInterval(posterShowcaseTimer); posterShowcaseTimer = 0; }
+    function posterShowcaseSwap(container) {
+      if (!container || !posterShowcaseUrlFor) return;
+      const sample = posterShowcaseSample();
+      const current = container.querySelector('img');
+      if (!current) { container.innerHTML = posterShowcaseMarkup(sample); return; }
+      current.style.transition = 'opacity .35s ease';
+      current.style.opacity = '0';
+      setTimeout(() => {
+        if (current.parentElement !== container) { container.innerHTML = posterShowcaseMarkup(sample); return; }
+        const next = document.createElement('img');
+        next.alt = 'Poster preview for ' + sample.title;
+        next.style.cssText = 'max-width:150px;max-height:225px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3);transition:opacity .35s ease;opacity:0';
+        next.onload = () => requestAnimationFrame(() => { next.style.opacity = '1'; });
+        next.onerror = () => next.remove();
+        next.src = posterShowcaseSrc(sample);
+        current.replaceWith(next);
+      }, 380);
+    }
+    function startPosterShowcase() {
+      stopPosterShowcase();
+      if (!posterShowcaseUrlFor || document.hidden || !posterShowcaseVisible || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      posterShowcaseTimer = setInterval(() => {
+        posterShowcaseIndex = (posterShowcaseIndex + 1) % posterShowcaseSamples.length;
+        posterShowcaseSwap(document.getElementById('sidebarPosterPreview'));
+        posterShowcaseSwap(document.getElementById('mobilePosterPreview'));
+      }, 6000);
+    }
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stopPosterShowcase(); else startPosterShowcase(); });
+    if ('IntersectionObserver' in window) {
+      const showcaseSeen = new Map();
+      const showcaseObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => showcaseSeen.set(entry.target, entry.isIntersecting));
+        posterShowcaseVisible = Array.from(showcaseSeen.values()).some(Boolean);
+        if (posterShowcaseVisible) startPosterShowcase(); else stopPosterShowcase();
+      }, { threshold: 0.2 });
+      ['sidebarPosterPreview', 'mobilePosterPreview'].forEach((id) => { const el = document.getElementById(id); if (el) showcaseObserver.observe(el); });
+    }
+
     function updatePosterPreview() {
+      stopPosterShowcase();
+      posterShowcaseUrlFor = null;
       const provider = document.getElementById('posterProvider').value;
       const customTemplate = document.getElementById('customPosterTemplate')?.value.trim() || '';
       const customCheck = window.LePosterTemplate?.validate(customTemplate);
@@ -887,36 +975,36 @@
         ? `Example: <code>${escHtml(customUrl)}</code>`
         : escHtml(customCheck?.error || 'Enter a valid template.');
       if (customInput) customInput.classList.toggle('invalid', provider === 'custom' && !!customTemplate && !customCheck?.ok);
-      const samples = { erdb: { url: () => {
-        const t = document.getElementById('erdbToken').value.trim();
-        return t ? `https://easyratingsdb.com/${encodeURIComponent(t)}/poster/tt0133093.jpg` : null;
-      }, label: 'ERDB' }, rpdb: { url: () => {
-        const k = document.getElementById('rpdbKey').value.trim();
-        return k ? `https://api.ratingposterdb.com/${encodeURIComponent(k)}/imdb/poster-default/tt0133093.jpg?fallback=true` : null;
-      }, label: 'RPDB' }, betterposter: { url: () => 'https://btttr.cc/poster/imdb/poster-default/tt0114709.jpg', label: 'BetterPoster' }, fanart: { url: () => null, label: 'Fanart.tv' } };
-      const s = samples[provider];
+      const sample = posterShowcaseSample();
+      posterShowcaseUrlFor = null;
       let html;
       if (!provider) {
         html = '<span>Select a poster service above<br>to see a live preview</span>';
       } else if (provider === 'custom') {
-        html = customUrl
-          ? `<div style="display:grid;place-items:center;gap:8px"><img src="${escHtml(customUrl)}" alt="Custom poster preview" style="max-width:150px;max-height:225px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3)" onload="this.nextElementSibling.textContent='Live preview'" onerror="this.hidden=true;this.nextElementSibling.textContent='The poster service could not load this example.'" /><span style="font-size:0.68rem;color:var(--muted)">Loading live preview…</span></div>`
-          : '<span>Enter a valid Custom Poster template<br>to see a live preview</span>';
+        if (customUrlFor(sample)) { posterShowcaseUrlFor = customUrlFor; html = posterShowcaseMarkup(sample); }
+        else html = '<span>Enter a valid Custom Poster template<br>to see a live preview</span>';
       } else if (provider === 'pictorium') {
         const token = pictoriumPreviewToken();
-        const qs = window.LePictoriumOptions ? window.LePictoriumOptions.toQuery(pictoriumOptions || {}) : '';
-        html = token
-          ? `<img src="/${encodeURIComponent(token)}/pictorium/movie/550.jpg?preview=1&_=${Date.now()}&title=Fight%20Club${qs ? '&' + qs : ''}" alt="Pictorium poster preview" style="max-width:150px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3)" onerror="this.parentElement.innerHTML='<span style=color:var(--error);font-size:0.78rem>Add a TMDB key to preview</span>'" />`
-          : '<span>Add a TMDB key above<br>to preview Pictorium posters</span>';
+        posterShowcaseToken = token;
+        posterShowcaseQuery = window.LePictoriumOptions ? window.LePictoriumOptions.toQuery(pictoriumOptions || {}) : '';
+        if (token) { posterShowcaseUrlFor = pictoriumUrlFor; html = posterShowcaseMarkup(sample); }
+        else html = '<span>Add a TMDB key above<br>to preview Pictorium posters</span>';
       } else if (provider === 'fanart') {
         html = '<span style="font-size:0.78rem;color:var(--muted)">Fanart.tv doesn\'t embed ratings on posters -<br>configure a service above to preview</span>';
-      } else if (!s || !s.url()) {
-        html = `<span>Enter your ${s.label} key above<br>to see a live preview</span>`;
+      } else if (provider === 'erdb') {
+        if (erdbUrlFor(sample)) { posterShowcaseUrlFor = erdbUrlFor; html = posterShowcaseMarkup(sample); }
+        else html = '<span>Enter your ERDB key above<br>to see a live preview</span>';
+      } else if (provider === 'rpdb') {
+        if (rpdbUrlFor(sample)) { posterShowcaseUrlFor = rpdbUrlFor; html = posterShowcaseMarkup(sample); }
+        else html = '<span>Enter your RPDB key above<br>to see a live preview</span>';
+      } else if (provider === 'betterposter') {
+        posterShowcaseUrlFor = betterposterUrlFor; html = posterShowcaseMarkup(sample);
       } else {
-        html = `<img src="${s.url()}" alt="Poster preview" style="max-width:150px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3)" onerror="this.parentElement.innerHTML='<span style=color:var(--error);font-size:0.78rem>Preview failed: invalid key?</span>'" />`;
+        html = '<span>Select a poster service above<br>to see a live preview</span>';
       }
       document.getElementById('sidebarPosterPreview').innerHTML = html;
       document.getElementById('mobilePosterPreview').innerHTML = html;
+      startPosterShowcase();
     }
 
     function validateCustomPosterSelection() {
@@ -970,6 +1058,7 @@
         rpdbKey: document.getElementById('rpdbKey').value.trim(),
         fanartKey: document.getElementById('fanartKey').value.trim(),
         omdbKey: document.getElementById('omdbKey').value.trim(),
+        tvdbApiKey: (document.getElementById('tvdbApiKey')?.value || '').trim(),
         mdblistKey: (document.getElementById('mdblistKey')?.value || '').trim(),
         enhanceBackground: document.getElementById('enhanceBackground').checked,
         enhanceLogo: document.getElementById('enhanceLogo').checked,
@@ -1014,7 +1103,8 @@
         popularSeriesName: catNames.popularSeries,
         collectionsName: catNames.franchises,
         catalogOrder: catOrder.slice(),
-        streamAddons: streamAddons,
+        streamAddons: (window.__aioConnected && !streamAddons.includes('aiostreams')) ? [...streamAddons, 'aiostreams'] : streamAddons,
+        aiostreamsRef: window.__aioRef || undefined,
         filterResolutions: [...filterState.resIncluded],
         filterResOrder: filterState.resolutions.slice(),
         filterQualities: [...filterState.qualities],
@@ -1026,6 +1116,7 @@
         filterMaxSize: parseFloat(document.getElementById('filterMaxSize')?.value) || 0,
         filterCachedOnly: !!(document.getElementById('filterCachedOnly') && document.getElementById('filterCachedOnly').checked),
         streamNotices: (document.getElementById('streamNotices') && !document.getElementById('streamNotices').checked) ? 'off' : 'on',
+        streamNoticeTypes: collectNoticeTypes(),
       };
     }
 
@@ -1205,9 +1296,25 @@
       } catch { /* Validation still works when sessionStorage is unavailable. */ }
     }
 
+    function collectNoticeTypes() {
+      const types = [];
+      if (document.getElementById('noticeNone') && document.getElementById('noticeNone').checked) types.push('none');
+      if (document.getElementById('noticeRateLimit') && document.getElementById('noticeRateLimit').checked) types.push('rateLimit');
+      if (document.getElementById('noticeDigital') && document.getElementById('noticeDigital').checked) types.push('digitalRelease');
+      return types;
+    }
+    function applyNoticeTypes(types) {
+      const list = Array.isArray(types) ? types : (typeof types === 'string' && types.trim() ? types.split(',') : null);
+      const has = (k) => !list || list.includes(k);
+      const set = (id, v) => { const el = document.getElementById(id); if (el) el.checked = v; };
+      set('noticeNone', has('none'));
+      set('noticeRateLimit', has('rateLimit'));
+      set('noticeDigital', has('digitalRelease'));
+    }
+
     async function verifyKey(service) {
-      const inputMap = { tmdb: 'tmdbApiKey', torbox: 'torboxApiKey', realdebrid: 'rdApiKey', alldebrid: 'adApiKey', premiumize: 'pmApiKey', erdb: 'erdbToken', rpdb: 'rpdbKey', omdb: 'omdbKey', fanart: 'fanartKey' };
-      const labels   = { tmdb: 'TMDB', torbox: 'TorBox', realdebrid: 'Real-Debrid', alldebrid: 'AllDebrid', premiumize: 'Premiumize', erdb: 'ERDB', rpdb: 'RPDB', omdb: 'OMDB', fanart: 'Fanart' };
+      const inputMap = { tmdb: 'tmdbApiKey', torbox: 'torboxApiKey', realdebrid: 'rdApiKey', alldebrid: 'adApiKey', premiumize: 'pmApiKey', erdb: 'erdbToken', rpdb: 'rpdbKey', omdb: 'omdbKey', fanart: 'fanartKey', tvdb: 'tvdbApiKey' };
+      const labels   = { tmdb: 'TMDB', torbox: 'TorBox', realdebrid: 'Real-Debrid', alldebrid: 'AllDebrid', premiumize: 'Premiumize', erdb: 'ERDB', rpdb: 'RPDB', omdb: 'OMDB', fanart: 'Fanart', tvdb: 'TheTVDB' };
       const id = inputMap[service];
       const el = document.getElementById(id);
       const btn = document.getElementById('verify' + service.charAt(0).toUpperCase() + service.slice(1));
@@ -1218,6 +1325,7 @@
         btn.textContent = '✓';
         el.classList.remove('invalid');
         showToast(labels[service] + ' key already validated this session', 'success');
+        if (service === 'tmdb' && window.LeInstantSetup) window.LeInstantSetup.queuePosters();
         return;
       }
       btn.disabled = true;
@@ -1236,6 +1344,7 @@
           btn.textContent = '✓';
           el.classList.remove('invalid');
           showToast(labels[service] + ' key is valid!', 'success');
+          if (service === 'tmdb' && window.LeInstantSetup) window.LeInstantSetup.queuePosters();
         } else {
           btn.className = 'btn-verify failed';
           btn.textContent = '✕';
@@ -1337,7 +1446,7 @@
     }
 
     async function generate(opts = {}) {
-      const { skipVerify = false, skipSave = false, suppressReinstall = false } = opts;
+      const { skipVerify = false, skipSave = false, suppressReinstall = false, waitSave = false } = opts;
       const provider     = document.getElementById('provider').value;
       const mappingOnly = (provider === 'none' || provider === '') && customStreams.length > 0;
       if ((provider === 'none' || provider === '') && !mappingOnly) { showToast('Select at least one provider or add a Custom Stream'); return; }
@@ -1460,7 +1569,8 @@
         return;
       }
       if (!skipSave) {
-        saveConfigToServer(cfg);
+        if (waitSave) await saveConfigToServer(cfg, { wait: true });
+        else saveConfigToServer(cfg);
         // A real Save/Push persisted the config: the in-progress draft is no
         // longer needed (the new token in the address bar carries it now).
         clearDraft();
@@ -1562,7 +1672,7 @@
       // Don't let Reset's own change handlers re-save an empty draft: a reload
       // right after Reset should bring back the token config, not a blank form.
       draftSuppressUntil = Date.now() + 1000;
-      ['torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'customPosterTemplate'].forEach(id => {
+      ['torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'tvdbApiKey', 'customPosterTemplate'].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         el.value = '';
@@ -1597,7 +1707,7 @@
       goToStep(1);
     }
 
-    const APP_VERSION = '5.1.5';
+    const APP_VERSION = '5.2.0';
 
     async function checkVersion() {
       const el = document.getElementById('versionDisplay');
@@ -1777,6 +1887,14 @@
       } else {
         initialConfig = null;
       }
+      // Fresh visits choose between Quick and Full setup. Token links, server
+      // configs and account sessions go straight to the full editor, exactly
+      // as before. In-progress drafts are ignored here: they restore into
+      // whichever surface gets picked.
+      if (!hasToken && !cfg && !ACCOUNT_TOKEN) {
+        document.body.classList.add('choosing');
+        document.getElementById('setupChooser').hidden = false;
+      }
       // From here on, every form change is snapshotted to sessionStorage so a
       // refresh / accidental reload keeps your work in progress. The draft is
       // cleared on Save / Push / Reset and expires after DRAFT_TTL.
@@ -1832,6 +1950,7 @@
                 const sn = document.getElementById('streamNotices');
                 if (sn && sn.checked) { sn.checked = false; applied = true; }
               }
+              if (Array.isArray(stored.streamNoticeTypes)) { applyNoticeTypes(stored.streamNoticeTypes); applied = true; }
               if (stored.streamPreset === 'custom') {
                 if (stored.streamNameTemplate) document.getElementById('streamNameTemplate').value = stored.streamNameTemplate;
                 if (stored.streamDescTemplate) document.getElementById('streamDescTemplate').value = stored.streamDescTemplate;
@@ -1853,7 +1972,7 @@
       updateSetupSummary();
 
       // Watch for changes on all config fields
-      const watchIds = ['provider', 'torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'rdCatalog', 'sortBy', 'lang', 'searchScope', 'posterProvider', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'streamPreset', 'filterMinSize', 'filterMaxSize', 'filterCachedOnly'];
+      const watchIds = ['provider', 'torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'rdCatalog', 'sortBy', 'lang', 'searchScope', 'posterProvider', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'tvdbApiKey', 'streamPreset', 'filterMinSize', 'filterMaxSize', 'filterCachedOnly'];
       watchIds.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
@@ -2576,7 +2695,7 @@
       const tabs = document.getElementById('installPlatformTabs');
       if (tabs) {
         if (p && !showPlatformChooser) {
-          const img = p === 'nuvio' ? '/nuvio.png' : '/stremio.svg';
+          const img = p === 'nuvio' ? '/nuvio.png?v=2' : '/stremio.svg';
           const name = p === 'nuvio' ? 'Nuvio' : 'Stremio';
           tabs.innerHTML = `
             <span class="ptab active ptab-static"><img src="${img}" alt="" /> ${name}</span>
@@ -2584,7 +2703,7 @@
         } else {
           tabs.innerHTML = `
             <button type="button" class="ptab${p === 'stremio' ? ' active' : ''}" data-plat="stremio" onclick="selectPlatform('stremio')"><img src="/stremio.svg" alt="" /> Stremio</button>
-            <button type="button" class="ptab${p === 'nuvio' ? ' active' : ''}" data-plat="nuvio" onclick="selectPlatform('nuvio')"><img src="/nuvio.png" alt="" /> Nuvio</button>`;
+            <button type="button" class="ptab${p === 'nuvio' ? ' active' : ''}" data-plat="nuvio" onclick="selectPlatform('nuvio')"><img src="/nuvio.png?v=2" alt="" /> Nuvio</button>`;
         }
       }
       const nameEl = document.getElementById('installPlatformName');
@@ -2603,7 +2722,7 @@
     function singleConnectBox(platform, prefix, open) {
       const isS = platform === 'stremio';
       const name = isS ? 'Stremio' : 'Nuvio';
-      const logo = isS ? '/stremio.svg' : '/nuvio.png';
+      const logo = isS ? '/stremio.svg' : '/nuvio.png?v=2';
       const fn = isS ? 'connectStremio' : 'connectNuvio';
       if (ACCOUNT_TOKEN) {
         return `
@@ -2651,7 +2770,7 @@
       if (!el || !platform) { if (el) el.innerHTML = ''; return; }
       const isNuvio = platform === 'nuvio';
       const name = isNuvio ? 'Nuvio' : 'Stremio';
-      const logo = isNuvio ? '/nuvio.png' : '/stremio.svg';
+      const logo = isNuvio ? '/nuvio.png?v=2' : '/stremio.svg';
 
       // Connected state
       if (connectState.platform === platform) {
@@ -4649,7 +4768,7 @@
             <!-- NUVIO BOX -->
             <div class="connect-box${focus === 'nuvio' ? ' cb-focus' : ''}">
               <div class="cb-head">
-                <img src="/nuvio.png" alt="Nuvio" />
+                <img src="/nuvio.png?v=2" alt="Nuvio" />
                 <div><h3>Sign in with Nuvio</h3><p>Email + password</p></div>
               </div>
               <div class="connect-form">
@@ -4694,7 +4813,7 @@
         return;
       }
       const plat = connectState.platform === 'stremio' ? 'Stremio' : 'Nuvio';
-      const logo = connectState.platform === 'stremio' ? '/stremio.svg' : '/nuvio.png';
+      const logo = connectState.platform === 'stremio' ? '/stremio.svg' : '/nuvio.png?v=2';
       const acc = connectState.platform === 'nuvio'
         ? escHtml(connectState.nuvioUser?.email || 'Nuvio account')
         : escHtml(connectState.stremioUser?.email || 'Stremio account');
@@ -4849,7 +4968,7 @@
               .join('') || '<option value="">No profiles found</option>';
             el.innerHTML = `<div class="publish-desk" style="border-color:rgba(84,173,255,.35);background:linear-gradient(135deg,rgba(84,173,255,.08),rgba(255,255,255,.02))">
               <div class="publish-desk-main">
-                <div class="publish-desk-icon"><img src="/nuvio.png" alt="Nuvio"></div>
+                <div class="publish-desk-icon"><img src="/nuvio.png?v=2" alt="Nuvio"></div>
                 <div class="publish-desk-copy">
                   <h3>Choose a profile</h3>
                   <p>Nuvio verified: pick the profile to publish to, then push.</p>
@@ -4861,7 +4980,7 @@
               </div>
               <div class="publish-desk-action">
                 <button class="btn-main btn-gen" type="button" onclick="(function(){const s=document.getElementById('nuvioProfilePickInstall'); if(s&&s.value){connectState.nuvioSelectedProfile=parseInt(s.value,10)||null;} nuvioConfirmProfile(); })()" style="min-width:160px;justify-content:center">
-                  <div class="ico"><img src="/nuvio.png" alt=""></div><div class="txt"><span>Connect to Nuvio</span><small>Install on this profile</small></div><span class="arr">›</span>
+                  <div class="ico"><img src="/nuvio.png?v=2" alt=""></div><div class="txt"><span>Connect to Nuvio</span><small>Install on this profile</small></div><span class="arr">›</span>
                 </button>
               </div>
             </div>`;
@@ -4902,7 +5021,7 @@
       el.innerHTML = `
         <div class="publish-desk">
           <div class="publish-desk-main">
-            <div class="publish-desk-icon"><img src="${isStremio ? '/stremio.svg' : '/nuvio.png'}" alt="${plat}"></div>
+            <div class="publish-desk-icon"><img src="${isStremio ? '/stremio.svg' : '/nuvio.png?v=2'}" alt="${plat}"></div>
             <div class="publish-desk-copy">
               <h3>Publish to ${plat}</h3>
               <p>One click saves this setup and pushes your Home rows and collections to the selected profile.</p>
@@ -4936,7 +5055,7 @@
           </div>
           <div class="publish-desk-action">
             <button class="btn-main btn-gen" id="btnPushCatalogues" onclick="pushCatalogues()" style="min-width:160px;justify-content:center">
-              <div class="ico"><img src="${isStremio ? '/stremio.svg' : '/nuvio.png'}" alt=""></div>
+              <div class="ico"><img src="${isStremio ? '/stremio.svg' : '/nuvio.png?v=2'}" alt=""></div>
               <div class="txt"><span id="pushCataloguesLabel">Push to ${plat}</span><small id="pushCataloguesSmall">Adds or updates LeLibrary and keeps your other addons</small></div>
               <span class="arr">›</span>
             </button>
@@ -4953,7 +5072,7 @@
       if (!host) return;
       if (mainIsStremio) {
         host.innerHTML = `<button class="account-action-row" type="button" onclick="pushAddonTo('nuvio')">
-          <span class="account-action-icon nuvio"><img src="/nuvio.png" alt=""></span><span><strong>Push to Nuvio</strong><small>Connect Nuvio and publish this saved setup to a profile.</small></span><b>›</b>
+          <span class="account-action-icon nuvio"><img src="/nuvio.png?v=2" alt=""></span><span><strong>Push to Nuvio</strong><small>Connect Nuvio and publish this saved setup to a profile.</small></span><b>›</b>
         </button>`;
         return;
       }
@@ -5186,10 +5305,10 @@
         el.innerHTML = `
           <div class="connection-panel">
             <button class="connection-back" onclick="changePlatform()">← Back</button>
-            <img src="/nuvio.png" alt="Nuvio" class="connection-logo" />
+            <img src="/nuvio.png?v=2" alt="Nuvio" class="connection-logo" />
             <h2>Your Nuvio Account</h2>
             <div class="connected-card" style="margin:0 auto 16px;max-width:400px">
-              <img src="/nuvio.png" alt="" style="width:30px;height:30px;border-radius:6px" />
+              <img src="/nuvio.png?v=2" alt="" style="width:30px;height:30px;border-radius:6px" />
               <div class="cc-info"><strong>Nuvio verified ✓</strong><small>${escHtml(email)}</small></div>
             </div>
             <div class="connection-profile">
@@ -5198,7 +5317,7 @@
               <p style="color:var(--muted);font-size:0.78rem;margin-top:6px">LeLibrary is installed on this profile, with your collections and home rows.</p>
             </div>
             <button class="btn-main btn-nuvio" type="button" onclick="nuvioConfirmProfile()" style="width:100%;justify-content:center;margin-top:16px;cursor:pointer;font-family:var(--font)">
-              <div class="ico"><img src="/nuvio.png" alt="Nuvio" style="width:20px;height:20px" /></div>
+              <div class="ico"><img src="/nuvio.png?v=2" alt="Nuvio" style="width:20px;height:20px" /></div>
               <div class="txt"><span>Connect to Nuvio</span><small>Install LeLibrary on this profile</small></div>
               <span class="arr">›</span>
             </button>
@@ -5208,7 +5327,7 @@
         el.innerHTML = `
           <div class="step-card">
             <div class="connected-card">
-              <img src="/nuvio.png" alt="" style="width:30px;height:30px;border-radius:6px" />
+              <img src="/nuvio.png?v=2" alt="" style="width:30px;height:30px;border-radius:6px" />
               <div class="cc-info"><strong>Nuvio verified ✓</strong><small>${escHtml(email)}</small></div>
             </div>
             <div class="field" style="margin-top:14px">
@@ -5217,7 +5336,7 @@
               <p class="field-hint">LeLibrary is installed on this profile, with your collections and home rows.</p>
             </div>
             <button class="btn-main btn-nuvio" type="button" onclick="nuvioConfirmProfile()" style="margin-top:12px;cursor:pointer;font-family:var(--font)">
-              <div class="ico"><img src="/nuvio.png" alt="Nuvio" style="width:20px;height:20px" /></div>
+              <div class="ico"><img src="/nuvio.png?v=2" alt="Nuvio" style="width:20px;height:20px" /></div>
               <div class="txt"><span>Connect to Nuvio</span><small>Install LeLibrary on this profile</small></div>
               <span class="arr">›</span>
             </button>
@@ -6367,3 +6486,67 @@
         toast: showToast,
       });
     });
+
+    // ── My AIOStreams connector (public/self-host page) ──────────────────────
+    // Uses the account vault when the visitor is signed in, otherwise the
+    // sealed self-host record. The configured URL is never kept client-side.
+    (function initAioStreams() {
+      const host = document.getElementById('aioStreamsMount');
+      if (!host || !window.LeAioStreams) return;
+      let mode = null;
+      let csrf = null;
+      async function detectMode() {
+        if (mode) return mode;
+        try {
+          const r = await fetch('/api/account/me', { credentials: 'include' });
+          const d = await r.json();
+          if (r.ok && d && d.user) { mode = 'account'; csrf = d.csrfToken || null; }
+          else mode = 'selfhost';
+        } catch (_) { mode = 'selfhost'; }
+        return mode;
+      }
+      async function call(method, path, body, needCsrf) {
+        const headers = { 'Content-Type': 'application/json' };
+        if (needCsrf && csrf) headers['X-CSRF-Token'] = csrf;
+        const r = await fetch(path, { method, headers, credentials: 'include', body: body ? JSON.stringify(body) : undefined });
+        let d = null; try { d = await r.json(); } catch (_) {}
+        return { ok: r.ok, status: r.status, data: d || {} };
+      }
+      window.__aioUI = window.LeAioStreams.mount({
+        el: host,
+        adapter: {
+          async status() {
+            const m = await detectMode();
+            if (m === 'account') { const r = await call('GET', '/api/account/aiostreams'); return r.data; }
+            if (window.__aioRef) { const r = await call('GET', '/api/aiostreams/' + encodeURIComponent(window.__aioRef)); return r.data; }
+            return { connected: false };
+          },
+          async test() {
+            const m = await detectMode();
+            if (m === 'account') { const r = await call('GET', '/api/account/aiostreams'); return { ok: !!(r.data && r.data.connected), ...r.data }; }
+            if (window.__aioRef) { const r = await call('GET', '/api/aiostreams/' + encodeURIComponent(window.__aioRef)); return r.data; }
+            return { ok: false };
+          },
+          async connect(url) {
+            const m = await detectMode();
+            if (m === 'account') { const r = await call('POST', '/api/account/aiostreams', { url }, true); return r.ok ? { ok: true, ...r.data } : { ok: false, error: r.data.error }; }
+            const r = await call('POST', '/api/aiostreams', { url }, false);
+            if (r.ok) { window.__aioRef = r.data.ref || null; return { ok: true, ...r.data }; }
+            return { ok: false, error: r.data.error || (r.status === 401 ? 'Self-host connector needs SELFHOST_CONFIGS_SECRET' : undefined) };
+          },
+          async remove() {
+            const m = await detectMode();
+            if (m === 'account') { const r = await call('DELETE', '/api/account/aiostreams', null, true); return { ok: r.ok }; }
+            if (window.__aioRef) { const r = await call('DELETE', '/api/aiostreams/' + encodeURIComponent(window.__aioRef), null, false); window.__aioRef = null; return { ok: r.ok }; }
+            return { ok: true };
+          },
+        },
+        initial: { ref: window.__aioRef || null },
+        onState(s) { if (s && s.ref) window.__aioRef = s.ref; window.__aioConnected = !!(s && s.connected); if (typeof window.checkChanged === 'function') window.checkChanged(); },
+      });
+      // Restore the saved self-host ref into the UI before the first render.
+      try {
+        const preset = window.__aioPresetRef;
+        if (preset) { window.__aioRef = preset; }
+      } catch (_) {}
+    })();

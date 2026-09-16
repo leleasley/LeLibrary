@@ -1,6 +1,26 @@
 const axios = require('axios');
 const NodeCache = require('node-cache');
 const sharedCache = require('./cache');
+const idMap = require('./id-map');
+const titleAliases = require('./title-aliases');
+const sceneMap = require('./scene-mapping');
+
+// Canonical title used for a TMDB search. Short-form aliases (e.g. "Raw" ->
+// "WWE Raw") and, for release-name matching, the auto-updating Sonarr scene
+// mappings turn a release name into the title TMDB actually indexes. Both are
+// TV-oriented datasets, so they are never applied to movie searches ("Raw" is
+// also a real film). Returns the input unchanged when nothing maps.
+function canonicalSearchTitle(title, useScene = false, mediaType = 'tv') {
+  if (!title) return title;
+  const alias = titleAliases.resolveAlias(title, mediaType);
+  if (alias) return alias;
+  // Scene mappings come from Sonarr (TV only), so they never apply to movies.
+  if (useScene && mediaType !== 'movie') {
+    const scene = sceneMap.searchTitleFor(title);
+    if (scene) return scene;
+  }
+  return title;
+}
 
 const TMDB_BASE  = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE = 'https://image.tmdb.org/t/p';
@@ -15,6 +35,42 @@ const tmdbCache = new NodeCache({ stdTTL: 86400, checkperiod: 3600, useClones: t
 
 const tvDetailCache = new NodeCache({ stdTTL: 86400, checkperiod: 3600, useClones: true });
 const seasonCache   = new NodeCache({ stdTTL: 86400, checkperiod: 3600, useClones: true });
+
+// Public TMDB search/discover responses are identical for every user (an API
+// key only authenticates), so they are safe to share. Keep them in the
+// in-memory cache for hot reads and mirror them into Redis so search stays warm
+// across restarts and worker processes. The `{ v }` wrapper lets a cached null
+// stay distinguishable from a miss.
+const SEARCH_REDIS_PREFIX = 'tmdbsearch:v1:';
+
+// Coalesce identical concurrent TMDB requests (e.g. several users opening the
+// same brand-new title before its search result is cached). Only search calls
+// are coalesced: getMetadata results are mutated per request by the caller, so
+// sharing one object there would be unsafe.
+const tmdbInFlight = new Map();
+function coalesceTmdb(key, fn) {
+  const existing = tmdbInFlight.get(key);
+  if (existing) return existing;
+  const work = Promise.resolve().then(fn).finally(() => tmdbInFlight.delete(key));
+  tmdbInFlight.set(key, work);
+  return work;
+}
+async function durableSearchGet(memKey, suffix) {
+  const mem = tmdbCache.get(memKey);
+  if (mem !== undefined) return mem;
+  try {
+    const hit = await sharedCache.get(SEARCH_REDIS_PREFIX + suffix);
+    if (hit && typeof hit === 'object' && Object.prototype.hasOwnProperty.call(hit, 'v')) {
+      tmdbCache.set(memKey, hit.v, hit.ttl || 21600);
+      return hit.v;
+    }
+  } catch { /* treat as miss */ }
+  return undefined;
+}
+function durableSearchSet(memKey, suffix, value, ttl) {
+  tmdbCache.set(memKey, value, ttl);
+  sharedCache.set(SEARCH_REDIS_PREFIX + suffix, { v: value, ttl }, ttl).catch(() => {});
+}
 
 function tmdbAuth(apiKey) {
   if (!apiKey) return { headers: {}, params: {} };
@@ -51,6 +107,11 @@ async function imdbToTmdbCached(apiKey, imdbId) {
   const key = cache.makeKey('imdb2tmdb', imdbId);
   const hit = await cache.get(key);
   if (hit) return hit;
+  // Local Wikidata mapping avoids the TMDB Find call for known titles. Not
+  // persisted: the in-memory map refreshes daily and the API result above is
+  // the durable authority.
+  const local = idMap.imdbToTmdb(imdbId);
+  if (local) return local;
   const mapped = await imdbToTmdb(apiKey, imdbId);
   if (mapped) await cache.set(key, mapped, IMDB2TMDB_TTL);
   return mapped;
@@ -60,7 +121,7 @@ async function imdbToTmdbCached(apiKey, imdbId) {
 // overview, release date). Used for direct "ttXXXX" search queries.
 async function findByImdbId(apiKey, imdbId) {
   const cacheKey = `finditem:${imdbId}`;
-  const cached = tmdbCache.get(cacheKey);
+  const cached = await durableSearchGet(cacheKey, `find:${imdbId}`);
   if (cached !== undefined) return cached;
   const auth = tmdbAuth(apiKey);
   try {
@@ -71,37 +132,47 @@ async function findByImdbId(apiKey, imdbId) {
     });
     const d = res.data;
     const item = d.movie_results?.[0] || d.tv_results?.[0] || null;
-    tmdbCache.set(cacheKey, item, 86400);
+    durableSearchSet(cacheKey, `find:${imdbId}`, item, 86400);
     return item;
   } catch { tmdbCache.set(cacheKey, null, 600); return null; }
 }
 
-function titleScore(query, result) {
-  // Treat "&" as "and" so "Law & Order" is an exact match for a filename
-  // "Law And Order" instead of falling to weak token overlap (where a
-  // different show whose title merely contains the query, e.g. "In the Name
-  // of Law and Order", could outrank it).
+// Score one candidate name against the query. "&" is treated as "and" so
+// "Law & Order" is an exact match for a filename "Law And Order" instead of
+// falling to weak token overlap (where a different show whose title merely
+// contains the query, e.g. "In the Name of Law and Order", could outrank it).
+function nameMatchScore(query, raw) {
   const norm = s => s.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
   const qn = norm(query);
-  if (!qn) return 0;
-  const names = [result.name, result.original_name, result.title, result.original_title].filter(Boolean);
+  const nn = norm(raw);
+  if (!qn || !nn) return 0;
+  if (nn === qn) return 100;
+  if (nn.startsWith(qn)) return 85;
+  if (qn.startsWith(nn)) return 75;
+  if (nn.includes(qn)) return 65;
+  if (qn.includes(nn)) return 55;
+  const qt = String(query).toLowerCase().split(/\W+/).filter(Boolean);
+  const nt = String(raw).toLowerCase().split(/\W+/).filter(Boolean);
+  const overlap = qt.filter(t => nt.includes(t)).length;
+  return overlap ? 30 * (overlap / qt.length) : 0;
+}
+
+function titleScore(query, result) {
   let best = 0;
-  for (const raw of names) {
-    const nn = norm(raw);
-    if (!nn) continue;
-    let s;
-    if (nn === qn) s = 100;
-    else if (nn.startsWith(qn)) s = 85;
-    else if (qn.startsWith(nn)) s = 75;
-    else if (nn.includes(qn)) s = 65;
-    else if (qn.includes(nn)) s = 55;
-    else {
-      const qt = String(query).toLowerCase().split(/\W+/).filter(Boolean);
-      const nt = String(raw).toLowerCase().split(/\W+/).filter(Boolean);
-      const overlap = qt.filter(t => nt.includes(t)).length;
-      s = overlap ? 30 * (overlap / qt.length) : 0;
-    }
+  const primary = [result.name, result.original_name, result.title, result.original_title].filter(Boolean);
+  for (const raw of primary) {
+    const s = nameMatchScore(query, raw);
     if (s > best) best = s;
+  }
+  // Alternative titles (AKAs) count too, but are capped below an exact
+  // primary-title match so an alias can never outrank the canonical title on
+  // a tie. `alternativeTitles` is only present when enrichAlternativeTitles
+  // attached it for a weak candidate pool.
+  if (Array.isArray(result.alternativeTitles)) {
+    for (const raw of result.alternativeTitles) {
+      const s = Math.min(nameMatchScore(query, raw), 95);
+      if (s > best) best = s;
+    }
   }
   return best;
 }
@@ -164,11 +235,63 @@ function pickBestResult(query, results, year) {
   return best;
 }
 
+// Alternative (AKA) titles for a TMDB title, cached 30 days. Global public
+// data, shared across users and persisted in Redis, so the extra API call is
+// paid once per title. Handles movies and series.
+async function getAlternativeTitles(apiKey, apiType, tmdbId) {
+  const altType = apiType === 'movie' ? 'movie' : 'tv';
+  const memKey = `alt:${altType}:${tmdbId}`;
+  const mem = tmdbCache.get(memKey);
+  if (mem !== undefined) return mem;
+  const redisKey = sharedCache.makeKey('alttitles', 'v1', altType, tmdbId);
+  try {
+    const persisted = await sharedCache.get(redisKey);
+    if (Array.isArray(persisted)) { tmdbCache.set(memKey, persisted, 7 * 24 * 60 * 60); return persisted; }
+  } catch { /* fall through to API */ }
+  try {
+    const auth = tmdbAuth(apiKey);
+    const res = await axios.get(`${TMDB_BASE}/${altType}/${tmdbId}/alternative_titles`, {
+      headers: auth.headers,
+      params: { ...auth.params },
+      timeout: 5000,
+    });
+    const raw = altType === 'movie' ? (res.data?.titles || []) : (res.data?.results || []);
+    const list = raw.map(t => t && (t.title || t.name)).filter(Boolean).slice(0, 30);
+    tmdbCache.set(memKey, list, 30 * 24 * 60 * 60);
+    sharedCache.set(redisKey, list, 30 * 24 * 60 * 60).catch(() => {});
+    return list;
+  } catch {
+    tmdbCache.set(memKey, [], 3600);
+    return [];
+  }
+}
+
+// Attach alternative titles to the strongest few candidates so a release named
+// with an AKA can still match. Only called when no candidate is already an
+// exact primary-title match, which keeps these extra calls off the common path.
+async function enrichAlternativeTitles(apiKey, apiType, query, results) {
+  if (!Array.isArray(results) || !results.length) return results;
+  let bestPrimary = 0;
+  for (const r of results) { const s = titleScore(query, r); if (s > bestPrimary) bestPrimary = s; }
+  if (bestPrimary === 100) return results;
+  const ranked = results.slice().sort((a, b) => titleScore(query, b) - titleScore(query, a)).slice(0, 6);
+  await pLimit(ranked.map(r => async () => {
+    if (!r || r.id == null || Array.isArray(r.alternativeTitles)) return;
+    const alts = await getAlternativeTitles(apiKey, apiType, r.id).catch(() => []);
+    if (alts.length) r.alternativeTitles = alts;
+  }), 6);
+  return results;
+}
+
 async function searchMetadata(apiKey, query, type, year, lang = 'en-US') {
+  query = canonicalSearchTitle(query, true, type);
   const cacheKey = `search:${type}:${lang}:${query}:${year || ''}`;
   const cached = tmdbCache.get(cacheKey);
   if (cached !== undefined) return cached;
+  return coalesceTmdb(`sm:${cacheKey}`, () => searchMetadataUncached(apiKey, query, type, year, lang, cacheKey));
+}
 
+async function searchMetadataUncached(apiKey, query, type, year, lang, cacheKey) {
   const endpoint = type === 'movie' ? '/search/movie' : '/search/tv';
   const auth   = tmdbAuth(apiKey);
   const region = lang.split('-')[1] || 'BR';
@@ -177,6 +300,7 @@ async function searchMetadata(apiKey, query, type, year, lang = 'en-US') {
 
   const res = await axios.get(`${TMDB_BASE}${endpoint}`, { headers: auth.headers, params, timeout: 8000 });
   const results = res.data?.results || [];
+  await enrichAlternativeTitles(apiKey, type === 'movie' ? 'movie' : 'tv', query, results);
   let result = results.length > 0 ? pickBestResult(query, results, year) : null;
 
   if (result && year && type === 'movie' && titleScore(query, result) < 100) {
@@ -227,28 +351,44 @@ async function searchMetadata(apiKey, query, type, year, lang = 'en-US') {
 }
 
 async function searchCandidates(apiKey, query, type, year, lang = 'en-US', limit = 5) {
+  query = canonicalSearchTitle(query, false, type);
   const cacheKey = `cand:${type}:${lang}:${query}:${year || ''}:${limit}`;
-  const cached = tmdbCache.get(cacheKey);
+  const cached = await durableSearchGet(cacheKey, cacheKey);
   if (cached !== undefined) return cached;
+  return coalesceTmdb(`sc:${cacheKey}`, () => searchCandidatesUncached(apiKey, query, type, year, lang, limit, cacheKey));
+}
 
+async function searchCandidatesUncached(apiKey, query, type, year, lang, limit, cacheKey) {
   const endpoint = type === 'movie' ? '/search/movie' : '/search/tv';
   const auth   = tmdbAuth(apiKey);
   const region = lang.split('-')[1] || 'BR';
   const params = { ...auth.params, query, language: lang, region, page: 1 };
   if (year && type === 'movie') params.year = year;
 
-  const res = await axios.get(`${TMDB_BASE}${endpoint}`, { headers: auth.headers, params, timeout: 8000 });
+  // One retry: a transient slow/rate-limited TMDB response used to throw and
+  // fail the entire interactive search, which left Nuvio with no TMDB rows.
+  let res;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await axios.get(`${TMDB_BASE}${endpoint}`, { headers: auth.headers, params, timeout: attempt === 0 ? 8000 : 6000 });
+      break;
+    } catch (err) {
+      if (attempt >= 1) throw err;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
   const results = res.data?.results || [];
   for (const r of results) {
     r.isJapaneseAnimation = r.original_language === 'ja' && (r.genre_ids || []).includes(16);
   }
+  await enrichAlternativeTitles(apiKey, type, query, results);
   const yy = year ? parseInt(year, 10) : 0;
   const ranked = results
     .map(r => ({ r, score: titleScore(query, r) + yearBonus(yy, r) }))
     .sort((a, b) => b.score - a.score || (b.r.vote_count || 0) - (a.r.vote_count || 0))
     .slice(0, limit)
     .map(x => x.r);
-  tmdbCache.set(cacheKey, ranked);
+  durableSearchSet(cacheKey, cacheKey, ranked, 21600);
   return ranked;
 }
 
@@ -258,7 +398,7 @@ async function searchPersonCredits(apiKey, query, type, lang = 'en-US') {
   const auth = tmdbAuth(apiKey);
   const apiType = type === 'series' ? 'tv' : 'movie';
   const personKey = `person:${lang}:${String(query).toLowerCase()}`;
-  let personId = tmdbCache.get(personKey);
+  let personId = await durableSearchGet(personKey, personKey);
   if (personId === undefined) {
     personId = null;
     try {
@@ -270,11 +410,11 @@ async function searchPersonCredits(apiKey, query, type, lang = 'en-US') {
       const person = (res.data?.results || []).find(p => p.known_for_department === 'Acting');
       personId = person ? person.id : null;
     } catch { personId = null; }
-    tmdbCache.set(personKey, personId, 86400);
+    durableSearchSet(personKey, personKey, personId, 86400);
   }
   if (!personId) return null;
   const creditsKey = `personcred:${apiType}:${personId}:${lang}`;
-  const cached = tmdbCache.get(creditsKey);
+  const cached = await durableSearchGet(creditsKey, creditsKey);
   if (cached !== undefined) return { personId, results: cached };
   try {
     const res = await axios.get(`${TMDB_BASE}/person/${personId}/${apiType}_credits`, {
@@ -286,7 +426,7 @@ async function searchPersonCredits(apiKey, query, type, lang = 'en-US') {
     const seen = new Set();
     const deduped = cast.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; })
       .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
-    tmdbCache.set(creditsKey, deduped, 86400);
+    durableSearchSet(creditsKey, creditsKey, deduped, 86400);
     return { personId, results: deduped };
   } catch { return null; }
 }
@@ -296,7 +436,7 @@ async function searchPersonCredits(apiKey, query, type, lang = 'en-US') {
 async function discoverByGenre(apiKey, genreId, type, lang = 'en-US') {
   const apiType = type === 'series' ? 'tv' : 'movie';
   const cacheKey = `discgenre:${apiType}:${genreId}:${lang}`;
-  const cached = tmdbCache.get(cacheKey);
+  const cached = await durableSearchGet(cacheKey, cacheKey);
   if (cached !== undefined) return cached;
   try {
     const auth = tmdbAuth(apiKey);
@@ -306,7 +446,7 @@ async function discoverByGenre(apiKey, genreId, type, lang = 'en-US') {
       timeout: 8000,
     });
     const results = res.data?.results || [];
-    tmdbCache.set(cacheKey, results, 21600);
+    durableSearchSet(cacheKey, cacheKey, results, 21600);
     return results;
   } catch { tmdbCache.set(cacheKey, [], 600); return []; }
 }
@@ -812,12 +952,21 @@ async function getImdbId(apiKey, apiType, tmdbId) {
     tmdbCache.set(cacheKey, persistent.imdbId, persistent.imdbId ? 86400 : 21600);
     return persistent.imdbId;
   }
+  // Local Wikidata mapping: a free first answer before the TMDB external_ids
+  // call. Redis (API-derived) above stays authoritative; a miss here still
+  // falls through to TMDB. Not written back to Redis so the in-memory map
+  // stays the single source and refreshes daily.
+  const local = idMap.tmdbToImdb(apiType, tmdbId);
+  if (local) {
+    tmdbCache.set(cacheKey, local, 21600);
+    return local;
+  }
   try {
     const auth = tmdbAuth(apiKey);
     const res = await axios.get(`${TMDB_BASE}/${apiType}/${tmdbId}/external_ids`, {
       headers: auth.headers,
       params: { ...auth.params },
-      timeout: 8000,
+      timeout: 5000,
     });
     const imdbId = res.data?.imdb_id || null;
     const ttl = imdbId ? 30 * 24 * 60 * 60 : 6 * 60 * 60;
@@ -830,16 +979,45 @@ async function getImdbId(apiKey, apiType, tmdbId) {
   }
 }
 
+// Batch variant of getImdbId: one Redis MGET for every persistent key, then a
+// bounded parallel fill for whatever is still missing. Collapses N per-title
+// round trips into one for a whole catalog row.
+async function getImdbIds(apiKey, apiType, ids) {
+  const out = new Map();
+  const missing = [];
+  for (const id of ids) {
+    const cached = tmdbCache.get(`imdb:${apiType}:${id}`);
+    if (cached !== undefined) out.set(id, cached);
+    else missing.push(id);
+  }
+  if (!missing.length) return out;
+  const persistentKeys = missing.map((id) => sharedCache.makeKey('tmdb2imdb:v1', apiType, id));
+  let hits = new Map();
+  try { hits = await sharedCache.mget(persistentKeys); } catch { /* treat as miss */ }
+  const stillMissing = [];
+  missing.forEach((id, index) => {
+    const entry = hits.get(persistentKeys[index]);
+    if (entry && Object.prototype.hasOwnProperty.call(entry, 'imdbId')) {
+      tmdbCache.set(`imdb:${apiType}:${id}`, entry.imdbId, entry.imdbId ? 86400 : 21600);
+      out.set(id, entry.imdbId);
+    } else {
+      stillMissing.push(id);
+    }
+  });
+  await pLimit(stillMissing.map((id) => async () => {
+    out.set(id, await getImdbId(apiKey, apiType, id));
+  }), 10);
+  return out;
+}
+
 // Build a discovery catalog row set ({ id: tt..., type, name, poster, ... })
 // from a TMDB list, resolving each item's IMDb id. Skips items with no IMDb id.
 // apiType is 'movie' | 'tv' (TMDB's own type names for /trending & /popular).
 async function buildDiscoveryMetas(apiKey, items, lang, apiType) {
-  const enriched = await pLimit(items.map(item => async () => {
-    const imdbId = await getImdbId(apiKey, apiType, item.id);
-    return { item, imdbId };
-  }), 6);
+  const imdbIds = await getImdbIds(apiKey, apiType, items.map((item) => item.id));
   const metas = [];
-  for (const { item, imdbId } of enriched) {
+  for (const item of items) {
+    const imdbId = imdbIds.get(item.id);
     if (!imdbId) continue;
     const name = item.title || item.name || item.original_title || item.original_name || '';
     const date = item.release_date || item.first_air_date || '';
@@ -908,4 +1086,4 @@ async function getPopular(apiKey, apiType, lang = 'en-US', pages = 1) {
   }
 }
 
-module.exports = { searchMetadata, searchCandidates, searchPersonCredits, discoverByGenre, findByImdbId, getMetadata, imdbToTmdb, imdbToTmdbCached, findEpisodeByAirDate, getSeasonEpisodeCounts, getSeriesSeasons, getSeasonEpisodes, seriesSeasonsFromVideos, seasonEpisodesFromVideos, titleScore, pickBestResult, clearCaches, getTrending, getPopular, getImdbId, getMovieReleaseInfo };
+module.exports = { searchMetadata, searchCandidates, searchPersonCredits, discoverByGenre, findByImdbId, getMetadata, imdbToTmdb, imdbToTmdbCached, findEpisodeByAirDate, getSeasonEpisodeCounts, getSeriesSeasons, getSeasonEpisodes, seriesSeasonsFromVideos, seasonEpisodesFromVideos, titleScore, pickBestResult, clearCaches, getTrending, getPopular, getImdbId, getImdbIds, getMovieReleaseInfo };

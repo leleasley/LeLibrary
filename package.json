@@ -1,17 +1,21 @@
 {
   "name": "lelibrary",
-  "version": "5.1.5",
+  "version": "5.2.0",
   "description": "LeLibrary: TorBox & Real-Debrid addon with TMDB metadata",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
     "test": "node --test test/*.test.js",
+    "test:library": "node --test test/library-index.test.js test/library-store.test.js",
+    "bench:library": "node scripts/library-bench.js",
+    "fixture:library": "node scripts/library-fixture.js",
     "audit:imported-sources": "node scripts/audit-imported-sources.js",
     "check:curated-artwork": "node scripts/check-curated-artwork.js"
   },
   "dependencies": {
     "axios": "^1.6.7",
+    "compression": "^1.7.5",
     "express": "^4.18.3",
     "ioredis": "^5.0.0",
     "node-cache": "^5.1.2",

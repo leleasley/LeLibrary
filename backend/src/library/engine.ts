@@ -638,6 +638,12 @@ async function status() {
   };
 }
 
+// Cheap liveness for the public status page: no queries, so a busy database
+// (the first sync after a deploy) can never make the engine look broken.
+function health() {
+  return { enabled: isIndexed(), started };
+}
+
 async function scopeStatus(scopeId) {
   const row = await store.getScope(scopeId).catch(() => null);
   const rec = registry.get(scopeId);
@@ -686,6 +692,7 @@ export interface EngineApi {
   noteProjectionChange: any;
   catalogResultKey: any;
   status: any;
+  health: any;
   scopeStatus: any;
   triggerSync: any;
   retryFailed: any;
@@ -707,6 +714,7 @@ module.exports = {
   noteProjectionChange,
   catalogResultKey,
   status,
+  health,
   scopeStatus,
   triggerSync,
   retryFailed,

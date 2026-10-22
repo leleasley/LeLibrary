@@ -1,5 +1,16 @@
 # Changelog
 
+## [5.5.1]
+
+### Fixes
+
+- The status page no longer reports the library engine as failed and the database as not configured while the library is busy syncing, for example just after an update.
+
+### Project
+
+- LeLibrary is now licensed under AGPL-3.0. Releases up to and including 5.5.0 stay available under MIT.
+- The build and release automation uses the current versions of its GitHub Actions.
+
 ## [5.5.0]
 
 ### No more accounts: a setup is a link you keep

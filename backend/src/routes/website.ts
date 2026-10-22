@@ -1061,9 +1061,12 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
       const engine = require('../library/engine.ts');
       db = require('../library/db.ts');
       cache = require('../runtime/cache.ts');
-      engineState = await bounded(engine.status(), 2500);
-      indexed = !!engineState.enabled;
       dbConfigured = !!db.enabled();
+      // health() runs no queries; engine.status() aggregates the whole match
+      // queue and timed out under the first sync after a deploy, which showed
+      // the engine as failed and the database as not configured.
+      engineState = engine.health();
+      indexed = !!engineState.enabled;
     } catch {
       engineFailure = true;
     }
@@ -1089,8 +1092,8 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
         // Matching backlog and per-title failures are diagnostics, not service
         // availability. Keep those private; this component reports whether the
         // engine itself is running. Database availability is reported below.
-        status: engineFailure ? 'degraded' : (!indexed ? 'operational' : (engineState.worker?.started ? 'operational' : 'degraded')),
-        detail: engineFailure ? 'Engine health probe failed' : (!indexed ? 'Legacy library path active' : (engineState.worker?.started
+        status: engineFailure ? 'degraded' : (!indexed ? 'operational' : (engineState.started ? 'operational' : 'degraded')),
+        detail: engineFailure ? 'Engine health probe failed' : (!indexed ? 'Legacy library path active' : (engineState.started
           ? 'Background engine running'
           : 'Engine not started')),
       },

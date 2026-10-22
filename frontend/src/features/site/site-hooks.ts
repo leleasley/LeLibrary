@@ -160,6 +160,13 @@ export function statusClass(status: string): string {
     : 'unknown';
 }
 
+// Providers that count towards "x/y up". One we could not check from the server
+// ('unknown', e.g. blocked by Cloudflare) is shown but never counted. Mirrored
+// in backend/src/platform/boot-html.ts for the prerendered home page.
+export function checkedProviders<T extends { status: string }>(providers: T[]): T[] {
+  return providers.filter((p) => p.status !== 'unknown');
+}
+
 export function statusLabel(status: string): string {
   const es = typeof document !== 'undefined' && document.documentElement.lang.toLowerCase().startsWith('es');
   return status === 'operational' ? (es ? 'Operativo' : 'Operational')

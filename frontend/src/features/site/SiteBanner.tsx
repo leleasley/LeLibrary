@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
-import { statusClass, statusLabel, useFeatures, useProviderStatus } from '@/features/site/site-hooks';
+import { checkedProviders, statusClass, statusLabel, useFeatures, useProviderStatus } from '@/features/site/site-hooks';
 import { useTranslation } from 'react-i18next';
 
 // The single top banner for the whole application: brand, section nav, a live
@@ -13,7 +13,8 @@ export function SiteBanner() {
   const features = useFeatures();
   const releasesEnabled = features?.releases === true;
   const overall = status ? statusClass(status.overall) : 'unknown';
-  const count = status ? `${status.providers.filter((p) => p.status === 'operational').length}/${status.providers.length}` : '–';
+  const counted = status ? checkedProviders(status.providers) : [];
+  const count = status ? `${counted.filter((p) => p.status === 'operational').length}/${counted.length}` : '–';
   // The per-service tooltip is added after the first render, so the server's
   // HTML (which only carries the count) and React's first render match.
   const [mounted, setMounted] = useState(false);

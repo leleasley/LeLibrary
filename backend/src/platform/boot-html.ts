@@ -50,7 +50,10 @@ export interface StatusSummary {
 function summarize(status: unknown): StatusSummary {
   const record = (status && typeof status === 'object' ? status : null) as StatusLike | null;
   if (!record) return { footerLabel: 'Unknown', pillClass: 'unknown', pillCount: '–', heroCount: '–', heroWarn: false };
-  const providers = (Array.isArray(record.providers) ? record.providers : []) as ProviderLike[];
+  // Providers we could not check ('unknown') are left out of the counts.
+  // Mirrors checkedProviders() in site-hooks.ts.
+  const providers = ((Array.isArray(record.providers) ? record.providers : []) as ProviderLike[])
+    .filter((p) => !(p && p.status === 'unknown'));
   const operational = providers.filter((p) => p && p.status === 'operational').length;
   const up = providers.filter((p) => p && (p.status === 'operational' || p.status === 'up')).length;
   return {

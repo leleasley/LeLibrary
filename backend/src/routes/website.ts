@@ -859,7 +859,15 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
     return 'degraded';
   }
 
-  const STATUS_CHECKS = [
+  // A Cloudflare 403 block page (an IP or bot rule), as opposed to the service
+// itself answering 403.
+function isCloudflareBlock(response: any): boolean {
+  if (!response || response.status !== 403) return false;
+  const server = String(response.headers?.server || '').toLowerCase();
+  return server.includes('cloudflare') || !!response.headers?.['cf-mitigated'];
+}
+
+const STATUS_CHECKS = [
     {
       id: 'torbox',
       name: 'TorBox',
@@ -961,7 +969,18 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
       url: 'https://torrentio.strem.fun',
       async check(axios: any) {
         const t0 = Date.now();
-        const r = await axios.get('https://torrentio.strem.fun/manifest.json', { timeout: 8000 });
+        let r;
+        try {
+          r = await axios.get('https://torrentio.strem.fun/manifest.json', { timeout: 8000 });
+        } catch (err) {
+          // Torrentio's Cloudflare refuses many cloud server IPs with a 403
+          // block page. That says nothing about Torrentio itself, so it is
+          // shown as not checked instead of counting as an outage.
+          if (isCloudflareBlock((err as any)?.response)) {
+            return { status: 'unknown', detail: "Can't check from our server", latency: Date.now() - t0 };
+          }
+          throw err;
+        }
         const latency = Date.now() - t0;
         if (typeof r.data?.id === 'string' && typeof r.data?.name === 'string') {
           return { status: 'operational', detail: 'Public manifest responding', latency };
@@ -1137,8 +1156,9 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
     last7.forEach((s: any) => out.b7.push({ t: s.t, status: s.status }));
 
     const pct = (slice: any) => {
-      if (!slice.length) return null;
-      return Math.round((slice.filter((s: any) => s.status !== 'down').length / slice.length) * 100);
+      const checked = slice.filter((s: any) => s.status !== 'unknown');
+      if (!checked.length) return null;
+      return Math.round((checked.filter((s: any) => s.status !== 'down').length / checked.length) * 100);
     };
     out.up24 = pct(last24);
     out.up7 = pct(last7);
@@ -1164,7 +1184,9 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
       });
       providers.unshift(await checkLeLibrary());
 
+      // A provider we could not check ('unknown') never changes the overall.
       const overall = providers.reduce((worst, p) => {
+        if (p.status === 'unknown') return worst;
         return (STATUS_RANK[p.status] ?? 2) > STATUS_RANK[worst] ? p.status : worst;
       }, 'operational');
 

@@ -1,12 +1,12 @@
 import type { StatusResponse } from '@/api/status';
-import { statusClass, statusLabel } from '@/features/site/site-hooks';
+import { checkedProviders, statusClass, statusLabel } from '@/features/site/site-hooks';
 
 // The provider status pill in the nav (desktop + mobile) and the footer
 // indicator. Counts operational providers; titles list every provider state.
 export function StatusPill({ status, mobile, label }: { status: StatusResponse | null; mobile?: boolean; label?: string }) {
   const overall = status ? statusClass(status.overall) : 'unknown';
   const count = status && Array.isArray(status.providers)
-    ? `${status.providers.filter((p) => p.status === 'operational').length}/${status.providers.length}`
+    ? `${checkedProviders(status.providers).filter((p) => p.status === 'operational').length}/${checkedProviders(status.providers).length}`
     : '–';
   const title = status && Array.isArray(status.providers)
     ? status.providers.map((p) => `${p.name}: ${statusLabel(p.status)}`).join(' · ')

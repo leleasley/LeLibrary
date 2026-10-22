@@ -3,6 +3,7 @@
   "version": "5.5.0",
   "description": "LeLibrary: TorBox & Real-Debrid addon with TMDB metadata",
   "main": "backend/index.ts",
+  "license": "AGPL-3.0-only",
   "scripts": {
     "start": "node backend/index.ts",
     "dev": "node --watch backend/index.ts",

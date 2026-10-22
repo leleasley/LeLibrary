@@ -334,4 +334,10 @@ image removed, open an issue and it will be fixed in the next release.
 
 ## License
 
-MIT
+LeLibrary is licensed under the [GNU Affero General Public License v3.0](LICENSE)
+(AGPL-3.0-only).
+
+In short: you can self-host it, read it and change it. If you run a modified
+version as a service other people use, you must publish your changes under the
+same licence. Releases up to and including v5.5.0 were published under MIT and
+stay available under those terms.

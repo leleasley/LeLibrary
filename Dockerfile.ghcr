@@ -20,7 +20,7 @@ ARG VERSION="dev"
 LABEL org.opencontainers.image.title="LeLibrary" \
       org.opencontainers.image.description="Self-hosted LeLibrary addon for Stremio-compatible media clients" \
       org.opencontainers.image.source="https://github.com/leleasley/LeLibrary" \
-      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.revision="$VCS_REF" \
       org.opencontainers.image.version="$VERSION"
 

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="website/public/LeLibrary.png" width="100" alt="LeLibrary">
+  <img src="frontend/public/LeLibrary.png" width="100" alt="LeLibrary">
 </p>
 
 <h1 align="center">LeLibrary</h1>
@@ -17,13 +17,19 @@
 
 <p align="center">
   <a href="https://lelibrary.uk/configure">Configure LeLibrary</a> ·
-  <a href="https://lelibrary.uk/account">Account</a> ·
+  <a href="SETUP.md">Setup guide</a> ·
   <a href="https://github.com/leleasley/LeLibrary/releases">Releases</a>
 </p>
 
+## Start here
+
+New to LeLibrary, or not sure which option to pick? **[SETUP.md](SETUP.md)** walks
+through the hosted setup, a self-hosted install, editing a setup later, and how
+to find or move an existing setup. The short version is below.
+
 ## What LeLibrary does
 
-LeLibrary turns downloads from TorBox, Real-Debrid, AllDebrid and Premiumize into a clean media library for Stremio and Nuvio.
+LeLibrary turns downloads from TorBox, Real-Debrid, AllDebrid and Premiumize into a clean media library for Stremio and Nuvio: one addon where you pick a title and your own copy plays first, with catalogues, collections and extra stream sources built in.
 
 - Groups episodes into series, seasons and episodes.
 - Shows only content that exists in your library.
@@ -32,6 +38,12 @@ LeLibrary turns downloads from TorBox, Real-Debrid, AllDebrid and Premiumize int
 - Supports native movie and series search from inside Stremio and Nuvio.
 - Returns standard IMDb-style `tt...` IDs for discovery and search results.
 - Keeps library content in the private `torbox:` namespace by default.
+- Plays your own copy first; optional stream sources (Torrentio, Comet, Meteor,
+  MediaFusion, Jackettio, KNABEN, or up to three addons of your own such as
+  StreamNZB) line up underneath in your order. Meteor also searches Usenet when
+  your TorBox plan is Pro.
+- Rename your library rows, and back up a setup's settings to a file to start a
+  new setup from it.
 - Supports configurable stream names and descriptions.
 - Supports optional poster, rating and artwork providers.
 
@@ -39,63 +51,43 @@ LeLibrary turns downloads from TorBox, Real-Debrid, AllDebrid and Premiumize int
 
 ### Hosted installation
 
-1. Open [lelibrary.uk/configure](https://lelibrary.uk/configure).
+1. Open [lelibrary.uk/configure](https://lelibrary.uk/configure) and pick a setup level:
+   **Quick Look**, **Settle In** or **Move In**. The
+   [guide](https://lelibrary.uk/guide) has a short video of each.
 2. Choose your debrid provider and enter the required keys.
 3. Add your TMDB key for metadata and search.
-4. Generate the addon link.
-5. Install the link in Stremio or Nuvio.
+4. Choose a setup password. You get an install link of the form
+   `https://lelibrary.uk/{setup-id}.{secret}/manifest.json`.
+5. On the finish screen, press **Open in Stremio**, or **Copy for Nuvio** and
+   paste the link into Nuvio's addons. Settle In and Move In can also push
+   straight to a Nuvio profile.
+
+The install link is the read capability: clients can use it with no password.
+The password only unlocks editing at `https://lelibrary.uk/{setup-id}`. Save
+both, because there is no account and no recovery flow.
 
 ### Self-hosted installation
 
-Create an empty directory for LeLibrary and generate its local secret:
+Copy [`compose.example.yml`](compose.example.yml) to `compose.yml` and
+[`.env.example`](.env.example) to `.env`, then set the values described in the
+comments:
 
 ```bash
 mkdir lelibrary && cd lelibrary
-umask 077
-printf 'SELFHOST_CONFIGS_SECRET=%s\n' "$(openssl rand -hex 32)" > .env
+curl -fsSLO https://raw.githubusercontent.com/leleasley/LeLibrary/main/compose.example.yml
+mv compose.example.yml compose.yml
+curl -fsSLO https://raw.githubusercontent.com/leleasley/LeLibrary/main/.env.example
+mv .env.example .env
+chmod 600 .env
 ```
 
-Save the following as `compose.yml` in that directory:
+At minimum, set `DB_PASSWORD`, `CONFIG_SECRET` and `SELFHOST_CONFIGS_SECRET` in
+`.env`. Generate keys with `openssl rand -hex 32`.
 
-```yaml
-services:
-  lelibrary:
-    image: ghcr.io/leleasley/lelibrary:latest
-    container_name: lelibrary
-    restart: unless-stopped
-    ports:
-      - "7860:7860"
-    environment:
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      # Loaded automatically from the .env file generated above.
-      # Compose refuses to start when the value is missing or empty.
-      SELFHOST_CONFIGS_SECRET: ${SELFHOST_CONFIGS_SECRET:?Generate SELFHOST_CONFIGS_SECRET in .env first}
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:7860/health"]
-      interval: 60s
-      timeout: 5s
-      retries: 3
-
-  redis:
-    image: redis:7-alpine
-    container_name: lelibrary-redis
-    restart: unless-stopped
-    volumes:
-      - lelibrary-data:/data
-    command: redis-server --save 60 1 --loglevel warning --maxmemory 512mb --maxmemory-policy allkeys-lfu
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-
-volumes:
-  lelibrary-data:
-```
+The compose file runs LeLibrary with Postgres (the indexed library engine) and
+Redis (cache), and keeps `/data` in a named volume so the generated setup key
+survives upgrades. Only the app port is published: Postgres and Redis stay
+inside the Compose network.
 
 Start the stack, then open `http://localhost:7860/configure`:
 
@@ -114,7 +106,7 @@ exact version tag. To pin or roll back, change the tag directly on the `image:`
 line in `compose.yml`, for example:
 
 ```yaml
-image: ghcr.io/leleasley/lelibrary:v5.1.0
+image: ghcr.io/leleasley/lelibrary:v5.5.0
 ```
 
 Then run `docker compose pull && docker compose up -d`. Keep the generated
@@ -147,9 +139,22 @@ docker compose cp ./lelibrary-redis-backup.rdb redis:/data/dump.rdb
 docker compose start redis
 ```
 
-Self-hosted saved setups require `SELFHOST_CONFIGS_SECRET` in `.env`. The Configure page uses it automatically; command-line requests can authenticate with the `x-selfhost-secret` header. Keep this value private and regenerate it if the instance is exposed publicly. Without it, the saved-setups list on the Configure page shows as disabled rather than failing silently.
+`SELFHOST_CONFIGS_SECRET` in `.env` unlocks the self-host features, including the
+**Back to a previous setup** list on `/configure`. The page sets an access cookie
+automatically; command-line requests can authenticate with the
+`x-selfhost-secret` header. Keep the value private and regenerate it if the
+instance is exposed publicly.
 
-Your saved setups, library caches and stream settings live in the `lelibrary-data` volume. `docker compose down` and upgrades are safe; `docker compose down -v` wipes them.
+The list shows only setup names, tiers, password flags and dates, never install
+secrets. On a shared instance set `SELFHOST_LIST_SETUPS=off` to hide it; pasting
+a setup id or link still works.
+
+Full walkthrough, including finding a setup on another device:
+**[SETUP.md](SETUP.md)**.
+
+Your saved setups, library index, caches and stream settings live in the
+`lelibrary_data`, `postgres_data` and `redis_data` volumes. `docker compose down`
+and upgrades are safe; `docker compose down -v` wipes them.
 
 No account is needed to self-host: the update check, key verification, catalogue library and curated packs all work without signing in. The provider status pill and `/status` page are hosted-only and hidden on self-hosted installs.
 
@@ -178,9 +183,9 @@ Release users should prefer the standalone published GHCR image above.
 
 The normal `Dockerfile` is for local and hosted development builds.
 `Dockerfile.ghcr` and its matching `Dockerfile.ghcr.dockerignore` are reserved
-for the public release workflow. The dedicated ignore file prevents hosted
-account code, private website files, secrets and development files from entering
-the GHCR build context.
+for the public release workflow. The dedicated ignore file prevents private
+hosted files, secrets and development files from entering the GHCR build
+context.
 
 ## Providers
 
@@ -207,21 +212,29 @@ Collections. You can instead show only the global TMDB-backed sections or only
 your owned-library sections. Global results use canonical IMDb IDs; owned
 results keep your selected library ID mode.
 
-## Collections and accounts
+## Setups, collections and home rows
 
-Hosted users can sign in at [lelibrary.uk/account](https://lelibrary.uk/account).
+Every setup is saved server-side and addressed by its install link. There is no
+account to create and nothing to sign in to: the link is what Stremio and Nuvio
+read, and the setup password only unlocks editing.
 
-The account area provides:
+The setup flow offers three levels:
 
-- Profile-aware collection configuration.
-- Separate Nuvio and Stremio destinations.
-- Presets and a Collections Wizard.
-- Home-row configuration.
-- List importing and metadata resolution.
-- Collection item previews with posters and resolution status.
-- Separate Nuvio profile handling.
+- **Quick Look**: library, posters, a Nuvio badge pack and the stream style.
+- **Settle In**: Quick Look plus Home rows, playback filters, extra stream
+  sources and Nuvio playback settings.
+- **Move In**: everything, including collections, folders, Quick Packs and a
+  one-click push to Nuvio.
 
-Collections are scoped to the account, destination and selected profile. Nuvio collections do not automatically become Stremio configuration, and one Nuvio profile does not inherit another profile's LeLibrary configuration.
+To change a setup later, open its edit link (`/{setup-id}`) and enter the
+password: the page you built it on opens with everything filled in. You can
+also move a setup to another level there; it keeps the same install link. See
+[Editing a setup](SETUP.md#editing-a-setup).
+
+Collections are scoped to a setup and its destination. Nuvio collections do not
+automatically become Stremio configuration, and one Nuvio profile does not
+inherit another profile's LeLibrary configuration. Adding a new franchise to
+Nuvio needs one re-push; existing folders refresh on their own.
 
 ## Metadata and artwork
 
@@ -244,10 +257,13 @@ LeLibrary includes presets for common stream layouts, including LeLibrary, TorBo
 ## Privacy and security
 
 - Provider keys are not written to application logs.
-- Hosted account secrets are encrypted at rest.
-- Browser-side configuration uses encrypted local storage.
-- Account sessions use secure cookies and CSRF protection.
-- The addon does not require tracking or analytics.
+- Saved setup keys are encrypted at rest with a server-held key, so a database
+  dump is not readable on its own.
+- The setup password is only an edit gate; it is never stored in the clear and
+  is rate limited per IP and per setup.
+- Reading a setup needs nothing but its install link, which is why the link
+  itself must stay private.
+- The addon does not use tracking or analytics.
 
 Never share an addon URL that contains your private configuration.
 
@@ -269,15 +285,52 @@ Owned library rows use the private `torbox:` namespace. Discovery and Main IDs r
 
 Nuvio's richer metadata sections require a valid TMDB key in Nuvio's own settings on the active profile. Bare IMDb IDs are required for Nuvio's full enrichment pipeline.
 
-## Third-party artwork
+## Special thanks
 
-Optional Nuvio collection packs include locally served artwork imported from
-[`rrevanth/nuvio-assets`](https://github.com/rrevanth/nuvio-assets) and
-[`ImKaptain/nuvio-assets`](https://github.com/ImKaptain/nuvio-assets), and
-[`luckynumb3rs/stremio-perfect-setup`](https://github.com/luckynumb3rs/stremio-perfect-setup).
-Additional community-curated artwork is documented in the asset provenance file.
-Each imported file retains its source path in
-`website/public/collection-assets/sources.json`.
+LeLibrary looks the way it does because of artwork made and shared by people
+in the Stremio and Nuvio community. Thank you to:
+
+**Collection artwork** (covers, focus GIFs and backdrops for the Nuvio
+collection packs):
+
+- [rrevanth](https://github.com/rrevanth) for
+  [`nuvio-assets`](https://github.com/rrevanth/nuvio-assets): collection
+  covers and focus GIFs.
+- [ImKaptain](https://github.com/ImKaptain) for
+  [`nuvio-assets`](https://github.com/ImKaptain/nuvio-assets): actor covers,
+  focus GIFs and backdrops.
+- [luckynumb3rs](https://github.com/luckynumb3rs) for
+  [`stremio-perfect-setup`](https://github.com/luckynumb3rs/stremio-perfect-setup):
+  streaming-service, studio and Discover covers and focus GIFs.
+- [Deimosdm7](https://github.com/Deimosdm7) for artwork from
+  `Coisas-de-app`, plus the community members whose shared images are listed
+  in the provenance file below.
+
+**Stream badges** (the quality and format badges in stream lists):
+
+- [vowl313](https://github.com/vowl313) for
+  [NardBadges](https://github.com/vowl313/NardBadges).
+- [leonevz](https://github.com/leonevz) for
+  [Elite Badges](https://github.com/leonevz/Elite-Badges).
+- [sweatycab](https://github.com/sweatycab) for
+  [Nuvio Minimalist Badges](https://github.com/sweatycab/nuvio-minimalist-badges).
+- [9mousaa](https://github.com/9mousaa) for
+  [BetterFormatter](https://github.com/9mousaa/BetterFormatter) and its badges.
+
+**Posters and metadata**: [TMDB](https://www.themoviedb.org/),
+[Fanart.tv](https://fanart.tv/), [RPDB](https://ratingposterdb.com/),
+[BetterPosters](https://btttr.cc/), ERDB and Pictorium. This product uses the
+TMDB API but is not endorsed or certified by TMDB.
+
+The full list of projects LeLibrary relies on is on the
+[Supporters page](https://lelibrary.uk/supporters).
+
+Collection artwork is served locally for reliability, not fetched from GitHub
+at runtime. Every imported file keeps its original source path in
+`frontend/public/collection-assets/sources.json`, and
+`frontend/public/collection-assets/ASSET_SOURCES.md` records where each set
+came from. If you made one of these images and want the credit changed or the
+image removed, open an issue and it will be fixed in the next release.
 
 ## License
 

@@ -3,45 +3,65 @@ services:
     image: ghcr.io/leleasley/lelibrary:latest
     container_name: lelibrary
     restart: unless-stopped
-    ports:
-      - "${LELIBRARY_PORT:-7860}:7860"
-    mem_limit: ${LELIBRARY_MEMORY_LIMIT:-1g}
+    # Secrets and any extra option from .env.example live in .env next to
+    # this file (chmod 600). The lines under `environment:` win over it.
     env_file:
-      - ./.env
+      - .env
     environment:
-      # The index-first library engine is the default core and keeps a local
-      # index of your debrid library in Postgres. Set DB_PASSWORD in .env to a
-      # strong value. Without DATABASE_URL the addon automatically falls back to
-      # the legacy request-time path, so a database is optional.
-      DATABASE_URL: postgres://lelibrary:${DB_PASSWORD:-lelibrary}@postgres:5432/lelibrary
+      - TZ=Europe/London
+      - PORT=7860
+      # Seals every saved setup's keys. Generate once with `openssl rand -hex 32`
+      # and keep it safe: losing it makes saved setups unreadable.
+      - CONFIG_SECRET=${CONFIG_SECRET}
+      # Unlocks the self-host features, including the saved-setups list.
+      - SELFHOST_CONFIGS_SECRET=${SELFHOST_CONFIGS_SECRET}
+      # Library index + saved setups. Remove to run without a database.
+      # Recommended: use a normal login instead of the superuser, see SETUP.md
+      # (lelibrary_app with ${DB_APP_PASSWORD}).
+      - DATABASE_URL=postgres://lelibrary:${DB_PASSWORD}@postgres:5432/lelibrary
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # Optional. Hide the saved-setups list on an instance shared with others.
+      # - SELFHOST_LIST_SETUPS=off
+      # Optional. Let "Add your own addon" reach your own network (StreamNZB on
+      # the LAN or Tailscale). Never on an instance other people use.
+      # - CUSTOM_ADDONS_ALLOW_PRIVATE=on
+    volumes:
+      # Keeps the generated setup key if CONFIG_SECRET is left empty.
+      - lelibrary_data:/data
+    ports:
+      - 7860:7860 # Remove if a reverse proxy on the same network serves it
+    mem_limit: 1g
     depends_on:
-      redis:
-        condition: service_healthy
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:7860/health"]
       interval: 60s
       timeout: 5s
       retries: 3
-    # Cap container logs so a long-running instance cannot fill the disk.
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
+    # networks:
+    #   - default
+    #   - proxy
 
   postgres:
     image: postgres:16-alpine
     container_name: lelibrary-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: lelibrary
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-lelibrary}
-      POSTGRES_DB: lelibrary
+      - POSTGRES_USER=lelibrary
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=lelibrary
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    mem_limit: ${POSTGRES_CONTAINER_MEMORY_LIMIT:-512m}
+    mem_limit: 512m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U lelibrary -d lelibrary"]
       interval: 30s
@@ -52,18 +72,17 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    # Deliberately not published: only the LeLibrary container needs to reach it.
+    # No ports: only LeLibrary talks to the database.
 
   redis:
     image: redis:7-alpine
     container_name: lelibrary-redis
     restart: unless-stopped
+    # Cache only, capped. Safe to empty at any time; setups live in Postgres.
+    command: redis-server --save 60 1 --loglevel warning --maxmemory 512mb --maxmemory-policy allkeys-lfu
     volumes:
       - redis_data:/data
-    mem_limit: ${REDIS_CONTAINER_MEMORY_LIMIT:-768m}
-    # Cache data is disposable: cap it so a burst of large collection imports
-    # cannot consume all host memory. allkeys-lfu retains the hottest catalogues.
-    command: redis-server --save 60 1 --loglevel warning --maxmemory ${REDIS_MAXMEMORY:-512mb} --maxmemory-policy allkeys-lfu
+    mem_limit: 768m
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
@@ -74,7 +93,15 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    # No ports: only LeLibrary talks to the cache.
 
 volumes:
-  redis_data:
+  lelibrary_data:
   postgres_data:
+  redis_data:
+
+# Using a reverse proxy (Caddy, Traefik, Nginx Proxy Manager) on a shared
+# Docker network? Uncomment this and the `networks:` block under lelibrary.
+# networks:
+#   proxy:
+#     external: true

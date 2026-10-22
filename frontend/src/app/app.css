@@ -1,0 +1,339 @@
+:root {
+  color-scheme: dark;
+  --bg: #09090b;
+  --surface: #111114;
+  --border: rgba(255, 255, 255, 0.09);
+  --text: #f4f4f5;
+  --muted: #8c8c96;
+  --amber: #f59e0b;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Keyboard users should be able to jump past the site nav in one keystroke.
+   Visually hidden until focused, then pinned to the top-left. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: 10px 16px;
+  background: var(--amber);
+  color: #181108;
+  font-weight: 700;
+  border-radius: 0 0 8px 0;
+  text-decoration: none;
+}
+.skip-link:focus {
+  left: 0;
+}
+
+/* The site navigation and footer strip their default outlines in places, so
+   give keyboard focus a consistent, always-visible ring instead. */
+.banner :focus-visible,
+footer :focus-visible,
+.gd-nav :focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.shell-top {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding: 0 clamp(16px, 4vw, 40px);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.shell-brand {
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.shell-main {
+  padding: 24px clamp(16px, 4vw, 40px);
+}
+
+/* Route skeletons: page-shaped placeholders while a page loads. */
+.route-skeleton { width: min(1180px, 100%); margin: 0 auto; padding: clamp(22px, 4vw, 44px) clamp(18px, 4vw, 40px) 64px; animation: sk-in 0.25s ease 0.12s both; }
+.route-skeleton-inner { display: grid; gap: 28px; }
+.sk { display: block; border-radius: 8px; background: linear-gradient(100deg, rgba(255,255,255,0.045) 30%, rgba(255,255,255,0.095) 50%, rgba(255,255,255,0.045) 70%) 0 0 / 300% 100%; animation: sk-shimmer 1.6s ease-in-out infinite; }
+.sk-eyebrow { background: rgba(245, 158, 11, 0.22); }
+.sk-title { border-radius: 10px; }
+.sk-cta { border-radius: 12px; background: rgba(245, 158, 11, 0.16); animation: none; }
+.sk-hero { display: grid; gap: 12px; padding-top: 6px; }
+.sk-hero .sk-title + .sk-title { margin-bottom: 8px; }
+.sk-card { display: grid; gap: 12px; align-content: start; padding: 20px; border: 1px solid var(--border); border-radius: 16px; background: rgba(255, 255, 255, 0.018); }
+.sk-col { display: grid; gap: 16px; align-content: start; }
+.sk-grid { display: grid; gap: 16px; }
+.sk-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.sk-rail { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.sk-rail .sk-pill { flex: 1; max-width: 130px; border-radius: 999px; }
+.sk-tabs { border-bottom: 0; }
+.sk-tabs .sk-pill { max-width: 110px; }
+.sk-setup { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
+.sk-step { grid-template-columns: auto 1fr; gap: 16px; }
+.sk-num { background: rgba(245, 158, 11, 0.14); }
+.sk-lines { display: grid; gap: 10px; }
+.sk-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 4px; }
+.sk-tile { border-radius: 12px; }
+.sk-aside { position: sticky; top: 90px; }
+.sk-posters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sk-poster { aspect-ratio: 2 / 3; border-radius: 10px; }
+.sk-mini { border-radius: 12px; }
+.sk-posters-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.sk-poster-item { display: grid; gap: 8px; }
+.sk-doc { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 32px; align-items: start; }
+.sk-toc { display: grid; gap: 14px; padding: 18px; border-left: 1px solid var(--border); }
+.sk-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@keyframes sk-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@keyframes sk-in { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 860px) {
+  .sk-grid-3, .sk-setup, .sk-doc { grid-template-columns: 1fr; }
+  .sk-aside, .sk-toc { display: none; }
+  .sk-rail .sk-pill:nth-child(n + 4) { display: none; }
+  .sk-posters-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sk-picker-page .sk-tier:nth-child(n + 2) .sk-mini { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sk, .route-skeleton { animation: none; }
+}
+
+/* Thin progress bar while the next page's chunk loads after a link click. */
+.route-progress { position: fixed; inset: 0 0 auto; z-index: 1000; height: 2px; pointer-events: none; overflow: hidden; }
+.route-progress::before { content: ''; position: absolute; inset: 0; background: var(--amber); box-shadow: 0 0 10px rgba(245, 158, 11, 0.6); transform-origin: left; animation: route-progress 1.8s cubic-bezier(0.2, 0.7, 0.3, 1) forwards; }
+@keyframes route-progress { from { transform: scaleX(0); } to { transform: scaleX(0.85); } }
+@media (prefers-reduced-motion: reduce) { .route-progress::before { animation: none; transform: scaleX(0.6); } }
+
+/* ── Site banner: the one top bar for the whole application ── */
+.banner {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: 58px;
+  padding: 0 clamp(16px, 4vw, 40px);
+  border-bottom: 1px solid var(--border);
+  background: rgba(9, 9, 11, 0.86);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: inset 0 1px 0 rgba(245, 158, 11, 0.22);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .banner-pill.op .banner-dot { animation: none; }
+}
+
+.banner-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  font-weight: 800;
+  font-size: 1.02rem;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.banner-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+}
+
+.banner-links {
+  display: flex;
+  align-items: stretch;
+  align-self: stretch;
+  gap: 2px;
+  margin-left: 12px;
+}
+
+.banner-links a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.banner-links a:hover {
+  color: var(--text);
+}
+
+.banner-links a::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.banner-links a:hover::after {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.banner-links a.active {
+  color: var(--text);
+}
+
+.banner-links a.active::after {
+  background: var(--amber);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.7);
+}
+
+.banner-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+
+.banner-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: border-color 0.15s;
+}
+
+.banner-pill:hover {
+  border-color: var(--amber);
+}
+
+.banner-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--muted);
+}
+
+.banner-pill.op .banner-dot {
+  background: #34d399;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.7);
+  animation: banner-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes banner-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.banner-pill.maintenance .banner-dot { background: #60a5fa; box-shadow: 0 0 8px rgba(96, 165, 250, 0.7); }
+.banner-pill.deg .banner-dot { background: var(--amber); box-shadow: 0 0 8px rgba(245, 158, 11, 0.7); }
+.banner-pill.down .banner-dot { background: #ef6b73; box-shadow: 0 0 8px rgba(239, 107, 115, 0.7); }
+
+.banner-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--muted);
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.banner-icon-btn:hover {
+  color: var(--text);
+  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.banner-icon-btn svg {
+  width: 17px;
+  height: 17px;
+  fill: currentColor;
+}
+
+.banner-burger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 8px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.banner-burger span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--text);
+  transition: transform 0.15s, opacity 0.15s;
+}
+
+.banner-burger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.banner-burger.open span:nth-child(2) { opacity: 0; }
+.banner-burger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+.banner-menu {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .banner-links { display: none; }
+  .banner-burger { display: flex; }
+  .banner-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    display: grid;
+    gap: 2px;
+    padding: 10px clamp(16px, 4vw, 40px) 14px;
+    border-bottom: 1px solid var(--border);
+    /* Solid: the translucent panel let the page text show through the links. */
+    background: #0b0b0e;
+    box-shadow: 0 24px 40px -18px rgba(0, 0, 0, 0.8);
+  }
+  .banner-menu a {
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .banner-menu a.active { color: var(--amber); background: rgba(245, 158, 11, 0.1); }
+  .banner { position: sticky; flex-wrap: nowrap; }
+}
+.banner-menu-social { display: none; }
+/* Narrow phones: the status pill, three icons and the menu button were 263px
+   wide and pushed every page 20px past the screen edge (clipping the header,
+   the setup dock and toasts). The icons move into the menu instead. */
+@media (max-width: 520px) {
+  .banner { gap: 12px; }
+  .banner-right { gap: 8px; }
+  .banner-right .banner-icon-btn { display: none; }
+  .banner-menu-social { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .banner-menu .banner-menu-social a { padding: 8px 12px; border: 1px solid var(--border); border-radius: 999px; font-size: 0.82rem; }
+}

@@ -1,0 +1,68 @@
+name: Discord notifications
+
+# Posts to the #new-releases Discord channel through the DISCORD_WEBHOOK_URL
+# repository secret. The message builder is .github/discord/notify.mjs.
+#
+# - Releases: a release published by hand in the GitHub UI fires `release`.
+#   The tag workflow (release.yml) creates its release with GITHUB_TOKEN, which
+#   GitHub never turns into a `release` event, so release.yml calls this file
+#   through `workflow_call` instead. Each release is announced exactly once.
+# - Pushes: one message per branch push, every branch except Dependabot's.
+#   Tag pushes are not announced here (the release covers them).
+# - Manual: Actions > Discord notifications > Run workflow sends a labelled
+#   test. Give it a release tag to resend that release's announcement.
+#
+# No pull_request trigger: the webhook is never available to untrusted code.
+# This workflow only reads and posts, so it cannot start other workflows.
+
+on:
+  release:
+    types: [published]
+  push:
+    branches-ignore:
+      - 'dependabot/**'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Leave empty for a test message, or enter a published release tag (for example v5.5.0) to resend its announcement'
+        required: false
+        default: ''
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Tag of the release that was just published
+        required: true
+        type: string
+    secrets:
+      DISCORD_WEBHOOK_URL:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    name: Notify Discord
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Pushes made by bots (Dependabot, github-actions) are not announced.
+    if: github.event_name != 'push' || inputs.release_tag != '' || !endsWith(github.actor, '[bot]')
+    concurrency:
+      # Keeps one branch's push messages in order; never cancels a message.
+      group: discord-${{ inputs.release_tag || github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Check out the notifier
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          sparse-checkout: .github/discord
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Send notification
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          NOTIFY_MODE: ${{ (inputs.release_tag != '' || github.event_name == 'release') && 'release' || github.event_name == 'workflow_dispatch' && 'test' || 'push' }}
+        run: node .github/discord/notify.mjs

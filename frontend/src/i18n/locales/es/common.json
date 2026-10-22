@@ -1,0 +1,57 @@
+{
+  "navigation": {
+    "primary": "Principal",
+    "mobile": "Móvil",
+    "configure": "Configurar",
+    "guide": "Guía",
+    "releases": "Estrenos",
+    "status": "Estado",
+    "supporters": "Colaboradores",
+    "privacy": "Privacidad",
+    "menu": "Menú"
+  },
+  "footer": {
+    "product": "Producto",
+    "home": "Inicio",
+    "setups": "Configuraciones",
+    "legal": "Legal y más",
+    "privacy": "Política de privacidad",
+    "supporters": "Colaboradores",
+    "source": "Código fuente",
+    "community": "Comunidad",
+    "notAffiliated": "No está afiliado a ningún proveedor de debrid ni servicio de streaming.",
+    "madeFor": "Hecho para la comunidad de",
+    "communitySuffix": ""
+  },
+  "errors": {
+    "notFound": "Página no encontrada",
+    "goHome": "Ir al inicio",
+    "wentWrong": "Algo salió mal",
+    "unexpected": "Ocurrió un error inesperado. Inténtalo de nuevo.",
+    "newVersion": "Se publicó una nueva versión",
+    "staleFiles": "Esta página intentó cargar archivos de una versión anterior. Recargar suele resolverlo.",
+    "savedSafe": "Ocurrió un error inesperado. Tus configuraciones guardadas siguen intactas.",
+    "reload": "Recargar",
+    "configureAddon": "Configurar el complemento",
+    "goHomeTitle": "Ir al inicio",
+    "notFoundDesc": "La página que buscas no existe o se ha movido.",
+    "helpfulLinks": "Enlaces útiles",
+    "checkStatus": "Ver el estado del servicio",
+    "askDiscord": "Pregunta en Discord ↗",
+    "updated": "Actualizado",
+    "codeLabel": "Error"
+  },
+  "apiErrors": {
+    "timeout": "La solicitud ha tardado demasiado. Inténtalo de nuevo.",
+    "unavailable": "No se pudo conectar con el servidor. Comprueba tu conexión e inténtalo de nuevo.",
+    "unauthorized": "Debes iniciar sesión para continuar.",
+    "forbidden": "No tienes permiso para hacer eso.",
+    "notFound": "No se encontró ese elemento.",
+    "rateLimited": "Demasiadas solicitudes. Inténtalo de nuevo en breve.",
+    "server": "El servidor no pudo completar la solicitud. Inténtalo de nuevo en breve.",
+    "requestFailed": "La solicitud falló ({{status}}). Inténtalo de nuevo."
+  },
+  "loading": {
+    "page": "Cargando LeLibrary…"
+  }
+}

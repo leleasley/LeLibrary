@@ -1,0 +1,439 @@
+// @ts-nocheck
+// ── Discovery (tt:) builders ────────────────────────────────────────────────
+// Everything that routes through plain IMDb (tt:) ids so external stream
+// addons (Torrentio, Comet, Meteor, MediaFusion) can answer: the Trending /
+// Popular catalogues and any future IMDB-routed rows. Owned / library rows
+// (torbox:tmdbId) stay in catalog/builder.ts.
+//
+// The discovery namespace:
+//   • catalog rows carry tt: ids
+//   • metas are rich (trailers, clickable cast, networks) with tt: episode ids
+//   • streams = owned-copy-first bridge, then external addon streams
+
+const axios = require('axios');
+const cache = require('../runtime/cache.ts');
+const { matchVersion } = require('../matching/resolve.ts');
+const providers = require('../providers/index.ts');
+const { getMetadata, getTrending, getPopular, imdbToTmdbCached } = require('../media/tmdb.ts');
+const { buildStreams, reformatExternalStream, enhanceMeta, buildErdbUrl, erdbProxyUrl, buildRpdbUrl, buildBetterPosterUrl, buildPictoriumPosterUrl, getFanartArt, applyStreamNotices } = require('./builder.ts');
+const { fetchExternalStreams, compareExternalProviderPriority } = require('../streams/streamAddons.ts');
+const { normalizeImdbId } = require('../media/identity.ts');
+const { matchCustomStreams } = require('../media/custom-streams.ts');
+
+const TTL_CATALOG = parseInt(process.env.CACHE_TTL_CATALOG) || 3600;
+const TTL_STREAM  = parseInt(process.env.CACHE_TTL_STREAM)  || 600;
+
+// Pages of TMDB results per Trending/Popular row (20 titles per page).
+// More pages = longer first fetch (each title needs one external_ids call),
+// then cached 24h. 3 pages ≈ 60 titles per row.
+const DISCOVERY_PAGES = 3;
+
+// Hard cap on streams returned for a discovery (tt:) title. External addons can
+// return 800+ near-identical results (measured 901 streams / 1.09 MB for one
+// movie), which is slow for TV clients to download and render. Owned copies are
+// always kept; the cap only trims the external tail.
+const MAX_DISCOVERY_STREAMS = Math.max(50, parseInt(process.env.MAX_DISCOVERY_STREAMS, 10) || 300);
+
+function hashShort(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
+// Apply the user's configured poster providers to a discovery catalog row set.
+// Rows carry plain tt: ids (= IMDb id) plus tmdbId. Precedence MUST mirror
+// enhanceMeta: custom > pictorium > erdb > rpdb > betterposter > fanart. The old
+// order had no pictorium branch and always preferred ERDB whenever an erdbToken
+// was saved, so a Pictorium user's Trending/Popular rows were rendered by ERDB
+// instead (measured 6-14s per poster).
+async function enhanceDiscoveryMetas(metas, enhance = {}) {
+  if (!Array.isArray(metas) || metas.length === 0) return metas;
+  const { erdbToken, rpdbKey, fanartKey, posterProvider, customPosterTemplate } = enhance;
+  const pictoriumOn = !!(enhance.pictorium && enhance.pictorium.enabled);
+  if (!pictoriumOn && !erdbToken && !rpdbKey && fanartKey === undefined && !['betterposter', 'custom'].includes(posterProvider)) return metas;
+  return Promise.all(metas.map(async (m) => {
+    if (!m || typeof m !== 'object') return m;
+    const imdbId = normalizeImdbId(m.id);
+    const type = m.type === 'movie' ? 'movie' : 'tv';
+    if (posterProvider === 'custom') return require('../media/poster-template.ts').apply({ ...m, imdbId }, customPosterTemplate);
+    if (pictoriumOn && (m.tmdbId || imdbId)) {
+      const url = buildPictoriumPosterUrl(enhance, {
+        type: m.type, id: m.tmdbId || imdbId, title: m.name,
+        releaseDate: m.released, imdbId, fallback: m.poster,
+      });
+      if (url) return { ...m, poster: url, posterShape: 'poster' };
+    }
+    if (erdbToken && imdbId) return { ...m, poster: erdbProxyUrl(enhance, 'poster', imdbId, m.poster) || m.poster };
+    if (rpdbKey && imdbId) return { ...m, poster: buildRpdbUrl(rpdbKey, 'imdb', 'poster-default', imdbId) };
+    if (posterProvider === 'betterposter' && imdbId) return { ...m, poster: buildBetterPosterUrl(imdbId, m.type), posterShape: 'poster' };
+    if (fanartKey && m.tmdbId) {
+      const art = await getFanartArt(fanartKey, m.tmdbId, type).catch(() => null);
+      if (art && art.poster) return { ...m, poster: art.poster };
+    }
+    return m;
+  }));
+}
+
+// Trending / Popular catalog rows (tt: ids). Cached per language + poster
+// fingerprint (so changing the poster provider refreshes the grid). The rows
+// are pure TMDB data, identical for every user with the same poster config, so
+// the cache is deliberately shared across users (no userKey in the key).
+async function buildDiscoveryCatalog({ tmdbApiKey, kind, apiType, lang, userKey, skip = 0, search = '', enhance = {}, posterFp = '', hideAnime = false }) {
+  // v2: poster precedence fixed (pictorium before erdb); old entries under the
+  // previous key are ignored rather than served.
+  const discCacheKey = cache.makeKey('cat', 'discovery3', kind, apiType, lang, posterFp);
+  let metas = await cache.get(discCacheKey);
+  if (!Array.isArray(metas)) {
+    metas = kind === 'trending'
+      ? await getTrending(tmdbApiKey, apiType, lang, 'week', DISCOVERY_PAGES)
+      : await getPopular(tmdbApiKey, apiType, lang, DISCOVERY_PAGES);
+    metas = await enhanceDiscoveryMetas(metas, enhance);
+    await cache.set(discCacheKey, metas, TTL_CATALOG);
+  }
+  // Shared cache, per-user choice: "Hide anime" filters here, before paging,
+  // and the internal tag is stripped for everyone.
+  metas = metas
+    .filter((m) => !(hideAnime && m && m._anime === true))
+    .map((m) => { if (!m || !('_anime' in m)) return m; const { _anime, ...rest } = m; return rest; });
+  if (search) metas = metas.filter(m => (m.name || '').toLowerCase().includes(search.toLowerCase()));
+  return metas.slice(skip, skip + 50);
+}
+
+// Proxy the TMDB metadata addon (mrcanelas/tmdb-addon, hosted at tmdb.elfhosted.com)
+// for all tt: metas. It provides:
+// app_extras.cast with actor photos, full credits, trailers and tt:-based
+// episode ids, plus imdb_id for scrobbling. Its default manifest is public, so
+// no per-user key is needed. Cached raw (shared across users) for 24h; the
+// app.ts meta route re-caches per user with their poster providers layered on
+// top. Falls back to the TMDB-built meta if the addon is unreachable.
+const TMDB_ADDON_BASE = 'https://tmdb.elfhosted.com';
+const TMDB_ADDON_TTL  = 24 * 60 * 60;
+const TMDB_ADDON_LKG_TTL = 7 * 24 * 60 * 60;
+const tmdbAddonHealth = { failures: 0, retryAfter: 0 };
+
+async function getTmdbAddonMeta(type, tmdbId) {
+  if (!tmdbId) return null;
+  const cacheKey = cache.makeKey('meta', 'tmdbaddon', type, tmdbId);
+  const lastGoodKey = cache.makeKey('meta', 'tmdbaddon-lkg', type, tmdbId);
+  const hit = await cache.get(cacheKey);
+  if (hit) return hit;
+  const lastGood = await cache.get(lastGoodKey);
+  if (tmdbAddonHealth.retryAfter > Date.now()) return lastGood || null;
+  const stremioType = type === 'movie' ? 'movie' : 'series';
+  try {
+    const res = await axios.get(`${TMDB_ADDON_BASE}/meta/${stremioType}/tmdb%3A${tmdbId}.json`, { timeout: 5000 });
+    const meta = res.data && res.data.meta;
+    if (!meta || !meta.id) return lastGood || null;
+    tmdbAddonHealth.failures = 0;
+    tmdbAddonHealth.retryAfter = 0;
+    await Promise.all([
+      cache.set(cacheKey, meta, TMDB_ADDON_TTL),
+      cache.set(lastGoodKey, meta, TMDB_ADDON_LKG_TTL),
+    ]);
+    return meta;
+  } catch (err) {
+    tmdbAddonHealth.failures += 1;
+    if (tmdbAddonHealth.failures >= 3) tmdbAddonHealth.retryAfter = Date.now() + 2 * 60 * 1000;
+    console.error(`[TmdbAddon] meta fetch failed for tmdb:${tmdbId}:`, err.message);
+    return lastGood || null;
+  }
+}
+
+// Rich discovery meta for a tt: id. Served from the TMDB metadata addon, with the response
+// id rewritten back to tt: so external stream addons and scrobbling keep
+// working. The user's poster/rating providers are layered on top. TMDB build
+// is only the fallback when the addon is down.
+async function buildDiscoveryMeta({ tmdbApiKey, tmdbId, type, lang, enhance = {}, imdbId }) {
+  let meta = await getTmdbAddonMeta(type, tmdbId);
+  if (!meta) {
+    meta = await getMetadata(tmdbApiKey, tmdbId, type, lang, { discovery: true });
+  }
+  if (!meta) return meta;
+  if (imdbId) meta.id = imdbId;
+  meta.imdbId = imdbId || meta.imdbId;
+  if (!meta.tmdbId) meta.tmdbId = tmdbId;
+  if (meta.poster && !meta.posterShape) meta.posterShape = 'poster';
+  await enhanceMeta(meta, enhance);
+  return meta;
+}
+
+// ── Streams 2.0 (discovery only) ──────────────────────────────────────────
+// Filters tame the external addon noise; dedup collapses identical files
+// (owned copy preferred); sort reorders the final list. Config comes from the
+// user's settings: config.streamFilters ({ minQuality, maxQuality, minSizeGB,
+// cachedOnly, excludeQualities }) and config.streamSort ('', 'cached-quality',
+// 'quality', 'size', 'cached-size').
+
+const QUALITY_ORDER = { '4k': 5, '1440p': 4, '1080p': 3, '720p': 2, '576p': 1, '480p': 1 };
+
+function streamQuality(name = '') {
+  const u = String(name || '').toUpperCase();
+  if (/\b(2160P|4K|UHD)\b/.test(u)) return '4K';
+  if (/\b1440P\b/.test(u)) return '1440p';
+  if (/\b1080P\b/.test(u)) return '1080p';
+  if (/\b720P\b/.test(u)) return '720p';
+  if (/\b576P\b/.test(u)) return '576p';
+  if (/\b480P\b/.test(u)) return '480p';
+  return '';
+}
+
+// CAM / TS / screener family: the low-quality releases users exclude.
+function streamQualityType(name = '') {
+  const u = String(name || '').toUpperCase();
+  if (/\b(CAM|CAMRIP|HDCAM|TELECINE|TELESYNC|TS|HDTS)\b/.test(u)) return 'CAM';
+  if (/\b(SCREENER|DVDSCR|WEBSCR|R5|R6)\b/.test(u)) return 'SCR';
+  return '';
+}
+
+function streamFilename(stream) {
+  return (stream && stream.behaviorHints && stream.behaviorHints.filename)
+    || stream.name || '';
+}
+
+function streamSize(stream) {
+  return Number(stream && (stream.size || (stream.behaviorHints && stream.behaviorHints.videoSize))) || 0;
+}
+
+// Owned copies are always instantly available; external addons mark cached
+// streams in their own way (⚡/✅/CACHED vs ⏳/⬇/UNCACHED). Unknown → keep.
+function streamIsCached(stream) {
+  if (stream && stream._owned === true) return true;
+  if (stream && stream.isCached === true) return true;
+  if (stream && stream.isCached === false) return false;
+  const n = String(streamFilename(stream) || '').toUpperCase();
+  // No \b around the emoji/word alternations: \b requires a word↔non-word
+  // transition, which can never occur between two non-word characters, so
+  // "⚡" and "⏳" could never match. Word-boundary forms kept for the words.
+  if (/(⚡|✅|\bINSTANT\b|\bCACHED\b)/.test(n)) return true;
+  if (/(⏳|⬇|\bUNCACHED\b|NOT.*CACHED\b)/.test(n)) return false;
+  return null;
+}
+
+// Normalize resolution labels: "4K" ↔ "2160p", "2K" ↔ "1440p"
+const RES_ALIASES = { '4k': '2160p', '2160p': '2160p', '1440p': '1440p', '2k': '1440p', '1080p': '1080p', 'fhd': '1080p', '720p': '720p', 'hd': '720p', '480p': '480p', 'sd': '480p', '360p': '360p', '240p': '240p' };
+function normalizeRes(label) { return RES_ALIASES[String(label).toLowerCase().trim()] || ''; }
+
+function applyStreamFilters(streams, filters = {}) {
+  if (!Array.isArray(streams) || streams.length === 0) return streams;
+  const minQ = String(filters.minQuality || '').toLowerCase();
+  const maxQ = String(filters.maxQuality || '').toLowerCase();
+  const minBytes = (Number(filters.minSizeGB) || 0) * 1024 * 1024 * 1024;
+  const maxBytes = (Number(filters.maxSizeGB) || 0) * 1024 * 1024 * 1024;
+  const cachedOnly = !!filters.cachedOnly;
+  const exclude = (Array.isArray(filters.excludeQualities) ? filters.excludeQualities : [])
+    .map(s => String(s).toUpperCase());
+  // Resolution include filter: only keep streams whose resolution is in the allowed set
+  const resAllowed = Array.isArray(filters.resolutions) ? filters.resolutions.map(normalizeRes).filter(Boolean) : [];
+
+  return streams.filter(stream => {
+    const fname = streamFilename(stream);
+    const q = streamQuality(fname).toLowerCase();
+
+    const size = streamSize(stream);
+    if (minBytes && size < minBytes) return false;
+    if (maxBytes && size > maxBytes) return false;
+
+    if (minQ && (QUALITY_ORDER[q] || 0) < (QUALITY_ORDER[minQ] || 0)) return false;
+    if (maxQ && (QUALITY_ORDER[q] || 99) > (QUALITY_ORDER[maxQ] || 99)) return false;
+
+    const qtype = streamQualityType(fname);
+    if (qtype && exclude.includes(qtype)) return false;
+
+    if (cachedOnly && streamIsCached(stream) === false) return false;
+
+    // Resolution filter: match against both raw and normalized values.
+    // When a filter is set, streams with NO detectable resolution are dropped
+    // too (the 💩Unknown rows): the user asked for specific resolutions, so
+    // an unidentifiable file is noise.
+    if (resAllowed.length > 0) {
+      const streamRes = normalizeRes(q);
+      if (!streamRes || !resAllowed.includes(streamRes)) return false;
+    }
+
+    return true;
+  });
+}
+
+// Dedup by url / infohash / name, plus same-size (identical file from another
+// addon): preferring the earlier stream, so the owned copy wins.
+function dedupeStreamsV2(streams) {
+  const seen = new Set();
+  const seenSize = new Map();
+  const out = [];
+  for (const s of streams) {
+    if (!s || typeof s !== 'object') continue;
+    const key = s.infoHash || s.url || s.name || '';
+    if (key && seen.has(key)) continue;
+    const size = streamSize(s);
+    if (size > 0) {
+      if (seenSize.has(size)) continue;
+      seenSize.set(size, true);
+    }
+    if (key) seen.add(key);
+    out.push(s);
+  }
+  return out;
+}
+
+function applyStreamSort(streams, sort = 'cached-quality') {
+  const key = sort || 'cached-quality';
+  const q = s => QUALITY_ORDER[streamQuality(streamFilename(s)).toLowerCase()] || 0;
+  const sz = s => streamSize(s);
+  const cached = s => (streamIsCached(s) === true ? 1 : 0);
+  return streams.slice().sort((a, b) => {
+    // Provider priority is a grouping rule, not a race between upstream
+    // response times or file sizes. Keep the selected providers together in
+    // their configured order; the user's stream sort still orders each group.
+    const providerDiff = compareExternalProviderPriority(a, b);
+    const bothExternal = !a._owned && !b._owned && providerDiff !== 0;
+    if (bothExternal) return providerDiff;
+    if (key === 'quality') { const d = q(b) - q(a); return d !== 0 ? d : sz(b) - sz(a); }
+    if (key === 'size') return sz(b) - sz(a);
+    if (key === 'cached-size') { const d = cached(b) - cached(a); return d !== 0 ? d : sz(b) - sz(a); }
+    if (key === 'owned-size') { const d = (b._owned ? 1 : 0) - (a._owned ? 1 : 0); return d !== 0 ? d : sz(b) - sz(a); }
+    // cached-quality (default)
+    const d = cached(b) - cached(a);
+    if (d !== 0) return d;
+    const dq = q(b) - q(a);
+    return dq !== 0 ? dq : sz(b) - sz(a);
+  });
+}
+
+// The discovery stream path depends on the format preset/templates AND the
+// discovery filters + sort order, so they all go into the cache-key fingerprint
+// (changing any of them must invalidate cached streams). Shared with app.ts so
+// the cached-response key and the builder's fmtFp always agree.
+function discoveryStreamKeyParts(config = {}) {
+  const filters = (config && typeof config.streamFilters === 'object') ? { ...config.streamFilters } : {};
+  // Merge resolution + size + cache filters from the new Filters step
+  if (Array.isArray(config?.filterResolutions)) filters.resolutions = config.filterResolutions;
+  if (config?.filterMaxSize) filters.maxSizeGB = config.filterMaxSize;
+  if (config?.filterCachedOnly) filters.cachedOnly = true;
+  const sortKey = (config && config.streamSort) || 'owned-size';
+  // Stream notices toggle joins the fingerprint so flipping it invalidates
+  // cached streams instead of serving stale notice rows.
+  const fmtFp = ':' + hashShort(['notice-v4', config.streamPreset || '', config.streamNameTemplate || '', config.streamDescTemplate || '', config.streamNotices || '', JSON.stringify(config.streamNoticeTypes || ''), JSON.stringify(filters), sortKey, String(MAX_DISCOVERY_STREAMS)].join('|'));
+  return { filters, sortKey, fmtFp };
+}
+
+async function buildDiscoveryStreams({ config, tmdbApiKey, type, id, lang, customStreams, userKey, externalAddons, requestPolicy, runtime = {} }) {
+  const trace = runtime.trace;
+  const time = async (name, fn) => {
+    try {
+      const { timeSpan } = require('../middleware/perf-timing.ts');
+      return await timeSpan(trace, name, fn);
+    } catch { return fn(); }
+  };
+  const mapImdb = runtime.imdbToTmdbCached || imdbToTmdbCached;
+  const buildOwnedStreams = runtime.buildStreams || buildStreams;
+  const fetchExternal = runtime.fetchExternalStreams || fetchExternalStreams;
+  const addNotices = runtime.applyStreamNotices || applyStreamNotices;
+  const streamCache = runtime.cache || cache;
+  const parts = String(id).split(':');
+  const imdbId = parts[0];
+  const season = parts[1];
+  const episode = parts[2];
+  const customMatch = matchCustomStreams(customStreams, { type, id, season, episode, config });
+  const mapped = tmdbApiKey ? await time('tmdb:imdb-map', () => mapImdb(tmdbApiKey, imdbId)) : null;
+  const tmdbId = mapped?.tmdbId;
+  const noticeConfig = providers.activeProviders(config).length > 0 || externalAddons.length > 0
+    ? config
+    : { ...config, streamNotices: 'off' };
+
+  const { filters, sortKey, fmtFp } = discoveryStreamKeyParts(config);
+
+  // Owned bridge: the user's library copy is ALWAYS listed for a tt: id, even
+  // when no external stream addons are configured. (v4.6.0 accidentally gated
+  // this behind externalAddons.length > 0: see regressions/4.6.0.)
+  const ownedPromise = mapped && userKey && providers.activeProviders(config).length > 0
+    ? (() => {
+        const ownedKey = streamCache.makeKey('stream', type, tmdbId, season || '', episode || '', userKey + fmtFp, matchVersion());
+        return streamCache.get(ownedKey).then(async ownedHit => {
+          if (ownedHit) return ownedHit.streams || [];
+          // Custom mappings are appended after external streams below. Keep
+          // this owned-only bridge free of mapping rows so they cannot be
+          // duplicated or sorted into the owned block.
+          const streams = await time('owned-bridge-fetch', () => buildOwnedStreams(config, tmdbApiKey, type, tmdbId, season, episode, lang, [], userKey, { skipTmdbFallback: true, imdbId, trace }));
+          const hasTransientNotice = streams.some(stream => stream?._transientNotice);
+          const hasRealStream = streams.some(stream => stream && !stream._notice);
+          await streamCache.set(ownedKey, { streams }, hasTransientNotice || !hasRealStream ? 60 : TTL_STREAM);
+          return streams;
+        });
+      })()
+    : Promise.resolve([]);
+  // Start upstream fetching before the owned lookup finishes. These are fully
+  // independent after IMDb→TMDB resolution, so serialising them only adds cold
+  // request latency.
+  let knabenMetadata: any = Promise.resolve(null);
+  if (externalAddons.includes('knaben') && tmdbId) {
+    // Start metadata lookup in parallel with all other external addons. A
+    // slow TMDB response for KNABEN must not delay Torrentio, Comet, etc.
+    knabenMetadata = time('tmdb:knaben-title', () => getMetadata(tmdbApiKey, tmdbId, type === 'movie' ? 'movie' : 'tv', lang))
+      .then((meta: any) => {
+        const date = meta?.released || meta?.releaseInfo || meta?.release_date || meta?.first_air_date;
+        return { title: meta?.name || meta?.title || null, year: date ? String(date).slice(0, 4) : null };
+      }).catch(() => null);
+  }
+  const externalPromise = externalAddons.length > 0
+    ? time('external:all', () => fetchExternal(externalAddons, config, type, id, requestPolicy?.externalMs, { aioStreams: runtime.aioStreams, trace, knabenMetadata, season, episode, token: runtime.token, origin: runtime.origin }))
+    : Promise.resolve([]);
+  const [ownedStreams, allExternal] = await Promise.all([ownedPromise, externalPromise]);
+
+  // No external addons configured: owned copies stay first, followed by exact
+  // personal mappings and then backward-compatible global rows.
+  if (externalAddons.length === 0) {
+    const owned = sortKey ? applyStreamSort(ownedStreams, sortKey) : ownedStreams;
+    const streams = [...owned, ...customMatch.exact, ...customMatch.global];
+    const noticed = await addNotices(streams, { config: noticeConfig, tmdbApiKey, tmdbId, type });
+    return { streams: noticed, ownedCount: owned.length, externalCount: 0, customCount: customMatch.streams.length };
+  }
+
+  // Tag owned streams so dedup prefers them and they're always "cached".
+  const ownedTagged = (ownedStreams || []).map(s => ({ ...s, _owned: true }));
+
+  // Filter the external noise BEFORE capping: the resolution/quality filter
+  // needs to see ALL resolutions to pick the right ones (e.g. 1080p when 4K
+  // is excluded). The total cap is applied AFTER filtering.
+  const externalFiltered = applyStreamFilters(allExternal, filters);
+  // No total cap: the resolution filter is the only gate, matching AIOStreams.
+  const externalCapped = externalFiltered;
+  const providerSrc = providers.activeProviders(config)[0] || 'torbox';
+  const externalFmt = externalCapped.map(s => ({
+    ...reformatExternalStream(s, s?._debridProviderId || providerSrc, config),
+    _externalPriority: s._externalPriority,
+  }));
+
+  let streams = dedupeStreamsV2([...ownedTagged, ...externalFmt]);
+  if (sortKey) streams = applyStreamSort(streams, sortKey);
+  // Trim the external tail to keep the payload small. Owned copies survive.
+  if (streams.length > MAX_DISCOVERY_STREAMS) {
+    const before = streams.length;
+    const kept = [];
+    for (const s of streams) {
+      if (kept.length >= MAX_DISCOVERY_STREAMS && !s._owned) continue;
+      kept.push(s);
+    }
+    streams = kept;
+    console.log(`[Stream] capped external streams ${before} → ${streams.length}`);
+  }
+  const existingUrls = new Set(streams.map(stream => stream?.url).filter(Boolean));
+  const personal = [...customMatch.exact, ...customMatch.global].filter(stream => {
+    if (!stream.url || existingUrls.has(stream.url)) return false;
+    existingUrls.add(stream.url);
+    return true;
+  });
+  streams.push(...personal);
+  streams = await addNotices(streams, { config: noticeConfig, tmdbApiKey, tmdbId, type });
+
+  return { streams, ownedCount: ownedStreams.length, externalCount: allExternal.length, customCount: personal.length };
+}
+
+export interface DiscoveryApi {
+  buildDiscoveryCatalog: any;
+  buildDiscoveryMeta: any;
+  buildDiscoveryStreams: any;
+  discoveryStreamKeyParts: any;
+  applyStreamSort: any;
+}
+
+module.exports = { buildDiscoveryCatalog, buildDiscoveryMeta, buildDiscoveryStreams, discoveryStreamKeyParts, applyStreamSort } satisfies DiscoveryApi;

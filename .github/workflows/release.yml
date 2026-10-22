@@ -6,7 +6,21 @@ on:
       - 'v*'
 
 jobs:
+  # Fail fast, before anything is built: the tag, package.json,
+  # frontend/package.json and the newest CHANGELOG section must all agree, and
+  # the section must follow the house rules.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --test .github/release/notes.test.mjs
+      - run: node .github/release/notes.mjs check "$GITHUB_REF_NAME"
+
   test:
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,7 +28,20 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+      # Frontend first: the backend tests also check the built error page.
       - run: npm ci
+        working-directory: frontend
+      - run: npm run typecheck
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - run: npm ci
+      - run: npm run typecheck
       - run: npm test
 
   image:
@@ -25,6 +52,8 @@ jobs:
       packages: write
       id-token: write
       attestations: write
+    outputs:
+      digest: ${{ steps.build-and-push.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
 
@@ -76,7 +105,7 @@ jobs:
           push-to-registry: true
 
   release:
-    needs: test
+    needs: image
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -85,24 +114,31 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Extract changelog section for this version
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          awk -v ver="$VERSION" '
-            /^## \[/ {
-              if (index($0, "[" ver "]")) {
-                found=1
-                sub(/: .*/, "")
-                print
-                next
-              } else if (found) {
-                exit
-              }
-            }
-            found { print }
-          ' CHANGELOG.md > release-notes.md
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # Only this version's section (no header), plus the docker pull line, the
+      # image digest and a compare link to the previous tag.
+      - name: Build release notes
+        run: node .github/release/notes.mjs notes "$GITHUB_REF_NAME" --digest "${{ needs.image.outputs.digest }}" > release-notes.md
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          name: LeLibrary ${{ github.ref_name }}
           body_path: release-notes.md
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
+
+  # A release created with GITHUB_TOKEN never fires the `release` event, so the
+  # Discord announcement is called directly once the release exists.
+  discord:
+    needs: release
+    permissions:
+      contents: read
+    uses: ./.github/workflows/discord-notifications.yml
+    with:
+      release_tag: ${{ github.ref_name }}
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

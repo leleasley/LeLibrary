@@ -2,6 +2,29 @@ node_modules
 npm-debug.log*
 *.log
 Dockerfile
+Dockerfile.ghcr
+Dockerfile.ghcr.dockerignore
 .dockerignore
 .git
 .gitignore
+
+# Local notes, fixtures and generated test output never belong in an image.
+Docs
+tmp-fixture
+coverage
+.nyc_output
+test-results
+
+# The frontend is built in its own stage; only its source is needed as context.
+frontend/node_modules
+frontend/dist
+frontend/*.tsbuildinfo
+frontend/.vite
+
+# Local secrets and instance-specific config. Compose supplies these at run
+# time through env_file, so baking them into the image would be a leak.
+.env
+.env.*
+!.env.example
+compose.yml
+compose.indexed.yml

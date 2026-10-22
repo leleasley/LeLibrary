@@ -1,0 +1,62 @@
+name: CI
+
+# Every push and pull request: the same gates the tag workflow enforces, so a
+# release tag never finds a problem for the first time.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  release-check:
+    name: Versions + changelog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --test .github/release/notes.test.mjs
+      - run: node --test .github/discord/notify.test.mjs
+      # Newest CHANGELOG section must match package.json and frontend/package.json,
+      # and follow the house rules (ASCII only, no em dashes, ### groups).
+      - run: node .github/release/notes.mjs check
+
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      # Includes the en/es locale check and the public (no private pages) build.
+      - run: npm run build

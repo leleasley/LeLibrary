@@ -1,0 +1,399 @@
+// @ts-nocheck
+const Redis = require('ioredis');
+const NodeCache = require('node-cache');
+
+let redis = null;
+let isConnected = false;
+
+// In-memory fallback when Redis is not configured.
+// useClones:true: values handed out by get()/set() must not be live
+// references: callers mutate returned objects (metas especially), and with
+// shared refs one request's edits leaked into every later reader until the
+// entry expired.
+const MEM_CACHE_MAX_KEYS = Math.max(100, parseInt(process.env.MEM_CACHE_MAX_KEYS, 10) || 10000);
+const memCache = new NodeCache({ stdTTL: 3600, checkperiod: 600, useClones: true });
+// Cap how long a Redis-read value may live in the in-memory mirror. Most hot
+// reads are written here with their own TTL by set(); this only bounds values
+// first seen via a Redis read, so a long-lived key still re-syncs hourly.
+const MIRROR_TTL_CAP = Math.max(60, parseInt(process.env.MEM_CACHE_MIRROR_MAX, 10) || 3600);
+
+// Mirror TTL for a value fetched from Redis, from its remaining PTTL. -1 (no
+// expiry) and -2 (missing) fall back to the cap. This keeps the in-process
+// cache primary (AIOStreams-style) without ever holding a value past its own
+// Redis lifetime.
+function mirrorTtl(pttlMs) {
+  if (!Number.isFinite(pttlMs) || pttlMs < 0) return MIRROR_TTL_CAP;
+  return Math.max(1, Math.min(Math.ceil(pttlMs / 1000), MIRROR_TTL_CAP));
+}
+// NodeCache has no eviction policy: its optional maxKeys limit throws instead
+// of evicting. Keep a small LRU-style index ourselves so the hot in-process
+// mirror cannot steadily consume process memory. Redis remains authoritative;
+// an evicted mirror entry is simply read from Redis again.
+const memKeyOrder = new Map();
+
+function rememberMemKey(key) {
+  if (memKeyOrder.has(key)) memKeyOrder.delete(key);
+  memKeyOrder.set(key, true);
+}
+
+function setMemCache(key, value, ttl) {
+  if (!memCache.has(key)) {
+    while (memKeyOrder.size >= MEM_CACHE_MAX_KEYS) {
+      const oldest = memKeyOrder.keys().next().value;
+      if (oldest === undefined) break;
+      memKeyOrder.delete(oldest);
+      memCache.del(oldest);
+    }
+  }
+  memCache.set(key, value, ttl);
+  rememberMemKey(key);
+}
+
+// Memory-mirror-only write: updates the in-process cache without touching
+// Redis. For operator data that Redis holds WITHOUT expiry (self-hosted saved
+// setups), where the normal set() would wrongly apply SETEX to the durable
+// copy.
+function setMem(key, value, ttl) {
+  setMemCache(key, value, ttl);
+  return true;
+}
+
+function getMemCache(key) {
+  const value = memCache.get(key);
+  if (value === undefined) memKeyOrder.delete(key);
+  else rememberMemKey(key);
+  return value;
+}
+
+function delMemCache(key) {
+  memKeyOrder.delete(key);
+  memCache.del(key);
+}
+
+async function scanPattern(client, pattern, onBatch) {
+  let cursor = '0';
+  let matched = 0;
+  do {
+    const [nextCursor, keys] = await client.scan(cursor, 'MATCH', pattern, 'COUNT', 250);
+    cursor = nextCursor;
+    if (keys.length) {
+      matched += keys.length;
+      await onBatch(keys);
+    }
+  } while (cursor !== '0');
+  return matched;
+}
+
+function getRedisClient() {
+  if (!redis) {
+    const url      = process.env.REDIS_URL || process.env.UPSTASH_REDIS_URL;
+    const host     = process.env.REDIS_HOST;
+    const port     = parseInt(process.env.REDIS_PORT) || 6379;
+    const password = process.env.REDIS_PASSWORD;
+    const tls      = process.env.REDIS_TLS === 'true' || (url && url.startsWith('rediss://'));
+
+    if (!url && !host) return null;
+
+    const opts = {
+      maxRetriesPerRequest: 3,
+      enableReadyCheck: false,
+      retryStrategy(times) {
+        if (times > 3) return null;
+        return Math.min(times * 50, 2000);
+      },
+      ...(tls ? { tls: {} } : {}),
+    };
+
+    console.log(`[Redis] Connecting via ${url ? 'URL' : `${host}:${port}`}...`);
+    redis = url
+      ? new Redis(url, opts)
+      : new Redis({ host, port, password, ...opts });
+
+    redis.on('error',   (err) => { console.error('[Redis] Error:', err.message); isConnected = false; });
+    redis.on('connect', ()    => { console.log('[Redis] Connected'); isConnected = true; });
+    redis.on('close',   ()    => { console.log('[Redis] Connection closed'); isConnected = false; });
+  }
+  return redis;
+}
+
+async function get(key) {
+  const mirrored = getMemCache(key);
+  if (mirrored !== undefined) return mirrored;
+  const client = getRedisClient();
+  if (!client) {
+    return null;
+  }
+  try {
+    const [[, data], [, pttl]] = await client.multi().get(key).pttl(key).exec();
+    if (data === null || data === undefined) return null;
+    const value = JSON.parse(data);
+    // Mirror for the value's real remaining lifetime so the next read is
+    // local; Redis is only consulted again once the mirror entry expires.
+    setMemCache(key, value, mirrorTtl(pttl));
+    return value;
+  } catch (err) {
+    console.error(`[Cache] Error fetching ${key}:`, err.message);
+    const val = getMemCache(key);
+    return val !== undefined ? val : null;
+  }
+}
+
+// One Redis round trip for a set of independent cache reads. The Map retains
+// key presence, so a deliberately cached `null` remains distinguishable from
+// a missing key (important for negative TMDB match caching).
+async function mget(keys) {
+  const unique = [...new Set((keys || []).map(String))];
+  const found = new Map();
+  const missing = [];
+  for (const key of unique) {
+    const value = getMemCache(key);
+    if (value !== undefined) found.set(key, value);
+    else missing.push(key);
+  }
+  if (!missing.length) return found;
+  const client = getRedisClient();
+  if (!client) return found;
+  try {
+    // One pipeline: the values plus each key's remaining TTL, so mirror
+    // entries can live for their real lifetime instead of a fixed short TTL.
+    const pipe = client.pipeline();
+    pipe.mget(...missing);
+    for (const key of missing) pipe.pttl(key);
+    const results = await pipe.exec();
+    const rows = (results && results[0] && results[0][1]) || [];
+    for (let index = 0; index < missing.length; index++) {
+      const data = rows[index];
+      if (data === null || data === undefined) continue;
+      const key = missing[index];
+      const value = JSON.parse(data);
+      found.set(key, value);
+      const pttl = results[index + 1] && results[index + 1][1];
+      setMemCache(key, value, mirrorTtl(pttl));
+    }
+  } catch (err) {
+    console.error(`[Cache] Error fetching ${missing.length} keys:`, err.message);
+  }
+  return found;
+}
+
+async function set(key, value, ttl = 3600) {
+  const client = getRedisClient();
+  if (!client) {
+    setMemCache(key, value, ttl);
+    return true;
+  }
+  try {
+    await client.setex(key, ttl, JSON.stringify(value));
+    setMemCache(key, value, ttl); // mirror in memory for fast reads
+    return true;
+  } catch (err) {
+    console.error(`[Cache] Error storing ${key}:`, err.message);
+    setMemCache(key, value, ttl);
+    return false;
+  }
+}
+
+// Batched variant of set(): one PIPELINE for many independent writes. The
+// per-item match cache uses this so a cold library rebuild does not emit one
+// Redis round trip per title. Entries without a positive TTL are skipped
+// (SETEX requires one); memory is mirrored first so readers stay correct even
+// if the pipeline fails.
+async function mset(entries) {
+  const clean = (Array.isArray(entries) ? entries : []).filter((entry) => (
+    entry && typeof entry.key === 'string' && entry.key
+    && Object.hasOwn(entry, 'value') && Number(entry.ttl) > 0
+  ));
+  if (!clean.length) return 0;
+  for (const entry of clean) setMemCache(entry.key, entry.value, entry.ttl);
+  const client = getRedisClient();
+  if (!client) return clean.length;
+  try {
+    const pipe = client.pipeline();
+    for (const entry of clean) pipe.setex(entry.key, entry.ttl, JSON.stringify(entry.value));
+    await pipe.exec();
+    return clean.length;
+  } catch (err) {
+    console.error(`[Cache] Error storing ${clean.length} keys:`, err.message);
+    return 0;
+  }
+}
+
+async function del(key) {
+  delMemCache(key);
+  const client = getRedisClient();
+  if (!client) return true;
+  try {
+    await client.del(key);
+    return true;
+  } catch (err) {
+    console.error(`[Cache] Error deleting ${key}:`, err.message);
+    return false;
+  }
+}
+
+async function delPattern(pattern) {
+  // Clear memCache by pattern
+  const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+  for (const k of memCache.keys()) { if (regex.test(k)) delMemCache(k); }
+
+  const client = getRedisClient();
+  if (!client) return 0;
+  try {
+    const count = await scanPattern(client, pattern, (keys) => client.del(...keys));
+    if (count) console.log(`[Cache] DEL Pattern → ${pattern} (${count} keys)`);
+    return count;
+  } catch (err) {
+    console.error(`[Cache] Error deleting pattern ${pattern}:`, err.message);
+    return 0;
+  }
+}
+
+// Enumerate keys matching a pattern. Used by the background job runner to
+// resume queued work after a restart. Deliberately not the in-memory mirror:
+// only the durable Redis copy matters for recovery.
+async function keys(pattern) {
+  const client = getRedisClient();
+  if (!client) return [];
+  try {
+    const found = [];
+    await scanPattern(client, pattern, (batch) => { found.push(...batch); });
+    return found;
+  } catch (err) {
+    console.error(`[Cache] Error listing pattern ${pattern}:`, err.message);
+    return [];
+  }
+}
+
+// Replace a group of rendered pages only after their new values have already
+// been built by the caller. This keeps stale pagination from surviving a
+// source change without exposing an empty projection while upstream work is
+// still running. The last-good `catlast:` namespace is deliberately outside
+// the caller's `cat:*` pattern and remains available if a later request fails.
+async function replacePattern(pattern, entries, defaultTtl = 3600) {
+  const pages = Array.isArray(entries) ? entries.filter(entry => (
+    entry && typeof entry.key === 'string' && entry.key && Object.hasOwn(entry, 'value')
+  )) : [];
+  if (!pages.length) throw new Error('replacePattern requires at least one cache entry');
+  await delPattern(pattern);
+  return Promise.all(pages.map(entry => set(entry.key, entry.value, entry.ttl || defaultTtl)));
+}
+
+// Extend TTL on all keys matching a glob pattern (does not touch values).
+// Used to keep long-TTL caches warm on unchanged-data refreshes.
+async function touchPattern(pattern, ttl) {
+  const client = getRedisClient();
+  if (!client) {
+    // memCache: bump the TTL on matching in-memory keys
+    const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+    for (const k of memCache.keys()) {
+      if (regex.test(k)) { const v = getMemCache(k); if (v !== undefined) setMemCache(k, v, ttl); }
+    }
+    return 0;
+  }
+  try {
+    const count = await scanPattern(client, pattern, async (keys) => {
+      const pipe = client.pipeline();
+      for (const k of keys) pipe.expire(k, ttl);
+      await pipe.exec();
+    });
+    // Mirror in memCache
+    const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+    for (const k of memCache.keys()) {
+      if (regex.test(k)) { const v = getMemCache(k); if (v !== undefined) setMemCache(k, v, ttl); }
+    }
+    if (count) console.log(`[Cache] TOUCH → ${pattern} (${count} keys, TTL ${ttl}s)`);
+    return count;
+  } catch (err) {
+    console.error(`[Cache] Error touching pattern ${pattern}:`, err.message);
+    return 0;
+  }
+}
+
+async function exists(key) {
+  const client = getRedisClient();
+  if (!client) return false;
+  
+  try {
+    const result = await client.exists(key);
+    return result === 1;
+  } catch (err) {
+    console.error(`[Cache] Error checking ${key}:`, err.message);
+    return false;
+  }
+}
+
+async function expire(key, ttl) {
+  const client = getRedisClient();
+  if (!client) return false;
+  
+  try {
+    await client.expire(key, ttl);
+    return true;
+  } catch (err) {
+    console.error(`[Cache] Error setting TTL for ${key}:`, err.message);
+    return false;
+  }
+}
+
+async function getStats() {
+  const client = getRedisClient();
+  if (!client) return { connected: false };
+  
+  try {
+    const info = await client.info('stats');
+    const dbsize = await client.dbsize();
+    
+    return {
+      connected: isConnected,
+      dbsize,
+      info: info.split('\r\n').reduce((acc, line) => {
+        const [key, value] = line.split(':');
+        if (key && value) acc[key] = value;
+        return acc;
+      }, {}),
+    };
+  } catch (err) {
+    console.error('[Cache] Error getting stats:', err.message);
+    return { connected: false, error: err.message };
+  }
+}
+
+function makeKey(prefix, ...parts) {
+  return `${prefix}:${parts.filter(Boolean).join(':')}`;
+}
+
+export interface CacheApi {
+  get: any;
+  mget: any;
+  set: any;
+  mset: any;
+  setMem: any;
+  del: any;
+  delPattern: any;
+  keys: any;
+  replacePattern: any;
+  touchPattern: any;
+  exists: any;
+  expire: any;
+  getStats: any;
+  makeKey: any;
+  getRedisClient: any;
+}
+
+module.exports = {
+  get,
+  mget,
+  set,
+  mset,
+  setMem,
+  del,
+  delPattern,
+  keys,
+  replacePattern,
+  touchPattern,
+  exists,
+  expire,
+  getStats,
+  makeKey,
+  getRedisClient,
+} satisfies CacheApi;

@@ -1,0 +1,10 @@
+version: 2
+updates:
+  # Keep the workflow actions (checkout, setup-node, docker/*, attest) current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

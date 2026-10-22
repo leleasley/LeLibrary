@@ -3,25 +3,19 @@
 *
 !package.json
 !package-lock.json
-!index.js
-!app.js
-!src/**
-!website/**
+!backend/**
+!frontend/**
+frontend/node_modules/
+frontend/dist/
 !README.md
 !LICENSE
 
 # Hosted/operator-only files are never part of the public image.
-src/accounts/
-src/registry.js
-src/hosted.js
-website/index.js
-website/landing.html
-website/privacy.html
-website/status.html
-website/sitemap.xml
-website/account/
-website/public/my-library/
-website/public/backgrounds/
+backend/src/accounts/
+backend/src/registry.ts
+
+# Instance-specific sitemap (listed in .gitignore; never publish prod URLs).
+frontend/public/sitemap.xml
 
 # Development, test, documentation, secrets and repository state.
 test/

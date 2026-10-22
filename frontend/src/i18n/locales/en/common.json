@@ -1,0 +1,57 @@
+{
+  "navigation": {
+    "primary": "Primary",
+    "mobile": "Mobile",
+    "configure": "Configure",
+    "guide": "Guide",
+    "releases": "Releases",
+    "status": "Status",
+    "supporters": "Supporters",
+    "privacy": "Privacy",
+    "menu": "Menu"
+  },
+  "footer": {
+    "product": "Product",
+    "home": "Home",
+    "setups": "Setups",
+    "legal": "Legal & More",
+    "privacy": "Privacy Policy",
+    "supporters": "Supporters",
+    "source": "Source Code",
+    "community": "Community",
+    "notAffiliated": "Not affiliated with any debrid provider or streaming service.",
+    "madeFor": "Made for the",
+    "communitySuffix": "community"
+  },
+  "errors": {
+    "notFound": "Page not found",
+    "goHome": "Go home",
+    "wentWrong": "Something went wrong",
+    "unexpected": "An unexpected error occurred. Please try again.",
+    "newVersion": "A new version just shipped",
+    "staleFiles": "This page tried to load files from a previous release. Reloading usually fixes it.",
+    "savedSafe": "An unexpected error occurred. Your saved setups are untouched.",
+    "reload": "Reload",
+    "configureAddon": "Configure Addon",
+    "goHomeTitle": "Go Home",
+    "notFoundDesc": "The page you are looking for does not exist or has been moved.",
+    "helpfulLinks": "Helpful links",
+    "checkStatus": "Check service status",
+    "askDiscord": "Ask on Discord ↗",
+    "updated": "Updated",
+    "codeLabel": "Error"
+  },
+  "apiErrors": {
+    "timeout": "The request timed out. Try again.",
+    "unavailable": "Could not reach the server. Check your connection and try again.",
+    "unauthorized": "You need to sign in to continue.",
+    "forbidden": "You are not allowed to do that.",
+    "notFound": "That item could not be found.",
+    "rateLimited": "Too many requests. Try again shortly.",
+    "server": "The server could not complete that request. Try again shortly.",
+    "requestFailed": "The request failed ({{status}}). Try again."
+  },
+  "loading": {
+    "page": "Loading LeLibrary…"
+  }
+}

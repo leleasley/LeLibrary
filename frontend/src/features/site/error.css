@@ -1,0 +1,27 @@
+/* Error and not-found block. Scoped to .error-hero: this sheet stays loaded
+   for the rest of the session once an error has shown, so it must never style
+   anything outside the block. */
+.error-hero { position: relative; display: grid; place-items: center; min-height: calc(100vh - 220px); padding: clamp(56px, 10vw, 110px) clamp(18px, 4vw, 40px); overflow: hidden; text-align: center; }
+.error-hero .grid-bg { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 50% 45% at 50% 30%, rgba(245, 158, 11, 0.12), transparent 70%), radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px) 0 0 / 26px 26px; mask-image: radial-gradient(ellipse 70% 70% at 50% 40%, black 30%, transparent 75%); -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 40%, black 30%, transparent 75%); }
+.error-content { position: relative; display: grid; justify-items: center; max-width: 560px; animation: error-reveal 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.error-code { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 22px; padding: 6px 14px; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 999px; background: rgba(245, 158, 11, 0.08); color: var(--amber); font: 600 0.78rem var(--mono, monospace); letter-spacing: 0.12em; }
+.error-code b { font-weight: 700; }
+.error-code::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.error-title { margin: 0 0 12px; font-size: clamp(1.9rem, 5vw, 2.8rem); line-height: 1.08; letter-spacing: -0.04em; }
+.error-desc { margin: 0 0 26px; color: var(--muted); font-size: 1rem; line-height: 1.65; }
+.error-path { display: inline-block; max-width: 100%; margin: -12px 0 26px; padding: 6px 12px; border: 1px dashed var(--border); border-radius: 10px; overflow: hidden; color: var(--muted); font: 0.8rem var(--mono, monospace); text-overflow: ellipsis; white-space: nowrap; }
+.error-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.error-hero .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; border: 1px solid transparent; border-radius: 12px; font-family: inherit; font-size: 0.9rem; font-weight: 700; text-decoration: none; cursor: pointer; transition: transform 0.2s, filter 0.2s, border-color 0.2s; }
+.error-hero .btn:hover { transform: translateY(-1px); }
+.error-hero .btn-amber { background: var(--amber); color: #1a1203; box-shadow: 0 14px 30px -16px rgba(245, 158, 11, 0.8); }
+.error-hero .btn-amber:hover { filter: brightness(1.07); }
+.error-hero .btn-outline { border-color: var(--border); background: rgba(255, 255, 255, 0.03); color: var(--text); }
+.error-hero .btn-outline:hover { border-color: rgba(245, 158, 11, 0.6); }
+.error-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--border); }
+.error-links a { padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: 0.8rem; text-decoration: none; transition: color 0.2s, border-color 0.2s; }
+.error-links a:hover { border-color: rgba(245, 158, 11, 0.5); color: var(--text); }
+@keyframes error-reveal { from { opacity: 0; transform: translateY(12px); } }
+@media (max-width: 480px) {
+  .error-actions .btn { flex: 1 1 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .error-content { animation: none; } }

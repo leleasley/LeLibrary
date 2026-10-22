@@ -1,5 +1,113 @@
 # Changelog
 
+## [5.5.0]
+
+### No more accounts: a setup is a link you keep
+
+- The account system is gone. There is no sign up and no account page.
+- Every setup gets its own install link that carries everything Stremio or Nuvio needs. Add it to your player and you are done.
+- A password is optional and only protects editing. It never gets in the way of installing or watching.
+- Saved keys are sealed on the server, so a copy of the database on its own cannot read them.
+- Old account links still go somewhere sensible: an old setup opens for import, anything else opens the setup page.
+
+### Three ways to set up
+
+- Pick how much you want to do. Quick Look gets you a working addon in four short steps. Settle In adds Home rows, playback filters and stream formatting. Move In is the full editor, with collection folders and sending everything straight to Nuvio.
+- The Configure page compares the three side by side, with a preview of each and an "Already have a setup?" section for opening or pasting an existing one.
+- Each level has a short walkthrough video, recorded from the real pages.
+- At the end you get one-click "Open in Stremio" and "Copy for Nuvio" buttons, quick copies for STRMR, Fusion, Vidi and WuPlay, a summary of your setup, and your setup id and edit link (shown once, so keep them).
+
+### Editing and backups
+
+- Open your setup's link, enter the password, and the same page you built it on opens with everything filled in. Only what you change is saved.
+- Move a setup to another level, for example from Quick Look up to Move In, without reinstalling: the link stays the same.
+- Download a setup's settings as a backup and start a new setup from that file, for example for someone else in your home. Keys, passwords and player logins are never included.
+
+### Bring an old setup across
+
+- Settle In and Move In can import a setup from the old account system: enter your old email, pick the setup, and your keys, player login, settings and Home rows land on the page. Move In also brings your collections; Settle In says clearly when it cannot.
+- The card shows what comes across before you start, and exactly what was found afterwards.
+- Once your new setup is created, the old one is removed. Your old account and email address are deleted when nothing is left on it.
+
+### More control in every setup
+
+- Rename My Movies, My Series and LeLibrary Anime. In Quick Look your row names show right under your keys with a Rename button, and you can hide a row or reset to the defaults.
+- Hide anime now removes anime everywhere it can be spotted: My Movies, My Series, Trending, Popular and your genre, studio and streaming-service rows. A title counts as anime when TMDB lists it as Japanese animation, such as Your Name. or One Piece.
+- Quick Look lets you choose the metadata language, and its library options show your current choices at a glance.
+- Add up to three of your own Stremio stream addons in Settle In and Move In, such as StreamNZB or your own AIOStreams. The link is stored sealed like your keys, and the hosted site only reaches public HTTPS addons.
+
+### Nuvio
+
+- Settle In and Move In can set Nuvio's stream auto-play (manual, first source or a regex match) and auto-play next episode when you push.
+- They can also hide or show unreleased titles in Nuvio, or leave your Nuvio setting alone.
+- Rows you did not pick for Home no longer appear on Nuvio Mobile and Desktop or fill their Hero. Open Nuvio again or push once after updating.
+- Pushing turns on Nuvio's own TMDB enrichment for the chosen profile, so Home rows and collections show richer details.
+- New artwork for the Movies and Shows folders in the LeLibrary collection, with matching animations when a folder is highlighted. Push again to get it.
+- LeLibrary Movie Collections now sits at the bottom of the Nuvio collection list instead of being pinned to the top of Home.
+
+### Redesigned setup pages
+
+- A calmer look that works properly on phones, with a progress bar that ticks off each step and a small dock for the preview and Continue button on phones.
+- Provider cards light up in each provider's colour, posters have a live preview, Nuvio badge packs show real previews, and there are more stream styles to choose from.
+- The password step explains that a password protects editing only, shows its strength and confirms when both entries match.
+- Collections and Home rows are easier to manage: collapsible shelves, full-width rows with Movies and Series tags, your Home order kept in view, and an "Add folder" tile in every collection.
+- Cancelling a new folder really cancels it, and folders without artwork show a clean placeholder.
+- Pop-up messages are clearer and can be closed or, on phones, swiped away. On phones they sit at the top, clear of the keyboard.
+- An "Unsaved changes" marker shows while you have anything not yet saved, and a refresh restores your progress until you create.
+
+### Poster Studio, rebuilt for Pictorium 1.25.9
+
+- The Poster Studio has been rebuilt from scratch and is much simpler: a big live preview (switch between a film and a series), six one-click looks to start from, and clear sections for badges, rankings, ratings, background and logos. Fine-tuning sizes and positions is tucked away until you want it, and you can see how many things you have changed and reset in one click.
+- Every Pictorium poster option now has a control. New ones include age rating badges (using your own country, not Pictorium's Italian default), Halloween and Christmas frames, new layouts, new ranking styles (Netflix colour, corner, number, outlined and glass), a minimal badge style, Dolby Vision, HDR, Atmos and IMAX marks, separate ratings in the order you choose, top badges in your own priority order, top shade height and light or dark text.
+- More languages and regions, including Latin American Spanish, Brazilian Portuguese and a worldwide region.
+- Fixed settings that Pictorium had changed or removed, so every choice in the studio now shows up on your posters.
+- Posters you have not touched render exactly as before.
+
+### Faster, more complete library
+
+- Large TorBox libraries sync much faster, and large Real-Debrid libraries are no longer cut off after the first pages.
+- My Movies and My Shows open almost instantly from the local index, and stay fast while the background sync runs.
+- New files are picked up when you open your library, without waiting for the next scheduled check.
+- A TorBox torrent and a Usenet or web download that shared the same number could hide each other. Both now show up.
+
+### Better matching
+
+- Fewer wrong or missing titles, and anything uncertain stays unmatched rather than guessed. Improvements include:
+  - Weekly shows named by date (such as WWE Raw) and regional versions (MasterChef vs MasterChef Australia) land on the right show.
+  - Season packs named like "S1.S9" or "S01 S02 S03" show every season, not just the first.
+  - Hash-only torrents and oddly named packs are matched from the files inside them.
+  - Edition labels, alternate titles (AKA), "and" vs "&", very short titles like X or K-9, small spelling slips and website prefixes are all handled.
+  - Releases named in two languages no longer match a completely different title.
+- Your library is rechecked in the background, so matches improve without you doing anything.
+
+### Streams
+
+- KNABEN is a new optional stream source. It never receives your debrid key, and nothing is added to your debrid account just by opening a title.
+- Meteor includes Usenet results when your TorBox plan is Pro.
+- TorBox playback links are refreshed every five minutes, so expired links fail far less often.
+
+### Website
+
+- A new home page about what LeLibrary is for, with a one-minute video tour, real examples from Stremio and Nuvio, and what is out this week. It appears straight away, even on slow connections.
+- A new Releases page: digital film releases by date, a TV guide for any day with premiere and finale badges, search, and a page for every title with its release dates and episodes. Hosted only.
+- The status page shows LeLibrary itself, debrid providers and stream sources at a glance.
+- The About page is now Supporters, thanking the artists, projects and services behind LeLibrary by name.
+- The privacy policy, guide and error pages have been redesigned, and the guide has a contents list and better troubleshooting.
+- English and Spanish throughout, following your browser's language.
+- Pages show placeholders while they load instead of a line of text, and a page left open during an update reloads itself instead of showing an error.
+- Better on phones, with nothing running off the screen edge, and better for keyboards and screen readers.
+
+### Self-hosting
+
+- The self-hosting guide has a complete, commented Docker Compose file you can copy as it is, plus what each container does and how to add HTTPS.
+- New optional hardening step: run LeLibrary's database as a normal login instead of the Postgres superuser. One included script sets it up safely.
+
+### Fixes
+
+- Changed poster settings now refresh your movie, series and anime rows properly.
+- Logos, icons and videos refresh after an update instead of staying cached for up to a month.
+- The menu and the service status no longer pop in a moment after a page loads. Releases and the status count are there from the first paint, and the home page no longer redraws itself while it loads.
+
 ## [5.2.0]
 
 ### A much faster library

@@ -1,0 +1,30 @@
+{
+  // The backend runs .ts directly on Node 24 (type stripping), so this config
+  // never emits: it exists to type-check. allowJs lets unconverted .js modules
+  // keep resolving while the conversion proceeds file by file; checkJs stays off
+  // so only .ts files are held to the type gate.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "commonjs",
+    "moduleResolution": "node10",
+    "types": ["node"],
+
+    "strict": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "exactOptionalPropertyTypes": false,
+
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["app.ts", "index.ts", "src/**/*", "test/**/*"],
+  "exclude": ["node_modules"]
+}

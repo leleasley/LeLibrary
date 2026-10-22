@@ -1,17 +1,18 @@
 {
   "name": "lelibrary",
-  "version": "5.2.0",
+  "version": "5.5.0",
   "description": "LeLibrary: TorBox & Real-Debrid addon with TMDB metadata",
-  "main": "index.js",
+  "main": "backend/index.ts",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
-    "test": "node --test test/*.test.js",
-    "test:library": "node --test test/library-index.test.js test/library-store.test.js",
+    "start": "node backend/index.ts",
+    "dev": "node --watch backend/index.ts",
+    "test": "node --test \"backend/test/**/*.test.*\"",
+    "test:library": "node --test backend/test/library-index.test.ts backend/test/library-store.test.ts",
     "bench:library": "node scripts/library-bench.js",
     "fixture:library": "node scripts/library-fixture.js",
     "audit:imported-sources": "node scripts/audit-imported-sources.js",
-    "check:curated-artwork": "node scripts/check-curated-artwork.js"
+    "check:curated-artwork": "node scripts/check-curated-artwork.js",
+    "typecheck": "tsc -p backend/tsconfig.json"
   },
   "dependencies": {
     "axios": "^1.6.7",
@@ -23,11 +24,15 @@
     "sharp": "^0.35.4"
   },
   "devDependencies": {
-    "nodemon": "^3.0.3"
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.13.5",
+    "@types/pg": "^8.23.1",
+    "typescript": "^5.9.3"
   },
   "overrides": {
     "qs": "^6.16.0",
-    "brace-expansion": "^5.0.9"
+    "brace-expansion": "^5.0.12",
+    "proxy-addr": "^2.0.8"
   },
   "engines": {
     "node": "24"

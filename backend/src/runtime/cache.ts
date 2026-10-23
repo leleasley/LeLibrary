@@ -116,6 +116,32 @@ function getRedisClient() {
   return redis;
 }
 
+// Health checks get their own small connection. On the shared one a PING
+// waits behind whatever is in flight, and one large provider snapshot can
+// take seconds to transfer, so the status page reported a healthy Redis as
+// unavailable.
+let healthClient: any = null;
+async function healthPing(timeoutMs = 3000): Promise<boolean> {
+  const main = getRedisClient();
+  if (!main) return true;
+  if (!healthClient) {
+    healthClient = main.duplicate({ maxRetriesPerRequest: 1, lazyConnect: false });
+    healthClient.on('error', () => {});
+  }
+  let timer: any;
+  try {
+    await Promise.race([
+      healthClient.ping(),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), timeoutMs); timer.unref?.(); }),
+    ]);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function get(key) {
   const mirrored = getMemCache(key);
   if (mirrored !== undefined) return mirrored;
@@ -378,6 +404,7 @@ export interface CacheApi {
   getStats: any;
   makeKey: any;
   getRedisClient: any;
+  healthPing: any;
 }
 
 module.exports = {
@@ -396,4 +423,5 @@ module.exports = {
   getStats,
   makeKey,
   getRedisClient,
+  healthPing,
 } satisfies CacheApi;

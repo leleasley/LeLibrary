@@ -1063,6 +1063,7 @@ const STATUS_CHECKS = [
   ];
   // Local LeLibrary health is measured from inside the running process. These
   // checks expose only component state and timings, never user or library data.
+  let redisMisses = 0;
   async function checkLeLibrary() {
     const startedAt = Date.now();
     const bounded = <T>(promise: Promise<T>, ms = 2000): Promise<T> => new Promise((resolve, reject) => {
@@ -1096,12 +1097,12 @@ const STATUS_CHECKS = [
       (async () => {
         const client = cache?.getRedisClient();
         if (!client) return { status: 'operational', detail: 'In-memory cache active' };
-        try {
-          await bounded(client.ping());
-          return { status: 'operational', detail: 'Redis responding' };
-        } catch {
-          return { status: 'degraded', detail: 'Redis unavailable; cache may fall back to memory' };
-        }
+        const ok = await cache.healthPing(3000).catch(() => false);
+        redisMisses = ok ? 0 : redisMisses + 1;
+        // One slow ping is noise; two checks in a row (a minute apart) is real.
+        return redisMisses < 2
+          ? { status: 'operational', detail: 'Redis responding' }
+          : { status: 'degraded', detail: 'Redis unavailable; cache may fall back to memory' };
       })(),
     ]);
     const services = [

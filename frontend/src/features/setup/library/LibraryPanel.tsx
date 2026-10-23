@@ -67,6 +67,17 @@ function FileMeta({ item }: { item: LibraryItem }) {
   );
 }
 
+// What a hash-named item or pack folder actually contains.
+function Inside({ item }: { item: LibraryItem }) {
+  if (!item.inner) return null;
+  return (
+    <p className="lib-inner">
+      <span>Inside:</span> <code data-i18n-preserve>{item.inner}</code>
+      {item.innerCount > 0 && <span className="lib-inner-more">+ {setupCount(item.innerCount, 'more file', 'more files')}</span>}
+    </p>
+  );
+}
+
 function FixDialog({ uuid, editToken, item, onClose, onFixed }: {
   uuid: string;
   editToken: string;
@@ -147,7 +158,10 @@ function FixDialog({ uuid, editToken, item, onClose, onFixed }: {
           <h3 id="lib-fix-title">{item.status === 'matched' ? 'Change this match' : 'Fix this match'}</h3>
           <button type="button" className="eye-btn" aria-label="Close" onClick={onClose} disabled={busy}>✕</button>
         </div>
-        <code className="lib-file lib-fix-file" data-i18n-preserve>{item.name}</code>
+        <div className="lib-fix-file">
+          <code className="lib-file" data-i18n-preserve>{item.name}</code>
+          <Inside item={item} />
+        </div>
 
         <div className="lib-type" role="radiogroup" aria-label="What is it?">
           <button type="button" role="radio" aria-checked={type === 'movie'} className={type === 'movie' ? 'is-active' : ''} onClick={() => setType('movie')}>Film</button>
@@ -372,6 +386,7 @@ export function LibraryPanel({ uuid, editToken }: { uuid: string; editToken: str
                 <strong className="lib-title" data-i18n-preserve>{item.title}{item.year ? ` (${item.year})` : ''}</strong>
               )}
               <code className="lib-file" data-i18n-preserve>{item.name}</code>
+              <Inside item={item} />
               <FileMeta item={item} />
               {item.reason && <p className="lib-reason">{REASONS[item.reason] ?? REASONS['other']}</p>}
               {item.fixed && item.status === 'matched' && <span className="lib-badge">Your fix</span>}

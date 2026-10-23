@@ -5,6 +5,7 @@
 // rows are addressed by our own internal id, always checked against the scope.
 
 const store = require('./store.ts');
+const { guessMediaInfo } = require('../media/parser.ts');
 
 export type ReviewView = 'attention' | 'matched' | 'ignored';
 
@@ -28,6 +29,10 @@ export interface ReviewItem {
   fixed: boolean;
   guess: string | null;
   guessYear: number | null;
+  // Main video file inside the item (largest), shown when the item's own name
+  // says little (a bare hash, a pack folder), plus how many other videos.
+  inner: string | null;
+  innerCount: number;
 }
 
 // Resolver failure codes are stored as "<code> [detail]". Only the code is
@@ -52,7 +57,32 @@ function posterOrNull(value: unknown): string | null {
   return typeof value === 'string' && /^https:\/\/image\.tmdb\.org\//.test(value) ? value : null;
 }
 
+function baseName(path: unknown): string | null {
+  if (typeof path !== 'string' || !path) return null;
+  const parts = path.split(/[\\/]/);
+  return parts[parts.length - 1] || null;
+}
+
+function stripExt(name: string): string {
+  return name.replace(/\.[a-z0-9]{2,4}$/i, '');
+}
+
+const HASH_NAME = /^[a-f0-9]{32,}$/i;
+
 function toItem(row: Record<string, unknown>): ReviewItem {
+  const name = String(row['name'] || '');
+  const innerFile = baseName(row['main_file']);
+  const inner = innerFile && stripExt(innerFile) !== stripExt(name) ? innerFile : null;
+  const outerGuess = typeof row['norm_title'] === 'string' && row['norm_title'] ? (row['norm_title'] as string) : null;
+  // A hash tells the fix search nothing: read the title from the inner file.
+  let guess = outerGuess;
+  let guessYear = intOrNull(row['parsed_year']);
+  if (inner && (!outerGuess || HASH_NAME.test(name.trim()) || HASH_NAME.test(outerGuess.replace(/\s+/g, '')))) {
+    try {
+      const info = guessMediaInfo(inner);
+      if (info?.title) { guess = String(info.title); guessYear = intOrNull(info.year); }
+    } catch { /* keep the outer guess */ }
+  }
   return {
     id: Number(row['id']),
     provider: String(row['provider'] || ''),
@@ -71,8 +101,10 @@ function toItem(row: Record<string, unknown>): ReviewItem {
     poster: posterOrNull(row['poster']),
     tmdbId: intOrNull(row['tmdb_id']),
     fixed: row['fixed'] === true,
-    guess: typeof row['norm_title'] === 'string' && row['norm_title'] ? (row['norm_title'] as string) : null,
-    guessYear: intOrNull(row['parsed_year']),
+    guess,
+    guessYear,
+    inner,
+    innerCount: Math.max(0, (intOrNull(row['video_count']) || 0) - (inner ? 1 : 0)),
   };
 }
 
@@ -153,8 +185,21 @@ async function items(scopeId: string, { view = 'attention', q = '', limit = 50, 
               i.norm_title, i.year AS parsed_year,
               i.match_meta->>'name' AS title, i.match_meta->>'releaseInfo' AS release_year,
               i.match_meta->>'poster' AS poster,
-              (o.scope_id IS NOT NULL) AS fixed
+              (o.scope_id IS NOT NULL) AS fixed,
+              vf.main_file, vf.video_count
          FROM lib_items i
+         LEFT JOIN LATERAL (
+           SELECT (array_agg(f.fname ORDER BY f.fsize DESC NULLS LAST))[1] AS main_file,
+                  count(*)::int AS video_count
+             FROM (
+               SELECT COALESCE(e->>'short_name', e->>'name', e->>'path', e->>'filename') AS fname,
+                      CASE WHEN COALESCE(e->>'size', e->>'bytes') ~ '^[0-9]+$'
+                           THEN COALESCE(e->>'size', e->>'bytes')::numeric END AS fsize
+                 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(i.raw->'files') = 'array' THEN i.raw->'files' ELSE '[]'::jsonb END) e
+             ) f
+            WHERE f.fname ~* '\\.(mkv|mp4|avi|m4v|mov|ts|wmv|webm)$'
+              AND f.fname !~* '(^|[^a-z])sample([^a-z]|$)'
+         ) vf ON true
          LEFT JOIN lib_match_overrides o
            ON o.scope_id = i.scope_id AND o.provider = i.provider AND o.source_id = i.source_id
         WHERE ${where}

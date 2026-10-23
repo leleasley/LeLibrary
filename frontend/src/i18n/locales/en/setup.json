@@ -1182,6 +1182,13 @@
     "Ignored. It no longer shows anywhere.": "Ignored. It no longer shows anywhere.",
     "Back to automatic matching.": "Back to automatic matching.",
     "TV show": "TV show",
-    "Show": "Show"
+    "Show": "Show",
+    "Inside:": "Inside:",
+    "Keys, rows, posters and streams": "Keys, rows, posters and streams",
+    "What was found in your cloud": "What was found in your cloud",
+    "more file": "more file",
+    "more files": "more files",
+    "file needs attention": "file needs attention",
+    "files need attention": "files need attention"
   }
 }

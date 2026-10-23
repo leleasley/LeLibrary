@@ -42,6 +42,8 @@ export interface LibraryItem {
   fixed: boolean;
   guess: string | null;
   guessYear: number | null;
+  inner: string | null;
+  innerCount: number;
 }
 
 export interface TmdbChoice {

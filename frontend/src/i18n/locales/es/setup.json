@@ -1182,6 +1182,13 @@
     "Ignored. It no longer shows anywhere.": "Ignorado. Ya no aparece en ningún sitio.",
     "Back to automatic matching.": "De vuelta al emparejamiento automático.",
     "TV show": "Serie",
-    "Show": "Mostrar"
+    "Show": "Mostrar",
+    "Inside:": "Dentro:",
+    "Keys, rows, posters and streams": "Claves, filas, pósters y streams",
+    "What was found in your cloud": "Lo que se encontró en tu nube",
+    "more file": "archivo más",
+    "more files": "archivos más",
+    "file needs attention": "archivo requiere atención",
+    "files need attention": "archivos requieren atención"
   }
 }

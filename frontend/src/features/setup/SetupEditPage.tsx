@@ -13,8 +13,9 @@ import { ConfirmModal } from '@/features/setup/shared/Modal';
 import { buildBackup, downloadBackup } from '@/features/setup/shared/setup-backup';
 import { toast } from '@/features/setup/shared/Toast';
 import { isSetupUuid, rememberSetup } from '@/features/setup/shared/setup-history';
-import { setupCopy } from '@/features/setup/shared/setup-copy';
+import { setupCopy, setupCount } from '@/features/setup/shared/setup-copy';
 import { LibraryPanel } from '@/features/setup/library/LibraryPanel';
+import { fetchLibrarySummary } from '@/features/setup/library/library-api';
 import { forgetDeletedSetup } from '@/features/setup/shared/saved-setups';
 import { ErrorState } from '@/features/site/ErrorPage';
 import { PublishPanel, publishActionFor } from '@/features/setup/shared/PublishPanel';
@@ -143,6 +144,9 @@ export function SetupEditPage() {
   // Settings (the tier page) or the Library view. The tier page stays mounted
   // while the library is open so unsaved edits survive the switch.
   const [section, setSection] = useState<'settings' | 'library'>('settings');
+  // How many files need attention, for the switch. Loaded once after unlock;
+  // a setup without the library index or a debrid key simply shows no count.
+  const [libraryAttention, setLibraryAttention] = useState<number | null>(null);
 
   // The "just created" view is consumed once and stripped from history: a
   // reload must ask for the password again rather than re-show the install link.
@@ -370,6 +374,19 @@ export function SetupEditPage() {
     }).catch(() => setCopied(false));
   }
 
+  // Attention count for the Library switch, once the setup is unlocked.
+  const isUnlocked = saved !== null && seed !== null;
+  useEffect(() => {
+    if (!isUnlocked) return;
+    const token = getEditToken();
+    if (!token) return;
+    let cancelled = false;
+    fetchLibrarySummary(uuid, token)
+      .then((summaryOut) => { if (!cancelled) setLibraryAttention(summaryOut.attention); })
+      .catch(() => { /* no index or no debrid key: no count */ });
+    return () => { cancelled = true; };
+  }, [isUnlocked, uuid, section]);
+
   // Any single-segment path reaches this route (React Router has no shape
   // check), so /index.html or /foo.mp4 must be the shared 404.
   if (!isSetupUuid(uuid)) {
@@ -579,10 +596,20 @@ export function SetupEditPage() {
   return (
     <div className="edit-root">
       {unlocked && (
-        <nav className="edit-tabs" aria-label="Setup sections">
-          <div className="edit-tabs-inner" role="tablist">
-            <button type="button" role="tab" aria-selected={section === 'settings'} className={section === 'settings' ? 'is-active' : ''} onClick={() => setSection('settings')}>Edit settings</button>
-            <button type="button" role="tab" aria-selected={section === 'library'} className={section === 'library' ? 'is-active' : ''} onClick={() => setSection('library')}>Your library</button>
+        <nav className="edit-switch" aria-label="Setup sections">
+          <div className="edit-switch-inner" role="tablist">
+            <button type="button" role="tab" aria-selected={section === 'settings'} className={section === 'settings' ? 'is-active' : ''} onClick={() => setSection('settings')}>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6" /></svg>
+              <span><strong>Edit settings</strong><small>Keys, rows, posters and streams</small></span>
+            </button>
+            <button type="button" role="tab" aria-selected={section === 'library'} className={section === 'library' ? 'is-active' : ''} onClick={() => setSection('library')}>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4v16M9 4v16M13 5l4 15M18 4.5l2 .5" /></svg>
+              <span>
+                <strong>Your library</strong>
+                <small>{libraryAttention ? setupCount(libraryAttention, 'file needs attention', 'files need attention') : 'What was found in your cloud'}</small>
+              </span>
+              {libraryAttention ? <em className="edit-switch-badge">{libraryAttention}</em> : null}
+            </button>
           </div>
         </nav>
       )}

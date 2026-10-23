@@ -14,6 +14,7 @@ import { buildBackup, downloadBackup } from '@/features/setup/shared/setup-backu
 import { toast } from '@/features/setup/shared/Toast';
 import { isSetupUuid, rememberSetup } from '@/features/setup/shared/setup-history';
 import { setupCopy } from '@/features/setup/shared/setup-copy';
+import { LibraryPanel } from '@/features/setup/library/LibraryPanel';
 import { forgetDeletedSetup } from '@/features/setup/shared/saved-setups';
 import { ErrorState } from '@/features/site/ErrorPage';
 import { PublishPanel, publishActionFor } from '@/features/setup/shared/PublishPanel';
@@ -139,6 +140,9 @@ export function SetupEditPage() {
   const [savedAccount, setSavedAccount] = useState<SavedAccount | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Settings (the tier page) or the Library view. The tier page stays mounted
+  // while the library is open so unsaved edits survive the switch.
+  const [section, setSection] = useState<'settings' | 'library'>('settings');
 
   // The "just created" view is consumed once and stripped from history: a
   // reload must ask for the password again rather than re-show the install link.
@@ -574,9 +578,18 @@ export function SetupEditPage() {
 
   return (
     <div className="edit-root">
-      <div className={unlocked ? 'edit-page' : 'edit-page is-locked'} inert={!unlocked} aria-hidden={!unlocked}>
+      {unlocked && (
+        <nav className="edit-tabs" aria-label="Setup sections">
+          <div className="edit-tabs-inner" role="tablist">
+            <button type="button" role="tab" aria-selected={section === 'settings'} className={section === 'settings' ? 'is-active' : ''} onClick={() => setSection('settings')}>Edit settings</button>
+            <button type="button" role="tab" aria-selected={section === 'library'} className={section === 'library' ? 'is-active' : ''} onClick={() => setSection('library')}>Your library</button>
+          </div>
+        </nav>
+      )}
+      <div className={unlocked ? 'edit-page' : 'edit-page is-locked'} inert={!unlocked} aria-hidden={!unlocked} hidden={unlocked && section === 'library'}>
         <Page key={`${activeTier}-${pageKey}`} edit={editMode} />
       </div>
+      {unlocked && section === 'library' && <LibraryPanel uuid={uuid} editToken={getEditToken()} />}
       {(!unlocked || leaving) && (
         <UnlockModal
           uuid={uuid} tier={savedTier}

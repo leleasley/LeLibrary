@@ -236,6 +236,24 @@ const MIGRATIONS = [
    )`,
   // The primary key already provides this exact lookup index.
   `DROP INDEX IF EXISTS lib_episodes_entity_idx`,
+  // Owner fixes from the Library page: a chosen TMDB title for one provider
+  // item, or "ignore". Keyed by the provider's own id (stable across syncs),
+  // scoped to the library (debrid key hash), never shared between libraries.
+  // The matcher applies these before its own resolver, so a fix survives
+  // re-syncs, resolver upgrades and startup repairs.
+  `CREATE TABLE IF NOT EXISTS lib_match_overrides (
+     scope_id    text NOT NULL,
+     provider    text NOT NULL,
+     source_id   text NOT NULL,
+     action      text NOT NULL CHECK (action IN ('match', 'ignore')),
+     tmdb_id     integer,
+     media_type  text CHECK (media_type IN ('movie', 'series', 'anime')),
+     season      integer,
+     episode     integer,
+     created_at  timestamptz NOT NULL DEFAULT now(),
+     updated_at  timestamptz NOT NULL DEFAULT now(),
+     PRIMARY KEY (scope_id, provider, source_id)
+   )`,
 ];
 
 async function migrate() {

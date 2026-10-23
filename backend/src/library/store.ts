@@ -638,7 +638,7 @@ async function claimMatchJobs(scopeId, limit) {
          LIMIT $2
          FOR UPDATE SKIP LOCKED
       )
-      RETURNING id, provider, source_id, raw, media_type, is_series, is_anime, name, season, episode`,
+      RETURNING id, provider, source_id, raw, media_type, is_series, is_anime, name, season, episode, season_start, season_end`,
     [scopeId, Math.max(1, limit), retryVersion(), matchVersion()]
   );
   return rows;

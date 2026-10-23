@@ -10,6 +10,7 @@ const { guessMediaInfo } = require('../media/parser.ts');
 const { getImdbId } = require('../media/tmdb.ts');
 const { offlineMatchFromItem, normalizeTitle } = require('./diff.ts');
 const store = require('./store.ts');
+const overrides = require('./overrides.ts');
 const metrics = require('./metrics.ts');
 const { pLimit } = require('./util.ts');
 
@@ -177,7 +178,21 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
     if (budgetMs > 0 && Date.now() - started > budgetMs) break;
     const jobs = await store.claimMatchJobs(scopeId, batch);
     if (!jobs.length) break;
+    // Owner fixes from the Library page win over the resolver. A failed
+    // lookup only means this pass falls back to normal matching.
+    const fixes = await overrides.forJobs(scopeId, jobs).catch(() => new Map());
     const outcomes = await pLimit(jobs, concurrency, async (job) => {
+      const fix = fixes.size ? overrides.lookup(fixes, job) : undefined;
+      if (fix) {
+        const applied = await overrides.apply(job, fix, { tmdbApiKey, lang });
+        if (applied === 'matched') matched++;
+        else if (applied === 'failed') {
+          await store.saveMatch(job.id, { status: 'failed', error: 'manual-fix-unavailable', version: retryVersion() });
+          failed++;
+        }
+        processed++;
+        return;
+      }
       const raw = job.raw;
       const mediaType = job.media_type || 'movie';
       const name = (raw && (raw.name || raw.filename)) || '';

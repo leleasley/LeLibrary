@@ -1,0 +1,85 @@
+/* Library tab of the setup edit page. */
+.lib-page { box-sizing: border-box; width: min(980px, 100%); margin: 0 auto; padding: 8px 20px 80px; }
+.lib-hero h1 { margin: 0 0 10px; font-size: clamp(1.6rem, 3.4vw, 2.3rem); letter-spacing: -0.03em; line-height: 1.1; }
+.lib-hero .setup-lede { max-width: 640px; }
+
+.lib-note { box-sizing: border-box; margin: 0 0 18px; padding: 12px 14px; border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 12px; background: rgba(245, 158, 11, 0.06); color: var(--text); font-size: 0.84rem; line-height: 1.55; }
+
+.lib-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.lib-stat { box-sizing: border-box; min-height: 78px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.lib-stat strong { font-size: 1.45rem; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.lib-stat span { color: var(--muted); font-size: 0.78rem; }
+.lib-stat.is-warn { border-color: rgba(245, 158, 11, 0.45); }
+.lib-stat.is-warn strong { color: var(--amber); }
+.lib-stat.is-muted strong { color: var(--muted); }
+.lib-stats.is-loading .lib-stat { animation: lib-pulse 1.4s ease-in-out infinite; }
+@keyframes lib-pulse { 50% { opacity: 0.45; } }
+
+.lib-sync { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 22px; color: var(--muted); font-size: 0.82rem; }
+
+.lib-toolbar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; background: var(--bg); }
+.lib-tabs { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.lib-tabs button { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font: inherit; font-size: 0.84rem; cursor: pointer; }
+.lib-tabs button.is-active { background: rgba(245, 158, 11, 0.14); color: var(--text); }
+.lib-count { min-width: 20px; padding: 1px 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); font-size: 0.72rem; font-variant-numeric: tabular-nums; text-align: center; }
+.lib-filter { box-sizing: border-box; flex: 1 1 220px; max-width: 320px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; font-size: 0.86rem; }
+
+.lib-list { display: flex; flex-direction: column; gap: 8px; }
+.lib-list[aria-busy='true'] { opacity: 0.7; }
+.lib-empty { padding: 28px 12px; color: var(--muted); text-align: center; font-size: 0.88rem; }
+.lib-row { box-sizing: border-box; display: flex; align-items: flex-start; gap: 14px; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.lib-row.is-failed, .lib-row.is-skipped { border-left: 3px solid var(--amber); }
+.lib-row.is-ignored { opacity: 0.75; }
+.lib-thumb { flex: 0 0 auto; width: 46px; height: 69px; border-radius: 6px; object-fit: cover; background: rgba(255, 255, 255, 0.05); }
+.lib-poster-ph { display: block; background: linear-gradient(135deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)); }
+.lib-row-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.lib-title { font-size: 0.95rem; }
+.lib-file { display: block; overflow-wrap: anywhere; color: var(--text); font-family: var(--mono, ui-monospace, monospace); font-size: 0.78rem; line-height: 1.45; }
+.lib-row.is-matched .lib-file { color: var(--muted); }
+.lib-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.lib-meta span { padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: 0.7rem; }
+.lib-reason { margin: 0; color: var(--amber); font-size: 0.8rem; line-height: 1.5; }
+.lib-badge { align-self: flex-start; padding: 2px 8px; border-radius: 999px; background: rgba(245, 158, 11, 0.14); color: var(--amber); font-size: 0.7rem; font-weight: 600; }
+.lib-actions { flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; }
+.lib-actions button { white-space: nowrap; }
+.lib-more { align-self: center; margin-top: 10px; }
+
+/* Fix dialog */
+.app-modal-box.lib-fix-box { max-width: 620px; max-height: calc(100vh - 48px); display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+.lib-fix-box .app-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.lib-fix-box .app-modal-head h3 { margin: 0; }
+.lib-fix-file { padding: 10px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); }
+.lib-type { display: inline-flex; align-self: flex-start; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 10px; }
+.lib-type button { padding: 7px 16px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 0.84rem; cursor: pointer; }
+.lib-type button.is-active { background: rgba(245, 158, 11, 0.14); color: var(--text); }
+.lib-search { display: flex; gap: 8px; }
+.lib-search input { box-sizing: border-box; flex: 1 1 auto; min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); font: inherit; font-size: 0.88rem; }
+.lib-results { display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow: auto; }
+.lib-results .lib-empty { padding: 14px; }
+.lib-choice { box-sizing: border-box; display: flex; gap: 12px; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.lib-choice:hover { border-color: rgba(245, 158, 11, 0.4); }
+.lib-choice.is-picked { border-color: var(--amber); background: rgba(245, 158, 11, 0.08); }
+.lib-choice img, .lib-choice .lib-poster-ph { flex: 0 0 auto; width: 42px; height: 63px; border-radius: 6px; object-fit: cover; }
+.lib-choice-copy { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.lib-choice-copy strong { font-size: 0.88rem; }
+.lib-choice-copy small { color: var(--muted); font-size: 0.74rem; line-height: 1.45; }
+.lib-overview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.lib-episode { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.lib-episode .setup-field { margin: 0; }
+.lib-hint { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 0.76rem; line-height: 1.5; }
+
+/* Settings / Library switch on the edit page */
+.edit-tabs { position: sticky; top: 0; z-index: 5; display: flex; justify-content: center; padding: 10px 16px 6px; background: linear-gradient(var(--bg) 70%, transparent); }
+.edit-tabs-inner { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.edit-tabs button { padding: 8px 16px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font: inherit; font-size: 0.86rem; cursor: pointer; }
+.edit-tabs button.is-active { background: rgba(245, 158, 11, 0.14); color: var(--text); }
+
+@media (max-width: 560px) {
+  .lib-page { padding: 4px 4px 80px; }
+  .lib-row { flex-wrap: wrap; }
+  .lib-actions { flex-direction: row; flex-wrap: wrap; width: 100%; }
+  .lib-actions button { flex: 1 1 auto; }
+  .lib-filter { max-width: none; }
+  .lib-tabs { width: 100%; }
+  .lib-tabs button { flex: 1 1 auto; justify-content: center; padding: 8px 6px; }
+}

@@ -1,5 +1,19 @@
 # Changelog
 
+## [5.5.3]
+
+### Faster
+
+- Large libraries are now stored compressed in the cache, about ten times smaller. One big library refreshing no longer slows everyone else down, and the cache uses far less memory. Nothing to do after updating.
+
+### Streams
+
+- A stream source the server cannot reach can be switched off for the whole instance. It shows as unavailable in setup with a short note, and setups skip it quietly instead of showing an error. On lelibrary.uk this applies to Torrentio, which currently blocks the hosted server. Self-hosters are not affected unless they turn it on (STREAM_ADDONS_UNAVAILABLE in .env).
+
+### Project
+
+- Dependency updates for the server and website are now checked automatically every week.
+
 ## [5.5.2]
 
 ### Fixes

@@ -25,6 +25,7 @@ jobs:
           node-version: 24
       - run: node --test .github/release/notes.test.mjs
       - run: node --test .github/discord/notify.test.mjs
+      - run: node --test .github/deps/report.test.mjs
       # Newest CHANGELOG section must match package.json and frontend/package.json,
       # and follow the house rules (ASCII only, no em dashes, ### groups).
       - run: node .github/release/notes.mjs check

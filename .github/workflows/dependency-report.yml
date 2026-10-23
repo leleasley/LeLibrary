@@ -1,0 +1,64 @@
+name: Dependency report
+
+# Weekly, read-only: lists outdated and vulnerable npm packages for the backend
+# and frontend, with the commands to fix them, in one "Weekly dependency
+# report" issue (updated in place) and the run summary. It never opens pull
+# requests or changes code: updates are applied by hand on dev, tested, then
+# released. Security alerts also appear under Security > Dependabot.
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: dependency-report
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install (no scripts)
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          (cd frontend && npm ci --ignore-scripts --no-audit --no-fund)
+
+      # npm outdated / audit exit non-zero when they find something: that is
+      # the report, not a failure.
+      - name: Collect
+        run: |
+          npm outdated --json > /tmp/backend-outdated.json || true
+          npm audit --json > /tmp/backend-audit.json || true
+          (cd frontend && npm outdated --json > /tmp/frontend-outdated.json || true)
+          (cd frontend && npm audit --json > /tmp/frontend-audit.json || true)
+
+      - name: Build report
+        run: |
+          node .github/deps/report.mjs \
+            "Backend:.=/tmp/backend-outdated.json,/tmp/backend-audit.json" \
+            "Frontend:frontend=/tmp/frontend-outdated.json,/tmp/frontend-audit.json" > report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Update the report issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh label create dependencies --repo "$REPO" --color 0366d6 --description "Dependency updates and security alerts" --force
+          number=$(gh issue list --repo "$REPO" --state open --label dependencies --search "Weekly dependency report in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --repo "$REPO" --body-file report.md
+          else
+            gh issue create --repo "$REPO" --title "Weekly dependency report" --label dependencies --body-file report.md
+          fi

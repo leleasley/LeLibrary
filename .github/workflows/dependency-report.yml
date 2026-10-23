@@ -1,10 +1,11 @@
 name: Dependency report
 
-# Weekly, read-only: lists outdated and vulnerable npm packages for the backend
-# and frontend, with the commands to fix them, in one "Weekly dependency
-# report" issue (updated in place) and the run summary. It never opens pull
-# requests or changes code: updates are applied by hand on dev, tested, then
-# released. Security alerts also appear under Security > Dependabot.
+# Weekly, read-only: lists outdated npm packages for the backend and frontend,
+# with the commands to update them, in one "Weekly dependency report" issue
+# (updated in place). It never opens pull requests or changes code: updates
+# are applied by hand on dev, tested, then released.
+# Vulnerabilities are never published here (the repo and its issues are
+# public): they stay private under Security > Dependabot alerts.
 on:
   schedule:
     - cron: '0 7 * * 1'
@@ -34,20 +35,18 @@ jobs:
           npm ci --ignore-scripts --no-audit --no-fund
           (cd frontend && npm ci --ignore-scripts --no-audit --no-fund)
 
-      # npm outdated / audit exit non-zero when they find something: that is
-      # the report, not a failure.
+      # npm outdated exits non-zero when something is behind: that is the
+      # report, not a failure.
       - name: Collect
         run: |
           npm outdated --json > /tmp/backend-outdated.json || true
-          npm audit --json > /tmp/backend-audit.json || true
           (cd frontend && npm outdated --json > /tmp/frontend-outdated.json || true)
-          (cd frontend && npm audit --json > /tmp/frontend-audit.json || true)
 
       - name: Build report
         run: |
           node .github/deps/report.mjs \
-            "Backend:.=/tmp/backend-outdated.json,/tmp/backend-audit.json" \
-            "Frontend:frontend=/tmp/frontend-outdated.json,/tmp/frontend-audit.json" > report.md
+            "Backend:.=/tmp/backend-outdated.json,/dev/null" \
+            "Frontend:frontend=/tmp/frontend-outdated.json,/dev/null" > report.md
           cat report.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Update the report issue

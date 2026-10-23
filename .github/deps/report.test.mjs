@@ -16,7 +16,7 @@ test('the section gives safe and major update commands separately', () => {
   const md = renderSection('Backend', '.', { pg: { current: '8.23.0', wanted: '8.23.1', latest: '8.23.1' }, express: { current: '4.22.3', wanted: '4.22.3', latest: '5.3.0' } }, {});
   assert.match(md, /npm update pg/);
   assert.match(md, /npm install express@5\.3\.0/);
-  assert.match(md, /No known vulnerabilities/);
+  assert.doesNotMatch(md, /vulnerab/i);
 });
 
 test('held packages are listed with their reason, not as updates', () => {
@@ -28,4 +28,10 @@ test('held packages are listed with their reason, not as updates', () => {
   assert.doesNotMatch(md, /npm install @types\/node/);
   assert.match(md, /Held on purpose:/);
   assert.match(md, /typescript-5 5\.9\.3 \(latest 7\.0\.2\): checker only/);
+});
+
+test('the public section never mentions vulnerabilities, even when audit finds some', () => {
+  const audit = { vulnerabilities: { 'follow-redirects': { severity: 'high', fixAvailable: true, via: [{ url: 'https://github.com/advisories/GHSA-x' }] } } };
+  const md = renderSection('Backend', '.', {}, audit);
+  assert.doesNotMatch(md, /follow-redirects|GHSA|high/);
 });

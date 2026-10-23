@@ -8,3 +8,23 @@ updates:
     groups:
       actions:
         patterns: ['*']
+
+  # Server and website npm packages. Minor and patch updates are grouped so
+  # each week is one PR per folder; majors arrive on their own.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      backend-minor:
+        update-types: ['minor', 'patch']
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      frontend-minor:
+        update-types: ['minor', 'patch']

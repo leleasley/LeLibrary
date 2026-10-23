@@ -7,6 +7,9 @@ export interface Features {
   // Self-host only: the instance has an operator secret, so it can list its
   // saved setups. Always false on the hosted deployment.
   savedSetups: boolean;
+  // Stream addons the operator turned off because this server cannot reach
+  // them (e.g. Torrentio blocks the hosted IP). Empty on most self-hosts.
+  unavailableStreamAddons: string[];
 }
 
 export function normalizeFeatures(payload: unknown): Features {
@@ -14,6 +17,9 @@ export function normalizeFeatures(payload: unknown): Features {
   return {
     releases: record['releases'] === true,
     savedSetups: record['savedSetups'] === true,
+    unavailableStreamAddons: Array.isArray(record['unavailableStreamAddons'])
+      ? (record['unavailableStreamAddons'] as unknown[]).filter((id): id is string => typeof id === 'string')
+      : [],
   };
 }
 

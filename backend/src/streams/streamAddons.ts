@@ -414,10 +414,20 @@ function customAddonName(config: any, id: any): string {
   return name ? name.slice(0, 60) : 'Your addon';
 }
 
+// Stream addons this instance cannot reach (e.g. Torrentio blocks the hosted
+// server's IP with a Cloudflare 403). Set by the operator, comma-separated:
+// STREAM_ADDONS_UNAVAILABLE=torrentio. They are skipped instead of returning an
+// "Unavailable (HTTP 403)" row, and the setup pages show them as unavailable.
+function unavailableStreamAddons(): string[] {
+  return String(process.env.STREAM_ADDONS_UNAVAILABLE || '')
+    .split(',').map((id) => id.trim().toLowerCase()).filter((id) => /^[a-z0-9-]{1,40}$/.test(id));
+}
+
 async function fetchExternalStreams(addonIds: any, config: any, type: any, ttId: string | undefined, timeBudgetMs = EXTERNAL_TIME_BUDGET_MS, runtime: any = {}) {
   const AIOSTREAMS_ID = 'aiostreams';
   if (!ttId) return [];
-  const ids = Array.isArray(addonIds) ? addonIds.filter((id: any) => (ADDONS as Record<string, any>)[id] || id === AIOSTREAMS_ID || id === 'knaben' || customAddonSlot(id) !== null) : [];
+  const unavailable = new Set(unavailableStreamAddons());
+  const ids = Array.isArray(addonIds) ? addonIds.filter((id: any) => !unavailable.has(String(id)) && ((ADDONS as Record<string, any>)[id] || id === AIOSTREAMS_ID || id === 'knaben' || customAddonSlot(id) !== null)) : [];
   if (ids.length === 0) return [];
   const normType = type === 'anime' ? 'series' : type;
   const budgetMs = Number.isFinite(timeBudgetMs)
@@ -501,11 +511,13 @@ export interface StreamAddonsApi {
   ADDONS: any;
   buildJackettioConfigUrls: any;
   fetchExternalStreams: any;
+  unavailableStreamAddons: any;
   dedupeStreams: any;
   compareExternalProviderPriority: any;
 }
 
 module.exports = {
+  unavailableStreamAddons,
   CUSTOM_ADDON_IDS,
   MAX_CUSTOM_ADDONS,
   customAddonSlot,

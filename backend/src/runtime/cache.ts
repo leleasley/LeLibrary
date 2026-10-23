@@ -1,6 +1,10 @@
 // @ts-nocheck
 const Redis = require('ioredis');
 const NodeCache = require('node-cache');
+const zlib = require('zlib');
+const { promisify } = require('util');
+const gzipAsync = promisify(zlib.gzip);
+const gunzipAsync = promisify(zlib.gunzip);
 
 let redis = null;
 let isConnected = false;
@@ -68,6 +72,30 @@ function getMemCache(key) {
 function delMemCache(key) {
   memKeyOrder.delete(key);
   memCache.del(key);
+}
+
+// Large values (whole provider library snapshots run to tens of MB) are stored
+// gzipped. Moving 80 MB over the single shared connection held up every other
+// user's cache reads behind it, and Redis kept all of it in memory and on disk.
+// Compressed values carry a "gz1:" prefix and base64 so they stay plain
+// strings; JSON can never start with "g", so old uncompressed values still
+// read as they are. zlib runs on the libuv pool, off the event loop.
+const COMPRESS_MIN_BYTES = Math.max(1024, parseInt(process.env.CACHE_COMPRESS_MIN_BYTES, 10) || 256 * 1024);
+const GZ_PREFIX = 'gz1:';
+
+async function encodeValue(value) {
+  const json = JSON.stringify(value);
+  if (json === undefined || json.length < COMPRESS_MIN_BYTES) return json;
+  const packed = await gzipAsync(Buffer.from(json), { level: 3 });
+  return GZ_PREFIX + packed.toString('base64');
+}
+
+async function decodeValue(data) {
+  if (typeof data === 'string' && data.startsWith(GZ_PREFIX)) {
+    const raw = await gunzipAsync(Buffer.from(data.slice(GZ_PREFIX.length), 'base64'));
+    return JSON.parse(raw.toString());
+  }
+  return JSON.parse(data);
 }
 
 async function scanPattern(client, pattern, onBatch) {
@@ -152,7 +180,7 @@ async function get(key) {
   try {
     const [[, data], [, pttl]] = await client.multi().get(key).pttl(key).exec();
     if (data === null || data === undefined) return null;
-    const value = JSON.parse(data);
+    const value = await decodeValue(data);
     // Mirror for the value's real remaining lifetime so the next read is
     // local; Redis is only consulted again once the mirror entry expires.
     setMemCache(key, value, mirrorTtl(pttl));
@@ -191,7 +219,7 @@ async function mget(keys) {
       const data = rows[index];
       if (data === null || data === undefined) continue;
       const key = missing[index];
-      const value = JSON.parse(data);
+      const value = await decodeValue(data);
       found.set(key, value);
       const pttl = results[index + 1] && results[index + 1][1];
       setMemCache(key, value, mirrorTtl(pttl));
@@ -209,7 +237,7 @@ async function set(key, value, ttl = 3600) {
     return true;
   }
   try {
-    await client.setex(key, ttl, JSON.stringify(value));
+    await client.setex(key, ttl, await encodeValue(value));
     setMemCache(key, value, ttl); // mirror in memory for fast reads
     return true;
   } catch (err) {
@@ -234,8 +262,9 @@ async function mset(entries) {
   const client = getRedisClient();
   if (!client) return clean.length;
   try {
+    const encoded = await Promise.all(clean.map((entry) => encodeValue(entry.value)));
     const pipe = client.pipeline();
-    for (const entry of clean) pipe.setex(entry.key, entry.ttl, JSON.stringify(entry.value));
+    clean.forEach((entry, index) => pipe.setex(entry.key, entry.ttl, encoded[index]));
     await pipe.exec();
     return clean.length;
   } catch (err) {
@@ -405,6 +434,8 @@ export interface CacheApi {
   makeKey: any;
   getRedisClient: any;
   healthPing: any;
+  _encodeValue: any;
+  _decodeValue: any;
 }
 
 module.exports = {
@@ -424,4 +455,6 @@ module.exports = {
   makeKey,
   getRedisClient,
   healthPing,
+  _encodeValue: encodeValue,
+  _decodeValue: decodeValue,
 } satisfies CacheApi;

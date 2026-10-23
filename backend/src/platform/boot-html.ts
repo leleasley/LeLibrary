@@ -14,7 +14,7 @@ interface ProviderLike { status?: unknown }
 interface StatusLike { overall?: unknown; providers?: unknown }
 
 export interface BootData {
-  features: { releases: boolean; savedSetups: boolean };
+  features: { releases: boolean; savedSetups: boolean; unavailableStreamAddons?: string[] };
   status?: unknown;
 }
 

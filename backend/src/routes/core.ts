@@ -51,7 +51,11 @@ function mountCoreRoutes(app: Express, deps: CoreDeps): void {
   // can match the server exactly. Always mounted; false on self-hosted installs.
   app.get('/api/features', (req: any, res: any) => {
     res.setHeader('Cache-Control', 'no-store');
-    res.json({ releases: hosted.releasesEnabled(), savedSetups: selfhostAccess.listEnabled() });
+    res.json({
+      releases: hosted.releasesEnabled(),
+      savedSetups: selfhostAccess.listEnabled(),
+      unavailableStreamAddons: require('../streams/streamAddons.ts').unavailableStreamAddons(),
+    });
   });
 
   // ── Index-first library engine status / manual sync ───────────────────────

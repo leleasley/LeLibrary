@@ -1,3 +1,4 @@
+import { useFeatures } from '@/features/site/site-hooks';
 import { useState } from 'react';
 // External stream provider priority. Owned streams always run first; enabled
 // providers follow in the saved order. The ids are stored in saved configs
@@ -35,6 +36,9 @@ export function StreamAddonsSection({ selected, onChange, custom = [], onAddCust
     if (error) setCustomError(error);
     else setCustomUrl('');
   }
+
+  // Sources this server cannot reach: shown, but they cannot be switched on.
+  const unavailable = new Set(useFeatures()?.unavailableStreamAddons ?? []);
 
   const allAddons: AddonRow[] = [
     ...STREAM_ADDONS,
@@ -78,12 +82,15 @@ export function StreamAddonsSection({ selected, onChange, custom = [], onAddCust
         </span>
         {addon.custom
           ? <span className="stream-addon-copy"><strong data-i18n-preserve>{addon.name}</strong><small>Your own addon</small></span>
-          : <span className="stream-addon-copy" data-i18n-preserve><strong>{addon.name}</strong><small>{addon.desc}</small></span>}
+          : unavailable.has(addon.id)
+            ? <span className="stream-addon-copy"><strong data-i18n-preserve>{addon.name}</strong><small>Blocks this server right now, so it is turned off here. It still works if you self-host LeLibrary.</small></span>
+            : <span className="stream-addon-copy" data-i18n-preserve><strong>{addon.name}</strong><small>{addon.desc}</small></span>}
         <button
           type="button" className="stream-addon-toggle" aria-pressed={on}
+          disabled={!on && unavailable.has(addon.id)}
           onClick={() => toggle(addon.id)}
         >
-          {on ? 'On' : 'Off'}
+          {!on && unavailable.has(addon.id) ? 'Unavailable' : on ? 'On' : 'Off'}
         </button>
         {addon.custom && onRemoveCustom && (
           <button type="button" className="eye-btn" aria-label={`Remove ${addon.name}`} onClick={() => onRemoveCustom(addon.id)}>✕</button>

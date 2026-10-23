@@ -1120,6 +1120,8 @@
     "Halloween frame": "Halloween frame",
     "1 change": "1 change",
     "{{count}} changes": "{{count}} changes",
-    "Your Nuvio sign-in has expired. Connect Nuvio again in Step 1.": "Your Nuvio sign-in has expired. Connect Nuvio again in Step 1."
+    "Your Nuvio sign-in has expired. Connect Nuvio again in Step 1.": "Your Nuvio sign-in has expired. Connect Nuvio again in Step 1.",
+    "Blocks this server right now, so it is turned off here. It still works if you self-host LeLibrary.": "Blocks this server right now, so it is turned off here. It still works if you self-host LeLibrary.",
+    "Unavailable": "Unavailable"
   }
 }

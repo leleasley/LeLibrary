@@ -73,13 +73,15 @@ function serveShell(res: any): boolean {
 const bootHtml = require('../platform/boot-html.ts');
 let latestStatus: { at: number; data: unknown } | null = null;
 const BOOT_STATUS_MAX_AGE = 10 * 60 * 1000;
-function bootData(): { features: { releases: boolean; savedSetups: boolean }; status?: unknown } {
+function bootData(): { features: { releases: boolean; savedSetups: boolean; unavailableStreamAddons: string[] }; status?: unknown } {
   let releases = false;
   let savedSetups = false;
+  let unavailableStreamAddons: string[] = [];
   try { releases = require('../platform/hosted.ts').releasesEnabled() === true; } catch { /* self-host */ }
   try { savedSetups = require('../platform/selfhost-access.ts').listEnabled() === true; } catch { /* no secret */ }
+  try { unavailableStreamAddons = require('../streams/streamAddons.ts').unavailableStreamAddons(); } catch { /* none */ }
   const fresh = latestStatus && Date.now() - latestStatus.at < BOOT_STATUS_MAX_AGE ? latestStatus.data : null;
-  return { features: { releases, savedSetups }, ...(fresh ? { status: fresh } : {}) };
+  return { features: { releases, savedSetups, unavailableStreamAddons }, ...(fresh ? { status: fresh } : {}) };
 }
 
 // The public homepage is pre-rendered at build time for search engines and

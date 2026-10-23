@@ -51,7 +51,7 @@ try {
   // The hosted site always has Releases, so the prerendered menu includes it
   // and matches the boot data the server ships. Status stays unknown here: the
   // server fills the data-boot markers in when it sends the page.
-  globalThis.__LL_BOOT__ = { features: { releases: true, savedSetups: false } };
+  globalThis.__LL_BOOT__ = { features: { releases: true, savedSetups: false, unavailableStreamAddons: [] } };
 
   await i18nReady;
   await i18n.changeLanguage('en');

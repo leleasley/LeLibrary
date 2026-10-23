@@ -1120,6 +1120,8 @@
     "Halloween frame": "marco de Halloween",
     "1 change": "1 cambio",
     "{{count}} changes": "{{count}} cambios",
-    "Your Nuvio sign-in has expired. Connect Nuvio again in Step 1.": "Tu sesión de Nuvio ha caducado. Vuelve a conectar Nuvio en el paso 1."
+    "Your Nuvio sign-in has expired. Connect Nuvio again in Step 1.": "Tu sesión de Nuvio ha caducado. Vuelve a conectar Nuvio en el paso 1.",
+    "Blocks this server right now, so it is turned off here. It still works if you self-host LeLibrary.": "Bloquea este servidor ahora mismo, así que aquí está desactivado. Sigue funcionando si alojas LeLibrary tú mismo.",
+    "Unavailable": "No disponible"
   }
 }

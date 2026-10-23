@@ -1,5 +1,15 @@
 # Changelog
 
+## [5.5.2]
+
+### Fixes
+
+- Your own cloud copy shows up again when you open a title from another addon or from your Stremio or Nuvio library, not only when you open it from LeLibrary.
+- Importing an old setup with your email no longer stops with a "JWT expired" error. An old Nuvio sign-in is renewed automatically, and if that is not possible you are asked to connect Nuvio again.
+- Browse public Nuvio collections works again in Move In, including when you edit a saved setup.
+- The status page no longer shows the cache as unavailable for a moment while large libraries are being saved.
+- The status page shows Torrentio as "not checked" when it blocks our server, instead of reporting an outage.
+
 ## [5.5.1]
 
 ### Fixes

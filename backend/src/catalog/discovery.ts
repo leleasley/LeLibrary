@@ -326,6 +326,10 @@ async function buildDiscoveryStreams({ config, tmdbApiKey, type, id, lang, custo
   };
   const mapImdb = runtime.imdbToTmdbCached || imdbToTmdbCached;
   const buildOwnedStreams = runtime.buildStreams || buildStreams;
+  // Lazy require: the library engine requires the builder, which requires
+  // this module, so a top-level import would cycle.
+  const hydrateOwned = runtime.hydrateOwnedIndex
+    || ((args) => require('../library/engine.ts').hydrateOwnedIndex(args));
   const fetchExternal = runtime.fetchExternalStreams || fetchExternalStreams;
   const addNotices = runtime.applyStreamNotices || applyStreamNotices;
   const streamCache = runtime.cache || cache;
@@ -350,6 +354,11 @@ async function buildDiscoveryStreams({ config, tmdbApiKey, type, id, lang, custo
         const ownedKey = streamCache.makeKey('stream', type, tmdbId, season || '', episode || '', userKey + fmtFp, matchVersion());
         return streamCache.get(ownedKey).then(async ownedHit => {
           if (ownedHit) return ownedHit.streams || [];
+          // Load this title's owned rows from the library index first. The
+          // stream builder reads an in-process index that only meta/library
+          // requests filled, so a title opened from another addon (Cinemeta,
+          // the player's own library) found nothing and showed no cloud copy.
+          await time('pg:owned-hydrate', () => hydrateOwned({ userKey, tmdbId })).catch(() => 0);
           // Custom mappings are appended after external streams below. Keep
           // this owned-only bridge free of mapping rows so they cannot be
           // duplicated or sorted into the owned block.

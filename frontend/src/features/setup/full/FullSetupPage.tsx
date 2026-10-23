@@ -25,7 +25,7 @@ import { hubPrefix, normalizeHomeOrder, ownedFranchiseMarker, type CollectionDoc
 import { CollectionStudio } from '@/features/setup/full/collections/CollectionStudio';
 import { DestinationStep } from '@/features/setup/full/DestinationStep';
 import { ReviewStep } from '@/features/setup/full/ReviewStep';
-import type { PlatformConnection } from '@/features/setup/full/platform-login';
+import { ensureFreshNuvio, nuvioTokenExpired, type PlatformConnection } from '@/features/setup/full/platform-login';
 import {
   EMPTY_FORMATTING,
   FormattingSection,
@@ -135,6 +135,16 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
   const [restored] = useState<FullDraft | null>(() => (edit ? snapshotToFullDraft(edit.initial) : loadFullDraft()));
   const [platform, setPlatform] = useState<PlatformId>(restored?.platform ?? 'nuvio');
   const [pushConn, setPushConn] = useState<PlatformConnection | null>(restored?.pushConn ?? null);
+  // A Nuvio login restored from a draft or an imported old setup is often past
+  // its short expiry. Renew it with its refresh token so the public collection
+  // browser and profile list get a working session instead of "JWT expired".
+  useEffect(() => {
+    if (pushConn?.platform !== 'nuvio' || !pushConn.nuvioRefresh || !nuvioTokenExpired(pushConn.nuvioToken)) return;
+    let cancelled = false;
+    ensureFreshNuvio(pushConn).then((next) => { if (!cancelled) setPushConn(next); }).catch(() => { /* Step 1 shows the reconnect prompt */ });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pushConn?.nuvioToken]);
   const [rdCatalog, setRdCatalog] = useState(restored?.rdCatalog ?? 'merge');
   const [name, setName] = useState(restored?.name ?? '');
   const [keys, setKeys] = useState<SetupKeysDraft>(restored?.keys ?? INITIAL_KEYS);
@@ -544,6 +554,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
               platform={platform} packs={packs} onPacks={setPacks}
               ownedOn={ownedFranchiseOn} onToggleOwned={toggleOwnedFranchise}
               nuvioToken={pushConn?.platform === 'nuvio' ? pushConn.nuvioToken ?? null : null}
+              {...(edit && edit.savedAccount && edit.editToken ? { savedSetup: { uuid: edit.uuid, editToken: edit.editToken } } : {})}
             />
           </TierStep>
           {edit ? (

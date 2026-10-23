@@ -23,7 +23,7 @@ import { NuvioPublicModal } from '@/features/setup/full/NuvioPublicModal';
 // Collections studio: the list of Nuvio collections, the Quick Pack launch
 // block and its library, the public Nuvio directory browser, plus the
 // LeLibrary Hub system toggle.
-export function CollectionStudio({ collections, onChange, providerPrefix, platform, packs, onPacks, ownedOn, onToggleOwned, nuvioToken }: {
+export function CollectionStudio({ collections, onChange, providerPrefix, platform, packs, onPacks, ownedOn, onToggleOwned, nuvioToken, savedSetup }: {
   collections: CollectionDoc[];
   onChange: (next: CollectionDoc[]) => void;
   providerPrefix: string | null;
@@ -35,7 +35,11 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
   // Draft Nuvio session for the pre-creation public browser (no setup row
   // exists yet). Absent on Stremio setups and before Nuvio is connected.
   nuvioToken?: string | null;
+  // Editing a saved setup whose Nuvio login is sealed on the server: browse
+  // through the setup's own proxy (which also renews the session).
+  savedSetup?: { uuid: string; editToken: string };
 }) {
+  const canBrowse = Boolean(nuvioToken) || Boolean(savedSetup);
   const [openId, setOpenId] = useState<string | null>(collections[0]?.id ?? null);
   // A new folder lives only in the editor (`draft`) until Save, so Cancel leaves
   // the collection untouched.
@@ -202,8 +206,8 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
           <div className="quick-pack-launch-actions">
             <button
               type="button" className="setup-primary"
-              disabled={!nuvioToken}
-              title={nuvioToken ? 'Browse the public directory' : 'Connect Nuvio in Step 1 first'}
+              disabled={!canBrowse}
+              title={canBrowse ? 'Browse the public directory' : 'Connect Nuvio in Step 1 first'}
               onClick={() => setPublicOpen(true)}
             >
               Browse public →
@@ -211,7 +215,7 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
           </div>
         </div>
       )}
-      {platform === 'nuvio' && !nuvioToken && (
+      {platform === 'nuvio' && !canBrowse && (
         <p className="setup-note">Connect Nuvio in Step 1 to browse public collections.</p>
       )}
       {collections.length === 0 && (
@@ -261,8 +265,8 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
         <NuvioPublicModal
           open={publicOpen}
           onClose={() => setPublicOpen(false)}
-          uuid=""
-          editToken=""
+          uuid={savedSetup?.uuid ?? ''}
+          editToken={savedSetup?.editToken ?? ''}
           nuvioToken={nuvioToken ?? null}
           onImport={importPublic}
         />

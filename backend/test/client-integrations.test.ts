@@ -175,6 +175,38 @@ test('STRMR-style episode IDs preserve exact season and episode in the owned bri
   assert.equal(call[9].imdbId, 'tt0096697');
 });
 
+test('the owned bridge loads the title from the library index before building streams', async () => {
+  const order = [];
+  const result = await buildDiscoveryStreams({
+    config: { provider: 'torbox', torboxApiKey: 'synthetic-key' }, tmdbApiKey: 'synthetic-tmdb',
+    type: 'series', id: 'tt0096697:1:1', lang: 'en-US', customStreams: [], userKey: 'synthetic-user', externalAddons: [],
+    runtime: {
+      imdbToTmdbCached: async () => ({ tmdbId: 456 }),
+      cache: { makeKey: (...parts) => parts.join(':'), get: async () => null, set: async () => true },
+      hydrateOwnedIndex: async ({ userKey, tmdbId }) => { order.push(`hydrate:${userKey}:${tmdbId}`); return 1; },
+      buildStreams: async () => { order.push('build'); return [{ name: 'Owned copy', url: 'https://cdn.example.invalid/e1.mkv' }]; },
+      applyStreamNotices: async streams => streams,
+    },
+  });
+  assert.deepEqual(order, ['hydrate:synthetic-user:456', 'build']);
+  assert.equal(result.ownedCount, 1);
+});
+
+test('a failing library index never blocks the owned bridge', async () => {
+  const result = await buildDiscoveryStreams({
+    config: { provider: 'torbox', torboxApiKey: 'synthetic-key' }, tmdbApiKey: 'synthetic-tmdb',
+    type: 'movie', id: 'tt0111161', lang: 'en-US', customStreams: [], userKey: 'synthetic-user', externalAddons: [],
+    runtime: {
+      imdbToTmdbCached: async () => ({ tmdbId: 278 }),
+      cache: { makeKey: (...parts) => parts.join(':'), get: async () => null, set: async () => true },
+      hydrateOwnedIndex: async () => { throw new Error('db down'); },
+      buildStreams: async () => [{ name: 'Owned copy', url: 'https://cdn.example.invalid/m.mkv' }],
+      applyStreamNotices: async streams => streams,
+    },
+  });
+  assert.equal(result.ownedCount, 1);
+});
+
 test('a missing owned match still returns external results within the STRMR sub-budget', async () => {
   let externalBudget;
   const result = await buildDiscoveryStreams({

@@ -121,9 +121,67 @@ export async function loginNuvio(email: string, password: string): Promise<Platf
 // rather than pushing somewhere the picker never showed.
 export async function refreshNuvioConnection(connection: PlatformConnection): Promise<PlatformConnection> {
   if (connection.platform !== 'nuvio' || !connection.nuvioToken) return connection;
-  const profiles = await fetchNuvioProfiles(connection.nuvioToken);
+  connection = await ensureFreshNuvio(connection);
+  let profiles: NuvioProfileRef[];
+  try {
+    profiles = await fetchNuvioProfiles(connection.nuvioToken as string);
+  } catch (error) {
+    // The token can expire between the check above and the call, or carry no
+    // readable expiry: renew once on an auth failure and retry.
+    if (!connection.nuvioRefresh || !isNuvioAuthError(error)) throw error;
+    connection = await renewNuvioSession(connection);
+    profiles = await fetchNuvioProfiles(connection.nuvioToken as string);
+  }
   const selected = profiles.some((profile) => profile.profile_index === connection.nuvioSelectedProfile)
     ? connection.nuvioSelectedProfile ?? null
     : profiles[0]?.profile_index ?? null;
   return { ...connection, nuvioProfiles: profiles, nuvioSelectedProfile: selected };
+}
+
+// Nuvio access tokens are short-lived JWTs. A login imported from an old setup
+// is usually long expired, but its refresh token still works, so renew instead
+// of surfacing Nuvio's "JWT expired" error.
+export function nuvioTokenExpired(token: string | null | undefined, skewSeconds = 60): boolean {
+  const part = String(token || '').split('.')[1];
+  if (!part) return false;
+  try {
+    const json = atob(part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '='));
+    const exp = Number((JSON.parse(json) as { exp?: unknown }).exp);
+    return Number.isFinite(exp) && exp * 1000 <= Date.now() + skewSeconds * 1000;
+  } catch {
+    return false;
+  }
+}
+
+function isNuvioAuthError(error: unknown): boolean {
+  return /jwt|expired|unauthori[sz]ed|401|invalid token/i.test(String((error as Error)?.message || error));
+}
+
+export async function renewNuvioSession(connection: PlatformConnection): Promise<PlatformConnection> {
+  if (connection.platform !== 'nuvio' || !connection.nuvioRefresh) {
+    throw new Error('Your Nuvio sign-in has expired. Connect Nuvio again in Step 1.');
+  }
+  const r = await fetch(`${NUVIO_API_BASE}/auth/v1/token?grant_type=refresh_token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: NUVIO_PUBLISHABLE_KEY },
+    body: JSON.stringify({ refresh_token: connection.nuvioRefresh }),
+    signal: AbortSignal.timeout(20000),
+  });
+  let data: Record<string, unknown> | null = null;
+  try { data = await r.json(); } catch { /* fall through */ }
+  if (!r.ok || !data?.['access_token']) {
+    throw new Error('Your Nuvio sign-in has expired. Connect Nuvio again in Step 1.');
+  }
+  return {
+    ...connection,
+    nuvioToken: String(data['access_token']),
+    nuvioRefresh: (data['refresh_token'] as string) || connection.nuvioRefresh,
+  };
+}
+
+// Renew only when the access token has (nearly) expired.
+export async function ensureFreshNuvio(connection: PlatformConnection): Promise<PlatformConnection> {
+  if (connection.platform !== 'nuvio' || !connection.nuvioToken) return connection;
+  if (!nuvioTokenExpired(connection.nuvioToken)) return connection;
+  return renewNuvioSession(connection);
 }

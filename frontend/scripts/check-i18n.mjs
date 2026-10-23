@@ -1,7 +1,9 @@
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import ts from 'typescript';
+// TypeScript 7 (the native compiler used for type checking) has no stable JS
+// API yet, so this parser stays on a pinned 5.9 under the typescript-5 alias.
+import ts from 'typescript-5';
 
 const locales = ['en', 'es'];
 const namespaces = ['common', 'site', 'setup'];

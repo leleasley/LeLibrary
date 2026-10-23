@@ -21,8 +21,7 @@
     "allowImportingTsExtensions": false,
     "forceConsistentCasingInFileNames": true,
 
-    "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] }
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src", "vite.config.ts"]
 }

@@ -55,6 +55,50 @@ function embeddedVideoFiles(raw) {
   });
 }
 
+// Some scene groups put their name FIRST: "honor-wwe.wrestlemania.15.1999.
+// 720p.web.h264.mkv". The parser keeps "honor" in the title and TMDB finds
+// nothing. Only a short lower-case word glued by '-' to a dotted release name
+// that carries a year or a quality/source tag counts, and it is only tried
+// after the normal search found no candidate.
+function stripLeadingGroupPrefix(name) {
+  const base = String(name || '').trim();
+  const m = /^([a-z0-9]{2,12})-([a-z0-9][^\s]*\.[^\s]*)$/.exec(base);
+  if (!m) return null;
+  const rest = m[2];
+  if (!/(^|[.])((19|20)\d{2}|\d{3,4}p|web|webrip|web-dl|bluray|bdrip|hdtv|dvdrip|x26[45]|h\.?26[45])([.]|$)/i.test(rest)) return null;
+  return rest;
+}
+
+// Extra release names for a hash-named item, best first: the scene release
+// name an .nfo/.sfv file carries ("amadeus.1984.dc.internal.repack.1080p.
+// bluray.x264-classic.nfo" next to "cls-amadeusrp.mkv"), then inner video
+// names without a leading group ("s7-flipped.1080p.mkv"). Only names with a
+// year or a quality/source tag count, so a random file never becomes a title.
+function releaseNameHints(raw) {
+  const names = [];
+  for (const key of ['files', 'file_list', 'innerFiles']) {
+    const value = raw && raw[key];
+    const list = Array.isArray(value) ? value : (value && typeof value === 'object' ? Object.values(value) : []);
+    for (const file of list) {
+      const full = String((file && (file.name || file.short_name || file.path || file.filename)) || '');
+      if (full) names.push(mediaFileName(full));
+    }
+  }
+  const tagged = (value) => /(^|[.\s_-])((19|20)\d{2}|\d{3,4}p|web|webrip|web-dl|bluray|bdrip|hdtv|dvdrip|x26[45]|h\.?26[45])([.\s_-]|$)/i.test(value);
+  const hints = [];
+  const add = (value) => { const v = String(value || '').trim(); if (v && tagged(v) && !hints.includes(v)) hints.push(v); };
+  for (const n of names) {
+    if (/\.(nfo|sfv)$/i.test(n) && !/sample/i.test(n)) add(n.replace(/\.(nfo|sfv)$/i, ''));
+  }
+  for (const n of names) {
+    if (!/\.(mkv|mp4|avi|ts|m2ts|webm|mov)$/i.test(n) || /sample/i.test(n)) continue;
+    const bare = n.replace(/\.[^.]+$/, '').replace(/\s*\(\d+\)$/, '');
+    const stripped = stripLeadingGroupPrefix(bare) || (/^[a-z0-9]{2,12}-[^\s]+$/.test(bare) ? bare.replace(/^[a-z0-9]{2,12}-/, '') : null);
+    if (stripped) add(stripped);
+  }
+  return hints.slice(0, 3);
+}
+
 function isOpaqueOuterName(name) {
   return /^[a-f0-9]{32,}$/i.test(String(name || '').replace(/\.[^.]+$/, '').trim());
 }
@@ -339,6 +383,32 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
             if (alternate?.ok) { resolved = alternate; resolvedType = alternateType; }
           }
         }
+        // A scene group's name in front of the release ("honor-..."): retry
+        // without it, in the same type first and then the other one.
+        if (!resolved?.ok && resolved?.reason === 'no-candidate') {
+          const withoutGroup = stripLeadingGroupPrefix(name);
+          if (withoutGroup) {
+            for (const tryType of [mediaType, mediaType === 'movie' ? 'series' : 'movie']) {
+              metrics.add('tmdbCalls');
+              const again = await resolveMatch({ name: withoutGroup, mediaType: tryType, lang, tmdbApiKey }, undefined, sharedMatchLookups);
+              if (again?.ok) { resolved = again; resolvedType = tryType; break; }
+            }
+          }
+        }
+        // A hash-named item: try the release names its other files carry.
+        if (!resolved?.ok && isOpaqueOuterName(name)) {
+          for (const hint of releaseNameHints(raw)) {
+            let info = null;
+            try { info = guessMediaInfo(hint); } catch { info = null; }
+            const hintType = info?.isSeries ? 'series' : 'movie';
+            metrics.add('tmdbCalls');
+            const again = await resolveMatch({
+              name: hint, mediaType: hintType, lang, tmdbApiKey,
+              requireUniqueStrongYear: hintType === 'movie' && Boolean(info?.year),
+            }, undefined, sharedMatchLookups);
+            if (again?.ok) { resolved = again; resolvedType = hintType; break; }
+          }
+        }
         // If a series/anime release name has no search candidate but its
         // embedded episodes consistently identify a pack title, send that
         // normalized title and season range through the canonical resolver.
@@ -544,10 +614,12 @@ export interface MatcherApi {
   offlineEnabled: any;
   embeddedVideoFiles: any;
   isOpaqueOuterName: any;
+  stripLeadingGroupPrefix: any;
+  releaseNameHints: any;
   mediaFileName: any;
   embeddedDominantMovieCandidate: any;
   parsedTypeCorrection: any;
   resolveEmbeddedMovieTypeConflict: any;
 }
 
-module.exports = { matchScope, offlineEnabled, embeddedVideoFiles, isOpaqueOuterName, mediaFileName, embeddedDominantMovieCandidate, parsedTypeCorrection, resolveEmbeddedMovieTypeConflict } satisfies MatcherApi;
+module.exports = { matchScope, offlineEnabled, embeddedVideoFiles, isOpaqueOuterName, stripLeadingGroupPrefix, releaseNameHints, mediaFileName, embeddedDominantMovieCandidate, parsedTypeCorrection, resolveEmbeddedMovieTypeConflict } satisfies MatcherApi;

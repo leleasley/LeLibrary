@@ -28,7 +28,8 @@ const RESOLVER_VERSION = 'v4';
 // to disambiguate exact-title candidates before the retryable failure path.
 // r8 adds the guarded near-title fallback (and/&, " - " prefixes, typos).
 // r9 fixes the shared search cache key for non-Latin queries.
-const MATCH_RETRY_VERSION = 'r9';
+// r10 retries names with a scene group's name in front ("honor-...").
+const MATCH_RETRY_VERSION = 'r10';
 // Parser-only corrections should re-open failed/terminal rows without marking
 // every already-matched library row stale. Bump this when parser semantics
 // change in a way that can recover a prior failure.

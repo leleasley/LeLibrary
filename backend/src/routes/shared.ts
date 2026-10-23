@@ -25,6 +25,7 @@ export interface SharedApi {
   posterEnhance: (config?: LooseConfig) => Record<string, unknown>;
   safeDecode: (value: string) => string;
   parseExtra: (str: unknown) => Record<string, string>;
+  materializePlayUrls: <T>(payload: T, req: any) => T;
 }
 
 // Short, stable, non-secret fingerprint. Used for cache keys and rate-limit
@@ -34,6 +35,23 @@ export interface SharedApi {
 // Add Stremio protocol cache hints (seconds) so clients reuse data while revalidating.
 function withCacheHints(obj: Record<string, unknown>, { cacheMaxAge = 60, staleRevalidate = 60, staleError = 1800 } = {}): Record<string, unknown> {
   return { ...obj, cacheMaxAge, staleRevalidate, staleError };
+}
+
+// Fill in this response's own play address for owned "links on demand"
+// (builder.playRef placeholders). Done per response, after any cache read, so
+// the install token never enters a cached list shared between setups.
+const PLAY_PREFIX = 'lelibrary-play://';
+function materializePlayUrls<T>(payload: T, req: any): T {
+  const streams = (payload as { streams?: unknown } | null)?.streams;
+  if (!Array.isArray(streams) || !streams.some((s: any) => typeof s?.url === 'string' && s.url.startsWith(PLAY_PREFIX))) return payload;
+  const token = String(req?.params?.token || '');
+  const base = `${req.protocol}://${req.get('host')}/${encodeURIComponent(token)}/play/`;
+  return {
+    ...(payload as Record<string, unknown>),
+    streams: streams.map((s: any) => (typeof s?.url === 'string' && s.url.startsWith(PLAY_PREFIX)
+      ? { ...s, url: base + s.url.slice(PLAY_PREFIX.length) }
+      : s)),
+  } as T;
 }
 
 function streamResponseTtl(result: any): number {
@@ -92,7 +110,7 @@ function parseExtra(str: unknown): Record<string, string> {
 }
 
 module.exports = {
-  hashShort, safeDecode, parseExtra, withCacheHints, streamResponseTtl, setPrivateResponseCache, posterEnhance,
+  hashShort, safeDecode, parseExtra, withCacheHints, streamResponseTtl, materializePlayUrls, setPrivateResponseCache, posterEnhance,
   markClientIntegrationStage, finishClientIntegrationStages,
   clientIntegrationTimingHeader, clientIntegrationTimingLog, posterFp,
 } satisfies SharedApi;

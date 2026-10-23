@@ -312,7 +312,7 @@ function discoveryStreamKeyParts(config = {}) {
   const sortKey = (config && config.streamSort) || 'owned-size';
   // Stream notices toggle joins the fingerprint so flipping it invalidates
   // cached streams instead of serving stale notice rows.
-  const fmtFp = ':' + hashShort(['notice-v4', config.streamPreset || '', config.streamNameTemplate || '', config.streamDescTemplate || '', config.streamNotices || '', JSON.stringify(config.streamNoticeTypes || ''), JSON.stringify(filters), sortKey, String(MAX_DISCOVERY_STREAMS)].join('|'));
+  const fmtFp = ':' + hashShort(['notice-v4', 'play-v1', config.streamPreset || '', config.streamNameTemplate || '', config.streamDescTemplate || '', config.streamNotices || '', JSON.stringify(config.streamNoticeTypes || ''), JSON.stringify(filters), sortKey, String(MAX_DISCOVERY_STREAMS)].join('|'));
   return { filters, sortKey, fmtFp };
 }
 
@@ -362,7 +362,7 @@ async function buildDiscoveryStreams({ config, tmdbApiKey, type, id, lang, custo
           // Custom mappings are appended after external streams below. Keep
           // this owned-only bridge free of mapping rows so they cannot be
           // duplicated or sorted into the owned block.
-          const streams = await time('owned-bridge-fetch', () => buildOwnedStreams(config, tmdbApiKey, type, tmdbId, season, episode, lang, [], userKey, { skipTmdbFallback: true, imdbId, trace }));
+          const streams = await time('owned-bridge-fetch', () => buildOwnedStreams(config, tmdbApiKey, type, tmdbId, season, episode, lang, [], userKey, { skipTmdbFallback: true, imdbId, trace, lazyLinks: true }));
           const hasTransientNotice = streams.some(stream => stream?._transientNotice);
           const hasRealStream = streams.some(stream => stream && !stream._notice);
           await streamCache.set(ownedKey, { streams }, hasTransientNotice || !hasRealStream ? 60 : TTL_STREAM);

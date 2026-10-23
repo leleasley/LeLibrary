@@ -1490,7 +1490,7 @@ const STATUS_CHECKS = [
     if (req.path === '/app' || req.path.startsWith('/app/')) return next();
     // The addon's base manifest (no token) is registered after this router.
     if (req.path === '/manifest.json') return next();
-    if (/^\/[^\/]+\/(?:i\/[a-z0-9-]+\/)?(preview|manifest|catalog|meta|stream|knaben|collections|nuvio-collections|custom-streams|pictorium|erdb|library)\b/.test(req.path)) return next();
+    if (/^\/[^\/]+\/(?:i\/[a-z0-9-]+\/)?(preview|manifest|catalog|meta|stream|play|knaben|collections|nuvio-collections|custom-streams|pictorium|erdb|library)\b/.test(req.path)) return next();
     serveErrorPage(res, req, 404, 'Page Not Found', ERROR_DESCRIPTIONS[404]);
   });
 

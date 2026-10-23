@@ -1484,7 +1484,26 @@ async function enhanceMeta(meta, enhance = {}) {
   return meta;
 }
 
+// Owned streams are "links on demand": the list carries a placeholder per file
+// and the provider link is only requested when someone presses play
+// (routes/stream.ts /:token/play/...). Lists open without waiting on the
+// provider and never spend its link quota on streams nobody plays. The
+// placeholder (no token, no origin) is what gets cached, so a cached list can
+// be shared between setups on the same debrid key; each response fills in its
+// own play address (routes/shared.ts materializePlayUrls).
+const PLAY_PREFIX = 'lelibrary-play://';
+
+function playRef(source, itemId, fileId, name = '') {
+  const base = `${PLAY_PREFIX}${encodeURIComponent(String(source))}/${encodeURIComponent(String(itemId))}/${encodeURIComponent(String(fileId))}`;
+  const file = String(name || '').split('/').pop().replace(/[^\w.\- ()[\]]+/g, '').slice(0, 120);
+  return file ? `${base}/${encodeURIComponent(file)}` : base;
+}
+
 async function buildStreamsInner(config = {}, tmdbApiKey, type, tmdbId, season, episode, lang, customStreams, userKey = '', opts = {}) {
+  const lazyLinks = opts.lazyLinks === true;
+  // A play link needs the provider's own source and id; anything without them
+  // (never expected from the index) falls back to an immediate link.
+  const canPlayLater = (item) => lazyLinks && Boolean(item && item.source && item.id != null && item.id !== '');
   const trace = opts.trace;
   const time = async (name, fn) => {
     try {
@@ -1828,10 +1847,11 @@ async function buildStreamsInner(config = {}, tmdbApiKey, type, tmdbId, season, 
         remainingOwnedLinkBudget -= 1;
         try {
           if (providerId) attemptedProviders.add(providerId);
-          const url = await getLink(file.id);
-          if (!url) continue;
-          if (providerId) successfulProviders.add(providerId);
           const fname = file.name || file.short_name || item.name || '';
+          const lazy = canPlayLater(item) && file.id != null;
+          const url = lazy ? playRef(item.source, item.id, file.id, fname) : await getLink(file.id);
+          if (!url) continue;
+          if (providerId && !lazy) successfulProviders.add(providerId);
           rawStreams.push({ url, fname, size: file.size || 0, source: item.source, bingeKey });
         } catch {}
       }
@@ -1844,9 +1864,10 @@ async function buildStreamsInner(config = {}, tmdbApiKey, type, tmdbId, season, 
         if (remainingOwnedLinkBudget <= 0) return;
         remainingOwnedLinkBudget -= 1;
         if (providerId) attemptedProviders.add(providerId);
-        const url = await getLink(0);
+        const lazy = canPlayLater(item);
+        const url = lazy ? playRef(item.source, item.id, 0, item.name || '') : await getLink(0);
         if (url) {
-          if (providerId) successfulProviders.add(providerId);
+          if (providerId && !lazy) successfulProviders.add(providerId);
           rawStreams.push({ url, fname: item.name || '', size: item.size || 0, source: item.source, bingeKey });
         }
       } catch {}
@@ -1898,7 +1919,7 @@ async function buildStreamsInner(config = {}, tmdbApiKey, type, tmdbId, season, 
 // out streamNotices), which made the prefetch write entries the route could
 // never hit whenever notices were configured.
 function libraryStreamFmtFp(config = {}) {
-  return ':' + hashShort(['notice-v4', config.streamPreset || '', config.streamNameTemplate || '', config.streamDescTemplate || '', config.streamNotices || '', customStreamsFingerprint(config.customStreams)].join('|'));
+  return ':' + hashShort(['notice-v4', 'play-v1', config.streamPreset || '', config.streamNameTemplate || '', config.streamDescTemplate || '', config.streamNotices || '', customStreamsFingerprint(config.customStreams)].join('|'));
 }
 
 async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episode, lang, customStreams, userKey = '', opts = {}) {
@@ -1907,7 +1928,7 @@ async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episo
   // whichever request arrived first answer BOTH: bridge-limited results were
   // served to library requests (missing TMDB-fallback sources) and a bridge
   // "miss" planted a miss-cache entry that blanked the library path too.
-  const requestKey = `${userKey}:${type}:${tmdbId}:${season ?? ''}:${episode ?? ''}:${lang || ''}:${opts.skipTmdbFallback ? 'bridge' : 'full'}:${customStreamsFingerprint(customStreams)}:${opts.imdbId || ''}`;
+  const requestKey = `${userKey}:${type}:${tmdbId}:${season ?? ''}:${episode ?? ''}:${lang || ''}:${opts.skipTmdbFallback ? 'bridge' : 'full'}:${customStreamsFingerprint(customStreams)}:${opts.imdbId || ''}:${opts.lazyLinks ? 'lazy' : 'eager'}`;
   const existing = streamBuildInFlight.get(requestKey);
   if (existing) return existing;
   const pending = buildStreamsInner(config, tmdbApiKey, type, tmdbId, season, episode, lang, customStreams, userKey, opts);
@@ -2206,6 +2227,8 @@ export interface BuilderApi {
   buildCatalog: any;
   buildMeta: any;
   buildStreams: any;
+  PLAY_PREFIX: any;
+  playRef: any;
   getRealDebridDownloads: any;
   getOmdbRatings: any;
   populateTmdbIndexFromMetas: any;
@@ -2245,4 +2268,4 @@ export interface BuilderApi {
   matchItem: any;
 }
 
-module.exports = { buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta, buildErdbUrl, erdbProxyUrl, buildRpdbUrl, buildBetterPosterUrl, buildPictoriumPosterUrl, getFanartArt, applyStreamNotices, streamNoticesEnabled, noticeKindEnabled, NOTICE_KINDS, makeProviderRateLimitNotice, libraryStreamFmtFp, buildMatchMeta, publishMatchEntry, remapSplitSeason, resolveSplitTarget, canonicalSource, SPLIT_SHOW_SEASON_REMAP, summarizePackEpisodes, shouldProbeEpisodeNamedPack, addOwnedEpisodeAvailability, addOwnedAirDates, ownedDateKey, mergePackEpisodeRange, embeddedPackEntry, probePackEpisodes, isEpisodePackMisreadAsMovie, episodeTitleMatches, flushMatchCache, matchItem } satisfies BuilderApi;
+module.exports = { PLAY_PREFIX, playRef, buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta, buildErdbUrl, erdbProxyUrl, buildRpdbUrl, buildBetterPosterUrl, buildPictoriumPosterUrl, getFanartArt, applyStreamNotices, streamNoticesEnabled, noticeKindEnabled, NOTICE_KINDS, makeProviderRateLimitNotice, libraryStreamFmtFp, buildMatchMeta, publishMatchEntry, remapSplitSeason, resolveSplitTarget, canonicalSource, SPLIT_SHOW_SEASON_REMAP, summarizePackEpisodes, shouldProbeEpisodeNamedPack, addOwnedEpisodeAvailability, addOwnedAirDates, ownedDateKey, mergePackEpisodeRange, embeddedPackEntry, probePackEpisodes, isEpisodePackMisreadAsMovie, episodeTitleMatches, flushMatchCache, matchItem } satisfies BuilderApi;

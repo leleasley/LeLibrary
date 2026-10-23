@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Faster
+
+- Your own copies now appear straight away when you open a title. LeLibrary only asks your debrid service for the playback link when you press play, and the video still streams directly from your debrid service. This also stops opening titles from using up your debrid service's link limits.
+
 ### Fixes
 
 - The LeLibrary Movie Collection and other collections pushed to Nuvio now use a poster shape Nuvio accepts. Nuvio TV rejected the old value, which could stop the collection from working and turn posters landscape after pinning it. Push to Nuvio again to update an existing collection. Hotfixed on lelibrary.uk.

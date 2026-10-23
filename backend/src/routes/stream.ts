@@ -21,13 +21,14 @@ const { validateCustomStreamsConfig, hasCustomStreams, hasMappedCustomStreams, c
 const { getClientIntegration, listClientIntegrations } = require('../client-integrations/index.ts');
 const libraryEngine = require('../library/engine.ts');
 const {
-  withCacheHints, streamResponseTtl, setPrivateResponseCache, hashShort, markClientIntegrationStage,
+  withCacheHints, streamResponseTtl, setPrivateResponseCache, hashShort, markClientIntegrationStage, materializePlayUrls,
 } = require('./shared.ts') as {
   withCacheHints: (...args: any[]) => any;
   streamResponseTtl: (result: any) => number;
   setPrivateResponseCache: (res: any, maxAge: number, staleRevalidate?: number, staleError?: number) => void;
   hashShort: (value: unknown) => string;
   markClientIntegrationStage: (req: any, name: string) => void;
+  materializePlayUrls: <T>(payload: T, req: any) => T;
 };
 // Phase 0 timing: per-dependency spans, no behaviour change.
 const { timeSpan, spanName } = require('../middleware/perf-timing.ts') as {
@@ -202,7 +203,7 @@ async function handleStream(req: any, res: any, deps: StreamDeps): Promise<void>
       markClientIntegrationStage(req, cacheHit ? 'cache' : 'stream-bridge');
       const responseTtl = streamResponseTtl(result);
       setPrivateResponseCache(res, responseTtl, responseTtl, 604800);
-      return res.json(withCacheHints(result, { cacheMaxAge: responseTtl, staleRevalidate: responseTtl, staleError: 604800 }));
+      return res.json(withCacheHints(materializePlayUrls(result, req), { cacheMaxAge: responseTtl, staleRevalidate: responseTtl, staleError: 604800 }));
     }
 
     // Owned library ids stay in the torbox namespace. Resolve only the mapping
@@ -224,7 +225,7 @@ async function handleStream(req: any, res: any, deps: StreamDeps): Promise<void>
     if (cachedStreams) {
       const responseTtl = streamResponseTtl(cachedStreams);
       setPrivateResponseCache(res, responseTtl, responseTtl, 604800);
-      return res.json(withCacheHints(cachedStreams, { cacheMaxAge: responseTtl, staleRevalidate: responseTtl, staleError: 604800 }));
+      return res.json(withCacheHints(materializePlayUrls(cachedStreams, req), { cacheMaxAge: responseTtl, staleRevalidate: responseTtl, staleError: 604800 }));
     }
 
     // Index-first: seed the owned-episode index from persisted rows before the
@@ -233,7 +234,7 @@ async function handleStream(req: any, res: any, deps: StreamDeps): Promise<void>
       try { await timeSpan(req.perfTrace, 'pg:owned-hydrate', () => libraryEngine.hydrateOwnedIndex({ userKey, tmdbId })); } catch { /* best effort */ }
     }
 
-    const streams = await timeSpan(req.perfTrace, 'owned-streams', () => buildStreams(config, tmdbApiKey, buildType, tmdbId, season, episode, lang, customStreams, userKey, { imdbId: mappingImdbId, trace: req.perfTrace }));
+    const streams = await timeSpan(req.perfTrace, 'owned-streams', () => buildStreams(config, tmdbApiKey, buildType, tmdbId, season, episode, lang, customStreams, userKey, { imdbId: mappingImdbId, trace: req.perfTrace, lazyLinks: true }));
     markClientIntegrationStage(req, 'owned-streams');
     // A providerless Custom Streams install is a sparse stream-only mapping:
     // unknown IDs must remain empty so LeLibrary does not add a notice row to
@@ -251,7 +252,7 @@ async function handleStream(req: any, res: any, deps: StreamDeps): Promise<void>
     markClientIntegrationStage(req, 'cache-write');
 
     setPrivateResponseCache(res, streamTtl, streamTtl, 604800);
-    res.json(withCacheHints(result, { cacheMaxAge: streamTtl, staleRevalidate: streamTtl, staleError: 604800 }));
+    res.json(withCacheHints(materializePlayUrls(result, req), { cacheMaxAge: streamTtl, staleRevalidate: streamTtl, staleError: 604800 }));
   } catch (err: any) {
     console.error('[Stream] Error:', err.message);
     res.json({ streams: [] });
@@ -280,7 +281,45 @@ async function handleKnabenPlayback(req: any, res: any, deps: StreamDeps) {
 }
 
 
+// Owned "links on demand": resolve one file's provider link when it is played
+// and redirect the player straight to the provider. Video never passes through
+// LeLibrary. Only this setup's own key is used, so ids from another library do
+// nothing; the provider adapters cache links per file (TorBox: tbdl), so seeks
+// and retries do not request a new link. Links and file names are never logged.
+const PLAY_SOURCES = new Set(['torrent', 'usenet', 'webdl', 'realdebrid', 'alldebrid', 'premiumize']);
+async function handleOwnedPlay(req: any, res: any, deps: StreamDeps) {
+  res.set('Cache-Control', 'private, no-store');
+  const source = String(req.params.source || '');
+  const itemId = String(req.params.itemId || '');
+  const fileId = String(req.params.fileId || '');
+  // Ids are opaque provider values (TorBox numbers, Real-Debrid/Premiumize
+  // strings): allow a safe character set only, never a path or a URL.
+  const SAFE_ID = /^[A-Za-z0-9_.:=~-]{1,200}$/;
+  if (!PLAY_SOURCES.has(source) || !SAFE_ID.test(itemId) || !SAFE_ID.test(fileId) || itemId.includes('..') || fileId.includes('..')) {
+    return res.status(404).type('text/plain').send('Not found');
+  }
+  const baseConfig = await deps.resolveConfig(req.params.token);
+  if (!baseConfig) return res.status(404).type('text/plain').send('Not found');
+  const config = await require('../runtime/configstore.ts').mergeStoredConfig(baseConfig);
+  const provider = providers.providerBySource(source);
+  if (!provider || !providers.activeProviders(config).includes(provider)) return res.status(404).type('text/plain').send('Not found');
+  let url: string | null = null;
+  try {
+    url = await providers.getStreamLink(config, { source, id: itemId }, /^\d+$/.test(fileId) ? Number(fileId) : fileId);
+  } catch { url = null; }
+  if (!url || !/^https:\/\//i.test(url)) {
+    return res.status(503).type('text/plain').send('Your debrid provider could not give a link for this file right now. Try again in a moment.');
+  }
+  return res.redirect(302, url);
+}
+
 function mountStreamRoutes(app: Express, deps: StreamDeps): void {
+  const { rateLimit } = require('../middleware/rate-limit.ts') as {
+    rateLimit: (options?: { windowMs?: number; max?: number }) => (req: any, res: any, next: () => void) => void;
+  };
+  const playLimit = rateLimit({ windowMs: 60_000, max: 120 });
+  app.get('/:token/play/:source/:itemId/:fileId', playLimit, (req, res) => handleOwnedPlay(req, res, deps));
+  app.get('/:token/play/:source/:itemId/:fileId/:name', playLimit, (req, res) => handleOwnedPlay(req, res, deps));
   app.get('/:token/knaben/play/:provider/:hash.json', (req, res) => handleKnabenPlayback(req, res, deps));
   app.get('/:token/stream/:type/:id.json', (req, res) => handleStream(req, res, deps));
 }

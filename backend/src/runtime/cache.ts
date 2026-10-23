@@ -123,6 +123,9 @@ function getRedisClient() {
     if (!url && !host) return null;
 
     const opts = {
+      // ioredis 6 defaults to RESP3; keep the v5 wire protocol so older Redis
+      // servers (and any self-hosted Redis-compatible store) keep working.
+      protocol: 2,
       maxRetriesPerRequest: 3,
       enableReadyCheck: false,
       retryStrategy(times) {

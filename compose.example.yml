@@ -26,6 +26,9 @@ services:
       # Optional. Let "Add your own addon" reach your own network (StreamNZB on
       # the LAN or Tailscale). Never on an instance other people use.
       # - CUSTOM_ADDONS_ALLOW_PRIVATE=on
+      # Optional. Stream sources your server cannot reach (for example if
+      # Torrentio blocks its IP): shown as unavailable and skipped.
+      # - STREAM_ADDONS_UNAVAILABLE=torrentio
     volumes:
       # Keeps the generated setup key if CONFIG_SECRET is left empty.
       - lelibrary_data:/data

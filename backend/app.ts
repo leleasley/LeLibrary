@@ -78,6 +78,9 @@ app.disable('x-powered-by');
 // directly, so this keeps large catalog/configure payloads and text assets
 // small on the wire. The default filter skips images and already-encoded
 // responses, and compression patches ETag handling for the compressed body.
+// Express 5 parses query strings with the "simple" parser by default; keep the
+// Express 4 behaviour (qs, nested keys) so existing links and clients parse the same.
+app.set('query parser', 'extended');
 app.use(require('compression')({ threshold: 1024 }));
 
 applyAsyncWrap(app);

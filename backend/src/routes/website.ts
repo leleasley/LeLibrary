@@ -541,7 +541,7 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
     '/accounts/collections/:token/configure',
     '/account/collections/:token/configure',
   ], (req: Request, res: Response) => res.redirect(302, `/${encodeURIComponent(String(req.params.token))}/configure`));
-  router.get(['/account', '/account/*', '/accounts', '/accounts/*'], (_req: Request, res: Response) => res.redirect(302, '/configure'));
+  router.get(['/account', '/account/*rest', '/accounts', '/accounts/*rest'], (_req: Request, res: Response) => res.redirect(302, '/configure'));
 
   // ── Self-hosted saved configs ──
   // SELF-HOST ONLY: mounted only when the hosted account area is absent, so

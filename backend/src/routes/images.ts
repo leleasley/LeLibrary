@@ -42,9 +42,11 @@ export interface ImageRoutesApi {
 // point rather than living with the poster proxies.
 function mountCoreImageRoutes(app: Express): void {
   const axiosImg = require('axios') as HttpClient;
-  app.get('/img/tmdb/*', async (req: Request, res: Response) => {
+  // Express 5 wildcard: named, and captured as path segments.
+  app.get('/img/tmdb/*splat', async (req: Request, res: Response) => {
     try {
-      const tmdbPath = String(req.params[0] || '');
+      const splat = (req.params as Record<string, unknown>)['splat'];
+      const tmdbPath = Array.isArray(splat) ? splat.join('/') : String(splat || '');
       if (!/^(?:w\d+|original)\/[A-Za-z0-9_.-]+\.(?:jpe?g|png|webp)$/i.test(tmdbPath)) {
         res.status(400).end();
         return;

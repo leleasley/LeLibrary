@@ -18,7 +18,7 @@ const CONFIG = {
 };
 
 function invokeRoute(path, params) {
-  const layer = app._router.stack.find(entry => entry.route?.path === path);
+  const layer = (app.router ?? app._router).stack.find(entry => entry.route?.path === path);
   assert.ok(layer, `missing route ${path}`);
   return new Promise((resolve, reject) => {
     const headers = {};
@@ -101,7 +101,7 @@ test('STRMR policy leaves margin below measured client deadlines', () => {
 });
 
 test('the app registers every sibling client facade route', () => {
-  const paths = app._router.stack.map(layer => layer.route?.path).filter(Boolean);
+  const paths = (app.router ?? app._router).stack.map(layer => layer.route?.path).filter(Boolean);
   for (const path of [
     '/:token/i/:client/manifest.json',
     '/:token/i/:client/catalog/:type/:catalogId.json',

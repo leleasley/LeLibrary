@@ -16,7 +16,7 @@ test('release version stays aligned across backend, frontend and addon manifests
 });
 
 test('health endpoint reports the package release version', async () => {
-  const layer = app._router.stack.find(entry => entry.route?.path === '/health');
+  const layer = (app.router ?? app._router).stack.find(entry => entry.route?.path === '/health');
   assert.ok(layer, 'health route is missing');
 
   const body = await new Promise((resolve, reject) => {

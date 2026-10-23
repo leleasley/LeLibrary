@@ -1,0 +1,4 @@
+{
+  "@types/node": "Stays on 24.x to match the Node 24 runtime. Move it only when the Dockerfiles move to a newer Node.",
+  "typescript-5": "Pinned TypeScript 5.9 used only by frontend/scripts/check-i18n.mjs, because TypeScript 7 has no stable JS API yet."
+}

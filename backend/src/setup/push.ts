@@ -21,6 +21,7 @@ const { compileCollectionPlan } = require('../catalog/collection-plan.ts') as {
 const artwork = require('../catalog/collection-artwork.ts') as {
   normaliseNuvioArtwork: (folder: unknown, origin: string) => Record<string, unknown>;
   absoluteLocalArtwork: (value: unknown, origin: string) => string;
+  nuvioTileShape: (value: unknown) => 'POSTER' | 'LANDSCAPE' | 'SQUARE';
 };
 const libraryCollections = require('../catalog/nuvio-library-collections.ts') as {
   mergeCollectionsInPlace: (existing: unknown, generated: unknown, options?: { removeMissing?: (item: unknown) => boolean }) => unknown;
@@ -834,7 +835,7 @@ async function pushToNuvio(
       return {
         id: raw['id'] || `folder-${ci}-${fi}`,
         title: raw['title'] || 'Collection',
-        tileShape: raw['tileShape'] || 'PORTRAIT',
+        tileShape: artwork.nuvioTileShape(raw['tileShape']),
         hideTitle: !!raw['hideTitle'],
         heroBackdropUrl: artwork.absoluteLocalArtwork(raw['heroBackdropUrl'], options.origin),
         heroVideoUrl: artwork.absoluteLocalArtwork(raw['heroVideoUrl'], options.origin),

@@ -148,7 +148,7 @@ function mountCollectionsRoutes(app: Express, deps: CollectionsDeps): void {
             const folder = {
               id: f.id || `folder-${i}`,
               title: f.title || 'Collection',
-              tileShape: f.tileShape || 'PORTRAIT',
+              tileShape: require('../catalog/collection-artwork.ts').nuvioTileShape(f.tileShape),
               hideTitle: !!f.hideTitle,
               heroBackdropUrl: absoluteLocalArtwork(f.heroBackdropUrl, artworkOrigin),
               heroVideoUrl: absoluteLocalArtwork(f.heroVideoUrl, artworkOrigin),

@@ -6,6 +6,11 @@
 // plan compiler reads both.
 
 export type TileShape = 'LANDSCAPE' | 'PORTRAIT';
+
+export function isPortraitShape(value: unknown): boolean {
+  const shape = String(value ?? '').trim().toLowerCase();
+  return shape === 'portrait' || shape === 'poster';
+}
 export type CollectionViewMode = 'TABBED_GRID' | 'FOLLOW_LAYOUT';
 
 export interface CatalogSourceRef {
@@ -75,7 +80,9 @@ function uniqueId(prefix: string): string {
 }
 
 export function normalizeTileShape(value: unknown): TileShape {
-  return value === 'PORTRAIT' ? 'PORTRAIT' : 'LANDSCAPE';
+  // Nuvio itself says POSTER (TV) or poster (mobile); LeLibrary's editor says
+  // PORTRAIT. Treat all three as portrait so imported poster folders stay posters.
+  return isPortraitShape(value) ? 'PORTRAIT' : 'LANDSCAPE';
 }
 
 export function normalizeViewMode(value: unknown): CollectionViewMode {

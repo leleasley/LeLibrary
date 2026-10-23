@@ -205,7 +205,7 @@ function convertFolder(raw, collectionIndex, folderIndex, config, maps, definiti
   return {
     id: `folder-import-${originHash.slice(-24)}`,
     title: cleanLabel(fields.title, 'Folder').slice(0, 80),
-    tileShape: ['PORTRAIT', 'LANDSCAPE', 'SQUARE'].includes(fields.tileShape) ? fields.tileShape : 'LANDSCAPE',
+    tileShape: ['PORTRAIT', 'POSTER', 'LANDSCAPE', 'SQUARE'].includes(String(fields.tileShape).toUpperCase()) ? (String(fields.tileShape).toUpperCase() === 'POSTER' ? 'PORTRAIT' : String(fields.tileShape).toUpperCase()) : 'LANDSCAPE',
     hideTitle: fields.hideTitle === true,
     coverImageUrl,
     focusGifEnabled: fields.focusGifEnabled === true && !!focusGifUrl,
@@ -235,7 +235,7 @@ function convertCollection(raw, index, config, maps, definitions, review, counte
   return {
     id: `collection-import-${originHash.slice(-24)}`,
     title: cleanLabel(fields.title, 'Imported collection').slice(0, 80),
-    tileShape: ['PORTRAIT', 'LANDSCAPE', 'SQUARE'].includes(fields.tileShape) ? fields.tileShape : 'LANDSCAPE',
+    tileShape: ['PORTRAIT', 'POSTER', 'LANDSCAPE', 'SQUARE'].includes(String(fields.tileShape).toUpperCase()) ? (String(fields.tileShape).toUpperCase() === 'POSTER' ? 'PORTRAIT' : String(fields.tileShape).toUpperCase()) : 'LANDSCAPE',
     pinToTop: fields.pinToTop === true,
     focusGlowEnabled: fields.focusGlowEnabled !== false,
     showAllTab: fields.showAllTab !== false,

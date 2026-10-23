@@ -1,3 +1,4 @@
+import { isPortraitShape } from '@/features/setup/shared/collection-doc';
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/api/client';
 import {
@@ -133,7 +134,7 @@ function packFolderCopy(folder: CuratedFolder): FolderDoc {
   return {
     id: folder.id,
     title: folder.title,
-    tileShape: folder.tileShape === 'PORTRAIT' ? 'PORTRAIT' : 'LANDSCAPE',
+    tileShape: isPortraitShape(folder.tileShape) ? 'PORTRAIT' : 'LANDSCAPE',
     hideTitle: folder.hideTitle,
     coverImageUrl: folder.coverImageUrl,
     focusGifEnabled: folder.focusGifEnabled,

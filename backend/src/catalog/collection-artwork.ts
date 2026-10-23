@@ -25,6 +25,17 @@ function absoluteLocalArtwork(value, origin = '') {
   return origin ? `${String(origin).replace(/\/+$/, '')}${clean}` : clean;
 }
 
+// Nuvio's tile shapes are POSTER, LANDSCAPE and SQUARE (TV also accepts the
+// mobile spellings poster/wide/square). LeLibrary's editor says PORTRAIT;
+// Nuvio TV rejects that value outright, so every folder sent to Nuvio goes
+// through this. Unknown values become POSTER, matching Nuvio's own default.
+function nuvioTileShape(value: unknown): 'POSTER' | 'LANDSCAPE' | 'SQUARE' {
+  const shape = String(value || '').trim().toLowerCase();
+  if (shape === 'landscape' || shape === 'wide') return 'LANDSCAPE';
+  if (shape === 'square') return 'SQUARE';
+  return 'POSTER';
+}
+
 function normaliseNuvioArtwork(folder = {}, origin = '') {
   const isLegacyGeneratedCover = typeof folder.coverImageUrl === 'string' &&
     folder.coverImageUrl.startsWith('/covers/');
@@ -41,8 +52,9 @@ function normaliseNuvioArtwork(folder = {}, origin = '') {
 
 export interface CollectionArtworkApi {
   normaliseNuvioArtwork: any;
+  nuvioTileShape: any;
   absoluteLocalArtwork: any;
   versionLocalAsset: any;
 }
 
-module.exports = { normaliseNuvioArtwork, absoluteLocalArtwork, versionLocalAsset } satisfies CollectionArtworkApi;
+module.exports = { nuvioTileShape, normaliseNuvioArtwork, absoluteLocalArtwork, versionLocalAsset } satisfies CollectionArtworkApi;

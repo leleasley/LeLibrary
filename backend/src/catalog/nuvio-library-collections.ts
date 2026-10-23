@@ -47,7 +47,7 @@ function buildLibraryCollection(metas, addonId, config = {}) {
     .map((meta) => ({
       id: folderIdForCollection(meta.collectionId),
       title: String(meta.name || 'Collection').replace(/\s+Collection\s*$/i, '').trim() || meta.name,
-      tileShape: 'PORTRAIT',
+      tileShape: 'POSTER',
       hideTitle: false,
       focusGifEnabled: false,
       coverImageUrl: meta.poster || '',

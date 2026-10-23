@@ -7,7 +7,7 @@ import {
   fetchPublicCollection,
   fetchPublicCollectionBySession,
 } from '@/features/setup/resolver/api';
-import type { CollectionDoc, FolderDoc } from '@/features/setup/shared/collection-doc';
+import { isPortraitShape, type CollectionDoc, type FolderDoc } from '@/features/setup/shared/collection-doc';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -104,7 +104,7 @@ function toFolderDoc(raw: unknown, index: number, folderIndex: number): FolderDo
   return {
     id: String(folder['id'] || `imported-folder-${index}-${folderIndex}`),
     title: String(folder['title'] || folder['name'] || 'Folder').slice(0, 80),
-    tileShape: folder['tileShape'] === 'PORTRAIT' ? 'PORTRAIT' : 'LANDSCAPE',
+    tileShape: isPortraitShape(folder['tileShape']) ? 'PORTRAIT' : 'LANDSCAPE',
     hideTitle: folder['hideTitle'] === true,
     coverImageUrl: String(folder['customCoverImageUrl'] || folder['coverImageUrl'] || folder['cover'] || ''),
     focusGifEnabled: folder['focusGifEnabled'] === true,
@@ -121,7 +121,7 @@ function toCollectionDoc(raw: unknown, index: number): CollectionDoc | null {
   return {
     id: String(collection['id'] || `imported-${Date.now()}-${index}`),
     title: String(collection['title'] || collection['name'] || 'Imported collection').slice(0, 80),
-    tileShape: collection['tileShape'] === 'PORTRAIT' ? 'PORTRAIT' : 'LANDSCAPE',
+    tileShape: isPortraitShape(collection['tileShape']) ? 'PORTRAIT' : 'LANDSCAPE',
     pinToTop: collection['pinToTop'] === true,
     focusGlowEnabled: collection['focusGlowEnabled'] !== false,
     showAllTab: collection['showAllTab'] !== false,

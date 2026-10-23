@@ -216,7 +216,7 @@ async function items(scopeId: string, { view = 'attention', q = '', limit = 50, 
 async function itemForFix(scopeId: string, id: number) {
   const pool = await store.ensure();
   const { rows } = await pool.query(
-    `SELECT id, provider, source_id, raw, season, episode, season_start, season_end, media_type, match_status
+    `SELECT id, provider, source_id, name, raw, season, episode, season_start, season_end, media_type, match_status
        FROM lib_items WHERE scope_id = $1 AND id = $2 AND removed_at IS NULL`,
     [scopeId, id]
   );

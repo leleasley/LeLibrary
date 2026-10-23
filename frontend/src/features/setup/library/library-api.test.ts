@@ -20,3 +20,16 @@ describe('library page helpers', () => {
     expect(formatSize(0, 'en')).toBeNull();
   });
 });
+
+import { parsedEpisode } from '@/features/setup/library/library-api';
+
+describe('season and episode from file names', () => {
+  it('reads common shapes', () => {
+    expect(parsedEpisode('s7-middlemen.1080.mkv')).toEqual({ season: 7, episode: null });
+    expect(parsedEpisode('Show.Name.S02E05.1080p.mkv')).toEqual({ season: 2, episode: 5 });
+    expect(parsedEpisode('Show Season 3 Complete')).toEqual({ season: 3, episode: null });
+    expect(parsedEpisode('show.1x04.hdtv')).toEqual({ season: 1, episode: 4 });
+    expect(parsedEpisode('Dune.Part.Two.2024.2160p')).toEqual({ season: null, episode: null });
+    expect(parsedEpisode(null, 'Other.S10E12.mkv')).toEqual({ season: 10, episode: 12 });
+  });
+});

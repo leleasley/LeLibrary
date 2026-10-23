@@ -1189,6 +1189,17 @@
     "more file": "archivo más",
     "more files": "archivos más",
     "file needs attention": "archivo requiere atención",
-    "files need attention": "archivos requieren atención"
+    "files need attention": "archivos requieren atención",
+    "Loading seasons…": "Cargando temporadas…",
+    "Seasons {{from}} to {{to}} (keep the pack)": "Temporadas {{from}} a {{to}} (mantener el paquete)",
+    "This item holds several videos, so a whole season usually fits.": "Este elemento contiene varios vídeos, así que una temporada completa suele encajar.",
+    "This item is a single video: pick its episode if you know it.": "Este elemento es un solo vídeo: elige su episodio si lo sabes.",
+    "Whole season (pack)": "Temporada completa (paquete)",
+    "Season {{number}}": "Temporada {{number}}",
+    "Specials": "Especiales",
+    "Choose a season.": "Elige una temporada.",
+    "episode": "episodio",
+    "episodes": "episodios",
+    "TMDB did not answer. Try again.": "TMDB no respondió. Inténtalo de nuevo."
   }
 }

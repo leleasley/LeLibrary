@@ -109,6 +109,21 @@ function tmdbAuth(apiKey: string): { headers: Record<string, string>; params: Re
     : { headers: {}, params: { api_key: apiKey } };
 }
 
+// One TMDB GET with the setup's own key (v3 key or v4 bearer). Small
+// in-process cache: the fix dialog asks for the same show and seasons often.
+const getCache = new Map<string, { at: number; value: unknown }>();
+async function tmdbGet(apiKey: string, path: string, params: Record<string, string | number | boolean> = {}): Promise<any> {
+  const cacheKey = `${path}?${new URLSearchParams(Object.entries(params).map(([k, v]): [string, string] => [k, String(v)]))}`;
+  const hit = getCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < SOURCE_TTL_MS) return hit.value;
+  const axios = require('axios');
+  const auth = tmdbAuth(apiKey);
+  const res = await axios.get(`${TMDB_BASE}${path}`, { headers: auth.headers, params: { ...auth.params, ...params }, timeout: 8000 });
+  if (getCache.size > 1000) getCache.clear();
+  getCache.set(cacheKey, { at: Date.now(), value: res.data });
+  return res.data;
+}
+
 async function fetchTmdbSource(apiKey: string, mediaType: OverrideMediaType, tmdbId: number, lang = 'en-US'): Promise<Record<string, unknown> | null> {
   const apiType = mediaType === 'movie' ? 'movie' : 'tv';
   const cacheKey = `${apiType}:${tmdbId}:${lang}`;
@@ -134,7 +149,7 @@ async function fetchTmdbSource(apiKey: string, mediaType: OverrideMediaType, tmd
 // Apply an override to one library row: the same write the matcher makes for
 // its own matches (canonical version stamp, classification, identity reset),
 // or the terminal 'ignored' status that catalogs never show.
-async function apply(job: OverrideJob, override: Override, { tmdbApiKey, lang = 'en-US' }: { tmdbApiKey: string; lang?: string }): Promise<'matched' | 'ignored' | 'failed'> {
+async function apply(job: OverrideJob, override: Override, { tmdbApiKey, lang = 'en-US', origin = 'owner' }: { tmdbApiKey: string; lang?: string; origin?: 'owner' | 'shared' }): Promise<'matched' | 'ignored' | 'failed'> {
   const pool = await store.ensure();
   if (override.action === 'ignore') {
     await pool.query(
@@ -164,7 +179,8 @@ async function apply(job: OverrideJob, override: Override, { tmdbApiKey, lang = 
     status: 'matched',
     tmdbId: override.tmdbId,
     imdbId: imdbId || null,
-    matchMeta: { ...stored, imdbId: imdbId || undefined, torboxItem: undefined, manual: true },
+    // manual: this library's own fix; shared: learned from other owners.
+    matchMeta: { ...stored, imdbId: imdbId || undefined, torboxItem: undefined, ...(origin === 'shared' ? { shared: true } : { manual: true }) },
     version: matchVersion(),
     classification: {
       mediaType: override.mediaType,
@@ -187,6 +203,7 @@ export interface OverridesApi {
   remove: typeof remove;
   apply: typeof apply;
   fetchTmdbSource: typeof fetchTmdbSource;
+  tmdbGet: typeof tmdbGet;
 }
 
-module.exports = { forJobs, lookup, save, remove, apply, fetchTmdbSource } satisfies OverridesApi;
+module.exports = { forJobs, lookup, save, remove, apply, fetchTmdbSource, tmdbGet } satisfies OverridesApi;

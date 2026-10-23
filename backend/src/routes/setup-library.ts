@@ -19,6 +19,7 @@ const runtime = require('../setup/runtime.ts') as RuntimeApi;
 const { createEditSessionStore, bearerToken } = require('../setup/edit-sessions.ts') as EditSessionsApi;
 const review = require('../library/review.ts') as ReviewApi;
 const overrides = require('../library/overrides.ts') as OverridesApi;
+const sharedFixes = require('../library/shared-fixes.ts') as import('../library/shared-fixes.ts').SharedFixesApi;
 
 export interface SetupLibraryRoutesOptions {
   basePath?: string;
@@ -114,22 +115,30 @@ function mountSetupLibraryRoutes(app: Express, { basePath = '/api/setup', editSe
     if (!q) { res.json({ results: [] }); return; }
     const tmdb = require('../media/tmdb.ts');
     let raw: Record<string, any>[] = [];
-    if (/^tt\d{5,10}$/i.test(q)) {
-      const mapped = await tmdb.imdbToTmdbCached(ctx.tmdbApiKey, q.toLowerCase()).catch(() => null);
-      if (mapped && Number.isInteger(mapped.tmdbId)) {
-        const mediaType: OverrideMediaType = mapped.type === 'movie' ? 'movie' : 'series';
-        const source = await overrides.fetchTmdbSource(ctx.tmdbApiKey, mediaType, mapped.tmdbId, ctx.lang);
-        if (source) raw = [{ ...source, _type: mediaType === 'movie' ? 'movie' : 'tv' }];
+    try {
+      if (/^tt\d{5,10}$/i.test(q)) {
+        const found = await overrides.tmdbGet(ctx.tmdbApiKey, `/find/${q.toLowerCase()}`, { external_source: 'imdb_id', language: ctx.lang });
+        raw = [
+          ...(found?.movie_results || []).map((row: Record<string, any>) => ({ ...row, _type: 'movie' })),
+          ...(found?.tv_results || []).map((row: Record<string, any>) => ({ ...row, _type: 'tv' })),
+        ];
+      } else if (/^\d{1,9}$/.test(q)) {
+        const row = await overrides.tmdbGet(ctx.tmdbApiKey, `/${type}/${Number(q)}`, { language: ctx.lang }).catch(() => null);
+        if (row && Number.isInteger(row.id)) raw = [{ ...row, _type: type }];
+      } else {
+        // Straight to TMDB with the setup's own key: full results, posters
+        // and years included (the matcher's cached search keeps less).
+        const params: Record<string, string | number | boolean> = { query: q, language: ctx.lang, include_adult: false, page: 1 };
+        if (Number.isInteger(year)) params[type === 'movie' ? 'year' : 'first_air_date_year'] = year as number;
+        const found = await overrides.tmdbGet(ctx.tmdbApiKey, `/search/${type}`, params);
+        raw = (found?.results || []).map((row: Record<string, any>) => ({ ...row, _type: type }));
       }
-    } else if (/^\d{1,9}$/.test(q)) {
-      const source = await overrides.fetchTmdbSource(ctx.tmdbApiKey, type === 'movie' ? 'movie' : 'series', Number(q), ctx.lang);
-      if (source) raw = [{ ...source, _type: type }];
-    } else {
-      raw = ((await tmdb.searchCandidates(ctx.tmdbApiKey, q, type, Number.isInteger(year) ? year : undefined, ctx.lang, 10).catch(() => [])) || [])
-        .map((row: Record<string, any>) => ({ ...row, _type: type }));
+    } catch {
+      res.status(502).json({ error: 'TMDB did not answer. Try again.' });
+      return;
     }
     res.json({
-      results: raw.slice(0, 10).map((row) => ({
+      results: raw.slice(0, 12).map((row) => ({
         tmdbId: row['id'],
         type: row['_type'],
         title: row['title'] || row['name'] || '',
@@ -137,8 +146,50 @@ function mountSetupLibraryRoutes(app: Express, { basePath = '/api/setup', editSe
         year: String(row['release_date'] || row['first_air_date'] || '').slice(0, 4) || null,
         poster: row['poster_path'] ? `https://image.tmdb.org/t/p/w185${row['poster_path']}` : null,
         overview: typeof row['overview'] === 'string' ? row['overview'].slice(0, 220) : '',
-        anime: row['isJapaneseAnimation'] === true || tmdb.isTmdbAnimeItem(row),
+        anime: tmdb.isTmdbAnimeItem(row),
       })),
+    });
+  });
+
+  // A show's seasons, then one season's episodes, for the fix dialog.
+  router.get('/:uuid/library/tv/:tmdbId', rateLimited(60_000, 60), async (req: Request, res: Response) => {
+    const ctx = await context(req, res);
+    if (!ctx) return;
+    if (!ctx.tmdbApiKey) { res.status(409).json({ error: 'Add a TMDB key to this setup to fix matches.', code: 'no-tmdb' }); return; }
+    const id = Number(req.params['tmdbId']);
+    if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: 'Invalid show' }); return; }
+    const show = await overrides.tmdbGet(ctx.tmdbApiKey, `/tv/${id}`, { language: ctx.lang }).catch(() => null);
+    if (!show || !Array.isArray(show.seasons)) { res.status(502).json({ error: 'TMDB did not answer. Try again.' }); return; }
+    res.json({
+      seasons: show.seasons
+        .filter((season: Record<string, any>) => Number.isInteger(season.season_number))
+        .map((season: Record<string, any>) => ({
+          number: season.season_number,
+          name: typeof season.name === 'string' ? season.name : null,
+          episodes: Number.isInteger(season.episode_count) ? season.episode_count : null,
+          year: typeof season.air_date === 'string' ? season.air_date.slice(0, 4) || null : null,
+        }))
+        .sort((a: { number: number }, b: { number: number }) => (a.number === 0 ? 1 : 0) - (b.number === 0 ? 1 : 0) || a.number - b.number),
+    });
+  });
+
+  router.get('/:uuid/library/tv/:tmdbId/season/:season', rateLimited(60_000, 120), async (req: Request, res: Response) => {
+    const ctx = await context(req, res);
+    if (!ctx) return;
+    if (!ctx.tmdbApiKey) { res.status(409).json({ error: 'Add a TMDB key to this setup to fix matches.', code: 'no-tmdb' }); return; }
+    const id = Number(req.params['tmdbId']);
+    const number = Number(req.params['season']);
+    if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(number) || number < 0 || number > 200) { res.status(400).json({ error: 'Invalid season' }); return; }
+    const season = await overrides.tmdbGet(ctx.tmdbApiKey, `/tv/${id}/season/${number}`, { language: ctx.lang }).catch(() => null);
+    if (!season || !Array.isArray(season.episodes)) { res.status(502).json({ error: 'TMDB did not answer. Try again.' }); return; }
+    res.json({
+      episodes: season.episodes
+        .filter((episode: Record<string, any>) => Number.isInteger(episode.episode_number))
+        .map((episode: Record<string, any>) => ({
+          number: episode.episode_number,
+          name: typeof episode.name === 'string' ? episode.name : null,
+          airDate: typeof episode.air_date === 'string' ? episode.air_date : null,
+        })),
     });
   });
 
@@ -167,6 +218,11 @@ function mountSetupLibraryRoutes(app: Express, { basePath = '/api/setup', editSe
     const applied = await overrides.apply(row, override, { tmdbApiKey: ctx.tmdbApiKey, lang: ctx.lang });
     if (applied !== 'matched') { res.status(502).json({ error: 'Could not load that title from TMDB. Try again.' }); return; }
     await overrides.save(ctx.scopeId, row.provider, row.source_id, override);
+    // Teach LeLibrary this release for everyone (see library/shared-fixes.ts).
+    const keys = sharedFixes.releaseKeys(row.raw, row.name);
+    await sharedFixes.vote(ctx.scopeId, keys, { tmdbId, mediaType: override.mediaType, season: override.season, episode: override.episode }).catch(() => {});
+    const others = await sharedFixes.requeueFailedElsewhere(ctx.scopeId, keys).catch(() => 0);
+    if (others) setTimeout(() => ctx.engine.drainOnce().catch(() => {}), 0).unref?.();
     await refreshProjection(ctx);
     res.json({ ok: true });
   });
@@ -180,6 +236,8 @@ function mountSetupLibraryRoutes(app: Express, { basePath = '/api/setup', editSe
     const override = { action: 'ignore' as const, tmdbId: null, mediaType: null, season: null, episode: null };
     await overrides.apply(row, override, { tmdbApiKey: ctx.tmdbApiKey, lang: ctx.lang });
     await overrides.save(ctx.scopeId, row.provider, row.source_id, override);
+    // Ignoring is personal: withdraw any earlier shared vote for this release.
+    await sharedFixes.unvote(ctx.scopeId, sharedFixes.releaseKeys(row.raw, row.name)).catch(() => {});
     await refreshProjection(ctx);
     res.json({ ok: true });
   });
@@ -192,6 +250,7 @@ function mountSetupLibraryRoutes(app: Express, { basePath = '/api/setup', editSe
     const row = Number.isInteger(id) ? await review.itemForFix(ctx.scopeId, id) : null;
     if (!row) { res.status(404).json({ error: 'File not found in this library' }); return; }
     await overrides.remove(ctx.scopeId, row.provider, row.source_id);
+    await sharedFixes.unvote(ctx.scopeId, sharedFixes.releaseKeys(row.raw, row.name)).catch(() => {});
     await review.requeue(ctx.scopeId, id);
     await refreshProjection(ctx);
     setTimeout(() => ctx.engine.drainOnce().catch(() => {}), 0).unref?.();

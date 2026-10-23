@@ -4,9 +4,9 @@ import { apiErrorCopy } from '@/api/error-copy';
 import { toast } from '@/features/setup/shared/Toast';
 import { setupCopy, setupCount } from '@/features/setup/shared/setup-copy';
 import {
-  episodeLabel, fetchLibraryItems, fetchLibrarySummary, fixItem, formatSize, ignoreItem, retryMatching,
-  searchSeed, searchTmdb, undoFix,
-  type FixMediaType, type LibraryItem, type LibrarySummary, type LibraryView, type TmdbChoice,
+  episodeLabel, fetchLibraryItems, fetchLibrarySummary, fetchSeasonEpisodes, fetchShowSeasons, fixItem, formatSize,
+  episodeOptionLabel, ignoreItem, parsedEpisode, retryMatching, searchSeed, searchTmdb, undoFix,
+  type FixMediaType, type LibraryItem, type LibrarySummary, type LibraryView, type SeasonEpisode, type ShowSeason, type TmdbChoice,
 } from '@/features/setup/library/library-api';
 import './library.css';
 
@@ -90,8 +90,18 @@ function FixDialog({ uuid, editToken, item, onClose, onFixed }: {
   const [query, setQuery] = useState(() => searchSeed(item));
   const [results, setResults] = useState<TmdbChoice[] | null>(null);
   const [picked, setPicked] = useState<TmdbChoice | null>(null);
-  const [season, setSeason] = useState(item.season != null ? String(item.season) : '');
-  const [episode, setEpisode] = useState(item.episode != null ? String(item.episode) : '');
+  // Season/episode the item's names imply, used to pre-select the pickers.
+  const implied = parsedEpisode(item.season != null ? null : item.name, item.season != null ? null : item.inner);
+  const impliedSeason = item.season ?? implied.season;
+  const impliedEpisode = item.episode ?? (item.season != null ? null : implied.episode);
+  const isRange = item.seasonStart != null && item.seasonEnd != null && item.seasonEnd > item.seasonStart;
+  const isPack = item.innerCount > 0;
+  const [seasons, setSeasons] = useState<ShowSeason[] | null>(null);
+  const [episodes, setEpisodes] = useState<SeasonEpisode[] | null>(null);
+  // 'keep' = the season range the file name already says (multi-season packs).
+  const [season, setSeason] = useState<'keep' | number | null>(isRange ? 'keep' : impliedSeason);
+  // 'whole' = a whole-season pack.
+  const [episode, setEpisode] = useState<'whole' | number>(impliedEpisode ?? 'whole');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -120,6 +130,40 @@ function FixDialog({ uuid, editToken, item, onClose, onFixed }: {
   }
 
   useEffect(() => {
+    setSeasons(null);
+    setEpisodes(null);
+    if (!picked || picked.type !== 'tv') return;
+    let cancelled = false;
+    fetchShowSeasons(uuid, editToken, picked.tmdbId)
+      .then((out) => {
+        if (cancelled) return;
+        setSeasons(out.seasons);
+        // Keep the implied season if the show has it, else its first season.
+        setSeason((current) => {
+          if (current === 'keep') return current;
+          if (current != null && out.seasons.some((s) => s.number === current)) return current;
+          return out.seasons.find((s) => s.number > 0)?.number ?? out.seasons[0]?.number ?? null;
+        });
+      })
+      .catch(() => { if (!cancelled) setSeasons([]); });
+    return () => { cancelled = true; };
+  }, [picked, uuid, editToken]);
+
+  useEffect(() => {
+    setEpisodes(null);
+    if (!picked || picked.type !== 'tv' || typeof season !== 'number') return;
+    let cancelled = false;
+    fetchSeasonEpisodes(uuid, editToken, picked.tmdbId, season)
+      .then((out) => {
+        if (cancelled) return;
+        setEpisodes(out.episodes);
+        setEpisode((current) => (current === 'whole' || out.episodes.some((e) => e.number === current) ? current : 'whole'));
+      })
+      .catch(() => { if (!cancelled) setEpisodes([]); });
+    return () => { cancelled = true; };
+  }, [picked, season, uuid, editToken]);
+
+  useEffect(() => {
     if (query.trim()) void search();
     // Only on open and when the type changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -128,10 +172,10 @@ function FixDialog({ uuid, editToken, item, onClose, onFixed }: {
   async function save() {
     if (!picked) return;
     const isMovie = picked.type === 'movie';
-    const seasonNumber = season.trim() === '' ? null : Number(season);
-    const episodeNumber = episode.trim() === '' ? null : Number(episode);
-    if (!isMovie && ((seasonNumber !== null && !Number.isInteger(seasonNumber)) || (episodeNumber !== null && (!Number.isInteger(episodeNumber) || seasonNumber === null)))) {
-      setError(setupCopy('Enter whole numbers, and a season before an episode.', 'Enter whole numbers, and a season before an episode.'));
+    const seasonNumber = typeof season === 'number' ? season : null;
+    const episodeNumber = seasonNumber !== null && typeof episode === 'number' ? episode : null;
+    if (!isMovie && season !== 'keep' && seasonNumber === null) {
+      setError(setupCopy('Choose a season.', 'Choose a season.'));
       return;
     }
     const mediaType: FixMediaType = isMovie ? 'movie' : picked.anime ? 'anime' : 'series';
@@ -196,9 +240,44 @@ function FixDialog({ uuid, editToken, item, onClose, onFixed }: {
 
         {picked && picked.type === 'tv' && (
           <div className="lib-episode">
-            <label className="setup-field"><span>Season</span><input inputMode="numeric" value={season} onChange={(event) => setSeason(event.target.value.replace(/\D/g, '').slice(0, 3))} /></label>
-            <label className="setup-field"><span>Episode</span><input inputMode="numeric" value={episode} onChange={(event) => setEpisode(event.target.value.replace(/\D/g, '').slice(0, 4))} /></label>
-            <p className="lib-hint">Leave the episode empty for a whole-season pack. Leave both empty to keep what the file name says.</p>
+            <label className="setup-field">
+              <span>Season</span>
+              <select
+                value={season === 'keep' ? 'keep' : season ?? ''}
+                disabled={!seasons}
+                onChange={(event) => setSeason(event.target.value === 'keep' ? 'keep' : event.target.value === '' ? null : Number(event.target.value))}
+              >
+                {!seasons && <option value="">{setupCopy('Loading seasons…', 'Loading seasons…')}</option>}
+                {isRange && <option value="keep">{setupCopy('Seasons {{from}} to {{to}} (keep the pack)', 'Seasons {{from}} to {{to}} (keep the pack)', { from: item.seasonStart, to: item.seasonEnd })}</option>}
+                {seasons?.map((s) => (
+                  <option key={s.number} value={s.number}>
+                    {[
+                      s.number === 0 ? setupCopy('Specials', 'Specials') : setupCopy('Season {{number}}', 'Season {{number}}', { number: s.number }),
+                      s.year,
+                      s.episodes != null ? setupCount(s.episodes, 'episode', 'episodes') : null,
+                    ].filter(Boolean).join(' · ')}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="setup-field">
+              <span>Episode</span>
+              <select
+                value={episode}
+                disabled={season === 'keep' || typeof season !== 'number'}
+                onChange={(event) => setEpisode(event.target.value === 'whole' ? 'whole' : Number(event.target.value))}
+              >
+                <option value="whole">{setupCopy('Whole season (pack)', 'Whole season (pack)')}</option>
+                {episodes?.map((e) => (
+                  <option key={e.number} value={e.number} data-i18n-preserve>{episodeOptionLabel(e)}</option>
+                ))}
+              </select>
+            </label>
+            <p className="lib-hint">
+              {isPack
+                ? setupCopy('This item holds several videos, so a whole season usually fits.', 'This item holds several videos, so a whole season usually fits.')
+                : setupCopy('This item is a single video: pick its episode if you know it.', 'This item is a single video: pick its episode if you know it.')}
+            </p>
           </div>
         )}
 

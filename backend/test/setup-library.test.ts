@@ -51,4 +51,28 @@ test('every library route needs this setup\'s own edit token', async () => {
   });
 });
 
+const shared = require('../src/library/shared-fixes.ts');
+
+test('shared fixes are keyed by info hash and exact name, never by a bare hash name', () => {
+  const hash = '056a0046e5b742740e1d8175bef66029f257a302';
+  assert.deepEqual(shared.releaseKeys({ hash: hash.toUpperCase() }, hash), { hash, name: null });
+  assert.deepEqual(shared.releaseKeys({}, '  The.Office.US.S05   1080p '), { hash: null, name: 'the.office.us.s05 1080p' });
+  assert.deepEqual(shared.releaseKeys({}, 'x.mkv'), { hash: null, name: null });
+});
+
+test('a shared fix needs a strict majority; ties help nobody', () => {
+  const fix = (tmdbId: number, votes: number) => ({ tmdbId, mediaType: 'series', season: 7, episode: null, votes });
+  assert.equal(shared.chooseConsensus([fix(1, 1)])?.tmdbId, 1);
+  assert.equal(shared.chooseConsensus([fix(1, 2), fix(2, 1)])?.tmdbId, 1);
+  assert.equal(shared.chooseConsensus([fix(1, 1), fix(2, 1)]), null);
+  assert.equal(shared.chooseConsensus([]), null);
+});
+
+test('library votes are one-way hashes of the library id', () => {
+  const voter = shared.voterFor('451786d00ac7');
+  assert.match(voter, /^[a-f0-9]{24}$/);
+  assert.ok(!voter.includes('451786d00ac7'));
+  assert.equal(voter, shared.voterFor('451786d00ac7'));
+});
+
 export interface SetupLibraryTestModule {};

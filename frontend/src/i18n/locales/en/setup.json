@@ -1189,6 +1189,17 @@
     "more file": "more file",
     "more files": "more files",
     "file needs attention": "file needs attention",
-    "files need attention": "files need attention"
+    "files need attention": "files need attention",
+    "Loading seasons…": "Loading seasons…",
+    "Seasons {{from}} to {{to}} (keep the pack)": "Seasons {{from}} to {{to}} (keep the pack)",
+    "This item holds several videos, so a whole season usually fits.": "This item holds several videos, so a whole season usually fits.",
+    "This item is a single video: pick its episode if you know it.": "This item is a single video: pick its episode if you know it.",
+    "Whole season (pack)": "Whole season (pack)",
+    "Season {{number}}": "Season {{number}}",
+    "Specials": "Specials",
+    "Choose a season.": "Choose a season.",
+    "episode": "episode",
+    "episodes": "episodes",
+    "TMDB did not answer. Try again.": "TMDB did not answer. Try again."
   }
 }

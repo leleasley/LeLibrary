@@ -11,6 +11,7 @@ const { getImdbId } = require('../media/tmdb.ts');
 const { offlineMatchFromItem, normalizeTitle } = require('./diff.ts');
 const store = require('./store.ts');
 const overrides = require('./overrides.ts');
+const sharedFixes = require('./shared-fixes.ts');
 const metrics = require('./metrics.ts');
 const { pLimit } = require('./util.ts');
 
@@ -181,6 +182,13 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
     // Owner fixes from the Library page win over the resolver. A failed
     // lookup only means this pass falls back to normal matching.
     const fixes = await overrides.forJobs(scopeId, jobs).catch(() => new Map());
+    // What other owners taught LeLibrary about these exact releases.
+    const sharedList = await sharedFixes.bestFor(jobs.map((job) => sharedFixes.releaseKeys(job.raw, job.name)))
+      .catch(() => jobs.map(() => null));
+    const sharedById = new Map(jobs.map((job, index) => [job.id, sharedList[index]]));
+    const applyShared = async (job, fix) => overrides.apply(job, {
+      action: 'match', tmdbId: fix.tmdbId, mediaType: fix.mediaType, season: fix.season, episode: fix.episode,
+    }, { tmdbApiKey, lang, origin: 'shared' });
     const outcomes = await pLimit(jobs, concurrency, async (job) => {
       const fix = fixes.size ? overrides.lookup(fixes, job) : undefined;
       if (fix) {
@@ -190,6 +198,13 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
           await store.saveMatch(job.id, { status: 'failed', error: 'manual-fix-unavailable', version: retryVersion() });
           failed++;
         }
+        processed++;
+        return;
+      }
+      // Two or more libraries agree on this exact release: trust it first.
+      const shared = sharedById.get(job.id) || null;
+      if (shared && shared.votes >= 2 && await applyShared(job, shared) === 'matched') {
+        matched++;
         processed++;
         return;
       }
@@ -410,6 +425,13 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
               return;
             }
           } catch { /* fall through to the recorded failure */ }
+        }
+        // Automatic matching failed: one owner's fix for this exact release
+        // is enough here (it cannot replace a confident automatic match).
+        if (shared && await applyShared(job, shared).catch(() => 'failed') === 'matched') {
+          matched++;
+          processed++;
+          return;
         }
         await store.saveMatch(job.id, {
           status: 'failed',

@@ -254,6 +254,21 @@ const MIGRATIONS = [
      updated_at  timestamptz NOT NULL DEFAULT now(),
      PRIMARY KEY (scope_id, provider, source_id)
    )`,
+  // Shared fixes: what owners taught LeLibrary about an exact release, keyed
+  // by its info hash ('hash') or exact lower-cased name ('name'). One row per
+  // library vote; the voter is a one-way hash of the library id, so nothing
+  // here identifies a person or their keys. Ignores are never shared.
+  `CREATE TABLE IF NOT EXISTS lib_shared_fixes (
+     key_kind    text NOT NULL CHECK (key_kind IN ('hash', 'name')),
+     key         text NOT NULL,
+     voter       text NOT NULL,
+     tmdb_id     integer NOT NULL,
+     media_type  text NOT NULL CHECK (media_type IN ('movie', 'series', 'anime')),
+     season      integer,
+     episode     integer,
+     created_at  timestamptz NOT NULL DEFAULT now(),
+     PRIMARY KEY (key_kind, key, voter)
+   )`,
 ];
 
 async function migrate() {

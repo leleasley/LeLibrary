@@ -120,3 +120,32 @@ export function formatSize(bytes: number | null, language: string): string | nul
   while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit++; }
   return `${new Intl.NumberFormat(language, { maximumFractionDigits: value >= 100 ? 0 : 1 }).format(value)} ${units[unit]}`;
 }
+
+export interface ShowSeason { number: number; name: string | null; episodes: number | null; year: string | null }
+export interface SeasonEpisode { number: number; name: string | null; airDate: string | null }
+
+export function fetchShowSeasons(uuid: string, editToken: string, tmdbId: number): Promise<{ seasons: ShowSeason[] }> {
+  return apiClient.get<{ seasons: ShowSeason[] }>(`${base(uuid)}/tv/${tmdbId}`, auth(editToken));
+}
+
+export function fetchSeasonEpisodes(uuid: string, editToken: string, tmdbId: number, season: number): Promise<{ episodes: SeasonEpisode[] }> {
+  return apiClient.get<{ episodes: SeasonEpisode[] }>(`${base(uuid)}/tv/${tmdbId}/season/${season}`, auth(editToken));
+}
+
+// Season/episode the file names imply ("s7-show.mkv", "Show.S02E05", "Season 3").
+export function parsedEpisode(...names: (string | null | undefined)[]): { season: number | null; episode: number | null } {
+  for (const name of names) {
+    if (!name) continue;
+    const m = /(?:^|[^a-z0-9])s(?:eason)?[ ._-]?(\d{1,2})(?:[ ._-]?e(?:p(?:isode)?)?[ ._-]?(\d{1,3}))?(?![0-9])/i.exec(name);
+    if (m) return { season: Number(m[1]), episode: m[2] != null ? Number(m[2]) : null };
+    const x = /(?:^|[^0-9])(\d{1,2})x(\d{2,3})(?![0-9])/i.exec(name);
+    if (x) return { season: Number(x[1]), episode: Number(x[2]) };
+  }
+  return { season: null, episode: null };
+}
+
+// "E05 · Episode name": a code and TMDB's own title, never translated.
+export function episodeOptionLabel(episode: SeasonEpisode): string {
+  const code = 'E' + String(episode.number).padStart(2, '0');
+  return episode.name ? code + ' · ' + episode.name : code;
+}

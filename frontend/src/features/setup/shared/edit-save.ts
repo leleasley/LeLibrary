@@ -79,6 +79,7 @@ export function buildEditSaveBody(input: EditSaveInput): Record<string, unknown>
   if (trimmedName !== (input.savedName ?? '')) body.name = trimmedName;
 
   const config: Record<string, unknown> = {};
+  const clearConfig: string[] = [];
 
   // Update the explicit legacy selection only when debrid keys changed. This
   // preserves old tokens' selection during unrelated edits while keeping new
@@ -104,11 +105,20 @@ export function buildEditSaveBody(input: EditSaveInput): Record<string, unknown>
     }));
   }
   if (input.formattingTouched) {
-    Object.assign(config, pruneConfig({
-      streamPreset: input.formatting.preset,
-      streamNameTemplate: input.formatting.nameTemplate,
-      streamDescTemplate: input.formatting.descTemplate,
-    }));
+    if (input.formatting.preset === 'custom') {
+      Object.assign(config, pruneConfig({
+        streamPreset: input.formatting.preset,
+        streamNameTemplate: input.formatting.nameTemplate,
+        streamDescTemplate: input.formatting.descTemplate,
+      }));
+    } else {
+      // A named style: drop any saved custom templates on the server, so an
+      // old custom style cannot linger after switching back.
+      // Sent explicitly: pruneConfig drops the default ("lelibrary"), which
+      // left a saved "custom" preset in place when switching back to it.
+      config.streamPreset = input.formatting.preset;
+      clearConfig.push('streamNameTemplate', 'streamDescTemplate');
+    }
   }
   if (input.badgeTouched) {
     Object.assign(config, pruneConfig({
@@ -164,6 +174,7 @@ export function buildEditSaveBody(input: EditSaveInput): Record<string, unknown>
   if (input.customAddonsTouched) config.customAddons = (input.customAddons ?? []).map((row) => ({ ...row }));
 
   if (Object.keys(config).length > 0) body.config = config;
+  if (clearConfig.length > 0) body.clearConfig = clearConfig;
 
   return Object.keys(body).length > 0 ? body : null;
 }

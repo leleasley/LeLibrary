@@ -127,7 +127,23 @@ describe('edit save body', () => {
     });
     expect(body).toEqual({
       config: { streamPreset: 'cinema', nuvioBadgePack: 'nard-full' },
+      clearConfig: ['streamNameTemplate', 'streamDescTemplate'],
     });
+  });
+
+  it('switching from a custom style back to a named one clears the saved templates', () => {
+    const back = buildEditSaveBody({
+      ...BASE_EDIT_SAVE,
+      formatting: { ...EMPTY_FORMATTING, preset: 'lelibrary', nameTemplate: 'seeded', descTemplate: 'seeded' },
+      formattingTouched: true,
+    });
+    expect(back).toEqual({ config: { streamPreset: 'lelibrary' }, clearConfig: ['streamNameTemplate', 'streamDescTemplate'] });
+    const custom = buildEditSaveBody({
+      ...BASE_EDIT_SAVE,
+      formatting: { ...EMPTY_FORMATTING, preset: 'custom', nameTemplate: '{addon.name}', descTemplate: '{stream.filename}' },
+      formattingTouched: true,
+    });
+    expect(custom).toEqual({ config: { streamPreset: 'custom', streamNameTemplate: '{addon.name}', streamDescTemplate: '{stream.filename}' } });
   });
 
   it('removes a saved key through the explicit clear list and updates provider selection', () => {

@@ -262,9 +262,11 @@ function streamFromRow(row, request, matchKind, config) {
   let formatted = null;
   if (filename && config && typeof config === 'object') {
     const preset = formatter.presets?.[config.streamPreset] || formatter.presets?.lelibrary;
+    // Saved templates only apply to the Custom style (see builder.streamTemplates).
+    const custom = config.streamPreset === 'custom' || !formatter.presets?.[config.streamPreset];
     formatted = formatter.formatStream(
-      config.streamNameTemplate || preset?.name || '{addon.name}',
-      config.streamDescTemplate || preset?.description || '{stream.filename}',
+      (custom && config.streamNameTemplate) || preset?.name || '{addon.name}',
+      (custom && config.streamDescTemplate) || preset?.description || '{stream.filename}',
       filename, 'custom', 0,
       { addonName: row.name || 'Custom Stream', streamType: 'http' },
     );

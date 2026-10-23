@@ -2041,13 +2041,20 @@ function formatBytes(bytes) {
  *   Line 2 → resolution · source
  *   Line 3 → visual tags (HDR / DV / 10bit): only if present
  */
-// Resolve the effective name/description templates for a config: the chosen
-// preset from formatter.js, overridden by any custom templates.
+// Resolve the effective name/description templates for a config. Saved
+// templates only apply to the Custom style (or an old config with no known
+// preset): a named preset always uses its own templates, so switching from
+// Custom back to "LeLibrary" can never keep showing the old custom style.
+function usesCustomTemplates(config = {}) {
+  return config.streamPreset === 'custom' || !(formatter.presets && formatter.presets[config.streamPreset]);
+}
+
 function streamTemplates(config = {}) {
   const preset = (formatter.presets && formatter.presets[config.streamPreset]) || formatter.presets.lelibrary;
+  const custom = usesCustomTemplates(config);
   return {
-    name: config.streamNameTemplate || preset.name,
-    description: config.streamDescTemplate || preset.description,
+    name: (custom && config.streamNameTemplate) || preset.name,
+    description: (custom && config.streamDescTemplate) || preset.description,
   };
 }
 

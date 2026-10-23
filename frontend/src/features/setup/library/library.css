@@ -102,3 +102,7 @@
 .lib-inner code { overflow-wrap: anywhere; color: var(--text); font-family: var(--mono, ui-monospace, monospace); font-size: 0.76rem; }
 .lib-inner-more { color: var(--muted); }
 .lib-fix-file { display: flex; flex-direction: column; gap: 6px; }
+.lib-choice-wrap { position: relative; }
+.lib-choice-wrap .lib-choice { padding-right: 110px; }
+.lib-tmdb-link { position: absolute; right: 12px; bottom: 10px; color: var(--amber); font-size: 0.74rem; text-decoration: none; }
+.lib-tmdb-link:hover { text-decoration: underline; }

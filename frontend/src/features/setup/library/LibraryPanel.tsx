@@ -139,9 +139,10 @@ function FixDialog({ uuid, editToken, item, onClose, onFixed }: {
         if (cancelled) return;
         setSeasons(out.seasons);
         // Keep the implied season if the show has it, else its first season.
+        // Keep the season the file name says even when TMDB does not list
+        // it (sparse entries); otherwise start on the show's first season.
         setSeason((current) => {
-          if (current === 'keep') return current;
-          if (current != null && out.seasons.some((s) => s.number === current)) return current;
+          if (current === 'keep' || typeof current === 'number') return current;
           return out.seasons.find((s) => s.number > 0)?.number ?? out.seasons[0]?.number ?? null;
         });
       })
@@ -157,7 +158,8 @@ function FixDialog({ uuid, editToken, item, onClose, onFixed }: {
       .then((out) => {
         if (cancelled) return;
         setEpisodes(out.episodes);
-        setEpisode((current) => (current === 'whole' || out.episodes.some((e) => e.number === current) ? current : 'whole'));
+        // Keep the episode the file name says; the picker lists it either way.
+        setEpisode((current) => current);
       })
       .catch(() => { if (!cancelled) setEpisodes([]); });
     return () => { cancelled = true; };
@@ -222,57 +224,86 @@ function FixDialog({ uuid, editToken, item, onClose, onFixed }: {
 
         <div className="lib-results" aria-live="polite">
           {results && results.length === 0 && <p className="lib-empty">No titles found. Try another spelling, or paste the TMDB or IMDb id.</p>}
-          {results?.map((choice) => (
-            <button
-              key={`${choice.type}-${choice.tmdbId}`} type="button"
-              className={`lib-choice${picked?.tmdbId === choice.tmdbId && picked.type === choice.type ? ' is-picked' : ''}`}
-              onClick={() => setPicked(choice)} aria-pressed={picked?.tmdbId === choice.tmdbId && picked.type === choice.type}
-            >
-              {choice.poster ? <img src={choice.poster} alt="" loading="lazy" /> : <span className="lib-poster-ph" aria-hidden="true" />}
-              <span className="lib-choice-copy" data-i18n-preserve>
-                <strong>{choice.title}{choice.year ? ` (${choice.year})` : ''}</strong>
-                {choice.originalTitle && choice.originalTitle !== choice.title && <small>{choice.originalTitle}</small>}
-                <small className="lib-overview">{choice.overview}</small>
-              </span>
-            </button>
-          ))}
+          {results?.map((choice) => {
+            const isPicked = picked?.tmdbId === choice.tmdbId && picked.type === choice.type;
+            return (
+              <div key={`${choice.type}-${choice.tmdbId}`} className="lib-choice-wrap">
+                <button
+                  type="button" className={`lib-choice${isPicked ? ' is-picked' : ''}`}
+                  onClick={() => setPicked(choice)} aria-pressed={isPicked}
+                >
+                  {choice.poster ? <img src={choice.poster} alt="" loading="lazy" /> : <span className="lib-poster-ph" aria-hidden="true" />}
+                  <span className="lib-choice-copy" data-i18n-preserve>
+                    <strong>{choice.title}{choice.year ? ` (${choice.year})` : ''}</strong>
+                    {choice.originalTitle && choice.originalTitle !== choice.title && <small>{choice.originalTitle}</small>}
+                    <small className="lib-overview">{choice.overview}</small>
+                  </span>
+                </button>
+                <a className="lib-tmdb-link" href={`https://www.themoviedb.org/${choice.type}/${choice.tmdbId}`} target="_blank" rel="noopener noreferrer">
+                  {setupCopy('View on TMDB', 'View on TMDB')} ↗
+                </a>
+              </div>
+            );
+          })}
         </div>
 
         {picked && picked.type === 'tv' && (
           <div className="lib-episode">
-            <label className="setup-field">
-              <span>Season</span>
-              <select
-                value={season === 'keep' ? 'keep' : season ?? ''}
-                disabled={!seasons}
-                onChange={(event) => setSeason(event.target.value === 'keep' ? 'keep' : event.target.value === '' ? null : Number(event.target.value))}
-              >
-                {!seasons && <option value="">{setupCopy('Loading seasons…', 'Loading seasons…')}</option>}
-                {isRange && <option value="keep">{setupCopy('Seasons {{from}} to {{to}} (keep the pack)', 'Seasons {{from}} to {{to}} (keep the pack)', { from: item.seasonStart, to: item.seasonEnd })}</option>}
-                {seasons?.map((s) => (
-                  <option key={s.number} value={s.number}>
-                    {[
-                      s.number === 0 ? setupCopy('Specials', 'Specials') : setupCopy('Season {{number}}', 'Season {{number}}', { number: s.number }),
-                      s.year,
-                      s.episodes != null ? setupCount(s.episodes, 'episode', 'episodes') : null,
-                    ].filter(Boolean).join(' · ')}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="setup-field">
-              <span>Episode</span>
-              <select
-                value={episode}
-                disabled={season === 'keep' || typeof season !== 'number'}
-                onChange={(event) => setEpisode(event.target.value === 'whole' ? 'whole' : Number(event.target.value))}
-              >
-                <option value="whole">{setupCopy('Whole season (pack)', 'Whole season (pack)')}</option>
-                {episodes?.map((e) => (
-                  <option key={e.number} value={e.number} data-i18n-preserve>{episodeOptionLabel(e)}</option>
-                ))}
-              </select>
-            </label>
+            {seasons && seasons.length === 0 ? (
+              <>
+                <label className="setup-field">
+                  <span>Season</span>
+                  <input inputMode="numeric" value={typeof season === 'number' ? String(season) : ''} onChange={(event) => { const v = event.target.value.replace(/\D/g, '').slice(0, 3); setSeason(v === '' ? null : Number(v)); }} />
+                </label>
+                <label className="setup-field">
+                  <span>Episode</span>
+                  <input inputMode="numeric" placeholder={setupCopy('Whole season', 'Whole season')} value={typeof episode === 'number' ? String(episode) : ''} onChange={(event) => { const v = event.target.value.replace(/\D/g, '').slice(0, 4); setEpisode(v === '' ? 'whole' : Number(v)); }} />
+                </label>
+                <p className="lib-hint">TMDB lists no seasons for this show, so type them in. Leave the episode empty for a whole season.</p>
+              </>
+            ) : (
+              <>
+                <label className="setup-field">
+                  <span>Season</span>
+                  <select
+                    value={season === 'keep' ? 'keep' : season ?? ''}
+                    disabled={!seasons}
+                    onChange={(event) => setSeason(event.target.value === 'keep' ? 'keep' : event.target.value === '' ? null : Number(event.target.value))}
+                  >
+                    {!seasons && <option value="">{setupCopy('Loading seasons…', 'Loading seasons…')}</option>}
+                    {isRange && <option value="keep">{setupCopy('Seasons {{from}} to {{to}} (keep the pack)', 'Seasons {{from}} to {{to}} (keep the pack)', { from: item.seasonStart, to: item.seasonEnd })}</option>}
+                    {seasons && typeof impliedSeason === 'number' && !seasons.some((s) => s.number === impliedSeason) && (
+                      <option value={impliedSeason}>{setupCopy('Season {{number}} (from the file name)', 'Season {{number}} (from the file name)', { number: impliedSeason })}</option>
+                    )}
+                    {seasons?.map((s) => (
+                      <option key={s.number} value={s.number}>
+                        {[
+                          s.number === 0 ? setupCopy('Specials', 'Specials') : setupCopy('Season {{number}}', 'Season {{number}}', { number: s.number }),
+                          s.year,
+                          s.episodes != null ? setupCount(s.episodes, 'episode', 'episodes') : null,
+                        ].filter(Boolean).join(' · ')}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="setup-field">
+                  <span>Episode</span>
+                  <select
+                    value={episode}
+                    disabled={season === 'keep' || typeof season !== 'number'}
+                    onChange={(event) => setEpisode(event.target.value === 'whole' ? 'whole' : Number(event.target.value))}
+                  >
+                    <option value="whole">{setupCopy('Whole season (pack)', 'Whole season (pack)')}</option>
+                    {typeof episode === 'number' && !(episodes ?? []).some((e) => e.number === episode) && (
+                      <option value={episode} data-i18n-preserve>{episodeOptionLabel({ number: episode, name: null, airDate: null })}</option>
+                    )}
+                    {episodes?.map((e) => (
+                      <option key={e.number} value={e.number} data-i18n-preserve>{episodeOptionLabel(e)}</option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
             <p className="lib-hint">
               {isPack
                 ? setupCopy('This item holds several videos, so a whole season usually fits.', 'This item holds several videos, so a whole season usually fits.')

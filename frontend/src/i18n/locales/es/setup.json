@@ -1200,6 +1200,10 @@
     "Choose a season.": "Elige una temporada.",
     "episode": "episodio",
     "episodes": "episodios",
-    "TMDB did not answer. Try again.": "TMDB no respondió. Inténtalo de nuevo."
+    "TMDB did not answer. Try again.": "TMDB no respondió. Inténtalo de nuevo.",
+    "Whole season": "Temporada completa",
+    "TMDB lists no seasons for this show, so type them in. Leave the episode empty for a whole season.": "TMDB no muestra temporadas para esta serie, así que escríbelas. Deja el episodio vacío para una temporada completa.",
+    "Season {{number}} (from the file name)": "Temporada {{number}} (del nombre del archivo)",
+    "View on TMDB": "Ver en TMDB"
   }
 }

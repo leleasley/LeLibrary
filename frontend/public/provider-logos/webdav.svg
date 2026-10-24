@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="WebDAV">
+  <rect width="64" height="64" rx="14" fill="#1f6feb"/>
+  <path d="M14 22a4 4 0 0 1 4-4h9l4 4h15a4 4 0 0 1 4 4v14a4 4 0 0 1-4 4H18a4 4 0 0 1-4-4z" fill="#fff"/>
+  <circle cx="32" cy="52" r="3" fill="#fff"/>
+  <path d="M32 44v5M22 52h7M35 52h7" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

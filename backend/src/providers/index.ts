@@ -4,6 +4,7 @@ const { getTorBoxDownloads, getTorBoxFiles, getTorBoxStreamLink, getTorBoxPlayba
 const { getRealDebridDownloads, getRealDebridFiles, getRealDebridStreamLink } = require('./realdebrid.ts');
 const alldebrid = require('./alldebrid.ts');
 const premiumize = require('./premiumize.ts');
+const webdav = require('./webdav.ts');
 
 // Single source of truth for provider UI + manifests + cache keys.
 // `cat` = catalog id prefix (torbox-movies, rd-movies, ...).
@@ -16,8 +17,11 @@ const PROVIDER_META: Record<string, ProviderMetaRow> = {
   realdebrid: { id: 'realdebrid', label: 'Real-Debrid', short: 'RD', logo: '/provider-logos/realdebrid.svg', cat: 'rd',     key: 'rdApiKey',      badge: 'rd' },
   alldebrid:  { id: 'alldebrid',  label: 'AllDebrid',   short: 'AD', logo: '/provider-logos/alldebrid.png',  cat: 'ad',     key: 'adApiKey',      badge: 'ad' },
   premiumize: { id: 'premiumize', label: 'Premiumize',  short: 'PM', logo: '/provider-logos/premiumize.svg', cat: 'pm',     key: 'pmApiKey',      badge: 'pm' },
+  // Self-host only (WEBDAV_SOURCE=on): the user's own WebDAV server. Its
+  // secret is three fields (address, user, password); `key` is the address.
+  webdav:     { id: 'webdav',     label: 'WebDAV',      short: 'DAV', logo: '/provider-logos/webdav.svg',   cat: 'dav',    key: 'webdavUrl',     badge: 'dav' },
 };
-const PROVIDER_ORDER = ['torbox', 'realdebrid', 'alldebrid', 'premiumize'];
+const PROVIDER_ORDER = ['torbox', 'realdebrid', 'alldebrid', 'premiumize', 'webdav'];
 
 // item.source → provider id (torrents/usenet/webdl all live on TorBox)
 const SOURCE_TO_PROVIDER: Record<string, string | null> = {
@@ -27,7 +31,22 @@ const SOURCE_TO_PROVIDER: Record<string, string | null> = {
   realdebrid: 'realdebrid',
   alldebrid: 'alldebrid',
   premiumize: 'premiumize',
+  webdav: 'webdav',
 };
+
+// Is this provider usable for a config? WebDAV also needs the self-host
+// switch and a valid address; every other provider just needs its key.
+function hasProviderKey(config: any, id: string) {
+  if (id === 'webdav') return webdav.webdavEnabled() && webdav.davConnection(config) !== null;
+  return Boolean(config[PROVIDER_META[id].key]);
+}
+
+// The value that identifies a provider's library in the scope id. WebDAV uses
+// address + user (not the password), so a new password keeps the library.
+function scopeValue(config: any, id: string) {
+  if (id === 'webdav') return webdav.davConnection(config).scopeSeed;
+  return config[PROVIDER_META[id].key];
+}
 
 function providerBySource(source: any) {
   return SOURCE_TO_PROVIDER[source] || null;
@@ -54,18 +73,18 @@ function activeProviders(config: any = {}) {
     // legacy `provider` selection: infer it from key presence so a saved key
     // is usable. Legacy tokens always carry `provider`, so they never reach
     // this branch and behave exactly as before.
-    ids = PROVIDER_ORDER.filter(id => config[PROVIDER_META[id].key]);
+    ids = PROVIDER_ORDER.filter(id => hasProviderKey(config, id));
   }
   else if (raw === 'both') ids = ['torbox', 'realdebrid'];
   else ids = raw.split(',').map(s => s.trim()).filter(Boolean);
-  return PROVIDER_ORDER.filter(id => ids.includes(id) && config[PROVIDER_META[id].key]);
+  return PROVIDER_ORDER.filter(id => ids.includes(id) && hasProviderKey(config, id));
 }
 
 // Stable per-user key from the sorted id:key pairs: a full hash, never a
 // plain key fragment (replaces the old slice(-6) namespace).
 function getUserKey(config: any = {}) {
   const pairs = activeProviders(config)
-    .map(id => `${id}:${config[PROVIDER_META[id].key]}`)
+    .map(id => `${id}:${scopeValue(config, id)}`)
     .sort()
     .join('|');
   if (!pairs) return '';
@@ -79,6 +98,7 @@ async function downloadsForProvider(config: any, id: any, options: any = {}) {
     case 'realdebrid': return getRealDebridDownloads(config.rdApiKey);
     case 'alldebrid':  return alldebrid.getAlldebridDownloads(config.adApiKey);
     case 'premiumize': return premiumize.getPremiumizeDownloads(config.pmApiKey);
+    case 'webdav':     return webdav.listWebdavLibrary(config, { fresh: Boolean(options.requireFresh) });
     default:           return [];
   }
 }
@@ -174,6 +194,7 @@ async function getFiles(config: any, item: any) {
     if (id === 'realdebrid') return getRealDebridFiles(config.rdApiKey, item.id);
     if (id === 'alldebrid')  return alldebrid.getAlldebridFiles(config.adApiKey, item.id);
     if (id === 'premiumize') return premiumize.getPremiumizeFiles(config.pmApiKey, item.id);
+    if (id === 'webdav')     return webdav.getWebdavFiles(config, item);
   } catch (e) { /* ignore */ }
   return [];
 }
@@ -185,6 +206,8 @@ async function getStreamLink(config: any, item: any, fileId: any) {
     if (id === 'realdebrid') return getRealDebridStreamLink(config.rdApiKey, item.id, fileId);
     if (id === 'alldebrid')  return alldebrid.getAlldebridStreamLink(config.adApiKey, item.id, fileId);
     if (id === 'premiumize') return premiumize.getPremiumizeStreamLink(config.pmApiKey, item.id, fileId);
+    // WebDAV has no provider link: playback streams through LeLibrary
+    // (routes/stream.ts handleOwnedPlay -> webdav.proxyWebdavFile).
   } catch (e) { /* ignore */ }
   return null;
 }

@@ -118,7 +118,7 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
   const CAT_EXTRA = [{ name: 'skip' }];
 
   const catalogs = [];
-  const EMOJI = { torbox: '🎬', realdebrid: '🔴', alldebrid: '💠', premiumize: '🧲' };
+  const EMOJI = { torbox: '🎬', realdebrid: '🔴', alldebrid: '💠', premiumize: '🧲', webdav: '🗄️' };
 
   // ── Library rows (My Movies / My Series / My Anime) ──
   // buildLibrary('movies') adds just that catalogue type so each row can be

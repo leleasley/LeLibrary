@@ -1776,7 +1776,8 @@ async function buildStreamsInner(config = {}, tmdbApiKey, type, tmdbId, season, 
     // per-item endpoint returns, so reuse it and skip a provider round trip
     // per matched copy. Other providers reshape their files, so they keep the
     // explicit call.
-    const embedded = providerId === 'torbox' ? embeddedItemFiles(item) : [];
+    // WebDAV items carry their files from the scan too.
+    const embedded = providerId === 'torbox' || providerId === 'webdav' ? embeddedItemFiles(item) : [];
     const files = embedded.length ? embedded : await getFiles();
     let videoFiles = files.filter(f => isVideoFile(f.name || f.short_name));
     // Always drop Sample/trailer junk ("/Sample/" folder or "-sample.mkv" suffix).

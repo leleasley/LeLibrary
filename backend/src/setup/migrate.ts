@@ -143,6 +143,7 @@ function maskId(id: string): string {
 const SECRET_FIELDS = new Set([
   'torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey',
   'mdblistKey', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey',
+  'webdavUrl', 'webdavUser', 'webdavPassword',
 ]);
 
 // The old account model sealed provider keys as raw strings (enc.seal), not

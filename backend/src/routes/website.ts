@@ -554,7 +554,7 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
   // hand out debrid keys. Operators who keep their instance private can set
   // SELFHOST_CONFIGS_SECRET in .env and send it as the `x-selfhost-secret`
   // header to get full configs (including keys) back.
-  const KEY_FIELDS = ['torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'mdblistKey'];
+  const KEY_FIELDS = ['torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'erdbToken', 'rpdbKey', 'fanartKey', 'omdbKey', 'mdblistKey', 'webdavUrl', 'webdavUser', 'webdavPassword'];
   function selfhostAuthorized(req: any) {
     return selfhostAccess.authorized(req);
   }

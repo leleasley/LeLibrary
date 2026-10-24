@@ -383,8 +383,13 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
       // they live inside native folders there. Explicit Home Row selections
       // must win over the collection-only default. Legacy/self-host installs
       // have no folders, so pack sources are ordinary visible rows.
+      // A Home-managed Nuvio setup (Settle In / Move In) decides Home through
+      // its Home rows; its pack and folder sources live in their folders
+      // (read through the compact curated catalogues), so they stay off Home
+      // unless picked as a Home row.
+      const folderOnly = curatedRefSet.has(cid) || folderRefs.includes(cid);
       if (hidden.has(cid) || (config.wizard === true && curatedRefSet.has(cid) && !enabled.includes(cid)) ||
-        (integration === 'nuvio' && homeManaged && homeRefs.includes(cid) && !selectedHomeCatalogs.has(`lib-${cid}`))) row.showInHome = false;
+        (integration === 'nuvio' && homeManaged && (homeRefs.includes(cid) || folderOnly) && !selectedHomeCatalogs.has(`lib-${cid}`))) row.showInHome = false;
       catalogs.push(row);
     }
   }

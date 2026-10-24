@@ -23,6 +23,7 @@
 
 ### Fixes
 
+- Settle In and Move In setups with a collection pack no longer put every pack source on the Nuvio Home screen as separate rows. The collections stay in Collections, and Home shows only the rows you picked. Push to Nuvio again after updating.
 - The LeLibrary Movie Collection and other collections pushed to Nuvio now use a poster shape Nuvio accepts. Nuvio TV rejected the old value, which could stop the collection from working and turn posters landscape after pinning it. Push to Nuvio again to update an existing collection. Hotfixed on lelibrary.uk.
 - Public Nuvio collections imported in Move In keep their poster shape instead of turning landscape.
 - Switching the stream display style from Custom back to LeLibrary (or any other style) now takes effect. The old custom style used to stay in place until the setup was deleted. Hotfixed on lelibrary.uk.

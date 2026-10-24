@@ -70,3 +70,40 @@ test('the shared extras array is never mutated across rows', () => {
   const movies = m.catalogs.find((c) => c.id === 'torbox-movies');
   assert.deepEqual(movies.extra, [{ name: 'skip' }]);
 });
+
+// Main2 on prod (2026-10-24): a Move In setup with a collection pack. Its
+// folders read the compact curated catalogues, but every pack source was also
+// a visible lib-* catalogue, so Nuvio put the whole pack on Home as rows.
+function setupWith(tier, extra) {
+  const config = { ...KEYS, ...extra };
+  Object.defineProperty(config, '__configScope', { value: { type: 'config', uuid: '3f0c1d1e-1111-4222-8333-444455556666', tier }, enumerable: false });
+  return config;
+}
+const packRows = (m) => m.catalogs.filter((c) => /^lib-/.test(c.id));
+
+test('Move In and Settle In collection packs stay in their folders, not on Nuvio Home', () => {
+  for (const tier of ['full', 'partial']) {
+    const m = getConfiguredManifest(BASE, setupWith(tier, { nuvioCollectionPacks: ['lelibrary-special'] }), { integration: 'nuvio' });
+    const rows = packRows(m);
+    assert.ok(rows.length > 20, `${tier}: pack sources still listed for folders (${rows.length})`);
+    for (const c of rows) {
+      assert.equal(c.showInHome, false, `${tier} ${c.id}: off Nuvio TV Home`);
+      assert.ok(offMobileHome(c), `${tier} ${c.id}: off Nuvio Mobile/Desktop Home`);
+    }
+  }
+});
+
+test('a pack source picked as a Home row stays on Home', () => {
+  const homeRows = [{ enabled: true, source: { id: 'lib-trending_movies', type: 'movie' } }];
+  const m = getConfiguredManifest(BASE, setupWith('full', { nuvioCollectionPacks: ['lelibrary-special'] }), { integration: 'nuvio', homeRows });
+  const picked = m.catalogs.find((c) => c.id === 'lib-trending_movies');
+  assert.notEqual(picked.showInHome, false);
+  assert.equal(offMobileHome(picked), false);
+});
+
+test('Quick Look and Stremio keep pack sources as ordinary rows', () => {
+  const quick = packRows(getConfiguredManifest(BASE, setupWith('quick', { nuvioCollectionPacks: ['lelibrary-special'] }), { integration: 'nuvio' }));
+  assert.ok(quick.length > 0 && quick.every((c) => c.showInHome !== false));
+  const stremio = packRows(getConfiguredManifest(BASE, setupWith('full', { nuvioCollectionPacks: ['lelibrary-special'] }), { integration: 'stremio' }));
+  assert.ok(stremio.every((c) => c.showInHome !== false));
+});

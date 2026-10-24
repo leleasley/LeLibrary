@@ -28,6 +28,7 @@
 
 ### Fixes
 
+- The LeLibrary hub's Movies and Shows tiles on Nuvio now show their current artwork and animated focus GIFs. Setups made before that artwork kept the old cover and no animation; push to Nuvio again to update.
 - A Nuvio push for a library with no franchise films no longer keeps saying the library is still building.
 - Pushing to Nuvio now cleans up broken Home entries that the Nuvio mobile app left behind.
 - The server log no longer records install links or the names of played files.

@@ -86,6 +86,21 @@ function isAnimeCollection(collection = {}) {
   );
 }
 
+// The LeLibrary hub's Movies and Shows tiles use LeLibrary's own artwork, not
+// a choice the person made: a setup saved before the current art keeps the old
+// cover and no focus GIF in its document, so the current art is applied here,
+// for every push and export. Mirrors frontend shared/collection-doc.ts.
+const HUB_FOLDER_ART: Record<string, { coverImageUrl: string; focusGifUrl: string }> = {
+  'folder-lelibrary-hub-movies': {
+    coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-movies-v3.jpg',
+    focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-movies-focus-v3.gif',
+  },
+  'folder-lelibrary-hub-shows': {
+    coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-shows-v3.jpg',
+    focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-shows-focus-v3.gif',
+  },
+};
+
 function compileCollectionPlan({ collections = [], homeRows = [], sources = [], externalSources = [], manifestId = '', integration = 'nuvio', hideAnime = false } = {}) {
   const safeCollections = Array.isArray(collections) ? collections : [];
   const safeHomeRows = Array.isArray(homeRows) ? homeRows : [];
@@ -245,8 +260,10 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
     ...collection,
     folders: (Array.isArray(collection?.folders) ? collection.folders : []).map((folder, fi) => {
       if (hideAnime && isAnimeFolder(folder)) return null;
+      const hubArt = HUB_FOLDER_ART[String(folder?.id || '')];
       return ({
       ...folder,
+      ...(hubArt ? { ...hubArt, focusGifEnabled: true } : {}),
       id: folder?.id || `folder-${ci}-${fi}`,
       catalogSources: (Array.isArray(folder?.catalogSources) ? folder.catalogSources : [])
         .map((source) => visit(source, 'folder'))

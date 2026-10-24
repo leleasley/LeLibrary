@@ -37,7 +37,7 @@ const SIDE_FILE_MAX_BYTES = 1024 * 1024;
 const VIDEO_RE = /\.(mkv|mp4|avi|m4v|ts|m2ts|webm|mov|wmv)$/i;
 const SIDE_RE = /\.(nfo|sfv)$/i;
 
-export type DavErrorCode = 'disabled' | 'bad-url' | 'blocked-host' | 'unreachable' | 'auth' | 'not-webdav' | 'timeout' | 'too-large';
+export type DavErrorCode = 'disabled' | 'bad-url' | 'blocked-host' | 'insecure-http' | 'unreachable' | 'auth' | 'not-webdav' | 'timeout' | 'too-large';
 export interface DavConnection { base: URL; basePath: string; auth: string; scopeSeed: string; cacheKey: string }
 export interface DavFile { id: string; name: string; short_name: string; size: number }
 export interface WebdavItem {
@@ -95,7 +95,7 @@ async function pinnedFor(base: URL): Promise<(host: string, options: any, cb: an
   if (!records.length) throw davError('unreachable');
   const isPrivate = records.some((record) => isBlockedIp(record.address));
   if (isPrivate && !allowPrivate()) throw davError('blocked-host');
-  if (!isPrivate && base.protocol === 'http:') throw davError('blocked-host');
+  if (!isPrivate && base.protocol === 'http:') throw davError('insecure-http');
   // Prefer IPv4 when a name has both: "localhost" lists ::1 first, while
   // rclone and most NAS servers listen on IPv4 only.
   const { address, family } = records.find((record) => record.family === 4) || records[0];
@@ -106,7 +106,7 @@ async function pinnedFor(base: URL): Promise<(host: string, options: any, cb: an
 }
 
 function requestError(err: any): Error & { code: DavErrorCode } {
-  if (err && typeof err.code === 'string' && ['disabled', 'bad-url', 'blocked-host', 'unreachable', 'auth', 'not-webdav', 'timeout', 'too-large'].includes(err.code)) return err;
+  if (err && typeof err.code === 'string' && ['disabled', 'bad-url', 'blocked-host', 'insecure-http', 'unreachable', 'auth', 'not-webdav', 'timeout', 'too-large'].includes(err.code)) return err;
   const message = String((err && err.message) || '');
   if (/maxContentLength|maxBodyLength/i.test(message)) return davError('too-large');
   if (err && (err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT' || /timeout/i.test(message))) return davError('timeout');
@@ -310,7 +310,12 @@ async function verifyWebdav({ url, user, password }: { url?: string; user?: stri
 // are followed here (at most 3), each target re-checked against the host
 // rules, and the password is only sent to the WebDAV server's own origin.
 // When the player hangs up, the upstream download stops.
-const PROXY_IDLE_MS = 60000;
+// No bytes from the WebDAV server for this long ends the stream (headers and
+// body alike). WEBDAV_IDLE_MS overrides it (tests).
+function proxyIdleMs(): number {
+  const ms = Number(process.env.WEBDAV_IDLE_MS);
+  return Number.isFinite(ms) && ms > 0 ? ms : 60000;
+}
 // Content-Type is never taken from the WebDAV server: these bytes are served
 // from LeLibrary's own address, so an HTML file there must never render as a
 // page. Only video files are served, typed by extension, sandboxed.
@@ -342,7 +347,7 @@ async function proxyWebdavFile(req: any, res: any, config: any, ref: string): Pr
     for (let hop = 0; ; hop++) {
       upstream = await davRequest(conn, {
         method, url: target, headers, responseType: 'stream', decompress: false,
-        maxContentLength: -1, timeout: PROXY_IDLE_MS, signal: controller.signal,
+        maxContentLength: -1, timeout: proxyIdleMs(), signal: controller.signal,
         auth: target.origin === conn.base.origin,
       });
       const location = upstream.headers && upstream.headers.location;
@@ -357,7 +362,7 @@ async function proxyWebdavFile(req: any, res: any, config: any, ref: string): Pr
   } catch (err: any) {
     if (controller.signal.aborted) return;
     const code = requestError(err).code;
-    return fail(code === 'timeout' ? 504 : 502, code === 'blocked-host'
+    return fail(code === 'timeout' ? 504 : 502, code === 'blocked-host' || code === 'insecure-http'
       ? 'This WebDAV server is not allowed by this LeLibrary install.'
       : 'The WebDAV server could not be reached right now. Try again in a moment.');
   }
@@ -374,8 +379,20 @@ async function proxyWebdavFile(req: any, res: any, config: any, ref: string): Pr
     if (value != null) res.setHeader(name, value);
   }
   if (method === 'HEAD' || status === 304) { upstream.data.destroy(); res.end(); return; }
+  // axios' timeout only covers the wait for headers; watch the body too.
+  let idle: ReturnType<typeof setTimeout> | null = null;
+  const armIdle = () => {
+    if (idle) clearTimeout(idle);
+    idle = setTimeout(() => { controller.abort(); upstream.data.destroy(new Error('webdav idle')); }, proxyIdleMs());
+  };
+  armIdle();
+  upstream.data.on('data', armIdle);
   await new Promise<void>((resolve) => {
-    require('node:stream').pipeline(upstream.data, res, () => { if (!res.writableEnded) controller.abort(); resolve(); });
+    require('node:stream').pipeline(upstream.data, res, () => {
+      if (idle) clearTimeout(idle);
+      if (!res.writableEnded) controller.abort();
+      resolve();
+    });
   });
 }
 

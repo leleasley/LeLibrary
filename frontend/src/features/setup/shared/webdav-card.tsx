@@ -19,6 +19,8 @@ const ERRORS: Record<string, string> = {
   auth: 'The username or password was not accepted.',
   'not-webdav': 'This address did not answer as a WebDAV server.',
   timeout: 'The server took too long to answer.',
+  'insecure-http': 'Use https:// for a server outside your own network, so the password is not sent in clear text.',
+  'too-large': 'This WebDAV folder is too big to read in one go. Point the address at a smaller folder.',
 };
 
 export function webdavErrorMessage(code: string | undefined): string {

@@ -114,7 +114,7 @@ test('local and plain-HTTP servers are refused unless allowed', async () => {
     process.env.WEBDAV_ALLOW_PRIVATE = '';
     await assert.rejects(webdav.listWebdavLibrary(config(dav), { deps: { cache: memoryCache() } }), { code: 'blocked-host' });
     const plain = await webdav.verifyWebdav({ url: 'http://93.184.215.14/dav/', user: 'u', password: 'p' });
-    assert.equal(plain.error, 'blocked-host');
+    assert.equal(plain.error, 'insecure-http');
   } finally { process.env.WEBDAV_ALLOW_PRIVATE = 'on'; await dav.close(); }
 });
 

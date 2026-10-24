@@ -321,12 +321,12 @@ async function handleOwnedPlay(req: any, res: any, deps: StreamDeps) {
 
 function mountStreamRoutes(app: Express, deps: StreamDeps): void {
   const { rateLimit } = require('../middleware/rate-limit.ts') as {
-    rateLimit: (options?: { windowMs?: number; max?: number }) => (req: any, res: any, next: () => void) => void;
+    rateLimit: (options?: { windowMs?: number; max?: number; scope?: string }) => (req: any, res: any, next: () => void) => void;
   };
-  const debridPlayLimit = rateLimit({ windowMs: 60_000, max: 120 });
+  const debridPlayLimit = rateLimit({ windowMs: 60_000, max: 120, scope: 'debrid' });
   // WebDAV playback streams through here, so every seek is a request (and a
   // household shares one IP); debrid playback is one redirect per play.
-  const webdavPlayLimit = rateLimit({ windowMs: 60_000, max: 1200 });
+  const webdavPlayLimit = rateLimit({ windowMs: 60_000, max: 1200, scope: 'webdav' });
   const playLimit = (req: any, res: any, next: () => void) => (req.params.source === 'webdav' ? webdavPlayLimit : debridPlayLimit)(req, res, next);
   app.get('/:token/play/:source/:itemId/:fileId', playLimit, (req, res) => handleOwnedPlay(req, res, deps));
   app.get('/:token/play/:source/:itemId/:fileId/:name', playLimit, (req, res) => handleOwnedPlay(req, res, deps));

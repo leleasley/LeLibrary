@@ -1126,6 +1126,8 @@
     "Matching is paused until this setup has a TMDB key. Add one in Edit settings.": "El emparejamiento está en pausa hasta que esta configuración tenga una clave de TMDB. Añádela en Editar ajustes.",
     "http://192.168.1.10:8080/": "http://192.168.1.10:8080/",
     "Remove this server": "Quitar este servidor",
+    "Use https:// for a server outside your own network, so the password is not sent in clear text.": "Usa https:// para un servidor fuera de tu red, para que la contraseña no viaje sin cifrar.",
+    "This WebDAV folder is too big to read in one go. Point the address at a smaller folder.": "Esta carpeta WebDAV es demasiado grande para leerla de una vez. Usa la dirección de una carpeta más pequeña.",
     "Your own WebDAV server": "Tu propio servidor WebDAV",
     "Add a NAS, rclone, Nextcloud or Synology WebDAV share. Its videos are matched and shown like your debrid library. Playback streams through this LeLibrary server.": "Añade una carpeta WebDAV de un NAS, rclone, Nextcloud o Synology. Sus vídeos se identifican y se muestran como tu biblioteca debrid. La reproducción pasa por este servidor de LeLibrary.",
     "Server address": "Dirección del servidor",

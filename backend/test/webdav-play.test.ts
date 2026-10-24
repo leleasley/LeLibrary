@@ -151,3 +151,20 @@ test('seeking a lot does not hit the play rate limit', async () => {
     });
   } finally { await dav.close(); }
 });
+
+test('a WebDAV server that stalls mid-file is dropped after the idle limit', async () => {
+  const dav = await createFakeWebdav({ files: { [NAME]: Buffer.alloc(10 * 1024 * 1024, 1) } });
+  dav.server.slow = true; // sends 1 KB, then nothing
+  process.env.WEBDAV_IDLE_MS = '300';
+  try {
+    await withApp(cfg(dav), async (base) => {
+      const res = await fetch(playUrl(base, NAME));
+      const started = Date.now();
+      await res.arrayBuffer().catch(() => null); // ends (or errors) once the proxy gives up
+      assert.ok(Date.now() - started < 3000, 'the stalled stream was cut off');
+      const t = Date.now();
+      while (dav.closed.count === 0 && Date.now() - t < 1500) await new Promise((r) => setTimeout(r, 25));
+      assert.equal(dav.closed.count, 1, 'the upstream request was closed');
+    });
+  } finally { delete process.env.WEBDAV_IDLE_MS; await dav.close(); }
+});

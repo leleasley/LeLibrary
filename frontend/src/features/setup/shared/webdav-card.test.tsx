@@ -42,6 +42,8 @@ describe('WebDAV connection check', () => {
       .toEqual({ ok: false, message: 'The username or password was not accepted.' });
     expect(webdavErrorMessage('blocked-host')).toBe('This server is on your local network. Set WEBDAV_ALLOW_PRIVATE=on for this LeLibrary install to use it.');
     expect(webdavErrorMessage('something-new')).toBe('LeLibrary could not reach this server.');
+    expect(webdavErrorMessage('insecure-http')).toBe('Use https:// for a server outside your own network, so the password is not sent in clear text.');
+    expect(webdavErrorMessage('too-large')).toBe('This WebDAV folder is too big to read in one go. Point the address at a smaller folder.');
   });
 
   it('needs an address before checking', async () => {

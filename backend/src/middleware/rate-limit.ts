@@ -5,6 +5,7 @@ import type { Request, Response, NextFunction, RequestHandler } from 'express';
 export interface RateLimitOptions {
   windowMs?: number;
   max?: number;
+  scope?: string;
 }
 
 export interface RateLimitApi {
@@ -18,7 +19,7 @@ type BucketStore = Map<string, Bucket>;
 
 const rateLimitBuckets: BucketStore = new Map();
 
-function rateLimit({ windowMs = 60000, max = 30 }: RateLimitOptions = {}): RequestHandler {
+function rateLimit({ windowMs = 60000, max = 30, scope = '' }: RateLimitOptions = {}): RequestHandler {
   return (req: Request, res: Response, next: NextFunction) => {
     const ip = (req as unknown as { ip?: string }).ip || req.connection?.remoteAddress || 'unknown';
     const now = Date.now();
@@ -28,7 +29,8 @@ function rateLimit({ windowMs = 60000, max = 30 }: RateLimitOptions = {}): Reque
     // parameterised routes), falling back to the raw path.
     const route = req.route as { path?: string | string[] } | undefined;
     const pattern = Array.isArray(route?.path) ? route.path.join(',') : (route?.path || req.path);
-    const key = `${ip} ${req.method} ${pattern}`;
+    // `scope` separates limiters that share a route (WebDAV vs debrid playback).
+    const key = `${ip} ${req.method} ${pattern}${scope ? ` ${scope}` : ''}`;
     let bucket = rateLimitBuckets.get(key);
     if (!bucket || now - bucket.start > windowMs) {
       bucket = { start: now, count: 0 };

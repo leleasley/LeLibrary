@@ -76,7 +76,9 @@ async function finishPendingPush(payload = {}) {
   const userKey = providers.getUserKey(config);
   const lang = config.lang || 'en-US';
   const franchise = require('../catalog/franchise-collections.ts');
-  if (franchise.getCollections(userKey, lang).length === 0) {
+  // Retry only while the projection is still being built; a finished build
+  // with no franchise films is ready (the push then has no folders to add).
+  if (franchise.getCollections(userKey, lang).length === 0 && !franchise.collectionsBuilt(userKey, lang)) {
     // Not indexed: nothing else is warm-keeping this scope, so ask the legacy
     // build for it and come back.
     if (!require('../library/engine.ts').isIndexed()) {

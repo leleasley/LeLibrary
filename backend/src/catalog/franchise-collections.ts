@@ -432,6 +432,12 @@ function getCollectionMeta(userKey, lang, token) {
   return map ? map.get(String(token)) || null : null;
 }
 
+// Has a build finished for this user+lang, even one that found nothing? A
+// library with no franchise films must not look "still building" forever.
+function collectionsBuilt(userKey, lang) {
+  return collMetaCache.has(`${userKey}:${lang}`);
+}
+
 // All collection metas for a user+lang (empty if not built yet).
 function getCollections(userKey, lang) {
   const map = collMetaCache.get(`${userKey}:${lang}`);
@@ -456,8 +462,9 @@ async function refreshCollectionsProjection({ userKey, downloads, tmdbApiKey, la
   collectionsRefreshInFlight.add(flightKey);
   try {
     const metas = await buildCollectionsCatalog(downloads, tmdbApiKey, lang, enhance);
+    // An empty result is a finished build too (see collectionsBuilt).
+    cacheCollections(userKey, lang, metas);
     if (metas.length > 0) {
-      cacheCollections(userKey, lang, metas);
       // Lazy: routes/shared pulls the addon router chain; a top-level import
       // here would cycle back through the routes that require this module.
       const { TTL_CATALOG } = require('../runtime/refresh.ts');
@@ -479,6 +486,7 @@ export interface FranchiseCollectionsApi {
   cacheCollections: any;
   getCollectionMeta: any;
   getCollections: any;
+  collectionsBuilt: any;
   getCollectionForMovie: any;
   getMovieDetail: any;
   refreshCollectionsProjection: any;
@@ -486,4 +494,4 @@ export interface FranchiseCollectionsApi {
   filterOfficialCollectionMembers: any;
 }
 
-module.exports = { buildCollectionsCatalog, cacheCollections, getCollectionMeta, getCollections, getCollectionForMovie, getMovieDetail, refreshCollectionsProjection, collectionKey, filterOfficialCollectionMembers } satisfies FranchiseCollectionsApi;
+module.exports = { buildCollectionsCatalog, cacheCollections, getCollectionMeta, getCollections, collectionsBuilt, getCollectionForMovie, getMovieDetail, refreshCollectionsProjection, collectionKey, filterOfficialCollectionMembers } satisfies FranchiseCollectionsApi;

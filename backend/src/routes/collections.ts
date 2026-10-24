@@ -19,7 +19,7 @@ const pictoriumWarm = require('../runtime/pictorium-warm.ts');
 const providers = require('../providers/index.ts');
 const { buildCatalog, buildMeta, buildStreams, populateTmdbIndexFromMetas, applyStreamNotices, libraryStreamFmtFp } = require('../catalog/builder.ts');
 const { buildDiscoveryCatalog, buildDiscoveryMeta, buildDiscoveryStreams, discoveryStreamKeyParts } = require('../catalog/discovery.ts');
-const { buildCollectionsCatalog, cacheCollections, getCollectionMeta, getCollections, getCollectionForMovie } = require('../catalog/franchise-collections.ts');
+const { buildCollectionsCatalog, cacheCollections, getCollectionMeta, getCollections, collectionsBuilt, getCollectionForMovie } = require('../catalog/franchise-collections.ts');
 const { normaliseNuvioArtwork, absoluteLocalArtwork } = require('../catalog/collection-artwork.ts');
 const { compileCollectionPlan } = require('../catalog/collection-plan.ts');
 const { posterFp } = require('./shared.ts') as { posterFp: (config: Record<string, any>) => string };
@@ -277,7 +277,9 @@ function mountCollectionsRoutes(app: Express, deps: CollectionsDeps): void {
         console.warn('[Nuvio] Collections cache restore failed:', err.message);
       }
     }
-    if (metas.length === 0 && ownedOnly) {
+    // Built and empty (the library owns no franchise films): nothing to wait for.
+    const builtEmpty = () => metas.length === 0 && collectionsBuilt(userKey, lang);
+    if (metas.length === 0 && ownedOnly && !builtEmpty()) {
       try {
         // A cold library is provider pagination plus TMDB matching: minutes on a
         // big account. The push that asks for owned franchise folders must not
@@ -294,7 +296,7 @@ function mountCollectionsRoutes(app: Express, deps: CollectionsDeps): void {
           // duplicates the whole provider scan + TMDB match the worker is
           // already running.
           try { require('../library/engine.ts').noteConfig(req.params.token, config); } catch { /* engine absent */ }
-          await waitFor(() => getCollections(userKey, lang).length > 0, OWNED_BUILD_BUDGET_MS);
+          await waitFor(() => getCollections(userKey, lang).length > 0 || collectionsBuilt(userKey, lang), OWNED_BUILD_BUDGET_MS);
           metas = getCollections(userKey, lang);
         } else {
           const settled = await settleWithin(
@@ -312,6 +314,11 @@ function mountCollectionsRoutes(app: Express, deps: CollectionsDeps): void {
       } catch (err: any) {
         console.warn('[Nuvio] Owned collection build failed:', err.message);
       }
+    }
+    if (metas.length === 0 && ownedOnly && builtEmpty()) {
+      // The owned collection exists with no folders, so a push is complete
+      // (not "still building") and simply has no franchise folders to add.
+      return res.json(renderCollections([buildLibraryCollection([], addonId, config)]));
     }
     if (metas.length === 0) {
       // A cold cache builds in the background. Returning the rest of the native

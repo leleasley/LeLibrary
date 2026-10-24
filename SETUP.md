@@ -163,6 +163,13 @@ services:
       # Optional. Stream sources your server cannot reach (for example if
       # Torrentio blocks its IP): shown as unavailable and skipped.
       # - STREAM_ADDONS_UNAVAILABLE=torrentio
+      # Optional. Use your own WebDAV server (NAS, rclone, Nextcloud,
+      # Synology) as a library. Playback streams through this server.
+      # - WEBDAV_SOURCE=on
+      # Also needed when that WebDAV server is on your own network.
+      # - WEBDAV_ALLOW_PRIVATE=on
+      # Minutes between WebDAV scans (default 15, minimum 5).
+      # - WEBDAV_SCAN_MINUTES=15
     volumes:
       # Keeps the generated setup key if CONFIG_SECRET is left empty.
       - lelibrary_data:/data
@@ -333,6 +340,46 @@ Keep `DB_PASSWORD` too: it is still the admin login for backups and upgrades
 line back and restart.
 
 ---
+
+## Your own WebDAV server (self-hosted only)
+
+A self-hosted LeLibrary can read a WebDAV server as a library, next to (or
+instead of) a debrid service: a NAS, `rclone serve webdav`, Nextcloud or
+Synology. Its videos are matched and shown in My Movies and My Shows like a
+debrid library.
+
+1. Add `WEBDAV_SOURCE=on` to the `lelibrary` environment in `compose.yml`.
+   If the WebDAV server is on your own network (almost always), add
+   `WEBDAV_ALLOW_PRIVATE=on` too. Never set these on an instance other people
+   use. Restart with `docker compose up -d`.
+2. In the setup, open **Your own WebDAV server** under the providers, fill in
+   the address, username and password, and press **Check connection**.
+
+Example addresses:
+
+| Server | Address |
+|---|---|
+| rclone `serve webdav` | `http://192.168.1.10:8080/` |
+| Nextcloud | `https://cloud.example.com/remote.php/dav/files/USERNAME/` (use an app password if you have two-factor login) |
+| Synology | `https://nas.local:5006/` |
+
+Good to know:
+
+- **Playback goes through this LeLibrary server.** Players cannot send a
+  WebDAV password, so LeLibrary fetches the file and passes it on, with
+  seeking. It uses this server's bandwidth.
+- **New files show up within 15 minutes** (`WEBDAV_SCAN_MINUTES`). Each folder
+  that holds videos becomes one title; videos loose in a "Movies" style folder
+  are one title each.
+- **Plain `http://` is only accepted for servers on your own network.** Over
+  the internet, use `https://`.
+- **Only Basic login is supported** (every server above uses it). Apache
+  setups that require Digest login are not.
+- **Using TorBox, Premiumize, AllDebrid or Real-Debrid?** Add that service
+  directly instead of its WebDAV: it plays straight from the service and is
+  faster.
+- The address, username and password are sealed like your other keys and are
+  never shown again. To change them, type them again.
 
 ## Nuvio playback (Settle In and Move In only)
 

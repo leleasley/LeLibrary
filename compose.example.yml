@@ -29,6 +29,13 @@ services:
       # Optional. Stream sources your server cannot reach (for example if
       # Torrentio blocks its IP): shown as unavailable and skipped.
       # - STREAM_ADDONS_UNAVAILABLE=torrentio
+      # Optional. Use your own WebDAV server (NAS, rclone, Nextcloud,
+      # Synology) as a library. Playback streams through this server.
+      # - WEBDAV_SOURCE=on
+      # Also needed when that WebDAV server is on your own network.
+      # - WEBDAV_ALLOW_PRIVATE=on
+      # Minutes between WebDAV scans (default 15, minimum 5).
+      # - WEBDAV_SCAN_MINUTES=15
     volumes:
       # Keeps the generated setup key if CONFIG_SECRET is left empty.
       - lelibrary_data:/data

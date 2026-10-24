@@ -13,6 +13,10 @@
 - After this update every library re-checks its existing matches once in the background, so old wrong matches get corrected. A title that is already matched never disappears because of the re-check: if nothing better is found, it keeps its current match.
 - If your TMDB key is missing or TMDB stops accepting it, matching now pauses and your Library page tells you, instead of reporting TMDB as unavailable and giving up on those files. Once the key works again, the paused files are matched straight away.
 
+### Self-hosted
+
+- Your own WebDAV server as a library: a NAS, rclone, Nextcloud or Synology share can be added in setup next to (or instead of) a debrid service. Its videos are matched and shown in My Movies and My Shows, and play with seeking through your LeLibrary server. Self-hosted only, off unless WEBDAV_SOURCE=on is set; see SETUP.md.
+
 ### Faster
 
 - Your own copies now appear straight away when you open a title. LeLibrary only asks your debrid service for the playback link when you press play, and the video still streams directly from your debrid service. This also stops opening titles from using up your debrid service's link limits.

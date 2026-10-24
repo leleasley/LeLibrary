@@ -122,3 +122,32 @@ test('the WebDAV play route is off unless the self-host switch is on', async () 
     });
   } finally { process.env.WEBDAV_SOURCE = 'on'; await dav.close(); }
 });
+
+test('only video files are served, as video, and never as a page that could run script', async () => {
+  const dav = await createFakeWebdav({ files: { [NAME]: BODY, '/x.html': Buffer.from('<script>alert(1)</script>') } });
+  try {
+    await withApp(cfg(dav), async (base) => {
+      const page = await fetch(`${base}/good/play/webdav/w:abc/${ref('/x.html')}/a.mkv`);
+      assert.equal(page.status, 404);
+      assert.equal(dav.log.length, 0);
+      const video = await fetch(playUrl(base, NAME), { headers: { Range: 'bytes=0-9' } });
+      assert.equal(video.headers.get('content-type'), 'video/x-matroska');
+      assert.equal(video.headers.get('content-security-policy'), 'sandbox');
+      assert.equal(video.headers.get('x-content-type-options'), 'nosniff');
+    });
+  } finally { await dav.close(); }
+});
+
+test('seeking a lot does not hit the play rate limit', async () => {
+  const dav = await createFakeWebdav({ files: { [NAME]: BODY } });
+  try {
+    await withApp(cfg(dav), async (base) => {
+      const statuses = [];
+      for (let i = 0; i < 130; i++) {
+        const r = await fetch(playUrl(base, NAME), { headers: { Range: `bytes=${i}-${i + 9}` } });
+        statuses.push(r.status); await r.arrayBuffer();
+      }
+      assert.ok(statuses.every((s) => s === 206), `got ${[...new Set(statuses)].join(',')}`);
+    });
+  } finally { await dav.close(); }
+});

@@ -1125,6 +1125,7 @@
     "TMDB did not accept this setup's key, so matching is paused. Update the key in Edit settings and matching starts again by itself.": "TMDB did not accept this setup's key, so matching is paused. Update the key in Edit settings and matching starts again by itself.",
     "Matching is paused until this setup has a TMDB key. Add one in Edit settings.": "Matching is paused until this setup has a TMDB key. Add one in Edit settings.",
     "http://192.168.1.10:8080/": "http://192.168.1.10:8080/",
+    "Remove this server": "Remove this server",
     "Your own WebDAV server": "Your own WebDAV server",
     "Add a NAS, rclone, Nextcloud or Synology WebDAV share. Its videos are matched and shown like your debrid library. Playback streams through this LeLibrary server.": "Add a NAS, rclone, Nextcloud or Synology WebDAV share. Its videos are matched and shown like your debrid library. Playback streams through this LeLibrary server.",
     "Server address": "Server address",

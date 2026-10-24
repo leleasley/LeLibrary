@@ -337,6 +337,16 @@ export function providerSelection(draft: SetupKeysDraft): string {
     .join(',');
 }
 
+// Typed keys plus keys the server already holds (an edit page never sees a
+// WebDAV address: it is never revealed), in provider order.
+export function providerSelectionWithSaved(draft: SetupKeysDraft, savedServices: readonly string[] = []): string {
+  const present = new Set(savedServices);
+  return DEBRID_FIELD_TO_PROVIDER
+    .filter(([field]) => present.has(field) || (draft[field] ?? '').trim())
+    .map(([, id]) => id)
+    .join(',');
+}
+
 export function providerSelectionFromServices(services: readonly string[]): string {
   const present = new Set(services);
   return DEBRID_FIELD_TO_PROVIDER

@@ -311,7 +311,14 @@ async function verifyWebdav({ url, user, password }: { url?: string; user?: stri
 // rules, and the password is only sent to the WebDAV server's own origin.
 // When the player hangs up, the upstream download stops.
 const PROXY_IDLE_MS = 60000;
-const PASS_HEADERS = ['content-range', 'content-length', 'accept-ranges', 'content-type', 'etag', 'last-modified'];
+// Content-Type is never taken from the WebDAV server: these bytes are served
+// from LeLibrary's own address, so an HTML file there must never render as a
+// page. Only video files are served, typed by extension, sandboxed.
+const PASS_HEADERS = ['content-range', 'content-length', 'accept-ranges', 'etag', 'last-modified'];
+const VIDEO_TYPES: Record<string, string> = {
+  mkv: 'video/x-matroska', mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm', avi: 'video/x-msvideo',
+  ts: 'video/mp2t', m2ts: 'video/mp2t', mov: 'video/quicktime', wmv: 'video/x-ms-wmv',
+};
 
 async function proxyWebdavFile(req: any, res: any, config: any, ref: string): Promise<void> {
   const fail = (status: number, message: string) => {
@@ -321,7 +328,8 @@ async function proxyWebdavFile(req: any, res: any, config: any, ref: string): Pr
   res.set('Cache-Control', 'private, no-store, no-transform');
   const conn = webdavEnabled() ? davConnection(config) : null;
   const rel = fileRefToPath(ref);
-  if (!conn || !rel) return fail(404, 'Not found');
+  if (!conn || !rel || !VIDEO_RE.test(rel)) return fail(404, 'Not found');
+  const contentType = VIDEO_TYPES[(rel.split('.').pop() || '').toLowerCase()] || 'application/octet-stream';
   const method = req.method === 'HEAD' ? 'HEAD' : 'GET';
   const headers: Record<string, string> = { 'Accept-Encoding': 'identity' };
   if (typeof req.headers.range === 'string') headers.Range = req.headers.range;
@@ -358,6 +366,9 @@ async function proxyWebdavFile(req: any, res: any, config: any, ref: string): Pr
   if (status === 404) { upstream.data.destroy(); return fail(404, 'This file is no longer on the WebDAV server.'); }
   if (![200, 206, 304, 416].includes(status)) { upstream.data.destroy(); return fail(502, 'The WebDAV server could not send this file right now.'); }
   res.status(status);
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Security-Policy', 'sandbox');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
   for (const name of PASS_HEADERS) {
     const value = upstream.headers[name];
     if (value != null) res.setHeader(name, value);

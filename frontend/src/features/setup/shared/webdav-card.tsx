@@ -40,10 +40,20 @@ export async function checkWebdav(values: WebdavFields, post: Post): Promise<{ o
   return { ok: true, message: setupCopy('Connected: {{videos}} videos in {{folders}} folders.', `Connected: ${videos} videos in ${folders} folders.`, { videos, folders }) };
 }
 
-export function WebdavCard({ enabled, values, onChange, savedServices, savedScope }: {
+const WEBDAV_FIELDS = ['webdavUrl', 'webdavUser', 'webdavPassword'] as const;
+
+// Forget the server: drop the typed fields and clear the ones the server holds.
+export function webdavRemoval(values: SetupKeysDraft, savedServices: readonly string[] = []): { next: SetupKeysDraft; clear: string[] } {
+  const next = { ...values };
+  for (const field of WEBDAV_FIELDS) delete next[field];
+  return { next, clear: WEBDAV_FIELDS.filter((field) => savedServices.includes(field)) };
+}
+
+export function WebdavCard({ enabled, values, onChange, onRemove, savedServices, savedScope }: {
   enabled: boolean;
   values: SetupKeysDraft;
   onChange: (next: SetupKeysDraft) => void;
+  onRemove?: ((field: keyof SetupKeysDraft) => void) | undefined;
   savedServices?: readonly string[] | undefined;
   savedScope?: 'setup' | 'import' | undefined;
 }) {
@@ -100,6 +110,19 @@ export function WebdavCard({ enabled, values, onChange, savedServices, savedScop
           {saved && !values.webdavUrl && <small>Type the address and login again to check them.</small>}
           {result && <p className={result.ok ? 'setup-note is-ok' : 'setup-note is-error'} role="status">{result.message}</p>}
         </div>
+        {saved && savedScope !== 'import' && onRemove && (
+          <button
+            type="button" className="setup-secondary is-danger"
+            onClick={() => {
+              const { next, clear } = webdavRemoval(values, savedServices ?? []);
+              for (const field of clear) onRemove(field as keyof SetupKeysDraft);
+              setResult(null);
+              onChange(next);
+            }}
+          >
+            Remove this server
+          </button>
+        )}
         <p className="setup-note">Using TorBox, Premiumize, AllDebrid or Real-Debrid? Add that service above instead: it plays straight from the service and is faster.</p>
       </div>
     </div>

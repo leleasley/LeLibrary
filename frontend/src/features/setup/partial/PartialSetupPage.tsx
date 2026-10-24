@@ -44,6 +44,7 @@ import {
   STREAM_PRESETS,
   cleanKeys,
   providerSelection,
+  providerSelectionWithSaved,
   pruneConfig,
   type CustomStreamRow,
   type SetupKeysDraft,
@@ -516,7 +517,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
           <TierStep id="home-rows" index={6} title="Home rows" hidden={wizard.step !== 5} lede="Choose the library and discovery rows on your home screen.">
             <HomeRowsSection
               rows={homeRows} onChange={setHomeRows} platform={platform}
-              prefix={hubPrefix(providerSelection(keys))}
+              prefix={hubPrefix(providerSelectionWithSaved(keys, edit?.savedServices ?? []))}
             />
             <details className="advanced">
               <summary>Rename your library rows</summary>

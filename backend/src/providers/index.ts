@@ -176,6 +176,9 @@ async function fetchDownloads(config: any = {}, { only = null, useCache = true, 
     if (useCache) {
       try { await setCachedDownloads(config, results); } catch { /* non-fatal */ }
     }
+    // Which providers failed this time, so a library sync keeps their rows
+    // instead of removing them (a NAS asleep next to a working TorBox).
+    Object.defineProperty(results, 'failedProviders', { value: failures.map((failure) => failure.id), enumerable: false });
     return results;
   })();
   downloadsInFlight.set(requestKey, pending);

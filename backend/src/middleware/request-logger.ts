@@ -9,13 +9,16 @@ export interface RequestLoggerApi {
   maskSensitivePath: (path: string) => string;
 }
 
-const TOKEN_PART = /^[A-Za-z0-9_-]{16,}$/;
+const LEGACY_TOKEN = /^[A-Za-z0-9_-]{16,}$/;
+const INSTALL_TOKEN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[A-Za-z0-9_-]+$/i;
 
 function maskSensitivePath(path: string): string {
-  const segments = path.split('/').map((segment) => (segment.split('.').some((part) => TOKEN_PART.test(part)) ? '[token]' : segment));
-  // /:token/play/:source/:itemId/:fileId/:name
+  const segments = path.split('/').map((segment) => (LEGACY_TOKEN.test(segment) || INSTALL_TOKEN.test(segment) ? '[token]' : segment));
+  // /:token/play/:source/:itemId/:fileId/:name. A WebDAV file id is the
+  // file's path (base64url), so file ids are never logged either.
   const play = segments.indexOf('play');
   if (play > 0) segments[play - 1] = '[token]';
+  if (play > 0 && segments.length > play + 3) segments[play + 3] = '[file]';
   if (play > 0 && segments.length > play + 4) segments[play + 4] = '[name]';
   return segments.join('/');
 }

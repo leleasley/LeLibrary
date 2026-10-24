@@ -57,6 +57,7 @@ import {
   STREAM_PRESETS,
   cleanKeys,
   providerSelection,
+  providerSelectionWithSaved,
   pruneConfig,
   type CustomStreamRow,
   type SetupKeysDraft,
@@ -378,7 +379,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
   const missingImportedServices = (stagedImport?.services ?? []).filter(
     (service) => !String((keys as Record<string, string | undefined>)[service] ?? '').trim(),
   );
-  const providerPrefix = hubPrefix(providerSelection(keys));
+  const providerPrefix = hubPrefix(providerSelectionWithSaved(keys, edit?.savedServices ?? []));
   const ownedFranchiseOn = homeRows.some((row) => row._nativeFranchiseCollection === true);
 
   function toggleOwnedFranchise(on: boolean) {

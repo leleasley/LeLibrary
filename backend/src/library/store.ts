@@ -326,7 +326,10 @@ async function failedMatchRows(scopeId, limit = 500) {
 // Reconcile a provider snapshot against the local index. Only new/changed rows
 // are written; unchanged rows are left untouched; rows no longer present are
 // soft-deleted. Returns the diff counts.
-async function reconcile(scopeId, records) {
+// keepProviders: providers whose fetch failed this sync. Their rows are never
+// removed (nothing of theirs was staged because nothing could be read).
+async function reconcile(scopeId, records, { keepProviders = [] } = {}) {
+  const keep = Array.isArray(keepProviders) ? keepProviders.map(String) : [];
   const pool = await ensure();
   const started = Date.now();
   const client = await pool.connect();
@@ -440,9 +443,10 @@ async function reconcile(scopeId, records) {
               (SELECT count(*)::int FROM lib_items WHERE scope_id = $1 AND removed_at IS NULL AND source_id NOT LIKE '%#film:%') AS live_count,
               md5(coalesce(string_agg(provider || chr(1) || source_id, ' ' ORDER BY provider, source_id), '')) AS fingerprint
          FROM lib_items i
-        WHERE i.scope_id = $1 AND i.removed_at IS NULL AND i.source_id NOT LIKE '%#film:%' AND NOT EXISTS (
+        WHERE i.scope_id = $1 AND i.removed_at IS NULL AND i.source_id NOT LIKE '%#film:%'
+          AND NOT (i.provider = ANY($2::text[])) AND NOT EXISTS (
           SELECT 1 FROM ll_sync_stage s WHERE s.provider = i.provider AND s.source_id = i.source_id
-        )`, [scopeId]
+        )`, [scopeId, keep]
     );
     const removal = removeRows[0] || { removed: 0, live_count: 0, fingerprint: '' };
     const removedCount = Number(removal.removed || 0);
@@ -505,16 +509,18 @@ async function reconcile(scopeId, records) {
     if (decision.apply && removedCount) {
       await client.query(
         `UPDATE lib_items i SET removed_at=now(), match_status='skipped'
-          WHERE i.scope_id=$1 AND i.removed_at IS NULL AND i.source_id NOT LIKE '%#film:%' AND NOT EXISTS (
+          WHERE i.scope_id=$1 AND i.removed_at IS NULL AND i.source_id NOT LIKE '%#film:%'
+            AND NOT (i.provider = ANY($2::text[])) AND NOT EXISTS (
             SELECT 1 FROM ll_sync_stage s WHERE s.provider=i.provider AND s.source_id=i.source_id
-          )`, [scopeId]
+          )`, [scopeId, keep]
       );
       // Films carved out of a box set (library/boxsets.ts) go with their box set.
       await client.query(
         `UPDATE lib_items c SET removed_at=now(), match_status='skipped'
-          WHERE c.scope_id=$1 AND c.removed_at IS NULL AND c.source_id LIKE '%#film:%' AND NOT EXISTS (
+          WHERE c.scope_id=$1 AND c.removed_at IS NULL AND c.source_id LIKE '%#film:%'
+            AND NOT (c.provider = ANY($2::text[])) AND NOT EXISTS (
             SELECT 1 FROM ll_sync_stage s WHERE s.provider=c.provider AND s.source_id=split_part(c.source_id, '#film:', 1)
-          )`, [scopeId]
+          )`, [scopeId, keep]
       );
     }
     await client.query('COMMIT');

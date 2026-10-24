@@ -101,6 +101,13 @@ test('index store: reconcile, match, catalog and search are incremental', { skip
   assert.strictEqual(counts.changed, 1);
   assert.strictEqual(counts.unchanged, 3);
 
+  // A provider that failed this sync keeps its rows: nothing it owns is
+  // removed, even though none of its items were staged.
+  const keptSync = await store.reconcile(scopeId, [], { keepProviders: [...new Set(records(items).map((r) => r.provider))] });
+  assert.strictEqual(keptSync.removed, 0);
+  const stillLive = await pool.query(`SELECT count(*)::int AS n FROM lib_items WHERE scope_id=$1 AND removed_at IS NULL`, [scopeId]);
+  assert.strictEqual(stillLive.rows[0].n, items.length);
+
   // A removed item is soft-deleted and disappears from catalog reads.
   counts = await store.reconcile(scopeId, records(items.slice(1)));
   assert.strictEqual(counts.removed, 1);

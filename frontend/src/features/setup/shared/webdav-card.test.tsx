@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { WebdavCard, checkWebdav, webdavErrorMessage } from '@/features/setup/shared/webdav-card';
-import { providerSelection, providerSelectionFromServices } from '@/features/setup/shared/config-contract';
+import { WebdavCard, checkWebdav, webdavErrorMessage, webdavRemoval } from '@/features/setup/shared/webdav-card';
+import { providerSelection, providerSelectionFromServices, providerSelectionWithSaved } from '@/features/setup/shared/config-contract';
+import { hubPrefix } from '@/features/setup/shared/collection-doc';
 
 describe('WebDAV setup card', () => {
   it('is not shown unless this server allows WebDAV', () => {
@@ -53,5 +54,32 @@ describe('WebDAV provider selection', () => {
   it('a WebDAV address makes webdav an active provider, after the debrid ones', () => {
     expect(providerSelection({ torboxApiKey: 'x', webdavUrl: 'http://nas/' })).toBe('torbox,webdav');
     expect(providerSelectionFromServices(['webdavUrl', 'webdavPassword'])).toBe('webdav');
+  });
+});
+
+describe('WebDAV library rows', () => {
+  it('a WebDAV-only setup uses the dav catalogues the manifest lists', () => {
+    expect(hubPrefix('webdav')).toBe('dav');
+    expect(hubPrefix('torbox,webdav')).toBe('torbox');
+  });
+
+  it('editing a setup counts a saved (hidden) WebDAV server as active', () => {
+    expect(providerSelectionWithSaved({}, ['webdavUrl', 'webdavUser', 'webdavPassword', 'tmdbApiKey'])).toBe('webdav');
+    expect(providerSelectionWithSaved({ torboxApiKey: 'tb' }, ['webdavUrl'])).toBe('torbox,webdav');
+    expect(providerSelectionWithSaved({ rdApiKey: 'rd' })).toBe('realdebrid');
+  });
+});
+
+describe('removing a WebDAV server', () => {
+  it('a saved server offers a remove button', () => {
+    const html = renderToStaticMarkup(
+      <WebdavCard enabled values={{}} onChange={() => {}} onRemove={() => {}} savedServices={['webdavUrl', 'webdavUser', 'webdavPassword']} />,
+    );
+    expect(html).toContain('Remove this server');
+  });
+
+  it('removal clears all three fields and asks the server to forget the saved ones', () => {
+    expect(webdavRemoval({ torboxApiKey: 'tb', webdavUrl: 'http://nas/', webdavUser: 'me' }, ['webdavUrl', 'webdavUser', 'webdavPassword', 'tmdbApiKey']))
+      .toEqual({ next: { torboxApiKey: 'tb' }, clear: ['webdavUrl', 'webdavUser', 'webdavPassword'] });
   });
 });

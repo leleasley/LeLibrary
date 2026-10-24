@@ -462,7 +462,7 @@ export function ProviderKeys({ values, onChange, onRemove, savedServices, savedS
           );
         })}
       </div>
-      <WebdavCard enabled={webdavSource} values={values} onChange={onChange} savedServices={savedServices} savedScope={savedScope} />
+      <WebdavCard enabled={webdavSource} values={values} onChange={onChange} onRemove={onRemove} savedServices={savedServices} savedScope={savedScope} />
       <p className="setup-note">
         Add at least one. Keys are sealed on the server.
       </p>

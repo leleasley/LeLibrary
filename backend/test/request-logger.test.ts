@@ -10,13 +10,22 @@ test('v5.5 install tokens (uuid.secret) are never logged', () => {
 
 test('play links never log the file name or file id', () => {
   assert.equal(maskSensitivePath('/abc.def/play/webdav/w:ebe7e18d6cac2ff7656f5112/L01vdmllcy9IZWF0Lm1rdg/Heat.1995.1080p.mkv'),
-    '/[token]/play/webdav/w:ebe7e18d6cac2ff7656f5112/[token]/[name]');
+    '/[token]/play/webdav/w:ebe7e18d6cac2ff7656f5112/[file]/[name]');
   assert.equal(maskSensitivePath('/uuid-only-token-aaaaaaaaaa/play/usenet/12345/7/Show.S01E02.1080p.mkv'),
-    '/[token]/play/usenet/12345/7/[name]');
+    '/[token]/play/usenet/12345/[file]/[name]');
 });
 
 test('ordinary paths are left readable', () => {
   assert.equal(maskSensitivePath('/api/verify/webdav'), '/api/verify/webdav');
   assert.equal(maskSensitivePath('/configure/quick'), '/configure/quick');
   assert.equal(maskSensitivePath('/health'), '/health');
+});
+
+test('catalog file names stay readable; only real tokens are masked', () => {
+  assert.equal(maskSensitivePath('/cf0af601-cb0f-47b8-9c32-7d0cb2e960b8.Zx9secret/catalog/movie/torbox-collections.json'),
+    '/[token]/catalog/movie/torbox-collections.json');
+});
+
+test('a short WebDAV file id (which decodes to the path) is never logged', () => {
+  assert.equal(maskSensitivePath('/tok-aaaaaaaaaaaaaaaa/play/webdav/w:ab12/L2EubWt2/a.mkv'), '/[token]/play/webdav/w:ab12/[file]/[name]');
 });

@@ -177,6 +177,7 @@ const PROVIDER_PREFIX: Record<string, string> = {
   realdebrid: 'rd',
   alldebrid: 'ad',
   premiumize: 'pm',
+  webdav: 'dav',
 };
 
 export function hubPrefix(providerCsv: string): string | null {

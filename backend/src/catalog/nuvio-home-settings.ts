@@ -27,8 +27,25 @@ function homeSettingsPayload(
   };
 }
 
-interface NuvioHomeSettingsApi {
-  homeSettingsPayload: (settings: unknown, items: unknown[], hideUnreleased: boolean | null) => Record<string, unknown>;
+// Nuvio Mobile writes a Home entry it does not recognise back with the whole
+// key in addon_id and an empty type and catalog id (it re-splits the key on
+// ":", while these keys use "_"). Neither app can match such an entry to a
+// catalogue, and each push used to lengthen its key. Drop the broken entries
+// of any LeLibrary install; the push re-adds proper ones for its own
+// catalogues. Other addons' entries are never touched.
+function dropMalformedHomeItems(items: unknown[]): Record<string, unknown>[] {
+  return (Array.isArray(items) ? items : []).filter((raw) => {
+    const item = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+    if (item['is_collection'] === true || item['isCollection'] === true) return true;
+    const addonId = String(item['addon_id'] ?? '');
+    const broken = !String(item['catalog_id'] ?? '') && !String(item['type'] ?? '') && /^community\.lelibrary[^_]*_/.test(addonId);
+    return !broken;
+  }) as Record<string, unknown>[];
 }
 
-module.exports = { homeSettingsPayload } satisfies NuvioHomeSettingsApi;
+interface NuvioHomeSettingsApi {
+  homeSettingsPayload: (settings: unknown, items: unknown[], hideUnreleased: boolean | null) => Record<string, unknown>;
+  dropMalformedHomeItems: (items: unknown[]) => Record<string, unknown>[];
+}
+
+module.exports = { homeSettingsPayload, dropMalformedHomeItems } satisfies NuvioHomeSettingsApi;

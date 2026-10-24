@@ -30,6 +30,7 @@ const libraryCollections = require('../catalog/nuvio-library-collections.ts') as
 import type { PlaybackSettings } from '../catalog/nuvio-playback-settings.ts';
 const homeSettings = require('../catalog/nuvio-home-settings.ts') as {
   homeSettingsPayload: (settings: unknown, items: unknown[], hideUnreleased: boolean | null) => Record<string, unknown>;
+  dropMalformedHomeItems: (items: unknown[]) => Record<string, unknown>[];
 };
 const playbackSettings = require('../catalog/nuvio-playback-settings.ts') as {
   normalisePlaybackSettings: (input: unknown) => PlaybackSettings | null;
@@ -504,7 +505,7 @@ async function syncNuvioHomeOrder(token: string, profileIndex: number, manifest:
     }) as { settings_json?: unknown } | unknown[];
     const row = (Array.isArray(pulled) ? pulled[0] : pulled) as { settings_json?: unknown };
     const settings = parseNuvioJson(row?.settings_json, {}) as { show_catalog_type?: boolean; hide_unreleased_content?: boolean; items?: Record<string, unknown>[] };
-    const items = Array.isArray(settings.items) ? settings.items.slice() : [];
+    const items = homeSettings.dropMalformedHomeItems(Array.isArray(settings.items) ? settings.items.slice() : []);
     // Nuvio collection Home entries do not have addon/type/catalog fields.
     // Canonicalise them separately so an older, pinned collection record can
     // be replaced instead of surviving under the empty-catalogue key.

@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Library
+
+- Box sets are now split into their films. A folder like a complete Fast and Furious, Critters or Mission: Impossible collection used to fail as one item; now every film inside shows up in your movies on its own and plays its own file. Nothing in your debrid account is moved or copied.
+- Films are matched against the franchise's TMDB collection first, then one by one. A film LeLibrary cannot match with confidence is left for you to fix, without holding up the rest of the box set.
+- Miniseries split into parts inside a box set (for example Hogfather or Going Postal) show up in your shows, one episode per part.
+- UK and US spellings of a title (Colour and Color) are treated as the same when matching box sets.
+
 ### Faster
 
 - Your own copies now appear straight away when you open a title. LeLibrary only asks your debrid service for the playback link when you press play, and the video still streams directly from your debrid service. This also stops opening titles from using up your debrid service's link limits.

@@ -1122,6 +1122,8 @@
     "Your Nuvio sign-in has expired. Connect Nuvio again in Step 1.": "Tu sesión de Nuvio ha caducado. Vuelve a conectar Nuvio en el paso 1.",
     "Blocks this server right now, so it is turned off here. It still works if you self-host LeLibrary.": "Bloquea este servidor ahora mismo, así que aquí está desactivado. Sigue funcionando si alojas LeLibrary tú mismo.",
     "Unavailable": "No disponible",
+    "TMDB did not accept this setup's key, so matching is paused. Update the key in Edit settings and matching starts again by itself.": "TMDB no aceptó la clave de esta configuración, así que el emparejamiento está en pausa. Actualiza la clave en Editar ajustes y el emparejamiento se reanudará solo.",
+    "Matching is paused until this setup has a TMDB key. Add one in Edit settings.": "El emparejamiento está en pausa hasta que esta configuración tenga una clave de TMDB. Añádela en Editar ajustes.",
     "Add a TMDB key to this setup to fix matches.": "Añade una clave de TMDB a esta configuración para corregir coincidencias.",
     "Anyone with this setup's id can open this page. Set a password in the setup settings to keep your file names private.": "Cualquiera con el id de esta configuración puede abrir esta página. Pon una contraseña en los ajustes de la configuración para mantener privados los nombres de tus archivos.",
     "Change this match": "Cambiar esta coincidencia",

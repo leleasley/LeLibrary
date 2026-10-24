@@ -13,6 +13,7 @@ const store = require('./store.ts');
 const overrides = require('./overrides.ts');
 const sharedFixes = require('./shared-fixes.ts');
 const boxsets = require('./boxsets.ts');
+const tmdbKey = require('./tmdb-key.ts');
 const metrics = require('./metrics.ts');
 const { pLimit } = require('./util.ts');
 
@@ -219,6 +220,17 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
   let matched = 0;
   let failed = 0;
   const sharedMatchLookups = { searches: new Map(), seasonCounts: new Map(), stats: { searchHits: 0, searchMisses: 0 } };
+
+  // A missing or rejected TMDB key would fail every row and spend its retries.
+  // Leave the queue alone until the key works (tmdb-key.ts).
+  if (!offlineEnabled()) {
+    const keyState = await tmdbKey.check(tmdbApiKey);
+    const before = tmdbKey.noteScope(scopeId, keyState);
+    if (keyState === 'missing' || keyState === 'rejected') {
+      return { processed: 0, matched: 0, failed: 0, keyProblem: keyState, candidateSearches: 0, candidateSearchDedupeHits: 0, seasonLookups: 0 };
+    }
+    if (keyState === 'ok' && before !== 'ok') await store.requeueSearchFailures(scopeId).catch(() => 0);
+  }
 
   for (;;) {
     if (budgetMs > 0 && Date.now() - started > budgetMs) break;

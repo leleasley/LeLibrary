@@ -461,7 +461,11 @@ export function LibraryPanel({ uuid, editToken }: { uuid: string; editToken: str
         </div>
       )}
 
-      {summary && !summary.canFix && (
+      {summary?.tmdbKeyProblem === 'rejected' ? (
+        <p className="lib-note">TMDB did not accept this setup's key, so matching is paused. Update the key in Edit settings and matching starts again by itself.</p>
+      ) : summary?.tmdbKeyProblem === 'missing' ? (
+        <p className="lib-note">Matching is paused until this setup has a TMDB key. Add one in Edit settings.</p>
+      ) : summary && !summary.canFix && (
         <p className="lib-note">Add a TMDB key to this setup to fix matches.</p>
       )}
 

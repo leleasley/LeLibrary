@@ -20,6 +20,7 @@ export interface LibrarySummary {
   lastStatus: string | null;
   hasPassword: boolean;
   canFix: boolean;
+  tmdbKeyProblem?: 'missing' | 'rejected' | null;
 }
 
 export interface LibraryItem {

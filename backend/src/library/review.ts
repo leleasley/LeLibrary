@@ -157,6 +157,8 @@ async function summary(scopeId: string) {
     })),
     lastSyncAt: scope?.last_sync_at ? new Date(scope.last_sync_at).toISOString() : null,
     lastStatus: typeof scope?.last_status === 'string' ? scope.last_status : null,
+    // Matching is paused while the setup's TMDB key is missing or rejected.
+    tmdbKeyProblem: require('./tmdb-key.ts').scopeProblem(scopeId),
   };
 }
 

@@ -283,6 +283,21 @@ async function requeueFailedMatches(scopeId, itemId = null) {
   return rowCount || 0;
 }
 
+// The scope's TMDB key works again: rows that failed (or ran out of retries)
+// only because TMDB could not be searched get a fresh start.
+async function requeueSearchFailures(scopeId) {
+  const pool = db.getPool();
+  if (!pool) return 0;
+  const { rowCount } = await pool.query(
+    `UPDATE lib_items SET match_status='pending', match_attempts=0, match_next_retry_at=NULL, match_version=$2
+      WHERE scope_id=$1 AND removed_at IS NULL AND match_status IN ('failed', 'skipped')
+        AND (match_error LIKE 'search-unavailable%' OR match_error LIKE 'lookup-error%')`,
+    [scopeId, retryVersion()]
+  );
+  if (rowCount) await markQueueStats(scopeId, await counts(scopeId));
+  return rowCount || 0;
+}
+
 async function failedMatchRows(scopeId, limit = 500) {
   const pool = db.getPool();
   if (!pool) return [];
@@ -991,6 +1006,7 @@ export interface StoreApi {
   requeueReparsedSeasonRanges: any;
   terminalizeExhaustedMatches: any;
   requeueFailedMatches: any;
+  requeueSearchFailures: any;
   failedMatchRows: any;
   massRemovalDecision: any;
   reconcile: any;  counts: any;
@@ -1029,6 +1045,7 @@ module.exports = {
   requeueReparsedSeasonRanges,
   terminalizeExhaustedMatches,
   requeueFailedMatches,
+  requeueSearchFailures,
   failedMatchRows,
   massRemovalDecision,
   reconcile,

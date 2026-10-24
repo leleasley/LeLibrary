@@ -9,6 +9,7 @@
 - Miniseries split into parts inside a box set (for example Hogfather or Going Postal) show up in your shows, one episode per part.
 - UK and US spellings of a title (Colour and Color) are treated as the same when matching box sets.
 - A screen size in a file name (for example 1920x816) is no longer mistaken for the release year, so those files match the right film. Files that failed to match for this reason are tried again automatically.
+- If your TMDB key is missing or TMDB stops accepting it, matching now pauses and your Library page tells you, instead of reporting TMDB as unavailable and giving up on those files. Once the key works again, the paused files are matched straight away.
 
 ### Faster
 

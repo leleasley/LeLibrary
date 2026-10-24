@@ -1122,6 +1122,8 @@
     "Your Nuvio sign-in has expired. Connect Nuvio again in Step 1.": "Your Nuvio sign-in has expired. Connect Nuvio again in Step 1.",
     "Blocks this server right now, so it is turned off here. It still works if you self-host LeLibrary.": "Blocks this server right now, so it is turned off here. It still works if you self-host LeLibrary.",
     "Unavailable": "Unavailable",
+    "TMDB did not accept this setup's key, so matching is paused. Update the key in Edit settings and matching starts again by itself.": "TMDB did not accept this setup's key, so matching is paused. Update the key in Edit settings and matching starts again by itself.",
+    "Matching is paused until this setup has a TMDB key. Add one in Edit settings.": "Matching is paused until this setup has a TMDB key. Add one in Edit settings.",
     "Add a TMDB key to this setup to fix matches.": "Add a TMDB key to this setup to fix matches.",
     "Anyone with this setup's id can open this page. Set a password in the setup settings to keep your file names private.": "Anyone with this setup's id can open this page. Set a password in the setup settings to keep your file names private.",
     "Change this match": "Change this match",

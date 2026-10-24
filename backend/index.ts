@@ -39,6 +39,7 @@ const server = app.listen(PORT, () => {
   // a Nuvio push whose owned library was still building). The pending-push
   // module registers its handler on require, so it must load before startJobs().
   require('./src/setup/pending-push.ts');
+  require('./src/setup/franchise-autopush.ts');
   require('./src/runtime/jobs.ts').startJobs();
   // Phase 0 perf probe: sampled event-loop lag, behind PERF_TIMING=1 only.
   if (process.env.PERF_TIMING === '1') {

@@ -110,6 +110,13 @@ async function syncScope(scope, options = {}) {
           userKey: scopeId, downloads, tmdbApiKey: scope.config.tmdbApiKey, lang,
           enhance: posterEnhance(scope.config), sortBy: scope.config.sortBy || 'data_adicao',
           posterFp: posterFp(scope.config),
+        }).then((metas) => {
+          // A new (or gone) franchise: update Nuvio's owned collection for the
+          // setups that pushed it (setup/franchise-autopush.ts).
+          if (Array.isArray(metas) && scope.setupUuids && scope.setupUuids.size) {
+            return require('../setup/franchise-autopush.ts').noteProjection(scope.setupUuids, metas);
+          }
+          return null;
         }).catch(() => {});
       }
     } catch { /* collections warm is best effort */ }

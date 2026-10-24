@@ -334,6 +334,25 @@ async function pushNuvioCollections(token: string, profileIndex: number, collect
   log('Pushed', (merged as unknown[]).length, 'collection(s) to Nuvio profile', profileIndex);
 }
 
+// One profile's collections as Nuvio holds them, and a write of a full list.
+// Used by the background owned-collection update (setup/franchise-autopush.ts),
+// which replaces only its own collection and keeps every other entry as is.
+async function pullNuvioCollections(token: string, profileIndex: number): Promise<Record<string, unknown>[]> {
+  const pulled = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_collections', { p_profile_id: profileIndex }) as { collections_json?: unknown } | unknown[];
+  const row = (Array.isArray(pulled) ? pulled[0] : pulled) as { collections_json?: unknown };
+  const list = Array.isArray(row?.collections_json) ? row.collections_json : parseNuvioJson(row?.collections_json, []);
+  return Array.isArray(list) ? list as Record<string, unknown>[] : [];
+}
+
+async function writeNuvioCollections(token: string, profileIndex: number, collections: unknown[], uuidKey: string): Promise<void> {
+  await nuvioRpc(token, '/rest/v1/rpc/sync_push_collections', {
+    p_profile_id: profileIndex,
+    p_collections_json: collections,
+    p_origin_client_id: originClientId(uuidKey),
+  });
+  log('Updated the owned collection on Nuvio profile', profileIndex);
+}
+
 // Apply the setup's selected badge pack to the target Nuvio profile. Nuvio
 // renders badges from the profile's own badge settings, so changing the
 // picker in LeLibrary must also rewrite that setting — otherwise the profile
@@ -870,6 +889,11 @@ async function pushToNuvio(
   }
 
   await pushNuvioCollections(token, profileIndex, nuvioCollections, options.uuidKey);
+  // Remember what this push sent, so the background update only acts on a
+  // real change (setup/franchise-autopush.ts).
+  if (franchiseCollection) {
+    await require('./franchise-autopush.ts').recordPushed(options.uuidKey, franchiseCollection, options.origin).catch(() => {});
+  }
 
   await cleanOtherProfiles(token, profileIndex, profiles, addonId, options.uuidKey, options.origin);
   if (manifest && Array.isArray((manifest as { catalogs?: unknown }).catalogs)) {
@@ -969,6 +993,8 @@ export interface PushApi {
   resolveNuvioProfile: (profiles: NuvioProfile[], selected: unknown) =>
     { ok: true; profile: NuvioProfile } | { ok: false; error: string };
   installSetup: (input: InstallSetupInput) => Promise<InstallSetupResult>;
+  pullNuvioCollections: (token: string, profileIndex: number) => Promise<Record<string, unknown>[]>;
+  writeNuvioCollections: (token: string, profileIndex: number, collections: unknown[], uuidKey: string) => Promise<void>;
   pushOptionsFromConfig: (config: Record<string, unknown> | null | undefined) => PushOptions;
   syncNuvioPlaybackSettings: (
     token: string,
@@ -989,6 +1015,8 @@ module.exports = {
   pullNuvioProfiles,
   resolveNuvioProfile,
   installSetup,
+  pullNuvioCollections,
+  writeNuvioCollections,
   pushOptionsFromConfig,
   syncNuvioPlaybackSettings,
 } satisfies PushApi;

@@ -139,8 +139,13 @@ function noteConfig(token, config) {
   try { rec = scopeRecordFromConfig(token, config); } catch { return null; }
   if (!rec) return null;
 
+  // Setups (v5.5) that read this library: the background owned-collection
+  // update (setup/franchise-autopush.ts) acts per setup.
+  const scope = config.__configScope;
+  const setupUuid = scope && scope.type === 'config' && scope.uuid ? String(scope.uuid).toLowerCase() : null;
   const existing = registry.get(rec.scopeId);
   if (existing) {
+    if (setupUuid) (existing.setupUuids || (existing.setupUuids = new Set())).add(setupUuid);
     existing.token = token;
     existing.config = config;
     existing.provider = rec.provider;
@@ -151,6 +156,7 @@ function noteConfig(token, config) {
     return existing;
   }
 
+  if (setupUuid) rec.setupUuids = new Set([setupUuid]);
   registry.set(rec.scopeId, rec);
   // Persist the scope once so the worker can resume it after a restart. Only an
   // opaque account token is stored (never a legacy base64 token, which embeds

@@ -283,9 +283,15 @@ async function buildCollectionsInner(movies, tmdbApiKey, lang = 'en-US', enhance
   const matched = searchResults.filter(m => m.result && titleScore(m.title, m.result) > 0);
   if (matched.length === 0) return [];
 
+  return collectionsFromMatched(matched, tmdbApiKey, lang, enhance);
+}
+
+// Steps 3-5 for films that are already matched to TMDB ({ title, result: { id,
+// ... } }). TMDB lookups are injectable for tests.
+async function collectionsFromMatched(matched, tmdbApiKey, lang = 'en-US', enhance = {}, deps = { getMovieDetail, getCollectionDetails, getImdbId }) {
   // 3. Fetch collection info per unique movie (belongs_to_collection)
   const detailResults = await pLimit(matched.map(m => async () => {
-    const detail = await getMovieDetail(tmdbApiKey, m.result.id, lang);
+    const detail = await deps.getMovieDetail(tmdbApiKey, m.result.id, lang);
     return { ...m, detail };
   }), 6);
 
@@ -320,18 +326,22 @@ async function buildCollectionsInner(movies, tmdbApiKey, lang = 'en-US', enhance
   // now Redis-cached, so this is mostly cache lookups after warm-up.
   const eligible = [...byCol.values()].filter(c => c.movies.size >= MIN_OWNED);
   const built = await pLimit(eligible.map(c => async () => {
-    const coll = await getCollectionDetails(tmdbApiKey, c.id, lang);
+    const coll = await deps.getCollectionDetails(tmdbApiKey, c.id, lang);
     const name = (coll && coll.name) || c.name;
     const totalParts = coll ? coll.parts.length : c.movies.size;
     // The collection endpoint is canonical within this candidate collection.
     // Keep movie-level claims only when its parts list is unavailable.
-    const ownedMovies = filterOfficialCollectionMembers([...c.movies.values()], coll?.parts);
+    const ownedMovies = filterOfficialCollectionMembers([...c.movies.values()], coll?.parts)
+      .map((m) => {
+        const part = (coll?.parts || []).find((p) => String(p.id) === String(m.result.id));
+        return part ? { ...m, result: { ...part, ...Object.fromEntries(Object.entries(m.result).filter(([, v]) => v != null && v !== '')) } } : m;
+      });
     if (ownedMovies.length < MIN_OWNED) return null;
     ownedMovies.sort((a, b) => (a.result.release_date || '9999').localeCompare(b.result.release_date || '9999'));
     // IMDb ids for each owned film (cached): lets the "Use Main Meta" flat film
     // catalog emit tt: rows so the films get the full main-metadata/external experience.
     const imdbIds = await pLimit(ownedMovies.map(m => async () => {
-      const imdbId = await getImdbId(tmdbApiKey, 'movie', m.result.id).catch(() => null);
+      const imdbId = await deps.getImdbId(tmdbApiKey, 'movie', m.result.id).catch(() => null);
       return { id: m.result.id, imdbId };
     }), 6);
     const imdbByTmdb = new Map(imdbIds.filter(x => x && x.imdbId).map(x => [String(x.id), x.imdbId]));
@@ -396,6 +406,22 @@ async function buildCollectionsInner(movies, tmdbApiKey, lang = 'en-US', enhance
   return metas;
 }
 
+// Owned franchises from the films the library has already matched (indexed
+// engine): box-set films, hash-named downloads and owner fixes all count,
+// and nothing is re-searched by name. `films` = [{ tmdbId }], duplicates fine.
+async function buildCollectionsFromMatched(films, tmdbApiKey, lang = 'en-US', enhance = {}, deps = undefined) {
+  const seen = new Set();
+  const matched = [];
+  for (const film of films || []) {
+    const id = Number(film && film.tmdbId);
+    if (!Number.isInteger(id) || id <= 0 || seen.has(id)) continue;
+    seen.add(id);
+    matched.push({ title: film.title || '', result: { id, title: film.title || undefined } });
+  }
+  if (!matched.length) return [];
+  return deps ? collectionsFromMatched(matched, tmdbApiKey, lang, enhance, deps) : collectionsFromMatched(matched, tmdbApiKey, lang, enhance);
+}
+
 // Cache the built metas per user+lang so meta requests are instant. Keyed by
 // the full non-numeric meta token (the part after "torbox:collection:").
 function cacheCollections(userKey, lang, metas) {
@@ -455,13 +481,18 @@ const collectionsRefreshInFlight = new Set();
 // what keeps a 4000-title library from timing out Stremio on first view.
 // The key shape MUST match the persistentKey the catalog routes restore;
 // sortBy/posterFp are the caller's so this stays a pure function of them.
-async function refreshCollectionsProjection({ userKey, downloads, tmdbApiKey, lang = 'en-US', enhance = {}, sortBy = 'data_adicao', posterFp = '' }) {
-  if (!userKey || !tmdbApiKey || !Array.isArray(downloads) || downloads.length === 0) return null;
+// `films` ([{ tmdbId }], the library's matched films) replaces name parsing of
+// `downloads` when given: the indexed engine passes it.
+async function refreshCollectionsProjection({ userKey, downloads, films = null, tmdbApiKey, lang = 'en-US', enhance = {}, sortBy = 'data_adicao', posterFp = '' }) {
+  const fromIndex = Array.isArray(films);
+  if (!userKey || !tmdbApiKey || (!fromIndex && (!Array.isArray(downloads) || downloads.length === 0))) return null;
   const flightKey = `${userKey}:${lang}:${posterFp}`;
   if (collectionsRefreshInFlight.has(flightKey)) return null;
   collectionsRefreshInFlight.add(flightKey);
   try {
-    const metas = await buildCollectionsCatalog(downloads, tmdbApiKey, lang, enhance);
+    const metas = fromIndex
+      ? await buildCollectionsFromMatched(films, tmdbApiKey, lang, enhance)
+      : await buildCollectionsCatalog(downloads, tmdbApiKey, lang, enhance);
     // An empty result is a finished build too (see collectionsBuilt).
     cacheCollections(userKey, lang, metas);
     if (metas.length > 0) {
@@ -483,6 +514,7 @@ async function refreshCollectionsProjection({ userKey, downloads, tmdbApiKey, la
 
 export interface FranchiseCollectionsApi {
   buildCollectionsCatalog: any;
+  buildCollectionsFromMatched: any;
   cacheCollections: any;
   getCollectionMeta: any;
   getCollections: any;
@@ -494,4 +526,4 @@ export interface FranchiseCollectionsApi {
   filterOfficialCollectionMembers: any;
 }
 
-module.exports = { buildCollectionsCatalog, cacheCollections, getCollectionMeta, getCollections, collectionsBuilt, getCollectionForMovie, getMovieDetail, refreshCollectionsProjection, collectionKey, filterOfficialCollectionMembers } satisfies FranchiseCollectionsApi;
+module.exports = { buildCollectionsCatalog, buildCollectionsFromMatched, cacheCollections, getCollectionMeta, getCollections, collectionsBuilt, getCollectionForMovie, getMovieDetail, refreshCollectionsProjection, collectionKey, filterOfficialCollectionMembers } satisfies FranchiseCollectionsApi;

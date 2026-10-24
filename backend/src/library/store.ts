@@ -298,6 +298,20 @@ async function requeueSearchFailures(scopeId) {
   return rowCount || 0;
 }
 
+// The library's matched films (box-set films included), for the owned
+// franchise collections.
+async function matchedMovieFilms(scopeId) {
+  const pool = db.getPool();
+  if (!pool) return [];
+  const { rows } = await pool.query(
+    `SELECT DISTINCT tmdb_id FROM lib_items
+      WHERE scope_id = $1 AND removed_at IS NULL AND match_status = 'matched'
+        AND media_type = 'movie' AND tmdb_id IS NOT NULL`,
+    [scopeId]
+  );
+  return rows.map((row) => ({ tmdbId: Number(row.tmdb_id) }));
+}
+
 async function failedMatchRows(scopeId, limit = 500) {
   const pool = db.getPool();
   if (!pool) return [];
@@ -1033,6 +1047,7 @@ export interface StoreApi {
   requeueFailedMatches: any;
   requeueSearchFailures: any;
   keepPreviousMatch: any;
+  matchedMovieFilms: any;
   failedMatchRows: any;
   massRemovalDecision: any;
   reconcile: any;  counts: any;
@@ -1073,6 +1088,7 @@ module.exports = {
   requeueFailedMatches,
   requeueSearchFailures,
   keepPreviousMatch,
+  matchedMovieFilms,
   failedMatchRows,
   massRemovalDecision,
   reconcile,

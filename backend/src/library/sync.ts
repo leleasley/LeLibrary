@@ -49,6 +49,36 @@ async function fetchDownloads(scope) {
   return providers.fetchDownloads(scope.config, { useCache: false, requireFresh: true });
 }
 
+// Owned franchise collections ("LeLibrary Collections") from the library's
+// matched films, so box-set films, hash-named downloads and owner fixes all
+// count. They have no indexed read path of their own: keep the projection warm
+// so catalog routes serve memory/Redis instead of rebuilding on a request.
+// Fire-and-forget; at most every 5 minutes per library unless forced (a sync).
+const FRANCHISE_REFRESH_MIN_MS = 5 * 60 * 1000;
+function refreshFranchiseProjection(scope, { force = false } = {}) {
+  try {
+    if (!scope || !scope.config || !scope.config.tmdbApiKey) return;
+    const now = Date.now();
+    if (!force && scope.lastFranchiseRefreshAt && now - scope.lastFranchiseRefreshAt < FRANCHISE_REFRESH_MIN_MS) return;
+    scope.lastFranchiseRefreshAt = now;
+    const franchise = require('../catalog/franchise-collections.ts');
+    // Lazy: routes/shared pulls the addon router chain.
+    const { posterEnhance, posterFp } = require('../routes/shared.ts');
+    store.matchedMovieFilms(scope.scopeId).then((films) => franchise.refreshCollectionsProjection({
+      userKey: scope.scopeId, films, tmdbApiKey: scope.config.tmdbApiKey, lang: scope.lang || 'en-US',
+      enhance: posterEnhance(scope.config), sortBy: scope.config.sortBy || 'data_adicao',
+      posterFp: posterFp(scope.config),
+    })).then((metas) => {
+      // A new (or gone) franchise: update Nuvio's owned collection for the
+      // setups that pushed it (setup/franchise-autopush.ts).
+      if (Array.isArray(metas) && scope.setupUuids && scope.setupUuids.size) {
+        return require('../setup/franchise-autopush.ts').noteProjection(scope.setupUuids, metas);
+      }
+      return null;
+    }).catch(() => {});
+  } catch { /* collections warm is best effort */ }
+}
+
 // Sync one scope: provider -> reconcile -> match. Safe to call concurrently;
 // the engine coalesces per scope with an in-flight promise.
 async function syncScope(scope, options = {}) {
@@ -92,34 +122,13 @@ async function syncScope(scope, options = {}) {
     if ((counts.removed || 0) > 0) {
       await cache.delPattern(`meta:*${scopeId}*`).catch(() => {});
     }
-    // LeLibrary franchise collections ("LeLibrary Collections" row) have no
-    // indexed read path of their own: keep their projection warm from this
-    // same snapshot so catalog routes serve memory/Redis instead of
-    // live-rebuilding thousands of titles on a Stremio request (which times
-    // out). Only when the library changed, or the projection is empty
-    // (restart); fire-and-forget, never on the request path.
-    try {
-      const franchise = require('../catalog/franchise-collections.ts');
-      const lang = scope.lang || 'en-US';
-      const changed = (counts.added || 0) + (counts.changed || 0) + (counts.removed || 0);
-      if (scope.config && scope.config.tmdbApiKey && (changed > 0 || franchise.getCollections(scopeId, lang).length === 0)) {
-        // Lazy: routes/shared pulls the addon router chain; the engine already
-        // uses this pattern to avoid a top-level cycle.
-        const { posterEnhance, posterFp } = require('../routes/shared.ts');
-        franchise.refreshCollectionsProjection({
-          userKey: scopeId, downloads, tmdbApiKey: scope.config.tmdbApiKey, lang,
-          enhance: posterEnhance(scope.config), sortBy: scope.config.sortBy || 'data_adicao',
-          posterFp: posterFp(scope.config),
-        }).then((metas) => {
-          // A new (or gone) franchise: update Nuvio's owned collection for the
-          // setups that pushed it (setup/franchise-autopush.ts).
-          if (Array.isArray(metas) && scope.setupUuids && scope.setupUuids.size) {
-            return require('../setup/franchise-autopush.ts').noteProjection(scope.setupUuids, metas);
-          }
-          return null;
-        }).catch(() => {});
-      }
-    } catch { /* collections warm is best effort */ }
+    // Owned franchise collections ("LeLibrary Collections"): rebuild when the
+    // library or its matches changed, or the projection is empty (restart).
+    const changed = (counts.added || 0) + (counts.changed || 0) + (counts.removed || 0);
+    if (changed > 0 || Number(matchStats.matched || 0) > 0
+      || require('../catalog/franchise-collections.ts').getCollections(scopeId, scope.lang || 'en-US').length === 0) {
+      refreshFranchiseProjection(scope, { force: true });
+    }
     metrics.recordSync({
       scopeId, provider: scope.provider, durationMs, providerMs,
       scanned: counts.scanned, added: counts.added, changed: counts.changed,
@@ -140,10 +149,11 @@ async function syncScope(scope, options = {}) {
 }
 
 export interface SyncApi {
+  refreshFranchiseProjection: typeof refreshFranchiseProjection;
   syncScope: any;
   recordsFromDownloads: any;
   loadFixture: any;
   fixturePath: any;
 }
 
-module.exports = { syncScope, recordsFromDownloads, loadFixture, fixturePath } satisfies SyncApi;
+module.exports = { syncScope, refreshFranchiseProjection, recordsFromDownloads, loadFixture, fixturePath } satisfies SyncApi;

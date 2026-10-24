@@ -345,7 +345,11 @@ async function drainOnce() {
         await store.markQueueStats(rec.scopeId, latest).catch(() => {});
       }
       // Newly matched rows change catalog pages even though no sync ran.
-      if (ms && Number(ms.matched || 0) > 0) noteProjectionChange(rec.scopeId);
+      if (ms && Number(ms.matched || 0) > 0) {
+        noteProjectionChange(rec.scopeId);
+        // New matches (box-set films, fixes) can complete a franchise.
+        require('./sync.ts').refreshFranchiseProjection(rec);
+      }
     });
     drainRuns++;
   } finally {

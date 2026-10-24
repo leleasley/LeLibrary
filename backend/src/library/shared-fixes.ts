@@ -129,7 +129,18 @@ async function requeueFailedElsewhere(scopeId: string, keys: ReleaseKeys): Promi
   return rowCount || 0;
 }
 
+// How many agreeing libraries a shared fix needs before it is used for
+// another library. One person's fix never spreads on its own.
+const MIN_VOTES_ON_FAILURE = 2;
+const MIN_VOTES_BEFORE_RESOLVER = 3;
+
+function sharedFixUsable(fix: { votes: number } | null | undefined, phase: 'on-failure' | 'before-resolver'): boolean {
+  if (!fix || !Number.isFinite(fix.votes)) return false;
+  return fix.votes >= (phase === 'before-resolver' ? MIN_VOTES_BEFORE_RESOLVER : MIN_VOTES_ON_FAILURE);
+}
+
 export interface SharedFixesApi {
+  sharedFixUsable: typeof sharedFixUsable;
   releaseKeys: typeof releaseKeys;
   chooseConsensus: typeof chooseConsensus;
   voterFor: typeof voterFor;
@@ -139,4 +150,4 @@ export interface SharedFixesApi {
   requeueFailedElsewhere: typeof requeueFailedElsewhere;
 }
 
-module.exports = { releaseKeys, chooseConsensus, voterFor, vote, unvote, bestFor, requeueFailedElsewhere } satisfies SharedFixesApi;
+module.exports = { sharedFixUsable, releaseKeys, chooseConsensus, voterFor, vote, unvote, bestFor, requeueFailedElsewhere } satisfies SharedFixesApi;

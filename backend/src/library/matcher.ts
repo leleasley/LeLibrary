@@ -298,7 +298,7 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
       if (!pinned && job.prev_status === 'expanded') await boxsets.removeChildren(job).catch(() => 0);
       // Two or more libraries agree on this exact release: trust it first.
       const shared = sharedById.get(job.id) || null;
-      if (shared && shared.votes >= 2 && await applyShared(job, shared) === 'matched') {
+      if (sharedFixes.sharedFixUsable(shared, 'before-resolver') && await applyShared(job, shared) === 'matched') {
         matched++;
         processed++;
         return;
@@ -564,7 +564,7 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
         }
         // Automatic matching failed: one owner's fix for this exact release
         // is enough here (it cannot replace a confident automatic match).
-        if (shared && await applyShared(job, shared).catch(() => 'failed') === 'matched') {
+        if (sharedFixes.sharedFixUsable(shared, 'on-failure') && await applyShared(job, shared).catch(() => 'failed') === 'matched') {
           matched++;
           processed++;
           return;

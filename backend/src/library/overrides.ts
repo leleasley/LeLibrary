@@ -149,7 +149,7 @@ async function fetchTmdbSource(apiKey: string, mediaType: OverrideMediaType, tmd
 // Apply an override to one library row: the same write the matcher makes for
 // its own matches (canonical version stamp, classification, identity reset),
 // or the terminal 'ignored' status that catalogs never show.
-async function apply(job: OverrideJob, override: Override, { tmdbApiKey, lang = 'en-US', origin = 'owner' }: { tmdbApiKey: string; lang?: string; origin?: 'owner' | 'shared' }): Promise<'matched' | 'ignored' | 'failed'> {
+async function apply(job: OverrideJob, override: Override, { tmdbApiKey, lang = 'en-US', origin = 'owner' }: { tmdbApiKey: string; lang?: string; origin?: 'owner' | 'shared' | 'boxset' }): Promise<'matched' | 'ignored' | 'failed'> {
   const pool = await store.ensure();
   if (override.action === 'ignore') {
     await pool.query(
@@ -180,7 +180,7 @@ async function apply(job: OverrideJob, override: Override, { tmdbApiKey, lang = 
     tmdbId: override.tmdbId,
     imdbId: imdbId || null,
     // manual: this library's own fix; shared: learned from other owners.
-    matchMeta: { ...stored, imdbId: imdbId || undefined, torboxItem: undefined, ...(origin === 'shared' ? { shared: true } : { manual: true }) },
+    matchMeta: { ...stored, imdbId: imdbId || undefined, torboxItem: undefined, ...(origin === 'shared' ? { shared: true } : origin === 'boxset' ? { boxset: true } : { manual: true }) },
     version: matchVersion(),
     classification: {
       mediaType: override.mediaType,

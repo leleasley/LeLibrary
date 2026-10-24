@@ -12,6 +12,7 @@ const { offlineMatchFromItem, normalizeTitle } = require('./diff.ts');
 const store = require('./store.ts');
 const overrides = require('./overrides.ts');
 const sharedFixes = require('./shared-fixes.ts');
+const boxsets = require('./boxsets.ts');
 const metrics = require('./metrics.ts');
 const { pLimit } = require('./util.ts');
 
@@ -244,6 +245,30 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
         }
         processed++;
         return;
+      }
+      // A film carved out of a box set keeps the film it was matched to.
+      const pinned = job.raw && job.raw._boxset;
+      if (pinned && pinned.tmdbId) {
+        const applied = await overrides.apply(job, { action: 'match', tmdbId: pinned.tmdbId, mediaType: pinned.mediaType || 'movie', season: Number.isInteger(pinned.season) ? pinned.season : null, episode: Number.isInteger(pinned.episode) ? pinned.episode : null }, { tmdbApiKey, lang, origin: 'boxset' });
+        if (applied === 'matched') matched++;
+        else failed++;
+        processed++;
+        return;
+      }
+      // A box set: each film inside becomes its own entry (library/boxsets.ts).
+      if (!pinned && boxsets.looksLikeBoxSet(job.name || (job.raw && job.raw.name), job.raw)) {
+        const films = await boxsets.expand(job, {
+          tmdbApiKey, lang,
+          resolveFallback: async (filmName) => {
+            const r = await resolveMatch({ name: filmName, mediaType: 'movie', lang, tmdbApiKey, requireUniqueStrongYear: true }, undefined, sharedMatchLookups);
+            return r?.ok && r.tmdbId ? { tmdbId: Number(r.tmdbId), mediaType: 'movie' } : null;
+          },
+        });
+        if (films >= 0) {
+          matched += films;
+          processed++;
+          return;
+        }
       }
       // Two or more libraries agree on this exact release: trust it first.
       const shared = sharedById.get(job.id) || null;

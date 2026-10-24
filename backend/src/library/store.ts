@@ -422,10 +422,10 @@ async function reconcile(scopeId, records) {
 
     const { rows: removeRows } = await client.query(
       `SELECT count(*)::int AS removed,
-              (SELECT count(*)::int FROM lib_items WHERE scope_id = $1 AND removed_at IS NULL) AS live_count,
+              (SELECT count(*)::int FROM lib_items WHERE scope_id = $1 AND removed_at IS NULL AND source_id NOT LIKE '%#film:%') AS live_count,
               md5(coalesce(string_agg(provider || chr(1) || source_id, ' ' ORDER BY provider, source_id), '')) AS fingerprint
          FROM lib_items i
-        WHERE i.scope_id = $1 AND i.removed_at IS NULL AND NOT EXISTS (
+        WHERE i.scope_id = $1 AND i.removed_at IS NULL AND i.source_id NOT LIKE '%#film:%' AND NOT EXISTS (
           SELECT 1 FROM ll_sync_stage s WHERE s.provider = i.provider AND s.source_id = i.source_id
         )`, [scopeId]
     );
@@ -490,8 +490,15 @@ async function reconcile(scopeId, records) {
     if (decision.apply && removedCount) {
       await client.query(
         `UPDATE lib_items i SET removed_at=now(), match_status='skipped'
-          WHERE i.scope_id=$1 AND i.removed_at IS NULL AND NOT EXISTS (
+          WHERE i.scope_id=$1 AND i.removed_at IS NULL AND i.source_id NOT LIKE '%#film:%' AND NOT EXISTS (
             SELECT 1 FROM ll_sync_stage s WHERE s.provider=i.provider AND s.source_id=i.source_id
+          )`, [scopeId]
+      );
+      // Films carved out of a box set (library/boxsets.ts) go with their box set.
+      await client.query(
+        `UPDATE lib_items c SET removed_at=now(), match_status='skipped'
+          WHERE c.scope_id=$1 AND c.removed_at IS NULL AND c.source_id LIKE '%#film:%' AND NOT EXISTS (
+            SELECT 1 FROM ll_sync_stage s WHERE s.provider=c.provider AND s.source_id=split_part(c.source_id, '#film:', 1)
           )`, [scopeId]
       );
     }
@@ -638,7 +645,7 @@ async function claimMatchJobs(scopeId, limit) {
          LIMIT $2
          FOR UPDATE SKIP LOCKED
       )
-      RETURNING id, provider, source_id, raw, media_type, is_series, is_anime, name, season, episode, season_start, season_end`,
+      RETURNING id, provider, source_id, raw, media_type, is_series, is_anime, name, season, episode, season_start, season_end, content_hash`,
     [scopeId, Math.max(1, limit), retryVersion(), matchVersion()]
   );
   return rows;

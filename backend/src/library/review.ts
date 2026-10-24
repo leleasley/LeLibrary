@@ -119,7 +119,7 @@ async function summary(scopeId: string) {
   const [{ rows: providers }, scope] = await Promise.all([
     pool.query(
       `SELECT provider,
-              count(*)::int AS files,
+              count(*) FILTER (WHERE source_id NOT LIKE '%#film:%')::int AS files,
               count(*) FILTER (WHERE match_status = 'matched')::int AS matched,
               count(*) FILTER (WHERE ${VIEW_FILTER.attention.replace(/i\./g, '')})::int AS attention,
               count(*) FILTER (WHERE match_status = 'ignored')::int AS ignored,

@@ -128,6 +128,24 @@ async function runJob(record, now) {
   }
 }
 
+// Add jobs that exist in the store but not in this process: queued by another
+// process (a one-off script, another worker). A job this process already holds
+// is never overwritten, so its attempts and schedule stay authoritative.
+async function syncFromStore(store = cache) {
+  const keys = await store.keys(`${KEY_PREFIX}*`);
+  let added = 0;
+  for (const key of keys) {
+    if (queue.has(key) || running.has(key)) continue;
+    const record = await store.get(key);
+    if (!record || typeof record !== 'object' || !record.kind || !record.id) continue;
+    if (!handlers.has(record.kind)) continue;
+    if (record.expiresAt <= Date.now()) { await store.del(key); continue; }
+    queue.set(key, record);
+    added += 1;
+  }
+  return added;
+}
+
 // Pick up whatever the previous process left queued.
 async function resumeJobs() {
   const keys = await cache.keys(`${KEY_PREFIX}*`);
@@ -144,12 +162,20 @@ async function resumeJobs() {
   return restored;
 }
 
+// Re-read the store about once a minute (not every tick: it is a key scan).
+const STORE_SYNC_MS = 60_000;
+let lastStoreSync = 0;
+
 function startJobs() {
   if (timer) return;
+  lastStoreSync = Date.now();
   timer = setInterval(() => {
     if (ticking) return;
     ticking = true;
-    runDueJobs()
+    const sync = Date.now() - lastStoreSync >= STORE_SYNC_MS
+      ? (lastStoreSync = Date.now(), syncFromStore().catch(() => 0))
+      : Promise.resolve(0);
+    sync.then(() => runDueJobs())
       .catch((error) => console.warn('[Jobs] tick failed:', error?.message || error))
       .finally(() => { ticking = false; });
   }, TICK_MS);
@@ -170,6 +196,7 @@ export interface JobsApi {
   jobState: any;
   runDueJobs: any;
   resumeJobs: any;
+  syncFromStore: any;
   startJobs: any;
   stopJobs: any;
 }
@@ -181,6 +208,7 @@ module.exports = {
   jobState,
   runDueJobs,
   resumeJobs,
+  syncFromStore,
   startJobs,
   stopJobs,
 } satisfies JobsApi;

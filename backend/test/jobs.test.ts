@@ -106,3 +106,30 @@ test('scheduling an unknown kind fails loudly instead of silently queueing', asy
     /No handler registered/,
   );
 });
+
+function fakeStore(records) {
+  const map = new Map(Object.entries(records));
+  return { keys: async () => [...map.keys()], get: async (k) => map.get(k), del: async (k) => { map.delete(k); } };
+}
+
+// A job queued by another process (a one-off script, or a second worker) only
+// lived in Redis, so this process never ran it until its next restart.
+test('jobs queued by another process are picked up without a restart', async () => {
+  const kind = freshKind('elsewhere');
+  let runs = 0;
+  jobs.registerJobHandler(kind, async () => { runs += 1; return 'done'; });
+  const store = fakeStore({ [`job:${kind}:x`]: { kind, id: 'x', payload: {}, attempts: 0, notBefore: Date.now() - 1, expiresAt: Date.now() + 60000 } });
+  assert.equal(await jobs.syncFromStore(store), 1);
+  await jobs.runDueJobs();
+  assert.equal(runs, 1);
+});
+
+test('re-reading the store never overwrites a job this process already holds', async () => {
+  const kind = freshKind('keep');
+  jobs.registerJobHandler(kind, async () => 'retry');
+  await jobs.scheduleJob({ kind, id: 'y', payload: { mine: true }, delayMs: 60000 });
+  const store = fakeStore({ [`job:${kind}:y`]: { kind, id: 'y', payload: { stale: true }, attempts: 9, notBefore: 0, expiresAt: Date.now() + 60000 } });
+  assert.equal(await jobs.syncFromStore(store), 0);
+  assert.deepEqual(jobs.jobState(kind, 'y').payload, { mine: true });
+  await jobs.cancelJob(kind, 'y');
+});

@@ -28,6 +28,13 @@ const BUILTIN_SPLIT_SEASONS = {
     9: { tmdbId: 235884, season: 2 },
     10: { tmdbId: 235884, season: 3 },
   },
+  // Slasher (65784) has seasons 1-3; TMDB lists season 4 as "Slasher: Flesh &
+  // Blood" (304556) and season 5 as "Slasher: Ripper" (304561). Verified
+  // 2026-10-24.
+  65784: {
+    4: { tmdbId: 304556, season: 1 },
+    5: { tmdbId: 304561, season: 1 },
+  },
 };
 
 // Anthology seasons TMDB lists as standalone entries while scene/Sonarr keep
@@ -47,6 +54,13 @@ const BUILTIN_TITLE_REDIRECTS = [
     season: 1,
     name: 'Monster: The Lizzie Borden Story',
   },
+  // Monster (2022) seasons 2 and 3 (verified on TMDB 2026-10-24). Releases
+  // often name only "Monster (2022) S02", so the 2022 year is the gate when
+  // the subtitle is missing; another show called Monster is never touched.
+  { title: 'monster', fileSeason: 2, contains: 'menendez', tmdbId: 225634, season: 1, name: 'Monsters: The Lyle and Erik Menendez Story' },
+  { title: 'monster', fileSeason: 2, contains: '2022', tmdbId: 225634, season: 1, name: 'Monsters: The Lyle and Erik Menendez Story' },
+  { title: 'monster', fileSeason: 3, contains: 'edgein', tmdbId: 286801, season: 1, name: 'Monster: The Ed Gein Story' },
+  { title: 'monster', fileSeason: 3, contains: '2022', tmdbId: 286801, season: 1, name: 'Monster: The Ed Gein Story' },
 ];
 
 function readEnvTables() {

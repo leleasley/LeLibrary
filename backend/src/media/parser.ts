@@ -128,6 +128,9 @@ const TECH = [
   /\b(hdr10?|dolby[\s.]?vision|sdr)\b/i,
   /\b(remux|proper|repack|extended)\b/i,
   /\b(internal|remaster(?:ed)?)\b/i,
+  // "Uncut & Uncensored" after a title is a label; as the first word it is the
+  // title itself ("Uncut Gems").
+  /(?<=\S\s)(?:uncut(?=\s*(?:&|and)\s*uncensored)|uncensored)\b/i,
   /\b(dual|dublado|legendado|nacional|plsub|multi[-\s]?sub|multi[-\s]?audio)\b/i,
   /\b(amzn|nflx|hmax|dsnp|iqiyi|adn)\b/i,
   // Voice-over / dub / subtitle labels on Russian releases ("MVO", "2x DVO",
@@ -186,6 +189,8 @@ function guessMediaInfo(raw) {
   const isAnimeGroup = ANIME_GROUP_RE.test(name);
   const hasCJK       = CJK_RE.test(name);
 
+  // A leading emoji or symbol ("📄.Title.2004") is not part of the title.
+  name = name.replace(/^[\p{Extended_Pictographic}\p{So}\uFE0F\s._-]+(?=\S)/u, '').trim();
   name = name.replace(/^\[[^\]]{1,50}\]\s*/, '').trim();
   name = name.replace(/^www\.\S+\s*[-–]+\s*/i, '').trim();
   // Some release groups prefix a full distributor hostname without a dash

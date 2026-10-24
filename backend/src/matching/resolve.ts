@@ -41,7 +41,8 @@ const MATCH_RETRY_VERSION = 'r10';
 // p5: Russian voice-over and subtitle labels end the title.
 // p6: "S1.S9" season pairs are read as a season range.
 // p7: a WIDTHxHEIGHT resolution ("1920x816") is never read as the year.
-const MATCH_PARSER_VERSION = 'p7';
+// p8: leading emoji/symbols are dropped; "Uncut & Uncensored" ends the title.
+const MATCH_PARSER_VERSION = 'p8';
 // Eight attempts are enough for the exponential schedule to cover transient
 // outages and recoverable catalog changes without retrying permanent misses
 // forever. Operators can explicitly requeue; changing this retry version

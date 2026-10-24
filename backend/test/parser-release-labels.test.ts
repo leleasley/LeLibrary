@@ -34,3 +34,18 @@ test('titles that merely contain the words stay intact', () => {
   assert.equal(guessMediaInfo('Original.Sin.2001.1080p.BluRay.mkv').title, 'Original Sin');
   assert.equal(guessMediaInfo('Dub.Club.2019.1080p.mkv').title, 'Dub Club');
 });
+
+test('a leading emoji or symbol is not part of the title', () => {
+  const info = guessMediaInfo('📄.Chestnut.Hero.of.Central.Park.2004.WEB-DL.1080p.mkv');
+  assert.deepEqual([info.title, info.year], ['Chestnut Hero Of Central Park', 2004]);
+});
+
+test('"Uncut" and "Uncensored" end the title', () => {
+  const info = guessMediaInfo('Comedy Central Roast Of Flavor Flav Uncut & Uncensored DVDRip x264');
+  assert.equal(info.title, 'Comedy Central Roast Of Flavor Flav');
+  assert.equal(guessMediaInfo('Uncut.Gems.2019.1080p.mkv').title, 'Uncut Gems');
+});
+
+test('titles that contain the label words are unchanged', () => {
+  assert.equal(guessMediaInfo('South Park Bigger Longer and Uncut 1999 UHD BluRay 2160p HDR10 Dolby TrueHD 5.1 x265-E').title, 'South Park Bigger Longer And Uncut');
+});

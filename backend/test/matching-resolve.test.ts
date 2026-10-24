@@ -11,7 +11,7 @@ const tmdb = require('../src/media/tmdb.ts');
 
 test('retry eligibility version follows both retry policy and canonical matching rules', () => {
   assert.equal(resolve.MAX_MATCH_ATTEMPTS, 8);
-  assert.equal(resolve.retryVersion(), `r10:p7:${resolve.matchVersion()}`);
+  assert.equal(resolve.retryVersion(), `r10:p8:${resolve.matchVersion()}`);
 });
 
 test('edition suffix and AKA names produce clean global search variants', async () => {

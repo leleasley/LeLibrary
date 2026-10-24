@@ -1865,8 +1865,9 @@ async function buildStreamsInner(config = {}, tmdbApiKey, type, tmdbId, season, 
         if (remainingOwnedLinkBudget <= 0) return;
         remainingOwnedLinkBudget -= 1;
         if (providerId) attemptedProviders.add(providerId);
-        const lazy = canPlayLater(item);
-        const url = lazy ? playRef(item.source, item.id, 0, item.name || '') : await getLink(0);
+        const wholeId = wholeItemFileId(item);
+        const lazy = canPlayLater(item) && wholeId != null;
+        const url = lazy ? playRef(item.source, item.id, wholeId, item.name || '') : (item.source === 'webdav' ? null : await getLink(0));
         if (url) {
           if (providerId && !lazy) successfulProviders.add(providerId);
           rawStreams.push({ url, fname: item.name || '', size: item.size || 0, source: item.source, bingeKey });
@@ -1887,11 +1888,7 @@ async function buildStreamsInner(config = {}, tmdbApiKey, type, tmdbId, season, 
   });
 
   const result = rawStreams.map(({ url, fname, size, source, bingeKey }) => {
-    const behaviorHints = { notWebReady: false };
-    // Subtitle addons hash-match on the bare filename, not the folder path
-    const baseName = (fname || '').split('/').pop();
-    if (baseName) behaviorHints.filename = baseName;
-    if (bingeKey) behaviorHints.bingeGroup = bingeKey;
+    const behaviorHints = ownedStreamHints(fname, size, source, bingeKey);
     return {
       url,
       name:        formatStreamName(fname, source, size, config, undefined, { library: true }),
@@ -1921,6 +1918,29 @@ async function buildStreamsInner(config = {}, tmdbApiKey, type, tmdbId, season, 
 // never hit whenever notices were configured.
 function libraryStreamFmtFp(config = {}) {
   return ':' + hashShort(['notice-v4', 'play-v1', config.streamPreset || '', config.streamNameTemplate || '', config.streamDescTemplate || '', config.streamNotices || '', customStreamsFingerprint(config.customStreams)].join('|'));
+}
+
+// Player hints for one owned copy. Subtitle addons hash-match on the bare
+// filename, not the folder path. WebDAV copies stream through this server
+// (usually MKV over the LAN), so web players are told to skip them and the
+// size helps the player and subtitle matching.
+function ownedStreamHints(fname, size, source, bingeKey) {
+  const behaviorHints: Record<string, any> = { notWebReady: source === 'webdav' };
+  const baseName = (fname || '').split('/').pop();
+  if (baseName) behaviorHints.filename = baseName;
+  if (source === 'webdav' && Number(size) > 0) behaviorHints.videoSize = Number(size);
+  if (bingeKey) behaviorHints.bingeGroup = bingeKey;
+  return behaviorHints;
+}
+
+// File id for playing a whole item: providers take 0 ("the item itself"),
+// WebDAV needs a real file (its first one), or nothing.
+function wholeItemFileId(item) {
+  if (item && item.source === 'webdav') {
+    const first = Array.isArray(item.files) ? item.files[0] : null;
+    return first && first.id ? first.id : null;
+  }
+  return 0;
 }
 
 async function buildStreams(config = {}, tmdbApiKey, type, tmdbId, season, episode, lang, customStreams, userKey = '', opts = {}) {
@@ -2225,6 +2245,8 @@ async function applyStreamNotices(streams, { config = {}, tmdbApiKey, tmdbId, ty
 }
 
 export interface BuilderApi {
+  ownedStreamHints: typeof ownedStreamHints;
+  wholeItemFileId: typeof wholeItemFileId;
   buildCatalog: any;
   buildMeta: any;
   buildStreams: any;
@@ -2269,4 +2291,4 @@ export interface BuilderApi {
   matchItem: any;
 }
 
-module.exports = { PLAY_PREFIX, playRef, buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta, buildErdbUrl, erdbProxyUrl, buildRpdbUrl, buildBetterPosterUrl, buildPictoriumPosterUrl, getFanartArt, applyStreamNotices, streamNoticesEnabled, noticeKindEnabled, NOTICE_KINDS, makeProviderRateLimitNotice, libraryStreamFmtFp, buildMatchMeta, publishMatchEntry, remapSplitSeason, resolveSplitTarget, canonicalSource, SPLIT_SHOW_SEASON_REMAP, summarizePackEpisodes, shouldProbeEpisodeNamedPack, addOwnedEpisodeAvailability, addOwnedAirDates, ownedDateKey, mergePackEpisodeRange, embeddedPackEntry, probePackEpisodes, isEpisodePackMisreadAsMovie, episodeTitleMatches, flushMatchCache, matchItem } satisfies BuilderApi;
+module.exports = { PLAY_PREFIX, playRef, ownedStreamHints, wholeItemFileId, buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta, buildErdbUrl, erdbProxyUrl, buildRpdbUrl, buildBetterPosterUrl, buildPictoriumPosterUrl, getFanartArt, applyStreamNotices, streamNoticesEnabled, noticeKindEnabled, NOTICE_KINDS, makeProviderRateLimitNotice, libraryStreamFmtFp, buildMatchMeta, publishMatchEntry, remapSplitSeason, resolveSplitTarget, canonicalSource, SPLIT_SHOW_SEASON_REMAP, summarizePackEpisodes, shouldProbeEpisodeNamedPack, addOwnedEpisodeAvailability, addOwnedAirDates, ownedDateKey, mergePackEpisodeRange, embeddedPackEntry, probePackEpisodes, isEpisodePackMisreadAsMovie, episodeTitleMatches, flushMatchCache, matchItem } satisfies BuilderApi;

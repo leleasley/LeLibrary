@@ -286,7 +286,7 @@ async function handleKnabenPlayback(req: any, res: any, deps: StreamDeps) {
 // LeLibrary. Only this setup's own key is used, so ids from another library do
 // nothing; the provider adapters cache links per file (TorBox: tbdl), so seeks
 // and retries do not request a new link. Links and file names are never logged.
-const PLAY_SOURCES = new Set(['torrent', 'usenet', 'webdl', 'realdebrid', 'alldebrid', 'premiumize']);
+const PLAY_SOURCES = new Set(['torrent', 'usenet', 'webdl', 'realdebrid', 'alldebrid', 'premiumize', 'webdav']);
 async function handleOwnedPlay(req: any, res: any, deps: StreamDeps) {
   res.set('Cache-Control', 'private, no-store');
   const source = String(req.params.source || '');
@@ -295,7 +295,10 @@ async function handleOwnedPlay(req: any, res: any, deps: StreamDeps) {
   // Ids are opaque provider values (TorBox numbers, Real-Debrid/Premiumize
   // strings): allow a safe character set only, never a path or a URL.
   const SAFE_ID = /^[A-Za-z0-9_.:=~-]{1,200}$/;
-  if (!PLAY_SOURCES.has(source) || !SAFE_ID.test(itemId) || !SAFE_ID.test(fileId) || itemId.includes('..') || fileId.includes('..')) {
+  // WebDAV file ids are base64url paths (webdav.fileRefToPath decodes and
+  // checks them), so they can be longer than provider ids.
+  const fileOk = source === 'webdav' ? /^[A-Za-z0-9_-]{1,1500}$/.test(fileId) : (SAFE_ID.test(fileId) && !fileId.includes('..'));
+  if (!PLAY_SOURCES.has(source) || !SAFE_ID.test(itemId) || !fileOk || itemId.includes('..')) {
     return res.status(404).type('text/plain').send('Not found');
   }
   const baseConfig = await deps.resolveConfig(req.params.token);
@@ -303,6 +306,9 @@ async function handleOwnedPlay(req: any, res: any, deps: StreamDeps) {
   const config = await require('../runtime/configstore.ts').mergeStoredConfig(baseConfig);
   const provider = providers.providerBySource(source);
   if (!provider || !providers.activeProviders(config).includes(provider)) return res.status(404).type('text/plain').send('Not found');
+  // WebDAV has no link to send the player to (it needs the password), so the
+  // file streams through LeLibrary instead. Self-host only.
+  if (provider === 'webdav') return require('../providers/webdav.ts').proxyWebdavFile(req, res, config, fileId);
   let url: string | null = null;
   try {
     url = await providers.getStreamLink(config, { source, id: itemId }, /^\d+$/.test(fileId) ? Number(fileId) : fileId);

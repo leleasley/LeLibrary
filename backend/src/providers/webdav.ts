@@ -96,7 +96,9 @@ async function pinnedFor(base: URL): Promise<(host: string, options: any, cb: an
   const isPrivate = records.some((record) => isBlockedIp(record.address));
   if (isPrivate && !allowPrivate()) throw davError('blocked-host');
   if (!isPrivate && base.protocol === 'http:') throw davError('blocked-host');
-  const { address, family } = records[0];
+  // Prefer IPv4 when a name has both: "localhost" lists ::1 first, while
+  // rclone and most NAS servers listen on IPv4 only.
+  const { address, family } = records.find((record) => record.family === 4) || records[0];
   return (_host, options, cb) => {
     if (options && options.all) cb(null, [{ address, family }]);
     else cb(null, address, family);
@@ -113,14 +115,16 @@ function requestError(err: any): Error & { code: DavErrorCode } {
 
 // One request to the WebDAV server, at `path` (decoded, absolute on the
 // server). Callers decide what a status means; nothing is followed.
-async function davRequest(conn: DavConnection, { method, path, headers = {}, data, responseType = 'text', timeout = REQUEST_TIMEOUT_MS, maxContentLength = MAX_LISTING_BYTES, decompress = true, signal, auth = true }: {
-  method: string; path: string; headers?: Record<string, string>; data?: string; responseType?: 'text' | 'stream';
+async function davRequest(conn: DavConnection, { method, path, url, headers = {}, data, responseType = 'text', timeout = REQUEST_TIMEOUT_MS, maxContentLength = MAX_LISTING_BYTES, decompress = true, signal, auth = true }: {
+  method: string; path?: string; url?: URL; headers?: Record<string, string>; data?: string; responseType?: 'text' | 'stream';
   timeout?: number; maxContentLength?: number; decompress?: boolean; signal?: AbortSignal; auth?: boolean;
 }): Promise<any> {
-  const lookup = await pinnedFor(conn.base);
+  // `url` is a redirect target, used as given (signed links keep their query).
+  const target = url || new URL(`${conn.base.origin}${encodePath(path || '/')}`);
+  const lookup = await pinnedFor(target);
   try {
     return await axios({
-      method, url: `${conn.base.origin}${encodePath(path)}`, data,
+      method, url: target.href, data,
       headers: { ...(auth ? { Authorization: conn.auth } : {}), ...headers },
       lookup, maxRedirects: 0, timeout, maxContentLength, maxBodyLength: maxContentLength,
       validateStatus: () => true, responseType, decompress, signal,
@@ -300,6 +304,70 @@ async function verifyWebdav({ url, user, password }: { url?: string; user?: stri
   }
 }
 
+// Streaming: players cannot send the WebDAV password, so LeLibrary fetches
+// the file and passes it on. Only Range/If-Range go up; only playback headers
+// come back (never cookies, auth challenges or redirect targets). Redirects
+// are followed here (at most 3), each target re-checked against the host
+// rules, and the password is only sent to the WebDAV server's own origin.
+// When the player hangs up, the upstream download stops.
+const PROXY_IDLE_MS = 60000;
+const PASS_HEADERS = ['content-range', 'content-length', 'accept-ranges', 'content-type', 'etag', 'last-modified'];
+
+async function proxyWebdavFile(req: any, res: any, config: any, ref: string): Promise<void> {
+  const fail = (status: number, message: string) => {
+    if (!res.headersSent) res.status(status).type('text/plain').send(message);
+    else res.destroy();
+  };
+  res.set('Cache-Control', 'private, no-store, no-transform');
+  const conn = webdavEnabled() ? davConnection(config) : null;
+  const rel = fileRefToPath(ref);
+  if (!conn || !rel) return fail(404, 'Not found');
+  const method = req.method === 'HEAD' ? 'HEAD' : 'GET';
+  const headers: Record<string, string> = { 'Accept-Encoding': 'identity' };
+  if (typeof req.headers.range === 'string') headers.Range = req.headers.range;
+  if (typeof req.headers['if-range'] === 'string') headers['If-Range'] = req.headers['if-range'];
+  const controller = new AbortController();
+  res.on('close', () => { if (!res.writableEnded) controller.abort(); });
+  let target = new URL(`${conn.base.origin}${encodePath(conn.basePath === '/' ? rel : `${conn.basePath}${rel}`)}`);
+  let upstream: any = null;
+  try {
+    for (let hop = 0; ; hop++) {
+      upstream = await davRequest(conn, {
+        method, url: target, headers, responseType: 'stream', decompress: false,
+        maxContentLength: -1, timeout: PROXY_IDLE_MS, signal: controller.signal,
+        auth: target.origin === conn.base.origin,
+      });
+      const location = upstream.headers && upstream.headers.location;
+      if (upstream.status < 300 || upstream.status >= 400 || upstream.status === 304 || !location) break;
+      upstream.data.destroy();
+      if (hop >= 2) return fail(502, 'The WebDAV server redirected too many times.');
+      let next: URL;
+      try { next = new URL(String(location), target); } catch { return fail(502, 'The WebDAV server gave a bad redirect.'); }
+      if (next.protocol !== 'https:' && next.protocol !== 'http:') return fail(502, 'The WebDAV server gave a bad redirect.');
+      target = next;
+    }
+  } catch (err: any) {
+    if (controller.signal.aborted) return;
+    const code = requestError(err).code;
+    return fail(code === 'timeout' ? 504 : 502, code === 'blocked-host'
+      ? 'This WebDAV server is not allowed by this LeLibrary install.'
+      : 'The WebDAV server could not be reached right now. Try again in a moment.');
+  }
+  const status = upstream.status;
+  if (status === 401 || status === 403) { upstream.data.destroy(); return fail(502, 'The WebDAV server did not accept the saved username or password.'); }
+  if (status === 404) { upstream.data.destroy(); return fail(404, 'This file is no longer on the WebDAV server.'); }
+  if (![200, 206, 304, 416].includes(status)) { upstream.data.destroy(); return fail(502, 'The WebDAV server could not send this file right now.'); }
+  res.status(status);
+  for (const name of PASS_HEADERS) {
+    const value = upstream.headers[name];
+    if (value != null) res.setHeader(name, value);
+  }
+  if (method === 'HEAD' || status === 304) { upstream.data.destroy(); res.end(); return; }
+  await new Promise<void>((resolve) => {
+    require('node:stream').pipeline(upstream.data, res, () => { if (!res.writableEnded) controller.abort(); resolve(); });
+  });
+}
+
 export interface WebdavApi {
   SCAN_MAX_ENTRIES: number; SCAN_MAX_DEPTH: number; SCAN_CONCURRENCY: number; REQUEST_TIMEOUT_MS: number; MAX_LISTING_BYTES: number;
   webdavEnabled: typeof webdavEnabled;
@@ -311,9 +379,10 @@ export interface WebdavApi {
   listWebdavLibrary: typeof listWebdavLibrary;
   getWebdavFiles: typeof getWebdavFiles;
   verifyWebdav: typeof verifyWebdav;
+  proxyWebdavFile: typeof proxyWebdavFile;
 }
 
 module.exports = {
   SCAN_MAX_ENTRIES, SCAN_MAX_DEPTH, SCAN_CONCURRENCY, REQUEST_TIMEOUT_MS, MAX_LISTING_BYTES,
-  webdavEnabled, allowPrivate, scanTtlMs, davConnection, davRequest, fileRefToPath, listWebdavLibrary, getWebdavFiles, verifyWebdav,
+  webdavEnabled, allowPrivate, scanTtlMs, davConnection, davRequest, fileRefToPath, listWebdavLibrary, getWebdavFiles, verifyWebdav, proxyWebdavFile,
 } satisfies WebdavApi;

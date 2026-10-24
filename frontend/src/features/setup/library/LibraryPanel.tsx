@@ -14,7 +14,7 @@ import './library.css';
 // setup's own debrid library, why anything is missing, and an owner fix for
 // it. Reads only the server's index of the setup's own files.
 
-const PROVIDER_NAMES: Record<string, string> = { torbox: 'TorBox', realdebrid: 'Real-Debrid', alldebrid: 'AllDebrid', premiumize: 'Premiumize' };
+const PROVIDER_NAMES: Record<string, string> = { torbox: 'TorBox', realdebrid: 'Real-Debrid', alldebrid: 'AllDebrid', premiumize: 'Premiumize', webdav: 'WebDAV' };
 const KIND_LABELS: Record<string, string> = { torrent: 'Torrent', usenet: 'Usenet', webdl: 'Web download' };
 const REASONS: Record<string, string> = {
   'no-candidate': 'TMDB has no title that matches this name.',

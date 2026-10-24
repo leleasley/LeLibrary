@@ -172,6 +172,23 @@ describe('edit save body', () => {
     });
   });
 
+  it('adding a WebDAV server while editing turns the webdav provider on', () => {
+    const body = buildEditSaveBody({
+      ...BASE_EDIT_SAVE,
+      keys: { webdavUrl: 'http://nas:8080/', webdavUser: 'me', webdavPassword: 'pw' },
+      providerServices: ['torboxApiKey'],
+    });
+    expect(body).toEqual({
+      keys: { webdavUrl: 'http://nas:8080/', webdavUser: 'me', webdavPassword: 'pw' },
+      config: { provider: 'torbox,webdav' },
+    });
+  });
+
+  it('a new WebDAV password alone keeps the provider selection as it is', () => {
+    const body = buildEditSaveBody({ ...BASE_EDIT_SAVE, keys: { webdavPassword: 'new' }, providerServices: ['webdavUrl', 'webdavPassword'] });
+    expect(body).toEqual({ keys: { webdavPassword: 'new' }, config: { provider: 'webdav' } });
+  });
+
   it('preserves an explicit provider selection on unrelated edits', () => {
     const body = buildEditSaveBody({
       ...BASE_EDIT_SAVE,

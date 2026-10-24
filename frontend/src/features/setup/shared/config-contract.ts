@@ -245,6 +245,10 @@ export interface SetupKeysDraft {
   customAddon1?: string;
   customAddon2?: string;
   customAddon3?: string;
+  // Self-host only: the user's own WebDAV server (sealed, never revealed).
+  webdavUrl?: string;
+  webdavUser?: string;
+  webdavPassword?: string;
 }
 
 export interface KeyField {
@@ -323,6 +327,7 @@ const DEBRID_FIELD_TO_PROVIDER: Array<[keyof SetupKeysDraft, string]> = [
   ['rdApiKey', 'realdebrid'],
   ['adApiKey', 'alldebrid'],
   ['pmApiKey', 'premiumize'],
+  ['webdavUrl', 'webdav'],
 ];
 
 export function providerSelection(draft: SetupKeysDraft): string {

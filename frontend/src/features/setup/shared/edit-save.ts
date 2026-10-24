@@ -84,8 +84,9 @@ export function buildEditSaveBody(input: EditSaveInput): Record<string, unknown>
   // Update the explicit legacy selection only when debrid keys changed. This
   // preserves old tokens' selection during unrelated edits while keeping new
   // or removed keys in sync with `activeProviders`.
-  if (Object.keys(keySlice).some((field) => ['torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey'].includes(field)) ||
-      (input.clearKeys ?? []).some((field) => ['torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey'].includes(field))) {
+  const providerFields = ['torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'webdavUrl', 'webdavUser', 'webdavPassword'];
+  if (Object.keys(keySlice).some((field) => providerFields.includes(field)) ||
+      (input.clearKeys ?? []).some((field) => providerFields.includes(field))) {
     const services = new Set(input.providerServices ?? []);
     for (const field of Object.keys(keySlice)) services.add(field);
     for (const field of input.clearKeys ?? []) services.delete(field);

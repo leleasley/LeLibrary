@@ -47,7 +47,7 @@ export const QUICK_SECTION_IDS = [
 const INITIAL_KEYS: SetupKeysDraft = {};
 
 const PROVIDER_NAMES: Partial<Record<keyof SetupKeysDraft, string>> = {
-  torboxApiKey: 'TorBox', rdApiKey: 'Real-Debrid', adApiKey: 'AllDebrid', pmApiKey: 'Premiumize',
+  torboxApiKey: 'TorBox', rdApiKey: 'Real-Debrid', adApiKey: 'AllDebrid', pmApiKey: 'Premiumize', webdavUrl: 'WebDAV',
 };
 
 // Anything entered that creation hasn't consumed yet. The draft persists

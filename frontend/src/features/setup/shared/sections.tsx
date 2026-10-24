@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { apiClient } from '@/api/client';
 import { ConfirmModal } from '@/features/setup/shared/Modal';
 import { toast } from '@/features/setup/shared/Toast';
+import { WebdavCard } from '@/features/setup/shared/webdav-card';
+import { useFeatures } from '@/features/site/site-hooks';
 import {
   ARTWORK_KEY_FIELDS,
   HOME_ROW_PACKS,
@@ -321,6 +323,7 @@ export function ProviderKeys({ values, onChange, onRemove, savedServices, savedS
   // and the card opens for the key. Closing the card without one clears it, so
   // the switch never claims a provider is ready when it has no key.
   const [armed, setArmed] = useState<Record<string, boolean>>({});
+  const webdavSource = useFeatures()?.webdavSource === true;
 
   function toggle(field: keyof SetupKeysDraft) {
     const opening = open[field] === false;
@@ -459,6 +462,7 @@ export function ProviderKeys({ values, onChange, onRemove, savedServices, savedS
           );
         })}
       </div>
+      <WebdavCard enabled={webdavSource} values={values} onChange={onChange} savedServices={savedServices} savedScope={savedScope} />
       <p className="setup-note">
         Add at least one. Keys are sealed on the server.
       </p>

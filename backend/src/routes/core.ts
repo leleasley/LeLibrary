@@ -55,6 +55,8 @@ function mountCoreRoutes(app: Express, deps: CoreDeps): void {
       releases: hosted.releasesEnabled(),
       savedSetups: selfhostAccess.listEnabled(),
       unavailableStreamAddons: require('../streams/streamAddons.ts').unavailableStreamAddons(),
+      // Self-host only: the operator set WEBDAV_SOURCE=on.
+      webdavSource: require('../providers/webdav.ts').webdavEnabled(),
     });
   });
 

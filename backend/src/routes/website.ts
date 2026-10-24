@@ -73,15 +73,17 @@ function serveShell(res: any): boolean {
 const bootHtml = require('../platform/boot-html.ts');
 let latestStatus: { at: number; data: unknown } | null = null;
 const BOOT_STATUS_MAX_AGE = 10 * 60 * 1000;
-function bootData(): { features: { releases: boolean; savedSetups: boolean; unavailableStreamAddons: string[] }; status?: unknown } {
+function bootData(): { features: { releases: boolean; savedSetups: boolean; unavailableStreamAddons: string[]; webdavSource: boolean }; status?: unknown } {
   let releases = false;
+  let webdavSource = false;
   let savedSetups = false;
   let unavailableStreamAddons: string[] = [];
   try { releases = require('../platform/hosted.ts').releasesEnabled() === true; } catch { /* self-host */ }
   try { savedSetups = require('../platform/selfhost-access.ts').listEnabled() === true; } catch { /* no secret */ }
   try { unavailableStreamAddons = require('../streams/streamAddons.ts').unavailableStreamAddons(); } catch { /* none */ }
+  try { webdavSource = require('../providers/webdav.ts').webdavEnabled() === true; } catch { /* off */ }
   const fresh = latestStatus && Date.now() - latestStatus.at < BOOT_STATUS_MAX_AGE ? latestStatus.data : null;
-  return { features: { releases, savedSetups, unavailableStreamAddons }, ...(fresh ? { status: fresh } : {}) };
+  return { features: { releases, savedSetups, unavailableStreamAddons, webdavSource }, ...(fresh ? { status: fresh } : {}) };
 }
 
 // The public homepage is pre-rendered at build time for search engines and
@@ -1264,6 +1266,20 @@ const STATUS_CHECKS = [
     res.json({ valid: false, error: ERRORS[result.error] || ERRORS.unreachable });
   });
 
+  // Self-host only (WEBDAV_SOURCE=on): check a WebDAV server answers with
+  // these login details. Returns counts and an error code only; the address,
+  // user and password are never echoed, logged or cached.
+  router.post('/api/verify/webdav', async (req, res) => {
+    const webdav = require('../providers/webdav.ts');
+    if (!webdav.webdavEnabled()) return res.status(404).json({ error: 'Not found' });
+    const field = (name: string) => (req.body && typeof req.body[name] === 'string' ? req.body[name].trim() : '');
+    const url = field('url');
+    if (!url || url.length > 2048) return res.json({ valid: false, error: 'bad-url' });
+    const result = await webdav.verifyWebdav({ url, user: field('user'), password: req.body && typeof req.body.password === 'string' ? req.body.password : '' })
+      .catch(() => ({ valid: false, error: 'unreachable' }));
+    res.json(result);
+  });
+
   router.post('/api/verify/torbox', async (req, res) => {
     const key = (req.body && typeof req.body.key === 'string' ? req.body.key.trim() : '');
     if (!key) return res.json({ valid: false, error: 'Missing key' });
@@ -1533,6 +1549,7 @@ function configureRedirectTarget(config: unknown): string | null {
 export interface WebsiteRouterApi {
   (resolveConfig: any, options?: any): Router;
   configureRedirectTarget(config: unknown): string | null;
+  bootData: typeof bootData;
 }
 
-module.exports = Object.assign(createWebRoutes, { configureRedirectTarget }) satisfies WebsiteRouterApi;
+module.exports = Object.assign(createWebRoutes, { configureRedirectTarget, bootData }) satisfies WebsiteRouterApi;

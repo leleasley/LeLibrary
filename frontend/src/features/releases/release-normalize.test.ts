@@ -87,19 +87,21 @@ describe('releases response normalisation', () => {
 
 describe('normalizeFeatures', () => {
   it('reads the releases flag defensively', () => {
-    expect(normalizeFeatures({ releases: true })).toEqual({ releases: true, savedSetups: false, unavailableStreamAddons: [] });
-    expect(normalizeFeatures({ releases: 'yes' })).toEqual({ releases: false, savedSetups: false, unavailableStreamAddons: [] });
-    expect(normalizeFeatures(null)).toEqual({ releases: false, savedSetups: false, unavailableStreamAddons: [] });
+    expect(normalizeFeatures({ releases: true })).toEqual({ releases: true, savedSetups: false, unavailableStreamAddons: [], webdavSource: false });
+    expect(normalizeFeatures({ releases: 'yes' })).toEqual({ releases: false, savedSetups: false, unavailableStreamAddons: [], webdavSource: false });
+    expect(normalizeFeatures(null)).toEqual({ releases: false, savedSetups: false, unavailableStreamAddons: [], webdavSource: false });
   });
 
   it('reads the self-host saved-setups flag defensively', () => {
-    expect(normalizeFeatures({ savedSetups: true })).toEqual({ releases: false, savedSetups: true, unavailableStreamAddons: [] });
-    expect(normalizeFeatures({ savedSetups: 'yes' })).toEqual({ releases: false, savedSetups: false, unavailableStreamAddons: [] });
+    expect(normalizeFeatures({ savedSetups: true })).toEqual({ releases: false, savedSetups: true, unavailableStreamAddons: [], webdavSource: false });
+    expect(normalizeFeatures({ savedSetups: 'yes' })).toEqual({ releases: false, savedSetups: false, unavailableStreamAddons: [], webdavSource: false });
   });
 
   it('keeps only string ids for unavailable stream addons', () => {
     expect(normalizeFeatures({ unavailableStreamAddons: ['torrentio', 3, null] }).unavailableStreamAddons).toEqual(['torrentio']);
     expect(normalizeFeatures({ unavailableStreamAddons: 'torrentio' }).unavailableStreamAddons).toEqual([]);
+    expect(normalizeFeatures({ webdavSource: true }).webdavSource).toBe(true);
+    expect(normalizeFeatures({ webdavSource: 'on' }).webdavSource).toBe(false);
   });
 });
 

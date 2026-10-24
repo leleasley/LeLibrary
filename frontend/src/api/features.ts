@@ -10,6 +10,8 @@ export interface Features {
   // Stream addons the operator turned off because this server cannot reach
   // them (e.g. Torrentio blocks the hosted IP). Empty on most self-hosts.
   unavailableStreamAddons: string[];
+  // Self-host only: the operator turned on the WebDAV library source.
+  webdavSource: boolean;
 }
 
 export function normalizeFeatures(payload: unknown): Features {
@@ -17,6 +19,7 @@ export function normalizeFeatures(payload: unknown): Features {
   return {
     releases: record['releases'] === true,
     savedSetups: record['savedSetups'] === true,
+    webdavSource: record['webdavSource'] === true,
     unavailableStreamAddons: Array.isArray(record['unavailableStreamAddons'])
       ? (record['unavailableStreamAddons'] as unknown[]).filter((id): id is string => typeof id === 'string')
       : [],

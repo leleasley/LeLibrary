@@ -54,11 +54,22 @@ function featureFiles(raw: any): BoxFile[] {
 const EPISODE_MARK = /(?:^|[^a-z0-9])(?:s\d{1,2}[ ._-]?e\d{1,3}|\d{1,2}x\d{2})(?=$|[^a-z0-9])/i;
 
 function looksLikeBoxSet(name: string, raw: any): boolean {
-  if (!BOXSET_NAME.test(String(name || ''))) return false;
   const files = featureFiles(raw);
   if (files.length < 2) return false;
   const episodes = files.filter((f) => EPISODE_MARK.test(f.name)).length;
-  return episodes * 2 < files.length;
+  if (episodes * 2 >= files.length) return false;
+  if (BOXSET_NAME.test(String(name || ''))) return true;
+  // No box-set word in the name: only when the files clearly are different
+  // films, each with its own year (several cuts or parts of one film group
+  // into a single film and do not count).
+  const films = groupFilms(raw);
+  if (films.length < 2 || !films.every((film) => film.year != null && film.title.length > 0)) return false;
+  // A folder named after one of its own films ("Raging Bull (1980) Criterion")
+  // is that film plus extras (bonus documentaries, a companion film).
+  const folder = parseFilm(String(name || ''));
+  const namesAFilm = folder.title && films.some((film) => similarity(folder.title, film.title) >= 0.75
+    && (folder.year == null || film.year == null || Math.abs(folder.year - film.year) <= 1));
+  return !namesAFilm;
 }
 
 // A parent that is no longer handled as a box set loses its film entries.

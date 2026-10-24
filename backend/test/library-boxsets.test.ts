@@ -77,3 +77,46 @@ test('a TV box set (episode files) is not split into films', () => {
   ] };
   assert.equal(boxsets.looksLikeBoxSet('The Boys s1,2,3,4 and extras boxset', raw), false);
 });
+
+test('a folder of different dated films is a box set even without "collection" in its name', () => {
+  const big = 1500 * 1024 * 1024;
+  const nolan = { files: [
+    { id: 1, name: 'Memento (2000) 1080p BluRay.mkv', size: big },
+    { id: 2, name: 'Inception (2010) 1080p BluRay.mkv', size: big },
+    { id: 3, name: 'Interstellar (2014) 1080p BluRay.mkv', size: big },
+  ] };
+  assert.equal(boxsets.looksLikeBoxSet('Christopher Nolan Films', nolan), true);
+});
+
+test('one film in several cuts or parts is not a box set', () => {
+  const big = 1500 * 1024 * 1024;
+  const cuts = { files: [
+    { id: 1, name: 'Inception.2010.1080p.BluRay.mkv', size: big },
+    { id: 2, name: 'Inception.2010.Extended.1080p.BluRay.mkv', size: big },
+  ] };
+  assert.equal(boxsets.looksLikeBoxSet('Inception (2010)', cuts), false);
+  const parts = { files: [
+    { id: 1, name: 'Lawrence.of.Arabia.1962.Part.1.mkv', size: big },
+    { id: 2, name: 'Lawrence.of.Arabia.1962.Part.2.mkv', size: big },
+  ] };
+  assert.equal(boxsets.looksLikeBoxSet('Lawrence of Arabia 1962', parts), false);
+  const undated = { files: [
+    { id: 1, name: 'Some Film.mkv', size: big },
+    { id: 2, name: 'Another Film.mkv', size: big },
+  ] };
+  assert.equal(boxsets.looksLikeBoxSet('Random Folder', undated), false);
+});
+
+test('a film folder with bonus films or documentaries is not a box set', () => {
+  const big = 1500 * 1024 * 1024;
+  const raw = { files: [
+    { id: 1, name: 'Raging Bull (1980) 1080p BluRay.mkv', size: big },
+    { id: 2, name: 'Raging Bull Fight Night (2004).mkv', size: big },
+  ] };
+  assert.equal(boxsets.looksLikeBoxSet('Raging Bull (1980) Criterion (1080p BluRay x265 HEVC 10bit AAC 2.0 Tigole) [QxR]', raw), false);
+  const anchorman = { files: [
+    { id: 1, name: 'Anchorman The Legend of Ron Burgundy (2004).mkv', size: big },
+    { id: 2, name: 'Wake Up, Ron Burgundy The Lost Movie (2004).mkv', size: big },
+  ] };
+  assert.equal(boxsets.looksLikeBoxSet('Anchorman The Legend of Ron Burgundy (2004) Extended Cut (1080p BluRay)', anchorman), false);
+});

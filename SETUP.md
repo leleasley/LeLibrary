@@ -76,6 +76,29 @@ The settings panel on that page also lets you:
 Settle In and Move In setups can push again to Nuvio from the same page after
 a save.
 
+### Your library
+
+Once a setup is unlocked, the edit page has a second tab, **Your library**. It
+shows what LeLibrary found in your debrid account (or WebDAV server) and how it
+matched each file:
+
+- **Need attention** lists files that could not be matched, with the reason.
+  Press **Fix** to pick the right film or show (search by title, TMDB id or IMDb
+  id; for a show you can pick the season or episode). **Ignore** hides a file
+  that is not a film or show at all. Both can be undone.
+- **Try matching again** retries everything that failed.
+- A fix you make here also helps other people: once two or more libraries agree
+  on the same fix for the exact same release, LeLibrary uses it for others whose
+  matching failed. One person's fix never spreads on its own.
+
+Box sets are split automatically: a folder holding several films (a complete
+Fast and Furious collection, a director's films) shows up as one entry per film,
+each playing its own file. Miniseries split into parts (Part 1, Part 2) become
+episodes. Nothing in your account is moved or copied.
+
+New downloads usually appear within about 30 seconds while you are using the
+addon, and within a few minutes otherwise.
+
 ---
 
 ## More options worth knowing

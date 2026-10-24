@@ -11,6 +11,10 @@
 - A screen size in a file name (for example 1920x816) is no longer mistaken for the release year, so those files match the right film. Files that failed to match for this reason are tried again automatically.
 - Smarter matching for release names that used to go wrong: names with "+" instead of spaces, Russian releases that list dubs, voice-overs and subtitles ("Dub + 2x VO + Sub"), titles with commas or exclamation marks, titles that are a number (1984 now finds Nineteen Eighty-Four) and short titles TMDB lists under another name. Several films that were matched to the wrong title (for example Tower Heist, Get Shorty, Flight of the Navigator and the 9-1-1 seasons) are now found correctly.
 - After this update every library re-checks its existing matches once in the background, so old wrong matches get corrected. A title that is already matched never disappears because of the re-check: if nothing better is found, it keeps its current match.
+- New downloads show up much faster: while you are using the addon LeLibrary checks every 30 seconds whether anything changed in your TorBox or Real-Debrid account, and only reads the full library when something did. This also means far fewer requests to your debrid service.
+- A folder of different dated films is now treated as a box set even without "collection" in its name. A film that comes with bonus documentaries is left as one film.
+- Slasher seasons 4 and 5 and Monster (2022) seasons 2 and 3 now match the entries TMDB lists them under. Names starting with an emoji, and "Uncut & Uncensored" labels, no longer confuse matching.
+- A fix someone makes on their Library page is only used for other people once at least two libraries agree on it.
 - If your TMDB key is missing or TMDB stops accepting it, matching now pauses and your Library page tells you, instead of reporting TMDB as unavailable and giving up on those files. Once the key works again, the paused files are matched straight away.
 
 ### Self-hosted
@@ -23,6 +27,9 @@
 
 ### Fixes
 
+- A Nuvio push for a library with no franchise films no longer keeps saying the library is still building.
+- Pushing to Nuvio now cleans up broken Home entries that the Nuvio mobile app left behind.
+- The server log no longer records install links or the names of played files.
 - Settle In and Move In setups with a collection pack no longer put every pack source on the Nuvio Home screen as separate rows. The collections stay in Collections, and Home shows only the rows you picked. Push to Nuvio again after updating.
 - The LeLibrary Movie Collection and other collections pushed to Nuvio now use a poster shape Nuvio accepts. Nuvio TV rejected the old value, which could stop the collection from working and turn posters landscape after pinning it. Push to Nuvio again to update an existing collection. Hotfixed on lelibrary.uk.
 - Public Nuvio collections imported in Move In keep their poster shape instead of turning landscape.

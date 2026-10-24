@@ -1,5 +1,7 @@
 // Request logging that can never print a secret: query strings are dropped and
-// long base64url-looking path segments (config tokens) are redacted.
+// long base64url-looking path segments (config tokens) are redacted, including
+// v5.5 install tokens ("<uuid>.<secret>", which contain a dot). Owned play
+// links end in the file name, which is never logged either.
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 
 export interface RequestLoggerApi {
@@ -7,8 +9,15 @@ export interface RequestLoggerApi {
   maskSensitivePath: (path: string) => string;
 }
 
+const TOKEN_PART = /^[A-Za-z0-9_-]{16,}$/;
+
 function maskSensitivePath(path: string): string {
-  return path.split('/').map((segment) => (/^[A-Za-z0-9_-]{16,}$/.test(segment) ? '[token]' : segment)).join('/');
+  const segments = path.split('/').map((segment) => (segment.split('.').some((part) => TOKEN_PART.test(part)) ? '[token]' : segment));
+  // /:token/play/:source/:itemId/:fileId/:name
+  const play = segments.indexOf('play');
+  if (play > 0) segments[play - 1] = '[token]';
+  if (play > 0 && segments.length > play + 4) segments[play + 4] = '[name]';
+  return segments.join('/');
 }
 
 function requestLogger(req: Request, res: Response, next: NextFunction): void {

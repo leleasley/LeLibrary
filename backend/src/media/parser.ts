@@ -5,7 +5,10 @@ const filmYearPattern = () => `(?:18(?:8[89]|9\\d)|19\\d{2}|20\\d{2})`;
 
 function filmYearCandidates(value) {
   const upperYear = new Date().getFullYear() + 2;
-  const pattern = new RegExp(`(?<!\\d)(${filmYearPattern()})(?!\\d)|(?<=[\\p{L}])(${filmYearPattern()})(?=\\s*[([{]|$)`, 'gu');
+  // A WIDTHxHEIGHT resolution ("1920x816") is never a year. The "x" must touch
+  // both numbers: "2010 x264" is a year followed by a codec.
+  const notResolution = `(?<!\\d{3,4}[x×])(?![x×]\\d{3,4}(?!\\d))`;
+  const pattern = new RegExp(`(?<!\\d)(${filmYearPattern()})(?!\\d)${notResolution}|(?<=[\\p{L}])(${filmYearPattern()})(?=\\s*[([{]|$)${notResolution}`, 'gu');
   const candidates = [];
   for (const match of value.matchAll(pattern)) {
     const year = parseInt(match[1] || match[2], 10);
@@ -24,13 +27,17 @@ function hasFilmYear(value) {
 // release year often follows them: "Hancock EXTENDED 2008 1080p".
 const EDITION_BEFORE_YEAR_RE = /^(?:extended|unrated|uncut|remaster(?:ed)?|theatrical|director'?s\s+cut|proper|repack)(?:\s+(?:cut|edition|version))?\s+[([]?$/i;
 
+// "Title 1280x720 2010": a lone resolution can sit before the release year too.
+const RESOLUTION_BEFORE_YEAR_RE = /^\d{3,4}[x×]\d{3,4}\s*[([]?$/i;
+
 function selectFilmYear(value, candidates, techCut) {
   if (!candidates.length) return null;
   const beforeTech = value.slice(0, techCut);
   const inRange = candidates.filter(candidate => candidate.end <= techCut);
   if (!inRange.length) {
     const next = candidates.find(candidate => candidate.index >= techCut);
-    if (next && EDITION_BEFORE_YEAR_RE.test(value.slice(techCut, next.index).trim() + ' ')) return next;
+    const between = value.slice(techCut, next ? next.index : techCut).trim();
+    if (next && (EDITION_BEFORE_YEAR_RE.test(between + ' ') || RESOLUTION_BEFORE_YEAR_RE.test(between))) return next;
     return null;
   }
   const last = inRange[inRange.length - 1];
@@ -110,6 +117,7 @@ const CJK_RE = /[\u3040-\u30FF\u4E00-\u9FFF]/;
 
 const TECH = [
   /\b(2160p|1080p|720p|480p|360p)\b/i,
+  /\b\d{3,4}[x×]\d{3,4}\b/i,
   /\b(4k|uhd)\b/i,
   /\b(web[-\s]?dl|webdl|web[-\s]?rip|webrip|bluray|blu[-\s]?ray|bdrip|brrip|hdtv|hdrip|dvdrip|dvdscr|camrip|hdtc|hdcam)\b/i,
   /\b(x264|x265|h264|h\.?265|hevc|avc|xvid)\b/i,

@@ -17,6 +17,9 @@ const counters = {
   candidateSearchDedupeHits: 0,
   matchAttempts: 0,
   matchKeptPrevious: 0,
+  probeUnchanged: 0,
+  probeChanged: 0,
+  probeUnknown: 0,
   matchTmdbHttpRequests: 0,
   tmdbHttpRequests: 0,
 };

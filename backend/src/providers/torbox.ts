@@ -488,7 +488,23 @@ function isJunkVideo(name = '') {
   return false;
 }
 
+// Change probe (library/change-probe.ts): one small page of a family's raw
+// listing, through the same limiter as every other TorBox call, and the raw
+// listing the last full scan cached. Never cached itself.
+async function torboxListPage(apiKey, family, { limit, offset }) {
+  const result = await torboxGet(`/${family}/mylist`, apiKey, { limit, offset, bypass_cache: true });
+  if (result.error) throw new Error(`TorBox probe failed (${result.status || 'error'})`);
+  const rows = result.data && result.data.data;
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function torboxCachedListing(apiKey, family, store = require('../runtime/cache.ts')) {
+  return store.get(store.makeKey('tb-source-v1', requestDlIdentity(apiKey), family));
+}
+
 export interface TorboxApi {
+  torboxListPage: any;
+  torboxCachedListing: any;
   getTorBoxPlan: any;
   hasTorBoxUsenet: any;
   getTorBoxDownloads: any;
@@ -510,7 +526,7 @@ export interface TorboxApi {
   torboxRateStatus: () => { inFlight: number; queued: number; ratePerAccountEndpoint: number };
 }
 
-module.exports = { getTorBoxDownloads, getTorBoxStreamLink, getTorBoxFiles, getTorBoxPlaybackStatus, getTorBoxPlan, hasTorBoxUsenet, isVideoFile, isJunkVideo, torboxRateStatus } satisfies TorboxApi
+module.exports = { torboxListPage, torboxCachedListing, getTorBoxDownloads, getTorBoxStreamLink, getTorBoxFiles, getTorBoxPlaybackStatus, getTorBoxPlan, hasTorBoxUsenet, isVideoFile, isJunkVideo, torboxRateStatus } satisfies TorboxApi
 
 function torboxRateStatus() {
   return { inFlight: tbInFlight, queued: tbQueue.length, ratePerAccountEndpoint: TB_RATE_LIMIT };

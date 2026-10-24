@@ -125,7 +125,17 @@ async function getRealDebridStreamLink(apiKey, itemId, fileId) {
   return unrestricted?.download || null;
 }
 
+// Change probe (library/change-probe.ts): one small request whose headers
+// matter (x-total-count). Throws on any failure so the probe reports unknown.
+async function realDebridProbeGet(apiKey, path, params = {}) {
+  const res = await axios.get(`${RD_BASE}${path}`, {
+    headers: { Authorization: `Bearer ${apiKey}` }, params, timeout: 15000, httpAgent, httpsAgent,
+  });
+  return { data: res.data, headers: res.headers || {} };
+}
+
 export interface RealdebridApi {
+  realDebridProbeGet: any;
   getRealDebridDownloads: any;
   getRealDebridFiles: any;
   getRealDebridStreamLink: any;
@@ -137,4 +147,4 @@ export interface RealdebridApi {
   getRealDebridStreamLink: (config: any, item: any, file: any) => Promise<string>;
 }
 
-module.exports = { getRealDebridDownloads, getRealDebridFiles, getRealDebridStreamLink } satisfies RealdebridApi
+module.exports = { realDebridProbeGet, getRealDebridDownloads, getRealDebridFiles, getRealDebridStreamLink } satisfies RealdebridApi

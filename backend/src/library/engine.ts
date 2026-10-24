@@ -18,6 +18,7 @@ const librarySearch = require('./search.ts');
 const { syncScope } = require('./sync.ts');
 const matcher = require('./matcher.ts');
 const metrics = require('./metrics.ts');
+const changeProbe = require('./change-probe.ts');
 const providers = require('../providers/index.ts');
 const builder = require('../catalog/builder.ts');
 const { decodeConfig } = require('../config/token.ts');
@@ -64,6 +65,17 @@ function intervalMs() {
 // quickly without polling every registered account at a high frequency.
 function requestSyncMinAgeMs() {
   return Math.max(10, parseInt(process.env.LIBRARY_REQUEST_SYNC_MIN_AGE, 10) || 15) * 1000;
+}
+
+// Change probe settings (library/change-probe.ts). A full provider listing
+// runs only when a probe says something changed, plus this safety resync.
+function fullResyncMs() {
+  return Math.max(2, parseInt(process.env.LIBRARY_FULL_RESYNC_MIN, 10) || 10) * 60 * 1000;
+}
+
+// How often a library in use (opened in the last hour) is probed.
+function activeProbeMs() {
+  return Math.max(10, parseInt(process.env.LIBRARY_PROBE_INTERVAL, 10) || 30) * 1000;
 }
 
 function syncOptions() {
@@ -218,6 +230,8 @@ function runSync(rec) {
   const promise = (async () => {
     try {
       const result = await syncScope(rec, syncOptions());
+      // Probe tokens taken before this sync describe what it just listed.
+      if (result && rec.pendingTokens) rec.probeTokens = { ...(rec.probeTokens || {}), ...rec.pendingTokens };
       // Only content changes invalidate catalog pages. A no-change sync leaves
       // catalogFp (and therefore every libcat result key) untouched.
       const c = result && result.counts;
@@ -231,6 +245,8 @@ function runSync(rec) {
     } finally {
       rec.syncing = null;
       rec.lastSyncAt = Date.now();
+      rec.lastProbeAt = rec.lastSyncAt;
+      rec.pendingTokens = null;
       rec.force = false;
     }
   })();
@@ -241,6 +257,24 @@ function runSync(rec) {
   return rec.syncing;
 }
 
+// Ask the providers whether anything changed; list in full only if so (or
+// when the probe cannot tell and the normal interval has passed).
+async function probeThenSync(rec) {
+  if (!rec || rec.syncing || rec.probing) return null;
+  rec.probing = true;
+  try {
+    rec.lastProbeAt = Date.now();
+    const probe = await changeProbe.probeScope(rec).catch(() => ({ changed: null, tokens: {} }));
+    metrics.add(probe.changed === false ? 'probeUnchanged' : probe.changed === true ? 'probeChanged' : 'probeUnknown');
+    const next = changeProbe.afterProbe({ now: Date.now(), intervalMs: intervalMs(), fullResyncMs: fullResyncMs(), activeProbeMs: activeProbeMs(), rec, changed: probe.changed });
+    if (next === 'skip') return null;
+    rec.pendingTokens = probe.tokens;
+    return runSync(rec);
+  } finally {
+    rec.probing = false;
+  }
+}
+
 async function runOnce() {  if (workerRunning) return { skipped: true };
   workerRunning = true;
   const startedAt = Date.now();
@@ -248,8 +282,14 @@ async function runOnce() {  if (workerRunning) return { skipped: true };
     const records = [...registry.values()];
     await pLimit(records, 2, async (rec) => {
       if (rec.syncing) return;
-      const due = !rec.lastSyncAt || (Date.now() - rec.lastSyncAt) >= intervalMs();
-      if (!due && !rec.force) return;
+      if (rec.force) { await runSync(rec); return; }
+      const policy = { now: Date.now(), intervalMs: intervalMs(), fullResyncMs: fullResyncMs(), activeProbeMs: activeProbeMs(), rec };
+      const action = changeProbe.decideSync(policy);
+      if (action === 'skip') return;
+      if (action === 'probe') {
+        await probeThenSync(rec);
+        return;
+      }
       await runSync(rec);
     });
   } finally {
@@ -440,7 +480,8 @@ async function start() {
     return 0;
   });
   console.log(`[Library] Indexed engine started: interval=${intervalMs() / 1000}s, drain=${drainIntervalMs() / 1000}s, enrich=${enrichIntervalMs() / 1000}s, resumed=${restored}${reset ? `, requeued=${reset}` : ''}${resetId ? `, requeuedIds=${resetId}` : ''}${resetSplit ? `, splitRepairs=${resetSplit}` : ''}${resetRanges ? `, seasonRangeRepairs=${resetRanges}` : ''}${terminalized ? `, terminalized=${terminalized}` : ''}`);
-  workerTimer = setInterval(() => { runOnce().catch(() => {}); }, intervalMs());
+  // Ticks often; each tick only probes or syncs what is due (decideSync).
+  workerTimer = setInterval(() => { runOnce().catch(() => {}); }, Math.min(intervalMs(), 15000));
   workerTimer.unref?.();
   drainTimer = setInterval(() => { drainOnce().catch(() => {}); }, drainIntervalMs());
   drainTimer.unref?.();
@@ -521,8 +562,9 @@ async function buildCatalog({ token, config, type, sortBy = 'data_adicao', skip 
   // sync in the background, but keep serving the indexed snapshot immediately.
   // This makes newly-added TorBox files show up on the next visit instead of
   // waiting for the periodic timer, without adding a second concurrent scan.
-  if (rec && rec.lastSyncAt && (Date.now() - rec.lastSyncAt) >= requestSyncMinAgeMs()) {
-    runSync(rec).catch(() => {});
+  if (rec) rec.lastRequestAt = Date.now();
+  if (rec && rec.lastSyncAt && (Date.now() - (rec.lastProbeAt || rec.lastSyncAt)) >= requestSyncMinAgeMs()) {
+    probeThenSync(rec).catch(() => {});
   }
   // `ready` is false until this scope has completed a sync. Callers use this
   // only for warm-up diagnostics; indexed reads remain bounded while the

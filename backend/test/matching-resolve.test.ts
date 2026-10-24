@@ -409,3 +409,40 @@ test('default deps forward the caller key to every TMDB call (regression: unkeye
   assert.equal(seen.search[0], 'KEY-123');
   assert.equal(seen.counts[0], 'KEY-123');
 });
+
+test('a year-only title finds its spelled-out TMDB title ("1984")', async () => {
+  const deps = stubDeps();
+  deps.search = async (query) => (query === 'Nineteen Eighty-Four'
+    ? [{ id: 9314, title: 'Nineteen Eighty-Four', release_date: '1984-11-09', vote_count: 1700 }]
+    : [{ id: 359720, title: 'The House, 1984', release_date: '1984-12-31', vote_count: 6 }]);
+  const r = await resolve.resolveMatch({ name: '1984.1984.INTERNAL.REMASTERED.1080p.BluRay.x264-SiNNERS', mediaType: 'movie' }, deps);
+  assert.equal(r.ok, true);
+  assert.equal(r.tmdbId, 9314);
+});
+
+test('a short exact title one year off counts only when it is the only one', async () => {
+  const deps = stubDeps();
+  deps.search = async () => [{ id: 844, title: '2046', release_date: '2005-10-20', vote_count: 900 }];
+  const one = await resolve.resolveMatch({ name: '2046.2004.1080p.mkv', mediaType: 'movie' }, deps);
+  assert.equal(one.tmdbId, 844);
+  deps.search = async () => [
+    { id: 1, title: 'Lux', release_date: '2003-01-01', vote_count: 5 },
+    { id: 2, title: 'Lux', release_date: '2005-01-01', vote_count: 5 },
+  ];
+  const two = await resolve.resolveMatch({ name: 'Lux.2004.1080p.mkv', mediaType: 'movie' }, deps);
+  assert.equal(two.ok, false);
+});
+
+test('a short title also matches a TMDB alternative title ("CKY")', async () => {
+  const deps = stubDeps();
+  deps.search = async () => [{ id: 24145, title: 'Landspeed presents: CKY', release_date: '1999-03-01', alternativeTitles: ['CKY', 'Landspeed: CKY'], vote_count: 45 }];
+  const r = await resolve.resolveMatch({ name: 'cky-1999', mediaType: 'movie' }, deps);
+  assert.equal(r.tmdbId, 24145);
+});
+
+test('strict unique-year matching accepts a TMDB alternative title', async () => {
+  const deps = stubDeps();
+  deps.search = async () => [{ id: 24145, title: 'Landspeed presents: CKY', release_date: '1999-03-01', alternativeTitles: ['CKY'], vote_count: 45 }];
+  const r = await resolve.resolveMatch({ name: 'cky-1999', mediaType: 'movie', requireUniqueStrongYear: true }, deps);
+  assert.equal(r.tmdbId, 24145);
+});

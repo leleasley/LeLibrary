@@ -210,6 +210,18 @@ async function resolveImdb(tmdbApiKey, meta, existing) {
   }
 }
 
+// Save a failed match, unless this was a re-check of a row that was already
+// matched: then the old match stays (a resolver change or a TMDB hiccup must
+// never make a title disappear). True when the old match was kept.
+async function failOrKeep(job, payload) {
+  if (job.prev_status === 'matched' && await store.keepPreviousMatch(job.id).catch(() => false)) {
+    metrics.add('matchKeptPrevious');
+    return true;
+  }
+  await store.saveMatch(job.id, payload);
+  return false;
+}
+
 // Process up to `batch` pending items for a scope. Returns aggregate counts.
 // Pending items are claimed atomically (FOR UPDATE SKIP LOCKED), so two workers
 // or two overlapping syncs never match the same item twice.
@@ -282,6 +294,8 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
           return;
         }
       }
+      // Matched normally now: drop film entries from an earlier box-set split.
+      if (!pinned && job.prev_status === 'expanded') await boxsets.removeChildren(job).catch(() => 0);
       // Two or more libraries agree on this exact release: trust it first.
       const shared = sharedById.get(job.id) || null;
       if (shared && shared.votes >= 2 && await applyShared(job, shared) === 'matched') {
@@ -293,6 +307,7 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
       const mediaType = job.media_type || 'movie';
       const name = (raw && (raw.name || raw.filename)) || '';
       let resolved = null;
+      let packSummary = null;
       let resolvedType = mediaType;
       try {
         if (offlineEnabled()) {
@@ -327,6 +342,7 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
         const embedded = embeddedVideoFiles(raw);
         const embeddedSummary = builder.summarizePackEpisodes(embedded.map((file) =>
           file.name || file.short_name || file.path || file.filename || ''));
+        packSummary = embeddedSummary;
         const embeddedType = embeddedSummary ? (embeddedSummary.isAnime ? 'anime' : 'series') : null;
         if (embeddedSummary || (isOpaqueOuterName(name) && embedded.length)) {
           let embeddedMeta = null;
@@ -377,8 +393,19 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
           }
         }
         metrics.add('tmdbCalls');
-        resolved = await resolveMatch({ name, mediaType, lang, tmdbApiKey }, undefined, sharedMatchLookups);
         const parsedOuter = (() => { try { return guessMediaInfo(name); } catch { return null; } })();
+        // Stored as a show, but the name is a dated title with no season or
+        // episode marker and no episode files inside ("cky-1999",
+        // "1984.1984.REMASTERED"): a strict film match (one exact title, exact
+        // year) goes first. Otherwise the TV search accepts a loose show and
+        // the old wrong type never gets corrected.
+        if (mediaType === 'series' && parsedOuter && !parsedOuter.isSeries && parsedOuter.season == null
+          && parsedOuter.episode == null && Number.isInteger(parsedOuter.year) && !embeddedSummary) {
+          metrics.add('tmdbCalls');
+          const movie = await resolveMatch({ name, mediaType: 'movie', lang, tmdbApiKey, requireUniqueStrongYear: true }, undefined, sharedMatchLookups);
+          if (movie?.ok) { resolved = movie; resolvedType = 'movie'; }
+        }
+        if (!resolved?.ok) resolved = await resolveMatch({ name, mediaType, lang, tmdbApiKey }, undefined, sharedMatchLookups);
         // An explicit episode marker is stronger evidence than a stale movie
         // catalog classification. Retry in the parser-indicated TV namespace
         // instead of leaving a deterministic type mismatch as a failure.
@@ -490,7 +517,7 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
           }
         }
       } catch (err) {
-        await store.saveMatch(job.id, { status: 'failed', error: String(err.message || err).slice(0, 300), version: retryVersion() });
+        if (await failOrKeep(job, { status: 'failed', error: String(err.message || err).slice(0, 300), version: retryVersion() })) { processed++; return; }
         builder.publishMatchEntry(mediaType, lang, name, null);
         failed++;
         processed++;
@@ -512,7 +539,9 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
         } catch {
           packSeason = null;
         }
-        if (config && packSeason == null && hasPackFiles(raw)) {
+        // A re-check of a matched row never takes this legacy guess over the
+        // stored match: only the core resolver may replace it (failOrKeep).
+        if (config && packSeason == null && hasPackFiles(raw) && job.prev_status !== 'matched') {
           try {
             metrics.add('tmdbCalls');
             const packMeta = await builder.matchItem(raw, tmdbApiKey, mediaType, lang, config);
@@ -540,11 +569,7 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
           processed++;
           return;
         }
-        await store.saveMatch(job.id, {
-          status: 'failed',
-          error: reason.slice(0, 300),
-          version: retryVersion(),
-        });
+        if (await failOrKeep(job, { status: 'failed', error: reason.slice(0, 300), version: retryVersion() })) { processed++; return; }
         builder.publishMatchEntry(mediaType, lang, name, null);
         failed++;
         processed++;
@@ -557,6 +582,14 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
       // into the stored match while the season looks right. Redirect hits
       // carry no search object, so the curated identity stands in and
       // artwork providers fill the poster.
+      // The outer name resolved without a season ("...сезон1серии18из8...") but
+      // every episode file inside is from one season of the same title: keep
+      // that season rather than storing a bare whole-show pack.
+      if (resolvedType !== 'movie' && resolved.season == null && resolved.seasonStart == null && resolved.episode == null
+        && packSummary && Number.isInteger(packSummary.season) && packSummary.episode == null && packSummary.seasonStart == null
+        && normalizeTitle(packSummary.title || '') === normalizeTitle(resolved.title || '')) {
+        resolved = { ...resolved, season: packSummary.season };
+      }
       metrics.add('tmdbCalls');
       const source = await builder.canonicalSource(tmdbApiKey, resolved, lang);
       const meta = builder.buildMatchMeta(
@@ -587,9 +620,10 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
         builder.publishMatchEntry(resolvedType, lang, name, meta);
         matched++;
       } else {
-        await store.saveMatch(job.id, { status: 'failed', error: 'meta-build-failed', version: retryVersion() });
-        builder.publishMatchEntry(resolvedType, lang, name, null);
-        failed++;
+        if (!(await failOrKeep(job, { status: 'failed', error: 'meta-build-failed', version: retryVersion() }))) {
+          builder.publishMatchEntry(resolvedType, lang, name, null);
+          failed++;
+        }
       }
       processed++;
     });

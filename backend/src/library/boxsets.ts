@@ -49,8 +49,28 @@ function featureFiles(raw: any): BoxFile[] {
   return fileList(raw).filter((f) => VIDEO.test(f.name) && !EXTRA.test(f.name) && f.size >= MIN_FEATURE_BYTES);
 }
 
+// A TV box set ("The Boys s1,2,3,4 boxset") holds episodes, not films: the
+// normal series path matches it. Episode markers on most files decide.
+const EPISODE_MARK = /(?:^|[^a-z0-9])(?:s\d{1,2}[ ._-]?e\d{1,3}|\d{1,2}x\d{2})(?=$|[^a-z0-9])/i;
+
 function looksLikeBoxSet(name: string, raw: any): boolean {
-  return BOXSET_NAME.test(String(name || '')) && featureFiles(raw).length >= 2;
+  if (!BOXSET_NAME.test(String(name || ''))) return false;
+  const files = featureFiles(raw);
+  if (files.length < 2) return false;
+  const episodes = files.filter((f) => EPISODE_MARK.test(f.name)).length;
+  return episodes * 2 < files.length;
+}
+
+// A parent that is no longer handled as a box set loses its film entries.
+async function removeChildren(job: any): Promise<number> {
+  if (!job || String(job.source_id || '').includes(CHILD_MARK)) return 0;
+  const pool = await store.ensure();
+  const { rowCount } = await pool.query(
+    `UPDATE lib_items SET removed_at = now(), match_status = 'skipped'
+      WHERE scope_id = (SELECT scope_id FROM lib_items WHERE id = $1) AND removed_at IS NULL AND source_id LIKE $2`,
+    [job.id, `${String(job.source_id).replace(/[\\%_]/g, (c) => `\\${c}`)}${CHILD_MARK}%`]
+  );
+  return rowCount || 0;
 }
 
 // Title and year of one film file. Box-set files usually start with the year
@@ -269,6 +289,7 @@ export interface BoxSetsApi {
   collectionQuery: typeof collectionQuery;
   matchToPart: typeof matchToPart;
   expand: typeof expand;
+  removeChildren: typeof removeChildren;
 }
 
-module.exports = { CHILD_MARK, looksLikeBoxSet, parseFilm, groupFilms, collectionQuery, matchToPart, expand } satisfies BoxSetsApi;
+module.exports = { CHILD_MARK, looksLikeBoxSet, parseFilm, groupFilms, collectionQuery, matchToPart, expand, removeChildren } satisfies BoxSetsApi;

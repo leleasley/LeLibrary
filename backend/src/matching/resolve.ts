@@ -21,7 +21,10 @@ const parser = require('../media/parser.ts');
 const tmdb = require('../media/tmdb.ts');
 const { lookupSplitSeason, lookupTitleRedirect, tableVersion } = require('./tables.ts');
 
-const RESOLVER_VERSION = 'v4';
+// v5: Latin search runs keep their punctuation; tracker labels and "+" names
+// parse cleanly. Re-checks every matched row once (a failed re-check keeps
+// the old match, see matcher failOrKeep).
+const RESOLVER_VERSION = 'v5';
 // r6 introduces a finite eight-attempt budget and transient/permanent backoff
 // schedules; old failed rows are reconsidered once under the new policy.
 // r7 fixes yearless TV remakes/variants: requested-season existence now gets
@@ -44,6 +47,19 @@ const MATCH_PARSER_VERSION = 'p7';
 // forever. Operators can explicitly requeue; changing this retry version
 // also makes terminal rows eligible again.
 const MAX_MATCH_ATTEMPTS = 8;
+
+const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+function twoDigitWords(n) {
+  if (n < 20) return ONES[n];
+  return TENS[Math.floor(n / 10)] + (n % 10 ? `-${ONES[n % 10]}` : '');
+}
+// 1984 -> "Nineteen Eighty-Four", 2001 -> "Two Thousand One", 1900 -> "Nineteen Hundred".
+function yearInWords(year) {
+  const hi = Math.floor(year / 100), lo = year % 100;
+  if (hi === 20 && lo < 10) return `Two Thousand${lo ? ` ${ONES[lo]}` : ''}`;
+  return `${twoDigitWords(hi)} ${lo ? (lo < 10 ? `Oh ${ONES[lo]}` : twoDigitWords(lo)) : 'Hundred'}`;
+}
 
 function titleSearchVariants(title) {
   const source = String(title || '').trim();
@@ -73,7 +89,13 @@ function titleSearchVariants(title) {
   for (const part of source.split(/\s+(?:aka|a\.?k\.?a\.?)\s+/i)) addVariant(part);
   // Release names can combine localized and English titles. Search each
   // script run too, without adding title-specific aliases.
-  const latinRuns = source.match(/[\p{Script=Latin}][\p{Script=Latin}\p{M}\p{N}'’ -]*/gu) || [];
+  // Punctuation stays inside a run ("Amore, matrimoni e altri disastri",
+  // "Scooby-Doo! Mask of ..."): splitting there searched a lone first word
+  // ("Amore") that then out-scored the real title. Runs with fewer than three
+  // letters ("p") are release debris, never a title.
+  const latinRuns = (source.match(/[\p{Script=Latin}][\p{Script=Latin}\p{M}\p{N}'’ ,.:;!?&-]*/gu) || [])
+    .map((run) => run.replace(/[\s,.:;!?&-]+$/u, ''))
+    .filter((run) => (run.match(/\p{Script=Latin}/gu) || []).length >= 3);
   const latinOnly = latinRuns.join(' ').replace(/\s+/g, ' ').trim();
   if (latinOnly && latinOnly !== source) variants.push(latinOnly);
   // A localized release can contain unrelated Latin-script site branding
@@ -85,7 +107,7 @@ function titleSearchVariants(title) {
     const cleanRun = run.replace(/\s+/g, ' ').trim();
     if (cleanRun && cleanRun !== source) variants.push(cleanRun);
   }
-  const otherScripts = source.replace(/[\p{Script=Latin}\p{M}\p{N}'’ -]/gu, ' ').replace(/\s+/g, ' ').trim();
+  const otherScripts = source.replace(/[\p{Script=Latin}\p{M}\p{N}'’ ,.:;!?&-]/gu, ' ').replace(/\s+/g, ' ').trim();
   if (otherScripts && otherScripts !== source) variants.push(otherScripts);
 
   // Some installment titles use Roman numerals instead of a trailing number.
@@ -95,6 +117,9 @@ function titleSearchVariants(title) {
     for (const [value, numeral] of values) while (n >= value) { out += numeral; n -= value; }
     return out;
   };
+  // A title that is only a year-like number ("1984") is often listed with the
+  // number in words ("Nineteen Eighty-Four"); TMDB search does not bridge it.
+  if (/^1[0-9]\d{2}$/.test(source)) variants.push(yearInWords(Number(source)));
   const tail = source.match(/^(.*\S)\s+(\d{1,3})$/);
   if (tail && Number(tail[2]) > 0 && Number(tail[2]) <= 50) variants.push(tail[1] + ' ' + toRoman(Number(tail[2])));
   return [...new Set(variants.filter(Boolean))];
@@ -392,11 +417,21 @@ async function resolveMatch({ name, mediaType = 'series', lang = 'en-US', tmdbAp
     // Also for rows stored as series whose name has no season or episode
     // marker: real season packs keep their normal ranking.
     if ((!isSeries || !info.isSeries) && Number.isInteger(info.year) && shortTitle.length > 0 && shortTitle.length <= 4 && candidates.length) {
-      const exact = candidates.filter((candidate) => {
+      const exactEntries = candidates.map((candidate) => {
         const candidateYear = parseInt(String(candidate.release_date || candidate.first_air_date || '').slice(0, 4), 10);
-        const names = [candidate.title, candidate.original_title, candidate.name, candidate.original_name].filter(Boolean).map(compactTitle);
-        return candidateYear === info.year && names.includes(shortTitle);
-      });
+        // TMDB alternative titles count: "CKY" is listed as "Landspeed presents: CKY".
+        const names = [candidate.title, candidate.original_title, candidate.name, candidate.original_name,
+          ...(Array.isArray(candidate.alternativeTitles) ? candidate.alternativeTitles : [])].filter(Boolean).map(compactTitle);
+        // A year-only title also matches its spelled-out form ("1984" = "Nineteen Eighty-Four").
+        const spelled = /^1[0-9]\d{2}$/.test(shortTitle) ? compactTitle(yearInWords(Number(shortTitle))) : null;
+        return { candidate, yearGap: Number.isInteger(candidateYear) ? Math.abs(candidateYear - info.year) : 99, titleOk: names.includes(shortTitle) || Boolean(spelled && names.includes(spelled)) };
+      }).filter((entry) => entry.titleOk);
+      // Exact year first. TMDB's date can be the first general release, a year
+      // after a festival premiere ("2046": 2004 at Cannes, 2005 on TMDB), so
+      // one candidate a year off still counts when it is the only one.
+      const sameYear = exactEntries.filter((entry) => entry.yearGap === 0).map((entry) => entry.candidate);
+      const nearYear = exactEntries.filter((entry) => entry.yearGap === 1).map((entry) => entry.candidate);
+      const exact = sameYear.length ? sameYear : (nearYear.length === 1 ? nearYear : []);
       if (exact.length > 1) return failure('ambiguous-candidate', tried);
       candidates = exact;
       picked = exact[0] || null;
@@ -418,7 +453,9 @@ async function resolveMatch({ name, mediaType = 'series', lang = 'en-US', tmdbAp
         if (!candidate || candidate.id == null) return false;
         const candidateYear = String(candidate.release_date || '').slice(0, 4);
         if (candidateYear !== String(info.year)) return false;
-        return queries.some((query) => d.titleScore(query, candidate) === 100);
+        // TMDB alternative titles count as exact titles ("CKY").
+        const alts = (Array.isArray(candidate.alternativeTitles) ? candidate.alternativeTitles : []).map(compactTitle);
+        return queries.some((query) => d.titleScore(query, candidate) === 100 || alts.includes(compactTitle(query)));
       });
       if (strong.length !== 1) return failure(strong.length ? 'ambiguous-candidate' : 'no-candidate', tried);
       const winner = strong[0];
@@ -706,6 +743,7 @@ export interface MatchingApi {
   nearTitlePlan: any;
   titleSimilarity: any;
   compactTitle: any;
+  titleSearchVariants: typeof titleSearchVariants;
 }
 
-module.exports = { resolveMatch, RESOLVER_VERSION, MAX_MATCH_ATTEMPTS, matchVersion, retryVersion, defaultDeps, nearTitlePlan, titleSimilarity, compactTitle } satisfies MatchingApi;
+module.exports = { resolveMatch, RESOLVER_VERSION, MAX_MATCH_ATTEMPTS, matchVersion, retryVersion, defaultDeps, nearTitlePlan, titleSimilarity, compactTitle, titleSearchVariants } satisfies MatchingApi;

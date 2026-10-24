@@ -121,6 +121,25 @@ test('index store: reconcile, match, catalog and search are incremental', { skip
   const claimed = await store.claimMatchJobs(scopeId, 1);
   assert.strictEqual(claimed.length, 1);
   assert.strictEqual(claimed[0].source_id, String(items[1].id));
+  assert.strictEqual(claimed[0].prev_status, 'failed');
+
+  // A re-check of a matched row that fails keeps the old match.
+  const kept = await pool.query(
+    `SELECT id FROM lib_items WHERE scope_id=$1 AND removed_at IS NULL AND NOT (source_id = ANY($2::text[])) ORDER BY id LIMIT 1`,
+    [scopeId, [String(items[1].id), String(items[2].id)]]
+  );
+  const keptId = kept.rows[0].id;
+  await pool.query(`UPDATE lib_items SET match_status='matched', tmdb_id=603, match_meta='{"name":"Kept"}', match_version='old' WHERE id=$1`, [keptId]);
+  const recheck = await store.claimMatchJobs(scopeId, 50);
+  const keptJob = recheck.find((row) => String(row.id) === String(keptId));
+  assert.ok(keptJob, 'a version-stale matched row is claimed for a re-check');
+  assert.strictEqual(keptJob.prev_status, 'matched');
+  assert.strictEqual(await store.keepPreviousMatch(keptId), true);
+  const after = await pool.query(`SELECT match_status, tmdb_id, match_version FROM lib_items WHERE id=$1`, [keptId]);
+  assert.deepStrictEqual([after.rows[0].match_status, Number(after.rows[0].tmdb_id)], ['matched', 603]);
+  assert.strictEqual(after.rows[0].match_version, require('../src/matching/resolve.ts').matchVersion());
+  // Put back what this test claimed so the checks below see the queue as before.
+  await pool.query(`UPDATE lib_items SET match_status='pending' WHERE scope_id=$1 AND match_status='matching' AND id <> $2`, [scopeId, claimed[0].id]);
 
   const { MAX_MATCH_ATTEMPTS } = require('../src/matching/resolve.ts');
   const target = await pool.query(

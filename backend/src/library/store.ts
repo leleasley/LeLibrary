@@ -632,14 +632,11 @@ async function claimMatchJobs(scopeId, limit) {
   // Newest items match first: a fresh download jumps the queue and shows up
   // within a sync or two even while an old backlog is still draining. Starving
   // old rows is impossible in practice (users never add 50+ items per pass).
+  // prev_status lets the matcher tell a re-check of a matched row (keep the
+  // old match if the re-check fails) from first-time work.
   const { rows } = await pool.query(
-    `UPDATE lib_items SET match_status = 'matching',
-        match_attempts = CASE
-          WHEN match_status IN ('failed','skipped') AND match_version IS DISTINCT FROM $3 THEN 1
-          ELSE match_attempts + 1
-        END
-      WHERE id IN (
-        SELECT id FROM lib_items
+    `WITH picked AS (
+        SELECT id AS picked_id, match_status AS prev_status FROM lib_items
          WHERE scope_id = $1 AND removed_at IS NULL
            AND (match_status = 'pending'
              OR (match_status = 'failed'
@@ -660,10 +657,32 @@ async function claimMatchJobs(scopeId, limit) {
          LIMIT $2
          FOR UPDATE SKIP LOCKED
       )
-      RETURNING id, provider, source_id, raw, media_type, is_series, is_anime, name, season, episode, season_start, season_end, content_hash`,
+      UPDATE lib_items l SET match_status = 'matching',
+        match_attempts = CASE
+          WHEN l.match_status IN ('failed','skipped') AND l.match_version IS DISTINCT FROM $3 THEN 1
+          ELSE l.match_attempts + 1
+        END
+        FROM picked WHERE l.id = picked.picked_id
+      RETURNING l.id, l.provider, l.source_id, l.raw, l.media_type, l.is_series, l.is_anime, l.name, l.season, l.episode,
+                l.season_start, l.season_end, l.content_hash, picked.prev_status`,
     [scopeId, Math.max(1, limit), retryVersion(), matchVersion()]
   );
   return rows;
+}
+
+// A re-check of a row that was already matched found nothing better: keep
+// the stored match (its tmdb_id and meta were never cleared) and stamp the
+// current version so it is not re-checked again. False when there is no
+// stored match to keep.
+async function keepPreviousMatch(id) {
+  const pool = await ensure();
+  const { rowCount } = await pool.query(
+    `UPDATE lib_items SET match_status = 'matched', match_error = NULL, match_attempts = 0,
+            match_next_retry_at = NULL, match_version = $2
+      WHERE id = $1 AND tmdb_id IS NOT NULL AND match_meta IS NOT NULL`,
+    [id, matchVersion()]
+  );
+  return rowCount > 0;
 }
 
 async function saveMatch(id, { status, tmdbId = null, imdbId = null, matchMeta = null, error = null, version = null, classification = null }) {
@@ -1007,6 +1026,7 @@ export interface StoreApi {
   terminalizeExhaustedMatches: any;
   requeueFailedMatches: any;
   requeueSearchFailures: any;
+  keepPreviousMatch: any;
   failedMatchRows: any;
   massRemovalDecision: any;
   reconcile: any;  counts: any;
@@ -1046,6 +1066,7 @@ module.exports = {
   terminalizeExhaustedMatches,
   requeueFailedMatches,
   requeueSearchFailures,
+  keepPreviousMatch,
   failedMatchRows,
   massRemovalDecision,
   reconcile,

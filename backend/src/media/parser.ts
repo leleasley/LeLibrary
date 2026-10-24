@@ -28,6 +28,9 @@ function hasFilmYear(value) {
 const EDITION_BEFORE_YEAR_RE = /^(?:extended|unrated|uncut|remaster(?:ed)?|theatrical|director'?s\s+cut|proper|repack)(?:\s+(?:cut|edition|version))?\s+[([]?$/i;
 
 // "Title 1280x720 2010": a lone resolution can sit before the release year too.
+// "Title Dub + 2x VO + Sub Rus, Eng + Original Eng 2011": a run of audio and
+// subtitle labels can sit before the release year too.
+const LABELS_BEFORE_YEAR_RE = /^(?:(?:\d+\s*[xх]\s*)?(?:dub|mvo|dvo|avo|vo|original|sub|subs|commentary|rus|ukr|eng)\b[\s,]*|\+\s*)+[([]?$/i;
 const RESOLUTION_BEFORE_YEAR_RE = /^\d{3,4}[x×]\d{3,4}\s*[([]?$/i;
 
 function selectFilmYear(value, candidates, techCut) {
@@ -37,7 +40,7 @@ function selectFilmYear(value, candidates, techCut) {
   if (!inRange.length) {
     const next = candidates.find(candidate => candidate.index >= techCut);
     const between = value.slice(techCut, next ? next.index : techCut).trim();
-    if (next && (EDITION_BEFORE_YEAR_RE.test(between + ' ') || RESOLUTION_BEFORE_YEAR_RE.test(between))) return next;
+    if (next && (EDITION_BEFORE_YEAR_RE.test(between + ' ') || RESOLUTION_BEFORE_YEAR_RE.test(between) || LABELS_BEFORE_YEAR_RE.test(between))) return next;
     return null;
   }
   const last = inRange[inRange.length - 1];
@@ -131,6 +134,9 @@ const TECH = [
   // "Sub Rus", "Original Eng") are release metadata, not title words.
   /\b(?:\d+\s*[xх]\s*)?(?:mvo|dvo|avo)\b/i,
   /\b(?:sub|subs)\s+(?:rus|eng|ukr)\b/i,
+  // Tracker label runs joined by "+" ("Dub + 2x VO + Sub", "Dub + Original").
+  // The "+" is what makes them labels: "Dub Club" and "The Sub" stay titles.
+  /\b(?:\d+\s*[xх]\s*)?(?:dub|vo|avo|mvo|dvo|original|sub|subs|commentary)\s*(?:\+|(?=(?:\d+\s*[xх]\s*)?(?:dub|vo|avo|mvo|dvo|sub|subs)\s*(?:\+|rus|ukr|eng|$)))/i,
   /\boriginal\s+(?:eng|rus)\b/i,
 ];
 
@@ -172,6 +178,10 @@ function guessMediaInfo(raw) {
   if (_parseCache.has(raw)) return _parseCache.get(raw);
 
   let name = decodeHtml(raw).replace(/\.(mkv|mp4|avi|mov|ts|wmv|m4v|webm)$/i, '').trim();
+  // Form-encoded names use "+" for spaces ("Not+Going+Out+Season+4"). Only
+  // when the name has no spaces at all and "+" joins words more than once, so
+  // a real "+" in a title ("Movie+ 2010", "A + B") is left alone.
+  if (!/\s/.test(name) && (name.match(/[\p{L}\p{N}]\+[\p{L}\p{N}]/gu) || []).length >= 2) name = name.replace(/\+/g, ' ');
 
   const isAnimeGroup = ANIME_GROUP_RE.test(name);
   const hasCJK       = CJK_RE.test(name);

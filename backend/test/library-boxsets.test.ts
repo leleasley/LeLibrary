@@ -67,3 +67,13 @@ test('UK and US spellings still find the collection film', () => {
   const parts = [{ id: 1, title: 'The Colour of Magic', originalTitle: 'The Colour of Magic', year: 2008 }, { id: 2, title: 'Magic Mike', originalTitle: 'Magic Mike', year: 2012 }];
   assert.equal(boxsets.matchToPart({ key: 'k', title: 'The Color of Magic', year: 2008, files: [] }, parts)?.id, 1);
 });
+
+test('a TV box set (episode files) is not split into films', () => {
+  const big = 900 * 1024 * 1024;
+  const raw = { files: [
+    { id: 1, name: 'The Boys 2019 S01E01 The Name of the Game 1080p H264.mkv', size: big },
+    { id: 2, name: 'The Boys 2019 S01E02 Cherry 1080p H264.mkv', size: big },
+    { id: 3, name: 'The Boys 2020 S02E01 The Big Ride 1080p H264.mkv', size: big },
+  ] };
+  assert.equal(boxsets.looksLikeBoxSet('The Boys s1,2,3,4 and extras boxset', raw), false);
+});

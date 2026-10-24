@@ -10,6 +10,7 @@
     "test": "node --test \"backend/test/**/*.test.*\"",
     "test:library": "node --test backend/test/library-index.test.ts backend/test/library-store.test.ts",
     "bench:library": "node scripts/library-bench.js",
+    "bench:match": "scripts/match-bench.sh",
     "fixture:library": "node scripts/library-fixture.js",
     "audit:imported-sources": "node scripts/audit-imported-sources.js",
     "check:curated-artwork": "node scripts/check-curated-artwork.js",

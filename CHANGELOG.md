@@ -4,11 +4,13 @@
 
 ### Library
 
-- Box sets are now split into their films. A folder like a complete Fast and Furious, Critters or Mission: Impossible collection used to fail as one item; now every film inside shows up in your movies on its own and plays its own file. Nothing in your debrid account is moved or copied.
+- Box sets of films are now split into their films (a box set of TV seasons stays one show). A folder like a complete Fast and Furious, Critters or Mission: Impossible collection used to fail as one item; now every film inside shows up in your movies on its own and plays its own file. Nothing in your debrid account is moved or copied.
 - Films are matched against the franchise's TMDB collection first, then one by one. A film LeLibrary cannot match with confidence is left for you to fix, without holding up the rest of the box set.
 - Miniseries split into parts inside a box set (for example Hogfather or Going Postal) show up in your shows, one episode per part.
 - UK and US spellings of a title (Colour and Color) are treated as the same when matching box sets.
 - A screen size in a file name (for example 1920x816) is no longer mistaken for the release year, so those files match the right film. Files that failed to match for this reason are tried again automatically.
+- Smarter matching for release names that used to go wrong: names with "+" instead of spaces, Russian releases that list dubs, voice-overs and subtitles ("Dub + 2x VO + Sub"), titles with commas or exclamation marks, titles that are a number (1984 now finds Nineteen Eighty-Four) and short titles TMDB lists under another name. Several films that were matched to the wrong title (for example Tower Heist, Get Shorty, Flight of the Navigator and the 9-1-1 seasons) are now found correctly.
+- After this update every library re-checks its existing matches once in the background, so old wrong matches get corrected. A title that is already matched never disappears because of the re-check: if nothing better is found, it keeps its current match.
 - If your TMDB key is missing or TMDB stops accepting it, matching now pauses and your Library page tells you, instead of reporting TMDB as unavailable and giving up on those files. Once the key works again, the paused files are matched straight away.
 
 ### Faster

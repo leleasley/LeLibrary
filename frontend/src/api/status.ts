@@ -10,6 +10,7 @@ export interface ProviderStatus {
   history?: StatusHistory;
   maintenance?: boolean;
   note?: string;
+  lastSuccessAt?: number;
   services?: ProviderService[];
 }
 
@@ -19,6 +20,7 @@ export interface ProviderService {
   status: string;
   detail?: string;
   availability?: number;
+  lastSuccessAt?: number;
 }
 
 function normalizeServices(value: unknown): ProviderService[] | undefined {
@@ -34,6 +36,9 @@ function normalizeServices(value: unknown): ProviderService[] | undefined {
     if (typeof item['detail'] === 'string') service.detail = item['detail'];
     if (typeof item['availability'] === 'number' && Number.isFinite(item['availability'])) {
       service.availability = item['availability'];
+    }
+    if (typeof item['lastSuccessAt'] === 'number' && Number.isFinite(item['lastSuccessAt'])) {
+      service.lastSuccessAt = item['lastSuccessAt'];
     }
     return [service];
   });
@@ -103,6 +108,7 @@ export function normalizeStatus(payload: unknown): StatusResponse {
         ...(typeof item['url'] === 'string' ? { url: item['url'] } : {}),
         ...(item['maintenance'] === true ? { maintenance: true } : {}),
         ...(typeof item['note'] === 'string' && item['note'] ? { note: item['note'] } : {}),
+        ...(typeof item['lastSuccessAt'] === 'number' && Number.isFinite(item['lastSuccessAt']) ? { lastSuccessAt: item['lastSuccessAt'] } : {}),
         ...(() => {
           const services = normalizeServices(item['services']);
           return services ? { services } : {};

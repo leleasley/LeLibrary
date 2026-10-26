@@ -68,6 +68,9 @@
     "openService": "Open service",
     "services": "services",
     "operational": "operational",
+    "databaseBackups": "Database backups",
+    "lastSuccessfulBackup": "Last successful backup: {{time}}",
+    "noSuccessfulBackup": "No successful backup reported yet",
     "states": {
       "operational": "Operational",
       "maintenance": "Maintenance",

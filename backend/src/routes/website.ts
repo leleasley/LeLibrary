@@ -1068,7 +1068,7 @@ const STATUS_CHECKS = [
   // Local LeLibrary health is measured from inside the running process. These
   // checks expose only component state and timings, never user or library data.
   let redisMisses = 0;
-  async function checkLeLibrary() {
+  async function checkLeLibrary(backupService: any) {
     const startedAt = Date.now();
     const bounded = <T>(promise: Promise<T>, ms = 2000): Promise<T> => new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('timeout')), ms);
@@ -1129,9 +1129,11 @@ const STATUS_CHECKS = [
           : 'Database unavailable'),
       },
       { section: 'LeLibrary', name: 'Cache', status: redisState.status, detail: redisState.detail },
+      backupService,
     ];
     const status = services.reduce((worst, service) =>
-      (STATUS_RANK[service.status] ?? 1) > (STATUS_RANK[worst] ?? 1) ? service.status : worst, 'operational');
+      service.status === 'unknown' ? worst
+        : (STATUS_RANK[service.status] ?? 1) > (STATUS_RANK[worst] ?? 1) ? service.status : worst, 'operational');
     return {
       id: 'lelibrary', name: 'LeLibrary', url: '/', status,
       detail: `${services.filter((service) => service.status === 'operational').length}/${services.length} components healthy`,
@@ -1140,6 +1142,26 @@ const STATUS_CHECKS = [
   }
   const STATUS_RANK: Record<string, number> = { operational: 0, maintenance: 1, degraded: 2, down: 3 };
   let statusCache: any = { at: 0, data: null };
+
+  // The backup monitor posts only the outcome of the latest Databasus event.
+  // Never accept backup names, files, database details, or provider secrets.
+  let backupReport: { result: 'success' | 'failure'; occurredAt: number; lastSuccessAt: number | null } | null = null;
+  const BACKUP_REPORT_MAX_AGE_MS = 36 * 60 * 60 * 1000;
+  const backupStatusCache = require('../runtime/cache.ts');
+  let backupReportLoad: Promise<void> | null = null;
+  function loadBackupReport() {
+    if (!backupReportLoad) {
+      backupReportLoad = (async () => {
+        const saved = await backupStatusCache.get('status:backup-report:v1').catch(() => null);
+        if (saved && (saved.result === 'success' || saved.result === 'failure')
+          && Number.isSafeInteger(saved.occurredAt)
+          && (saved.lastSuccessAt === null || Number.isSafeInteger(saved.lastSuccessAt))) {
+          backupReport = saved;
+        }
+      })();
+    }
+    return backupReportLoad;
+  }
 
   // Rolling uptime history (in-memory, one sample per background check).
   // Cleared on restart: the status page renders it as Uptime-Kuma-style cells.
@@ -1187,7 +1209,24 @@ const STATUS_CHECKS = [
           detail: code ? `Unavailable (HTTP ${code})` : 'Unreachable',
         };
       });
-      providers.unshift(await checkLeLibrary());
+      await loadBackupReport();
+      const backupAge = backupReport ? Date.now() - backupReport.occurredAt : Infinity;
+      const backupStatus = !backupReport
+        ? 'unknown'
+        : backupAge > BACKUP_REPORT_MAX_AGE_MS
+          ? 'degraded'
+          : backupReport.result === 'success' ? 'operational' : 'down';
+      providers.unshift(await checkLeLibrary({
+        section: 'LeLibrary',
+        name: 'Database backups',
+        status: backupStatus,
+        detail: !backupReport
+          ? 'No backup report received'
+          : backupAge > BACKUP_REPORT_MAX_AGE_MS
+            ? 'Backup report is stale'
+            : backupReport.result === 'success' ? 'Latest backup succeeded' : 'Latest backup failed',
+        ...(backupReport?.lastSuccessAt ? { lastSuccessAt: backupReport.lastSuccessAt } : {}),
+      }));
 
       // A provider we could not check ('unknown') never changes the overall.
       const overall = providers.reduce((worst, p) => {
@@ -1220,6 +1259,51 @@ const STATUS_CHECKS = [
     runStatusCheck();
     setInterval(runStatusCheck, 60000).unref?.();
   }
+
+  router.post('/api/status/backup-report', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) => {
+    if (!HAS_STATUS_PAGE) return res.status(404).json({ error: 'Not found' });
+    const secret = process.env.BACKUP_STATUS_WEBHOOK_SECRET;
+    if (!secret || !/^[a-f0-9]{64,}$/i.test(secret) || secret.length % 2 !== 0) {
+      return res.status(503).json({ error: 'Backup status receiver is not configured' });
+    }
+
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : null;
+    if (!body || Object.keys(body).length !== 2
+      || body.result !== 'success' && body.result !== 'failure'
+      || typeof body.occurredAt !== 'number' || !Number.isSafeInteger(body.occurredAt)) {
+      return res.status(400).json({ error: 'Invalid report' });
+    }
+    const canonicalBody = JSON.stringify({ occurredAt: body.occurredAt, result: body.result });
+    const timestamp = String(req.header('x-lelibrary-timestamp') || '');
+    const suppliedHex = String(req.header('x-lelibrary-signature') || '').replace(/^sha256=/, '');
+    if (!/^\d{10}$/.test(timestamp) || !/^[a-f0-9]{64}$/i.test(suppliedHex)) {
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+    const timestampMs = Number(timestamp) * 1000;
+    if (Math.abs(Date.now() - timestampMs) > 5 * 60 * 1000) {
+      return res.status(401).json({ error: 'Expired report' });
+    }
+    if (body.occurredAt > Date.now() + 5 * 60 * 1000) {
+      return res.status(400).json({ error: 'Invalid report time' });
+    }
+    const expected = crypto.createHmac('sha256', Buffer.from(secret, 'hex')).update(`${timestamp}.${canonicalBody}`).digest();
+    const supplied = Buffer.from(suppliedHex, 'hex');
+    if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+
+    await loadBackupReport();
+    if (backupReport && body.occurredAt <= backupReport.occurredAt) {
+      return res.status(202).json({ accepted: true, duplicate: true });
+    }
+    const lastSuccessAt = body.result === 'success'
+      ? body.occurredAt
+      : (backupReport?.lastSuccessAt ?? null);
+    backupReport = { result: body.result, occurredAt: body.occurredAt, lastSuccessAt };
+    await backupStatusCache.set('status:backup-report:v1', backupReport, 7 * 24 * 60 * 60);
+    statusCache = { at: 0, data: null };
+    return res.status(202).json({ accepted: true });
+  });
 
   router.get('/api/status', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');

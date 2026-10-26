@@ -68,6 +68,9 @@
     "openService": "Abrir servicio",
     "services": "servicios",
     "operational": "operativos",
+    "databaseBackups": "Copias de seguridad de la base de datos",
+    "lastSuccessfulBackup": "Última copia de seguridad correcta: {{time}}",
+    "noSuccessfulBackup": "Todavía no se ha informado de ninguna copia correcta",
     "states": {
       "operational": "Operativo",
       "maintenance": "Mantenimiento",

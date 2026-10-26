@@ -95,7 +95,7 @@ export function quickDraftHasContent(draft: QuickDraft): boolean {
 // Quick Look's "More library options" are a slice of the shared metadata
 // model, so an edit maps them both ways.
 function extrasFromMeta(meta: TierSnapshotMeta): QuickExtras {
-  return { lang: meta.lang, notices: meta.notices, noticeTypes: [...meta.noticeTypes], searchScope: meta.searchScope, hideAnime: meta.hideAnime };
+  return { lang: meta.lang, notices: meta.notices, noticeTypes: [...meta.noticeTypes], searchScope: meta.searchScope, hideAnime: meta.hideAnime, torboxSources: [...meta.torboxSources] };
 }
 type TierSnapshotMeta = EditMode['initial']['meta'];
 
@@ -166,6 +166,7 @@ export function QuickSetupPage({ edit }: { edit?: EditMode } = {}) {
         lang: extras.lang,
         libraryIdMode: 'torbox',
         hideAnime: extras.hideAnime,
+        torboxSources: extras.torboxSources,
         streamNotices: extras.notices ? 'on' : 'off',
         streamNoticeTypes: extras.noticeTypes,
         }),

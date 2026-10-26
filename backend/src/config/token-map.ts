@@ -62,6 +62,7 @@ const SHORT_TO_FULL: Record<string, string> = {
   fr:  'filterResolutions',
   fx:  'filterMaxSize',
   fo:  'filterCachedOnly',
+  tbs: 'torboxSources',
 };
 
 const FULL_TO_SHORT: Record<string, string> = {};
@@ -80,6 +81,7 @@ const ARRAY_CSV: Record<string, boolean> = {
   libraryCatalogs: true,
   libHomeHidden: true,
   nuvioCollectionPacks: true,
+  torboxSources: true,
 };
 
 function base64UrlEncode(str: unknown): string {
@@ -126,6 +128,7 @@ function normalizeConfig(decoded: unknown): Record<string, any> | null {
   if (typeof out.libraryCatalogs === 'string') out.libraryCatalogs = out.libraryCatalogs.split(',').filter(Boolean);
   if (typeof out.libHomeHidden === 'string') out.libHomeHidden = out.libHomeHidden.split(',').filter(Boolean);
   if (typeof out.nuvioCollectionPacks === 'string') out.nuvioCollectionPacks = out.nuvioCollectionPacks.split(',').filter(Boolean);
+  if (typeof out.torboxSources === 'string') out.torboxSources = out.torboxSources.split(',').filter(Boolean);
   return out;
 }
 

@@ -261,7 +261,19 @@ describe('edit save body', () => {
         streamNotices: 'off',
         streamNoticeTypes: ['none'],
       },
+      // Every TorBox source on is the default: any stored limit is cleared.
+      clearConfig: ['torboxSources'],
     });
+  });
+
+  it('saves a TorBox source limit with the metadata toggles', () => {
+    const body = buildEditSaveBody({
+      ...BASE_EDIT_SAVE,
+      metaTouched: true,
+      meta: { ...EMPTY_METADATA_EXTRAS, torboxSources: ['usenet'] },
+    });
+    expect(body?.config).toMatchObject({ torboxSources: ['usenet'] });
+    expect(body?.clearConfig).toBeUndefined();
   });
 
   it('sends filter and media sets, including the codec/HDR/audio sets creation writes', () => {

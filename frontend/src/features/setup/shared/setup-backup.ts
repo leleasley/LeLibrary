@@ -108,6 +108,7 @@ export function stageBackup(backup: SetupBackup): string {
         noticeTypes: [...snapshot.meta.noticeTypes],
         searchScope: snapshot.meta.searchScope,
         hideAnime: snapshot.meta.hideAnime,
+        torboxSources: [...snapshot.meta.torboxSources],
       },
       libraryRows: snapshot.libraryRows,
     });

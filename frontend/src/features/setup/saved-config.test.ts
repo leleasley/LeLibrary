@@ -36,6 +36,13 @@ describe('saved config mapping', () => {
     expect(drafts.badgePack).toEqual({ pack: 'custom', url: 'https://example.com/badges.json' });
   });
 
+  it('reads the TorBox source limit, defaulting to every source', () => {
+    expect(applySavedConfig({ torboxSources: ['webdl', 'usenet'] }).meta.torboxSources).toEqual(['usenet', 'webdl']);
+    expect(applySavedConfig({}).meta.torboxSources).toEqual(['torrent', 'usenet', 'webdl']);
+    expect(applySavedConfig({ torboxSources: ['nzb'] }).meta.torboxSources).toEqual(['torrent', 'usenet', 'webdl']);
+    expect(applySavedConfig({ torboxSources: 'usenet' }).meta.torboxSources).toEqual(['torrent', 'usenet', 'webdl']);
+  });
+
   it('falls back to defaults for unknown or missing values', () => {
     const drafts = applySavedConfig(null);
     expect(drafts.platform).toBe('nuvio');
@@ -116,13 +123,13 @@ describe('saved config mapping', () => {
   it('reads the destination and metadata toggles back', () => {
     const drafts = applySavedConfig({
       wizardPlatform: 'stremio', rdCatalog: 'separate',
-      lang: 'fr-FR', sortBy: 'ano', libraryIdMode: 'tt', hideAnime: true,
+      lang: 'fr-FR', sortBy: 'ano', libraryIdMode: 'tt', hideAnime: true, torboxSources: ['usenet'],
       searchScope: 'library', streamNotices: 'off', streamNoticeTypes: ['none'],
     });
     expect(drafts.platform).toBe('stremio');
     expect(drafts.rdCatalog).toBe('separate');
     expect(drafts.meta).toEqual({
-      lang: 'fr-FR', sortBy: 'ano', mainMetadata: true, hideAnime: true,
+      lang: 'fr-FR', sortBy: 'ano', mainMetadata: true, hideAnime: true, torboxSources: ['usenet'],
       searchScope: 'library', notices: false, noticeTypes: ['none'],
     });
   });

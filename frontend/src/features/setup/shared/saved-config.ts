@@ -2,6 +2,7 @@ import {
   DEFAULT_STREAM_PRESET,
   HOME_ROW_PACKS,
   STREAM_PRESETS,
+  cleanTorboxSources,
   type CustomStreamRow,
   type StreamPresetId,
 } from '@/features/setup/shared/config-contract';
@@ -146,6 +147,7 @@ export function applySavedConfig(saved: unknown): SavedDrafts {
       sortBy,
       mainMetadata: config.libraryIdMode === 'tt',
       hideAnime: config.hideAnime === true,
+      torboxSources: cleanTorboxSources(config.torboxSources),
       searchScope: searchScope || EMPTY_METADATA_EXTRAS.searchScope,
       notices: config.streamNotices !== 'off',
       noticeTypes: noticeTypes.length > 0 ? noticeTypes : [...DEFAULT_NOTICE_TYPES],

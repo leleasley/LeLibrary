@@ -146,7 +146,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
   const [homeRows, setHomeRows] = useState<HomeRowDoc[]>(restored?.homeRows ?? []);
   const [filterSets, setFilterSets] = useState(restored?.filterSets ?? EMPTY_FILTER_SETS);
   const [mediaSets, setMediaSets] = useState(restored?.mediaSets ?? EMPTY_MEDIA_SETS);
-  const [meta, setMeta] = useState<MetadataExtrasDraft>(restored?.meta ?? EMPTY_METADATA_EXTRAS);
+  const [meta, setMeta] = useState<MetadataExtrasDraft>(restored?.meta ? { ...EMPTY_METADATA_EXTRAS, ...restored.meta } : EMPTY_METADATA_EXTRAS);
   const [badgePack, setBadgePack] = useState(restored?.badgePack ?? DEFAULT_BADGE_PACK);
   const [customBadgeUrl, setCustomBadgeUrl] = useState(restored?.customBadgeUrl ?? '');
   const [watchlist, setWatchlist] = useState<WatchlistDraftMap>(restored?.watchlist ?? {});
@@ -278,6 +278,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
         sortBy: meta.sortBy,
         libraryIdMode: meta.mainMetadata ? 'tt' : 'torbox',
         hideAnime: meta.hideAnime,
+        torboxSources: meta.torboxSources,
         searchScope: meta.searchScope,
         streamNotices: meta.notices ? 'on' : 'off',
         streamNoticeTypes: meta.noticeTypes,

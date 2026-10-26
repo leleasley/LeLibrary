@@ -130,6 +130,9 @@ const LIBRARY_PROJECTION_VERSION = 'v5';
 // cache and artwork settings.
 async function refreshDownloadsForUser(config, userKey) {
   const now = Date.now();
+  // A limited TorBox source selection is a different (filtered) snapshot.
+  const sourcesKey = providers.torboxSourcesKey(config);
+  const snapshotKey = sourcesKey ? `${userKey}|${sourcesKey}` : userKey;
   // The snapshot map holds a full downloads array per provider-key set. Account
   // tokens that stop refreshing must not pin that memory forever, so prune
   // stale entries once the map grows.
@@ -139,25 +142,25 @@ async function refreshDownloadsForUser(config, userKey) {
       if (!entry || !entry.at || entry.at < cutoff) providerRefreshSnapshots.delete(key);
     }
   }
-  const recent = providerRefreshSnapshots.get(userKey);
+  const recent = providerRefreshSnapshots.get(snapshotKey);
   if (recent && now - recent.at < REFRESH) {
     if (recent.error) throw recent.error;
     return recent.downloads;
   }
-  const pending = providerRefreshInFlight.get(userKey);
+  const pending = providerRefreshInFlight.get(snapshotKey);
   if (pending) return pending;
   const work = providers.fetchDownloads(config, { useCache: false })
     .then(async (downloads) => {
       await providers.setCachedDownloads(config, downloads);
-      providerRefreshSnapshots.set(userKey, { at: Date.now(), downloads, error: null });
+      providerRefreshSnapshots.set(snapshotKey, { at: Date.now(), downloads, error: null });
       return downloads;
     })
     .catch((err) => {
-      providerRefreshSnapshots.set(userKey, { at: Date.now(), downloads: null, error: err });
+      providerRefreshSnapshots.set(snapshotKey, { at: Date.now(), downloads: null, error: err });
       throw err;
     })
-    .finally(() => providerRefreshInFlight.delete(userKey));
-  providerRefreshInFlight.set(userKey, work);
+    .finally(() => providerRefreshInFlight.delete(snapshotKey));
+  providerRefreshInFlight.set(snapshotKey, work);
   return work;
 }
 
@@ -236,6 +239,7 @@ async function buildAndCacheForConfigInner(token, config) {
     // a single shared hash made them continually invalidate each other's rows.
     const projectionFp = hashShort(JSON.stringify({
       sortBy, lang, rdCatalog, poster: posterFp(config), libraryIdMode: libraryIdMode || 'torbox', hideAnime: !!hideAnime,
+      torboxSources: providers.torboxSourcesKey(config),
     }));
     const hashKey   = cache.makeKey('dlhash', 'v2', userKey, projectionFp);
     const oldHash   = await cache.get(hashKey);

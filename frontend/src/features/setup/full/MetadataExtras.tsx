@@ -1,5 +1,6 @@
 import { WatchlistSection, WATCHLIST_ACCORDION_DESC } from '@/features/setup/full/WatchlistSection';
 import type { WatchlistDraftMap } from '@/features/setup/resolver/api';
+import { TORBOX_SOURCE_IDS, cleanTorboxSources } from '@/features/setup/shared/config-contract';
 
 // The watchlist accordion copy lives with the section so Settle In and Move In
 // cannot drift. Re-exported here because both pages already import the section
@@ -14,6 +15,7 @@ export interface MetadataExtrasDraft {
   sortBy: string;
   mainMetadata: boolean;
   hideAnime: boolean;
+  torboxSources: string[];
   searchScope: string;
   notices: boolean;
   noticeTypes: string[];
@@ -26,6 +28,7 @@ export const EMPTY_METADATA_EXTRAS: MetadataExtrasDraft = {
   sortBy: 'data_adicao',
   mainMetadata: false,
   hideAnime: false,
+  torboxSources: [...TORBOX_SOURCE_IDS],
   searchScope: 'combined',
   notices: true,
   noticeTypes: [...DEFAULT_NOTICE_TYPES],
@@ -52,6 +55,47 @@ export const NOTICE_TYPES: { id: string; title: string; hint: string }[] = [
   { id: 'rateLimit', title: 'Provider rate limit', hint: 'Warn when your provider is temporarily rate-limiting playback.' },
   { id: 'digitalRelease', title: 'Digital release not found', hint: 'Note when a film has no digital release listed yet.' },
 ];
+
+export const TORBOX_SOURCES: { id: string; title: string; hint: string }[] = [
+  { id: 'torrent', title: 'Torrents', hint: 'Torrents in your TorBox account.' },
+  { id: 'usenet', title: 'Usenet', hint: 'NZB downloads in your TorBox account.' },
+  { id: 'webdl', title: 'Web downloads', hint: 'Files TorBox fetched from a web link.' },
+];
+
+// Which TorBox download kinds make up the library (`torboxSources`). At least
+// one stays on: the last checked box cannot be cleared.
+export function TorboxSourcesField({ value, onChange }: {
+  value: string[] | undefined;
+  onChange: (next: string[]) => void;
+}) {
+  const picked = cleanTorboxSources(value);
+  function toggle(id: string) {
+    if (picked.includes(id)) {
+      if (picked.length > 1) onChange(picked.filter((kept) => kept !== id));
+    } else {
+      onChange(cleanTorboxSources([...picked, id]));
+    }
+  }
+  return (
+    <div className="setup-field">
+      <span>TorBox sources</span>
+      <div className="source-list">
+        {TORBOX_SOURCES.map((source) => (
+          <label className="notice-check" key={source.id}>
+            <input
+              type="checkbox"
+              checked={picked.includes(source.id)}
+              disabled={picked.length === 1 && picked.includes(source.id)}
+              onChange={() => toggle(source.id)}
+            />
+            <span><strong>{source.title}</strong><small>{source.hint}</small></span>
+          </label>
+        ))}
+      </div>
+      <small className="setup-hint">TorBox only. Unticked sources stay out of My Movies, My Shows, collections and search.</small>
+    </div>
+  );
+}
 
 // Stream notices: one master switch plus a dropdown holding a checkbox per
 // notice type. Field names are what the backend reads: keep them exact.
@@ -100,6 +144,7 @@ export interface QuickExtras {
   noticeTypes: string[];
   searchScope: string;
   hideAnime: boolean;
+  torboxSources: string[];
 }
 
 export const EMPTY_QUICK_EXTRAS: QuickExtras = {
@@ -108,6 +153,7 @@ export const EMPTY_QUICK_EXTRAS: QuickExtras = {
   noticeTypes: [...DEFAULT_NOTICE_TYPES],
   searchScope: 'combined',
   hideAnime: false,
+  torboxSources: [...TORBOX_SOURCE_IDS],
 };
 
 // Quick Look's summary of these knobs, shown as chips on its options card.
@@ -119,7 +165,16 @@ export function quickExtrasChips(draft: QuickExtras): { key: string; text: strin
     { key: 'search', icon: '🔎', text: SEARCH_SHORT[draft.searchScope] ?? 'Search everything', changed: draft.searchScope !== EMPTY_QUICK_EXTRAS.searchScope },
     { key: 'notices', icon: '💬', text: draft.notices ? 'Stream notices on' : 'Stream notices off', changed: !draft.notices },
     { key: 'anime', icon: '🍥', text: draft.hideAnime ? 'Anime hidden' : 'Anime shown', changed: draft.hideAnime },
+    ...torboxSourcesChip(draft.torboxSources),
   ];
+}
+
+// A chip only when the TorBox library is limited, e.g. "TorBox: Usenet".
+function torboxSourcesChip(value: string[] | undefined) {
+  const picked = cleanTorboxSources(value);
+  if (picked.length === TORBOX_SOURCE_IDS.length) return [];
+  const names = TORBOX_SOURCES.filter((source) => picked.includes(source.id)).map((source) => source.title);
+  return [{ key: 'torbox-sources', icon: '📥', text: `TorBox: ${names.join(', ')}`, changed: true }];
 }
 
 export function QuickExtrasFields({ draft, onChange }: {
@@ -157,6 +212,7 @@ export function QuickExtrasFields({ draft, onChange }: {
         <input type="checkbox" checked={draft.hideAnime} onChange={(event) => onChange({ ...draft, hideAnime: event.target.checked })} />
         <i aria-hidden="true" />
       </label>
+      <TorboxSourcesField value={draft.torboxSources} onChange={(torboxSources) => onChange({ ...draft, torboxSources })} />
     </>
   );
 }
@@ -198,6 +254,7 @@ export function MetadataExtras({ draft, onChange }: {
         <input type="checkbox" checked={draft.hideAnime} onChange={(event) => onChange({ ...draft, hideAnime: event.target.checked })} />
         <i aria-hidden="true" />
       </label>
+      <TorboxSourcesField value={draft.torboxSources} onChange={(torboxSources) => onChange({ ...draft, torboxSources })} />
       <NoticeDropdown
         notices={draft.notices} noticeTypes={draft.noticeTypes}
         onNotices={(notices) => onChange({ ...draft, notices })}

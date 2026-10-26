@@ -48,6 +48,36 @@ function scopeValue(config: any, id: string) {
   return config[PROVIDER_META[id].key];
 }
 
+// TorBox lists three kinds of download. `torboxSources` on the config limits
+// the library to some of them (issue #16: usenet only). Absent, empty or
+// unrecognised means all three, so existing setups are unchanged.
+const TORBOX_SOURCES = ['torrent', 'usenet', 'webdl'];
+
+function torboxSources(config: any = {}) {
+  const raw = config.torboxSources;
+  const list = Array.isArray(raw) ? raw : (typeof raw === 'string' ? raw.split(',') : []);
+  const picked = TORBOX_SOURCES.filter(source => list.some((v: any) => typeof v === 'string' && v.trim() === source));
+  return picked.length ? picked : TORBOX_SOURCES.slice();
+}
+
+// Stable short id of a non-default selection ('' when every source is on),
+// for cache keys and change detection.
+function torboxSourcesKey(config: any = {}) {
+  const picked = torboxSources(config);
+  return picked.length === TORBOX_SOURCES.length ? '' : picked.join(',');
+}
+
+// Drop TorBox downloads whose source the config leaves out. Other providers'
+// items pass through. Keeps the non-enumerable `failedProviders` marker.
+function filterTorboxSources(config: any, downloads: any) {
+  if (!Array.isArray(downloads) || !torboxSourcesKey(config)) return downloads;
+  const allowed = new Set(torboxSources(config));
+  const out = downloads.filter((d: any) => !TORBOX_SOURCES.includes(d?.source) || allowed.has(d.source));
+  const failed = (downloads as any).failedProviders;
+  if (failed) Object.defineProperty(out, 'failedProviders', { value: failed, enumerable: false });
+  return out;
+}
+
 function providerBySource(source: any) {
   return SOURCE_TO_PROVIDER[source] || null;
 }
@@ -116,7 +146,10 @@ const downloadsInFlight = new Map();
 
 function downloadsCacheKey(config: any = {}) {
   const userKey = getUserKey(config);
-  return userKey ? cache.makeKey('dlcache', userKey) : null;
+  if (!userKey) return null;
+  // A limited TorBox selection gets its own snapshot: a library sync seeds
+  // the cache with its already-filtered list.
+  return cache.makeKey('dlcache', userKey, torboxSourcesKey(config));
 }
 
 async function getCachedDownloads(config: any = {}) {
@@ -143,7 +176,12 @@ async function setCachedDownloads(config: any = {}, downloads: any) {
 // When `useCache` is true (default) and a fresh-enough copy exists in Redis,
 // it returns that instead of hitting the providers: the discovery owned-bridge
 // uses this so every tt: stream request doesn't re-fetch 500+ TorBox downloads.
-async function fetchDownloads(config: any = {}, { only = null, useCache = true, requireFresh = false }: { only?: string[] | null; useCache?: boolean; requireFresh?: boolean } = {}) {
+// TorBox source limits (`torboxSources`) apply to the result, cached or live.
+async function fetchDownloads(config: any = {}, options: { only?: string[] | null; useCache?: boolean; requireFresh?: boolean } = {}) {
+  return filterTorboxSources(config, await fetchAllDownloads(config, options));
+}
+
+async function fetchAllDownloads(config: any = {}, { only = null, useCache = true, requireFresh = false }: { only?: string[] | null; useCache?: boolean; requireFresh?: boolean } = {}) {
   if (useCache) {
     try {
       const cached = await getCachedDownloads(config);
@@ -239,6 +277,9 @@ export interface IndexApi {
   fetchDownloads: any;
   getCachedDownloads: any;
   setCachedDownloads: any;
+  torboxSources: any;
+  torboxSourcesKey: any;
+  filterTorboxSources: any;
   downloadsFor: any;
   getFiles: any;
   getStreamLink: any;
@@ -255,6 +296,9 @@ const providersApi = {
   fetchDownloads,
   getCachedDownloads,
   setCachedDownloads,
+  torboxSources,
+  torboxSourcesKey,
+  filterTorboxSources,
   downloadsFor,
   getFiles,
   getStreamLink,

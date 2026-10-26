@@ -94,6 +94,13 @@ describe('config contract', () => {
     expect(FORMAT_SAMPLES.every((sample) => sample.filename.endsWith('.mkv'))).toBe(true);
   });
 
+  it('writes a TorBox source limit only when some sources are off', () => {
+    expect(pruneConfig({ torboxSources: ['usenet'] })).toEqual({ torboxSources: ['usenet'] });
+    expect(pruneConfig({ torboxSources: ['webdl', 'torrent', 'bogus'] })).toEqual({ torboxSources: ['torrent', 'webdl'] });
+    expect(pruneConfig({ torboxSources: ['torrent', 'usenet', 'webdl'] })).toEqual({});
+    expect(pruneConfig({ torboxSources: [] })).toEqual({});
+  });
+
   it('sends templates only for the custom preset', () => {
     expect(pruneConfig({ streamPreset: 'cinema', streamNameTemplate: 'x', streamDescTemplate: 'y' }))
       .toEqual({ streamPreset: 'cinema' });

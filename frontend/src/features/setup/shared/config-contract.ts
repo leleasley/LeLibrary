@@ -181,6 +181,8 @@ export interface SetupConfigDraft {
   sortBy?: string;
   libraryIdMode?: string;
   hideAnime?: boolean;
+  // TorBox download kinds kept in the library. Absent means all three.
+  torboxSources?: string[];
   searchScope?: string;
   streamNotices?: string;
   streamNoticeTypes?: string[];
@@ -356,6 +358,25 @@ export function providerSelectionFromServices(services: readonly string[]): stri
 }
 
 // Drops untouched defaults so stored configs stay small and readable.
+// TorBox download kinds, in the order the backend reads them
+// (`torboxSources`, providers/index.ts).
+export const TORBOX_SOURCE_IDS = ['torrent', 'usenet', 'webdl'];
+
+// A saved or restored selection, cleaned: unknown ids drop out and nothing
+// left means every source (the backend reads it the same way).
+export function cleanTorboxSources(value: unknown): string[] {
+  const list = Array.isArray(value) ? value : [];
+  const picked = TORBOX_SOURCE_IDS.filter((id) => list.includes(id));
+  return picked.length > 0 ? picked : [...TORBOX_SOURCE_IDS];
+}
+
+// The config value for a selection: empty when every source is on, so
+// existing setups and tokens stay unchanged.
+export function torboxSourcesForConfig(value: unknown): string[] {
+  const picked = cleanTorboxSources(value);
+  return picked.length === TORBOX_SOURCE_IDS.length ? [] : picked;
+}
+
 export function pruneConfig(draft: SetupConfigDraft): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (draft.provider && draft.provider.trim()) {
@@ -436,6 +457,8 @@ export function pruneConfig(draft: SetupConfigDraft): Record<string, unknown> {
   if (draft.sortBy && draft.sortBy !== 'data_adicao') out.sortBy = draft.sortBy;
   if (draft.libraryIdMode && draft.libraryIdMode !== 'torbox') out.libraryIdMode = draft.libraryIdMode;
   if (draft.hideAnime === true) out.hideAnime = true;
+  const torboxSources = torboxSourcesForConfig(draft.torboxSources);
+  if (torboxSources.length > 0) out.torboxSources = torboxSources;
   if (draft.searchScope && draft.searchScope !== 'combined') out.searchScope = draft.searchScope;
   if (draft.streamNotices === 'off') out.streamNotices = 'off';
   if (draft.streamNoticeTypes && !sameNoticeTypes(draft.streamNoticeTypes)) {

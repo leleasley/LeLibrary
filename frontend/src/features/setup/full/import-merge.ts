@@ -8,6 +8,7 @@ import type { PlatformConnection } from '@/features/setup/full/platform-login';
 import type { SetupKeysDraft } from '@/features/setup/shared/config-contract';
 import type { OldSetupData } from '@/features/setup/resolver/api';
 import { DEFAULT_NOTICE_TYPES } from '@/features/setup/full/MetadataExtras';
+import { cleanTorboxSources } from '@/features/setup/shared/config-contract';
 
 // Everything the import modal folds into the page draft the moment you pick
 // a setup: keys stay server-side until creation, collections/home rows ride
@@ -50,6 +51,7 @@ export function mergeImportPreview(input: { config: Record<string, unknown>; sou
   if (sortBy) meta.sortBy = sortBy;
   if (typeof cfg.libraryIdMode === 'string') meta.mainMetadata = cfg.libraryIdMode === 'tt';
   if (typeof cfg.hideAnime === 'boolean') meta.hideAnime = cfg.hideAnime;
+  if (Array.isArray(cfg.torboxSources)) meta.torboxSources = cleanTorboxSources(cfg.torboxSources);
   const searchScope = str(cfg.searchScope);
   if (searchScope) meta.searchScope = searchScope;
   if (cfg.streamNotices === 'off') meta.notices = false;

@@ -737,11 +737,13 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
     const catKey   = separate ? providers.PROVIDER_META[catalogProviderId].cat : 'merged';
     // hideAnime is part of the key: installs sharing provider keys but differing
     // in hide-anime used to serve each other's rows for the whole TTL.
-    const cacheKey = cache.makeKey('cat', catKey, type, sortBy, search, skip.toString(), userKey, lang, posterFp(config), libraryIdMode, hideAnime ? 'noanime' : '');
+    // So is a limited TorBox source selection (torboxSources).
+    const sourcesKey = providers.torboxSourcesKey(config);
+    const cacheKey = cache.makeKey('cat', catKey, type, sortBy, search, skip.toString(), userKey, lang, posterFp(config), libraryIdMode, hideAnime ? 'noanime' : '', sourcesKey);
     // Long-lived "last good" copy of this catalog page. The serve-stale branches
     // below used to re-read `cacheKey` itself: the exact key that just missed -
     // so the protection never fired. This snapshot is only written on success.
-    const catlastKey = cache.makeKey('catlast', catKey, type, sortBy, skip.toString(), userKey, lang);
+    const catlastKey = cache.makeKey('catlast', catKey, type, sortBy, skip.toString(), userKey, lang, sourcesKey);
     const cached   = await cache.get(cacheKey);
 
     // A previous upstream throttle used to cache zero rows for a whole hour.
@@ -765,6 +767,7 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       // comparison when both use the same provider account.
       const projectionFp = hashShort(JSON.stringify({
         sortBy, lang, rdCatalog, poster: posterFp(config), libraryIdMode: libraryIdMode || 'torbox', hideAnime: !!hideAnime,
+        torboxSources: sourcesKey,
       }));
       const newHash = `${LIBRARY_PROJECTION_VERSION}:${hashDownloads(downloads)}:${posterFp(config)}:${libraryIdMode || 'torbox'}`;
       const hashKey = cache.makeKey('dlhash', 'v2', userKey, projectionFp);

@@ -342,8 +342,11 @@ async function failedMatchRows(scopeId, limit = 500) {
 // soft-deleted. Returns the diff counts.
 // keepProviders: providers whose fetch failed this sync. Their rows are never
 // removed (nothing of theirs was staged because nothing could be read).
-async function reconcile(scopeId, records, { keepProviders = [] } = {}) {
+async function reconcile(scopeId, records, { keepProviders = [], excludedKinds = [] } = {}) {
   const keep = Array.isArray(keepProviders) ? keepProviders.map(String) : [];
+  // Source kinds the config leaves out (TorBox `torboxSources`). Their rows go
+  // straight away: a deliberate setting, not a partial snapshot.
+  const excluded = Array.isArray(excludedKinds) ? excludedKinds.map(String) : [];
   const pool = await ensure();
   const started = Date.now();
   const client = await pool.connect();
@@ -452,6 +455,17 @@ async function reconcile(scopeId, records, { keepProviders = [] } = {}) {
     );
     Object.assign(counts, diffRows[0] || {});
 
+    if (excluded.length) {
+      const { rowCount } = await client.query(
+        `UPDATE lib_items i SET removed_at=now(), match_status='skipped'
+          WHERE i.scope_id=$1 AND i.removed_at IS NULL AND i.source_kind = ANY($2::text[])
+            AND NOT EXISTS (
+            SELECT 1 FROM ll_sync_stage s WHERE s.provider=i.provider AND s.source_id=split_part(i.source_id, '#film:', 1)
+          )`, [scopeId, excluded]
+      );
+      counts.excluded = rowCount || 0;
+    }
+
     const { rows: removeRows } = await client.query(
       `SELECT count(*)::int AS removed,
               (SELECT count(*)::int FROM lib_items WHERE scope_id = $1 AND removed_at IS NULL AND source_id NOT LIKE '%#film:%') AS live_count,
@@ -464,11 +478,11 @@ async function reconcile(scopeId, records, { keepProviders = [] } = {}) {
     );
     const removal = removeRows[0] || { removed: 0, live_count: 0, fingerprint: '' };
     const removedCount = Number(removal.removed || 0);
-    counts.removed = removedCount;
+    counts.removed = removedCount + (counts.excluded || 0);
     const decision = massRemovalDecision(scopeId, removedCount, Number(removal.live_count || 0), removal.fingerprint);
     if (!decision.apply) {
       console.warn(`[Library] ${scopeId}: refusing to remove ${removedCount}/${removal.live_count} items in one sync (strike ${decision.strikes}/3), keeping rows`);
-      counts.removed = 0;
+      counts.removed = counts.excluded || 0;
     } else if (decision.strikes >= 3) {
       console.warn(`[Library] ${scopeId}: mass removal confirmed ${decision.strikes}x running, applying ${removedCount}/${removal.live_count} removals`);
     }

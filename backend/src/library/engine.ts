@@ -146,6 +146,9 @@ function noteConfig(token, config) {
   const existing = registry.get(rec.scopeId);
   if (existing) {
     if (setupUuid) (existing.setupUuids || (existing.setupUuids = new Set())).add(setupUuid);
+    // A changed TorBox source selection changes what the library holds:
+    // resync now instead of waiting for the next provider change.
+    const sourcesChanged = providers.torboxSourcesKey(existing.config) !== providers.torboxSourcesKey(config);
     existing.token = token;
     existing.config = config;
     existing.provider = rec.provider;
@@ -153,6 +156,10 @@ function noteConfig(token, config) {
     existing.lang = rec.lang;
     if (rec.persistedToken) existing.persistedToken = rec.persistedToken;
     existing.lastSeen = Date.now();
+    if (sourcesChanged) {
+      existing.force = true;
+      runSync(existing).catch(() => {});
+    }
     return existing;
   }
 

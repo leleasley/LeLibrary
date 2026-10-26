@@ -2,6 +2,7 @@ import {
   cleanKeys,
   pruneConfig,
   providerSelectionFromServices,
+  torboxSourcesForConfig,
   type SetupKeysDraft,
   type CustomStreamRow,
 } from '@/features/setup/shared/config-contract';
@@ -132,6 +133,10 @@ export function buildEditSaveBody(input: EditSaveInput): Record<string, unknown>
     config.sortBy = input.meta.sortBy;
     config.libraryIdMode = input.meta.mainMetadata ? 'tt' : 'torbox';
     config.hideAnime = input.meta.hideAnime;
+    // Every source on is the default: clear a stored limit instead of saving it.
+    const torboxSources = torboxSourcesForConfig(input.meta.torboxSources);
+    if (torboxSources.length > 0) config.torboxSources = torboxSources;
+    else clearConfig.push('torboxSources');
     config.searchScope = input.meta.searchScope;
     config.streamNotices = input.meta.notices ? 'on' : 'off';
     config.streamNoticeTypes = [...input.meta.noticeTypes];

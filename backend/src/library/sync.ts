@@ -49,6 +49,13 @@ async function fetchDownloads(scope) {
   return providers.fetchDownloads(scope.config, { useCache: false, requireFresh: true });
 }
 
+// TorBox source kinds this config leaves out of the library (torboxSources).
+function excludedTorboxKinds(config) {
+  if (!providers.activeProviders(config || {}).includes('torbox')) return [];
+  const kept = providers.torboxSources(config || {});
+  return ['torrent', 'usenet', 'webdl'].filter((kind) => !kept.includes(kind));
+}
+
 // Owned franchise collections ("LeLibrary Collections") from the library's
 // matched films, so box-set films, hash-named downloads and owner fixes all
 // count. They have no indexed read path of their own: keep the projection warm
@@ -97,7 +104,10 @@ async function syncScope(scope, options = {}) {
     }
 
     const records = recordsFromDownloads(downloads);
-    const counts = await store.reconcile(scopeId, records, { keepProviders: (downloads && downloads.failedProviders) || [] });
+    const counts = await store.reconcile(scopeId, records, {
+      keepProviders: (downloads && downloads.failedProviders) || [],
+      excludedKinds: excludedTorboxKinds(scope.config),
+    });
     if (counts.changed > 0) {
       console.log(`[Library] reconcile changed fields: rows=${counts.changed} name=${counts.name_changed || 0} title=${counts.title_changed || 0} type=${counts.type_changed || 0} numbering=${counts.numbering_changed || 0} match-preserved=${counts.matchPreserved || 0}`);
     }
@@ -154,6 +164,7 @@ export interface SyncApi {
   recordsFromDownloads: any;
   loadFixture: any;
   fixturePath: any;
+  excludedTorboxKinds: any;
 }
 
-module.exports = { syncScope, refreshFranchiseProjection, recordsFromDownloads, loadFixture, fixturePath } satisfies SyncApi;
+module.exports = { syncScope, refreshFranchiseProjection, recordsFromDownloads, loadFixture, fixturePath, excludedTorboxKinds } satisfies SyncApi;

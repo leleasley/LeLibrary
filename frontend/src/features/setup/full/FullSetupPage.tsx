@@ -159,7 +159,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
   const badgeUrl = badgePack === 'custom' ? customBadgeUrl : '';
   const [collections, setCollections] = useState<CollectionDoc[]>(restored?.collections ?? []);
   const [packs, setPacks] = useState<string[]>(restored?.packs ?? []);
-  const [meta, setMeta] = useState<MetadataExtrasDraft>(restored?.meta ?? EMPTY_METADATA_EXTRAS);
+  const [meta, setMeta] = useState<MetadataExtrasDraft>(restored?.meta ? { ...EMPTY_METADATA_EXTRAS, ...restored.meta } : EMPTY_METADATA_EXTRAS);
   const [filterSets, setFilterSets] = useState(restored?.filterSets ?? EMPTY_FILTER_SETS);
   const [addons, setAddons] = useState<string[]>(restored?.addons ?? []);
   const [customStreams, setCustomStreams] = useState<CustomStreamRow[]>(restored?.customStreams ?? []);
@@ -327,6 +327,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
         sortBy: meta.sortBy,
         libraryIdMode: meta.mainMetadata ? 'tt' : 'torbox',
         hideAnime: meta.hideAnime,
+        torboxSources: meta.torboxSources,
         searchScope: meta.searchScope,
         streamNotices: meta.notices ? 'on' : 'off',
         streamNoticeTypes: meta.noticeTypes,

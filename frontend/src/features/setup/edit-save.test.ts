@@ -232,6 +232,7 @@ describe('edit save body', () => {
     expect(body).toEqual({
       config: {
         collectionHomeRows: [],
+        watchlistHomeManaged: true,
         collections: [],
         nuvioCollectionPacks: [],
         streamAddons: [],

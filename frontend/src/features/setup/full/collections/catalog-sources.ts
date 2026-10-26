@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/api/client';
+import { watchlistConfig } from '@/features/setup/resolver/api';
 import {
   DISCOVERY_ROWS,
   nativeLibraryRows,
+  watchlistBrowserRows,
   type BrowserSource,
 } from '@/features/setup/shared/collection-doc';
 
@@ -18,16 +20,26 @@ interface RegistryEntry {
   available?: boolean;
 }
 
-// Shared catalogue browser list: native library rows, discovery rows, then
-// the shared registry. Watchlist and custom-stream rows join here when their
-// stages land (watchlist connects need the UUID-keyed backend; custom
-// streams need their editor section).
-export function useCatalogSources(prefix: string | null, platform: string): {
+// Shared catalogue browser list: native library rows, discovery rows,
+// watchlist rows, then the shared registry. Custom-stream rows join here
+// when their editor section lands.
+// Watchlist rows are for the Home picker only (`withWatchlists`).
+export function useCatalogSources(prefix: string | null, platform: string, withWatchlists = false): {
   sources: BrowserSource[];
   failed: boolean;
 } {
   const [registry, setRegistry] = useState<BrowserSource[]>([]);
   const [failed, setFailed] = useState(false);
+  const [watchlists, setWatchlists] = useState({ simkl: false, trakt: false });
+
+  useEffect(() => {
+    if (!withWatchlists) return undefined;
+    let cancelled = false;
+    watchlistConfig()
+      .then((available) => { if (!cancelled) setWatchlists({ simkl: available?.simkl === true, trakt: available?.trakt === true }); })
+      .catch(() => { /* MDBList rows still show */ });
+    return () => { cancelled = true; };
+  }, [withWatchlists]);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +67,7 @@ export function useCatalogSources(prefix: string | null, platform: string): {
   }, []);
 
   return useMemo(() => ({
-    sources: [...nativeLibraryRows(prefix, platform), ...DISCOVERY_ROWS, ...registry],
+    sources: [...nativeLibraryRows(prefix, platform), ...DISCOVERY_ROWS, ...(withWatchlists ? watchlistBrowserRows(watchlists) : []), ...registry],
     failed,
-  }), [registry, prefix, platform, failed]);
+  }), [registry, prefix, platform, failed, watchlists, withWatchlists]);
 }

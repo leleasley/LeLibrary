@@ -122,7 +122,8 @@ function publicView(opened: OpenedConfig) {
 // provider, stream preset, badge pack) without ever exposing secrets. Keys
 // live in a separate sealed column and are excluded by construction.
 function editorConfigView(opened: OpenedConfig) {
-  return { config: opened.config ?? {} };
+  const { connectedWatchlistIds, withLegacyWatchlistRows } = require('../setup/watchlist-home.ts');
+  return { config: withLegacyWatchlistRows(opened.config ?? {}, opened.tier, connectedWatchlistIds(opened)) };
 }
 
 function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions, getStore }: SetupRoutesOptions = {}): void {

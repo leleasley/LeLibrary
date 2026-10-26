@@ -323,6 +323,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
         collections,
         nuvioCollectionPacks: packs,
         collectionHomeRows: homeRows,
+        watchlistHomeManaged: true,
         lang: meta.lang,
         sortBy: meta.sortBy,
         libraryIdMode: meta.mainMetadata ? 'tt' : 'torbox',

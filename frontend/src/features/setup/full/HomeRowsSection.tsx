@@ -31,6 +31,7 @@ function browserKey(source: BrowserSource): string {
 function groupIcon(group: string): string {
   const name = group.toLowerCase();
   if (name.includes('lelibrary')) return '📚';
+  if (name.includes('watchlist')) return '🔖';
   if (/trend|hot/.test(name)) return '🔥';
   if (/popular|top|rated/.test(name)) return '⭐';
   if (/stream|service|network|provider/.test(name)) return '📡';
@@ -54,7 +55,7 @@ export function HomeRowsSection({ rows, onChange, platform, prefix }: {
   platform: 'nuvio' | 'stremio';
   prefix: string | null;
 }) {
-  const { sources: base, failed } = useCatalogSources(prefix, platform);
+  const { sources: base, failed } = useCatalogSources(prefix, platform, true);
   const [query, setQuery] = useState('');
   const [imported, setImported] = useState<BrowserSource[]>([]);
   const [importOpen, setImportOpen] = useState(false);

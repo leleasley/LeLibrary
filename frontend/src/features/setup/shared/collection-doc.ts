@@ -326,6 +326,26 @@ export const DISCOVERY_ROWS: BrowserSource[] = [
   { id: 'popular-series', catalogId: 'torbox-popular-series', name: 'Popular series', type: 'series', category: 'Popular', addonId: '' },
 ];
 
+// Watchlist rows, per provider. Ids and titles match the manifest
+// (routes/manifest.ts) and setup/watchlist-home.ts. A row only appears in
+// the app once that watchlist is connected.
+export const WATCHLIST_ROWS: (BrowserSource & { provider: 'simkl' | 'trakt' | 'mdblist' })[] = [
+  { id: 'watchlist-simkl-movie', catalogId: 'torbox-watchlist-simkl-movie', name: '🎬 Simkl Watchlist', type: 'movie', category: 'Watchlists', addonId: '', provider: 'simkl' },
+  { id: 'watchlist-simkl-series', catalogId: 'torbox-watchlist-simkl-series', name: '📺 Simkl Watchlist', type: 'series', category: 'Watchlists', addonId: '', provider: 'simkl' },
+  { id: 'watchlist-trakt-movie', catalogId: 'torbox-watchlist-trakt-movie', name: '🎬 Trakt Watchlist', type: 'movie', category: 'Watchlists', addonId: '', provider: 'trakt' },
+  { id: 'watchlist-trakt-series', catalogId: 'torbox-watchlist-trakt-series', name: '📺 Trakt Watchlist', type: 'series', category: 'Watchlists', addonId: '', provider: 'trakt' },
+  { id: 'watchlist-mdblist-movie', catalogId: 'torbox-watchlist-mdblist-movie', name: '🎯 MDBList Watchlist', type: 'movie', category: 'Watchlists', addonId: '', provider: 'mdblist' },
+  { id: 'watchlist-mdblist-series', catalogId: 'torbox-watchlist-mdblist-series', name: '📺 MDBList Watchlist', type: 'series', category: 'Watchlists', addonId: '', provider: 'mdblist' },
+];
+
+// Watchlist rows this server can serve: Simkl and Trakt only when it can
+// connect them, MDBList always (it uses the setup's own key).
+export function watchlistBrowserRows(available: { simkl: boolean; trakt: boolean }): BrowserSource[] {
+  return WATCHLIST_ROWS
+    .filter((row) => row.provider === 'mdblist' || available[row.provider])
+    .map(({ provider: _provider, ...row }) => row);
+}
+
 export function homeRowFromSource(source: BrowserSource, order: number): HomeRowDoc {
   return {
     id: `row-${source.id}`,
@@ -360,5 +380,6 @@ export function homeCategoryRank(category: string): number {
   if (name === 'lelibrary') return -10;
   if (/trending/.test(name)) return 0;
   if (/popular/.test(name)) return 1;
+  if (name === 'watchlists') return 2;
   return 5;
 }

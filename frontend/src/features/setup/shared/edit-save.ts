@@ -155,6 +155,8 @@ export function buildEditSaveBody(input: EditSaveInput): Record<string, unknown>
   }
   if (input.homeRowsTouched) {
     config.collectionHomeRows = input.homeRows.map((row) => ({ ...row }));
+    // The picker now lists watchlists, so the saved rows decide them too.
+    config.watchlistHomeManaged = true;
   }
   if (input.collectionsTouched) {
     config.collections = input.collections.map((collection) => ({ ...collection }));

@@ -283,6 +283,7 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
   // against their account) or a saved MDBList key. Rows carry tt: ids so
   // external stream addons answer them and Nuvio enriches them.
   function buildWatchlistRows() {
+    const { watchlistOnHome } = require('../setup/watchlist-home.ts');
     const conns = Array.isArray(watchlist) ? watchlist : [];
     const mdblistOn = !!(config.mdblistKey);
     const names = config.watchlistNames && typeof config.watchlistNames === 'object' ? config.watchlistNames : {};
@@ -290,6 +291,9 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
     const pushWatchlist = (id: any, type: any, fallbackName: any) => {
       const row: LooseConfig = { id, type, name: names[id] || fallbackName, extra: CAT_EXTRA };
       if (hidden.has(id)) row.showInHome = false;
+      // Settle In / Move In saved with the watchlist-aware Home picker: only
+      // the watchlists picked as Home rows reach Nuvio Home.
+      if (integration === 'nuvio' && !watchlistOnHome(config, homeManaged, selectedHomeCatalogs, id)) row.showInHome = false;
       catalogs.push(row);
     };
     for (const c of conns) {

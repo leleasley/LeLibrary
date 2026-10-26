@@ -271,6 +271,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
         ...(playback ? { nuvioPlayback: playback } : {}),
         ...(hideUnreleased === null ? {} : { nuvioHideUnreleased: hideUnreleased }),
         collectionHomeRows: homeRows,
+        watchlistHomeManaged: true,
         streamAddons: addons,
         customAddons,
         customStreams,

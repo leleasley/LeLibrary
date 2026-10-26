@@ -1,7 +1,9 @@
 name: Discord notifications
 
-# Posts to the #new-releases Discord channel through the DISCORD_WEBHOOK_URL
-# repository secret. The message builder is .github/discord/notify.mjs.
+# Releases and test messages go to #new-releases (DISCORD_WEBHOOK_URL); branch
+# pushes go to the commits channel (DISCORD_COMMITS_WEBHOOK_URL), or to
+# #new-releases when that secret is not set. The message builder is
+# .github/discord/notify.mjs.
 #
 # - Releases: a release published by hand in the GitHub UI fires `release`.
 #   The tag workflow (release.yml) creates its release with GITHUB_TOKEN, which
@@ -61,7 +63,9 @@ jobs:
 
       - name: Send notification
         env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          # A tag push reaches here through release.yml with event_name 'push'
+          # too, so the push channel is chosen only when no release tag is set.
+          DISCORD_WEBHOOK_URL: ${{ github.event_name == 'push' && inputs.release_tag == '' && secrets.DISCORD_COMMITS_WEBHOOK_URL || secrets.DISCORD_WEBHOOK_URL }}
           GITHUB_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
           NOTIFY_MODE: ${{ (inputs.release_tag != '' || github.event_name == 'release') && 'release' || github.event_name == 'workflow_dispatch' && 'test' || 'push' }}

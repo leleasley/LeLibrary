@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { lintSection, parseChangelog, preflight, renderNotes } from './notes.mjs';
+import { lintSection, parseChangelog, preflight, renderNotes, trimChangelog } from './notes.mjs';
 
 const CHANGELOG = `# Changelog
 
@@ -39,7 +39,28 @@ test('parses only the requested section', () => {
 });
 
 test('passes when tag, both package versions and the newest section agree', () => {
-  assert.deepEqual(preflight({ tag: 'v1.2.0', root: fixture() }).problems, []);
+  assert.deepEqual(preflight({ tag: 'v1.2.0', root: fixture({ changelog: trimChangelog(CHANGELOG) }) }).problems, []);
+});
+
+test('trim keeps only the newest section and points at GitHub Releases', () => {
+  const trimmed = trimChangelog(CHANGELOG);
+  assert.deepEqual(parseChangelog(trimmed).map((s) => s.version), ['1.2.0']);
+  assert.match(trimmed, /^# Changelog\n/);
+  assert.match(trimmed, /github\.com\/leleasley\/LeLibrary\/releases/);
+  assert.ok(!trimmed.includes('Fixed a thing'));
+  assert.equal(trimChangelog(trimmed), trimmed, 'trimming twice changes nothing');
+});
+
+test('a branch push accepts notes for the next version before the bump; a tag never does', () => {
+  const root = fixture({ changelog: trimChangelog(CHANGELOG), app: '1.1.0', frontend: '1.1.0' });
+  assert.deepEqual(preflight({ root }).problems, []);
+  assert.match(preflight({ tag: 'v1.2.0', root }).problems.join('\n'), /package\.json is 1\.1\.0/);
+  const older = fixture({ changelog: trimChangelog(CHANGELOG), app: '1.3.0', frontend: '1.3.0' });
+  assert.match(preflight({ root: older }).problems.join('\n'), /expected \[1\.3\.0\]/);
+});
+
+test('fails while an older section is still in the CHANGELOG', () => {
+  assert.match(preflight({ tag: 'v1.2.0', root: fixture() }).problems.join('\n'), /older sections \(1\.1\.0\).*trim/);
 });
 
 test('fails on a version mismatch anywhere', () => {

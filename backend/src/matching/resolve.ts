@@ -24,7 +24,11 @@ const { lookupSplitSeason, lookupTitleRedirect, tableVersion } = require('./tabl
 // v5: Latin search runs keep their punctuation; tracker labels and "+" names
 // parse cleanly. Re-checks every matched row once (a failed re-check keeps
 // the old match, see matcher failOrKeep).
-const RESOLVER_VERSION = 'v5';
+// v6: TMDB title searches send no region (dates and the year filter follow a
+// film's own release, not its US one); several exact short titles from one
+// year go to the one that clearly outvotes the rest; a famous film one year
+// off the file name is added back. Re-checks every matched row once.
+const RESOLVER_VERSION = 'v6';
 // r6 introduces a finite eight-attempt budget and transient/permanent backoff
 // schedules; old failed rows are reconsidered once under the new policy.
 // r7 fixes yearless TV remakes/variants: requested-season existence now gets
@@ -225,6 +229,16 @@ function retryVersion() {
 // whole resolver into failures (caught the hard way: background matches
 // silently failed while stubbed unit tests stayed green). The layer param
 // exists so tests can assert the threading with a recording fake.
+// One candidate when it clearly outvotes every other (at least 50 votes and ten
+// times the runner-up), otherwise the list unchanged.
+function dominantByVotes(candidates) {
+  if (candidates.length < 2) return candidates;
+  const sorted = [...candidates].sort((a, b) => Number(b.vote_count || 0) - Number(a.vote_count || 0));
+  const top = Number(sorted[0].vote_count || 0);
+  const next = Number(sorted[1].vote_count || 0);
+  return top >= 50 && top >= 10 * Math.max(next, 1) ? [sorted[0]] : candidates;
+}
+
 function defaultDeps(tmdbApiKey, layer) {
   const t = layer || tmdb;
   return {
@@ -234,6 +248,7 @@ function defaultDeps(tmdbApiKey, layer) {
     seasonCounts: (tmdbId, lang) => t.getSeasonEpisodeCounts(tmdbApiKey, tmdbId, lang),
     isAnimeCandidate: (cand) => !!(cand && cand.isJapaneseAnimation === true),
     titleScore: (query, cand) => t.titleScore(query, cand),
+    findImdb: (imdbId) => t.findByImdbId(tmdbApiKey, imdbId),
     findEpisode: (tmdbId, date, lang) => t.findEpisodeByAirDate(tmdbApiKey, tmdbId, date, lang),
   };
 }
@@ -346,6 +361,21 @@ async function resolveMatch({ name, mediaType = 'series', lang = 'en-US', tmdbAp
     const tmdbType = mediaType === 'anime' ? 'series' : mediaType;
     const fileSeason = info.season != null ? parseInt(info.season, 10) : null;
 
+    // An IMDb id tag in the name (Plex/Radarr "{imdb-tt0116191}") names the
+    // film outright: use it when TMDB knows it as a film.
+    const imdbTag = mediaType === 'movie' ? /[[{(](?:imdb(?:id)?[-_ =:]?)?(tt\d{7,9})[\]})]/i.exec(String(name)) : null;
+    if (imdbTag && d.findImdb) {
+      const found = await d.findImdb(imdbTag[1].toLowerCase()).catch(() => null);
+      if (found && found.id != null && found.title) {
+        tried.push(`imdb:${imdbTag[1].toLowerCase()}`);
+        return canonical({
+          tmdbId: found.id, tmdbType: 'movie', season: null, seasonStart: null, seasonEnd: null,
+          episode: null, episodeEnd: null, title: displayTitle(null, found, info.title),
+          year: info.year ?? null, candidate: found,
+        });
+      }
+    }
+
     // Date-based releases carry no season/episode: resolve per candidate.
     const dates = (info.airDates && info.airDates.length ? info.airDates : (info.airDate ? [info.airDate] : []));
 
@@ -387,6 +417,20 @@ async function resolveMatch({ name, mediaType = 'series', lang = 'en-US', tmdbAp
       if (!found.length && yearParam != null && !isSeries) {
         try { found = (await d.search(query, 'movie', undefined, lang)) || []; }
         catch { searchFailures++; found = []; }
+      } else if (yearParam != null && !isSeries && !found.some((candidate) => d.titleScore(query, candidate) === 100)) {
+        // TMDB often dates a film a year after its file name (300: 2006 on
+        // the release, 2007 on TMDB), so the year filter hides it behind
+        // loose matches. Add from an unfiltered search only a known film
+        // (20+ votes) with this exact title, one year off.
+        let unfiltered = [];
+        try { unfiltered = (await d.search(query, 'movie', undefined, lang)) || []; }
+        catch { searchFailures++; unfiltered = []; }
+        const known = new Set(found.map((candidate) => String(candidate && candidate.id)));
+        found = found.concat(unfiltered.filter((candidate) => {
+          if (!candidate || known.has(String(candidate.id))) return false;
+          const candidateYear = parseInt(String(candidate.release_date || '').slice(0, 4), 10);
+          return d.titleScore(query, candidate) === 100 && Math.abs(candidateYear - Number(yearParam)) === 1 && Number(candidate.vote_count || 0) >= 20;
+        }));
       }
       const seen = new Set(candidates.map((candidate) => String(candidate.id)));
       for (const candidate of found) {
@@ -430,8 +474,11 @@ async function resolveMatch({ name, mediaType = 'series', lang = 'en-US', tmdbAp
       // Exact year first. TMDB's date can be the first general release, a year
       // after a festival premiere ("2046": 2004 at Cannes, 2005 on TMDB), so
       // one candidate a year off still counts when it is the only one.
-      const sameYear = exactEntries.filter((entry) => entry.yearGap === 0).map((entry) => entry.candidate);
-      const nearYear = exactEntries.filter((entry) => entry.yearGap === 1).map((entry) => entry.candidate);
+      // Several exact titles from the same year ("Prey" 2022: the Predator
+      // film plus two unknown films) go to the one that clearly dominates on
+      // votes; a real contest still fails.
+      const sameYear = dominantByVotes(exactEntries.filter((entry) => entry.yearGap === 0).map((entry) => entry.candidate));
+      const nearYear = dominantByVotes(exactEntries.filter((entry) => entry.yearGap === 1).map((entry) => entry.candidate));
       const exact = sameYear.length ? sameYear : (nearYear.length === 1 ? nearYear : []);
       if (exact.length > 1) return failure('ambiguous-candidate', tried);
       candidates = exact;

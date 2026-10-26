@@ -71,7 +71,8 @@ const seasonCache   = new NodeCache({ stdTTL: 86400, checkperiod: 3600, useClone
 // in-memory cache for hot reads and mirror them into Redis so search stays warm
 // across restarts and worker processes. The `{ v }` wrapper lets a cached null
 // stay distinguishable from a miss.
-const SEARCH_REDIS_PREFIX = 'tmdbsearch:v1:';
+// v2: searches no longer send a region (see searchCandidatesUncached).
+const SEARCH_REDIS_PREFIX = 'tmdbsearch:v2:';
 
 // Coalesce identical concurrent TMDB requests (e.g. several users opening the
 // same brand-new title before its search result is cached). Only search calls
@@ -333,7 +334,7 @@ async function enrichAlternativeTitles(apiKey, apiType, query, results) {
 
 async function searchMetadata(apiKey, query, type, year, lang = 'en-US') {
   query = canonicalSearchTitle(query, true, type);
-  const cacheKey = `search:${type}:${lang}:${query}:${year || ''}`;
+  const cacheKey = `search2:${type}:${lang}:${query}:${year || ''}`;
   const cached = tmdbCache.get(cacheKey);
   if (cached !== undefined) return cached;
   return coalesceTmdb(`sm:${cacheKey}`, () => searchMetadataUncached(apiKey, query, type, year, lang, cacheKey));
@@ -342,8 +343,10 @@ async function searchMetadata(apiKey, query, type, year, lang = 'en-US') {
 async function searchMetadataUncached(apiKey, query, type, year, lang, cacheKey) {
   const endpoint = type === 'movie' ? '/search/movie' : '/search/tv';
   const auth   = tmdbAuth(apiKey);
-  const region = lang.split('-')[1] || 'BR';
-  const params = { ...auth.params, query, language: lang, region, page: 1 };
+  // No region: with one, TMDB filters the year and dates every result by that
+  // country's release, so Soul (2020) came back as 2024 and a correct file
+  // year hid the film. The film's own (primary) date is what file names carry.
+  const params = { ...auth.params, query, language: lang, page: 1 };
   if (year && type === 'movie') params.year = year;
 
   const res = await axios.get(`${TMDB_BASE}${endpoint}`, { headers: auth.headers, params, timeout: 8000 });
@@ -357,7 +360,7 @@ async function searchMetadataUncached(apiKey, query, type, year, lang, cacheKey)
     // the pick then goes to the best of a bad pool. Retry unfiltered, merge
     // both pools, and re-pick so an exact title can still win it back.
     try {
-      const noYearParams = { ...auth.params, query, language: lang, region, page: 1 };
+      const noYearParams = { ...auth.params, query, language: lang, page: 1 };
       const noYearRes = await axios.get(`${TMDB_BASE}${endpoint}`, { headers: auth.headers, params: noYearParams, timeout: 8000 });
       const noYearResults = noYearRes.data?.results || [];
       if (noYearResults.length > 0) {
@@ -381,7 +384,7 @@ async function searchMetadataUncached(apiKey, query, type, year, lang, cacheKey)
     // Year mismatch (torrent says 2025, TMDB says 2026 for "Aitch: Don't Be Afraid" etc)
     // Fall back to year-agnostic search so the title still resolves.
     try {
-      const noYearParams = { ...auth.params, query, language: lang, region, page: 1 };
+      const noYearParams = { ...auth.params, query, language: lang, page: 1 };
       const noYearRes = await axios.get(`${TMDB_BASE}${endpoint}`, { headers: auth.headers, params: noYearParams, timeout: 8000 });
       const noYearResults = noYearRes.data?.results || [];
       if (noYearResults.length > 0) result = pickBestResult(query, noYearResults, year);
@@ -400,7 +403,7 @@ async function searchMetadataUncached(apiKey, query, type, year, lang, cacheKey)
 
 async function searchCandidates(apiKey, query, type, year, lang = 'en-US', limit = 5) {
   query = canonicalSearchTitle(query, false, type);
-  const cacheKey = `cand:${type}:${lang}:${query}:${year || ''}:${limit}`;
+  const cacheKey = `cand2:${type}:${lang}:${query}:${year || ''}:${limit}`;
   const cached = await durableSearchGet(cacheKey, cacheKey);
   if (cached !== undefined) return cached;
   return coalesceTmdb(`sc:${cacheKey}`, () => searchCandidatesUncached(apiKey, query, type, year, lang, limit, cacheKey));
@@ -409,8 +412,8 @@ async function searchCandidates(apiKey, query, type, year, lang = 'en-US', limit
 async function searchCandidatesUncached(apiKey, query, type, year, lang, limit, cacheKey) {
   const endpoint = type === 'movie' ? '/search/movie' : '/search/tv';
   const auth   = tmdbAuth(apiKey);
-  const region = lang.split('-')[1] || 'BR';
-  const params = { ...auth.params, query, language: lang, region, page: 1 };
+  // No region, for the same reason as searchMetadataUncached.
+  const params = { ...auth.params, query, language: lang, page: 1 };
   if (year && type === 'movie') params.year = year;
 
   // One retry: a transient slow/rate-limited TMDB response used to throw and

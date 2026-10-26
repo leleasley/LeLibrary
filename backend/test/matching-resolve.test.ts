@@ -446,3 +446,48 @@ test('strict unique-year matching accepts a TMDB alternative title', async () =>
   const r = await resolve.resolveMatch({ name: 'cky-1999', mediaType: 'movie', requireUniqueStrongYear: true }, deps);
   assert.equal(r.tmdbId, 24145);
 });
+
+test('several exact short titles from the same year go to the one that clearly outvotes the rest', async () => {
+  const deps = stubDeps();
+  deps.search = async () => [
+    { id: 766507, title: 'Prey', release_date: '2022-08-02', vote_count: 8088 },
+    { id: 1070315, title: 'Prey', release_date: '2022-02-22', vote_count: 0 },
+    { id: 1497667, title: 'Prey', release_date: '2022-12-15', vote_count: 0 },
+  ];
+  const prey = await resolve.resolveMatch({ name: 'Prey.2022.BluRay.1080p.DDP.5.1.x264-hallowed', mediaType: 'movie' }, deps);
+  assert.equal(prey.tmdbId, 766507);
+  deps.search = async () => [
+    { id: 1, title: 'Lux', release_date: '2004-01-01', vote_count: 300 },
+    { id: 2, title: 'Lux', release_date: '2004-06-01', vote_count: 120 },
+  ];
+  const contest = await resolve.resolveMatch({ name: 'Lux.2004.1080p.mkv', mediaType: 'movie' }, deps);
+  assert.equal(contest.ok, false, 'a real contest still fails');
+});
+
+test('a year search without the exact title also searches without the year ("300" is 2007 on TMDB)', async () => {
+  const deps = stubDeps();
+  const calls = [];
+  deps.search = async (query, _type, year) => {
+    calls.push(year ?? null);
+    return year
+      ? [{ id: 665526, title: 'Video 3000', release_date: '2006-10-28', vote_count: 1 }]
+      : [{ id: 1271, title: '300', release_date: '2007-03-09', vote_count: 15221 }, { id: 53182, title: '300: Rise of an Empire', release_date: '2014-03-07', vote_count: 7187 }];
+  };
+  const r = await resolve.resolveMatch({ name: '300 (2006) (2160p BluRay x265 HEVC 10bit HDR AAC 7.1 Tigole) [QxR]', mediaType: 'movie' }, deps);
+  assert.equal(r.tmdbId, 1271);
+  assert.ok(calls.includes(null), 'the year-free search ran');
+});
+
+test('an IMDb id tag in a movie name decides the match', async () => {
+  const deps = stubDeps();
+  deps.search = async () => [
+    { id: 3573, title: 'Emma', release_date: '1996-08-02', vote_count: 900 },
+    { id: 22051, title: 'Emma', release_date: '1996-11-24', vote_count: 300 },
+  ];
+  deps.findImdb = async (id) => (id === 'tt0116191' ? { id: 3573, title: 'Emma', release_date: '1996-08-02' } : null);
+  const r = await resolve.resolveMatch({ name: 'Emma (1996) {imdb-tt0116191}', mediaType: 'movie' }, deps);
+  assert.equal(r.tmdbId, 3573);
+  deps.findImdb = async () => ({ id: 1100, name: 'How I Met Your Mother' });
+  const tv = await resolve.resolveMatch({ name: 'Emma (1996) {imdb-tt0460649}', mediaType: 'movie' }, deps);
+  assert.notEqual(tv.tmdbId, 1100, 'a TV id never becomes a film match');
+});

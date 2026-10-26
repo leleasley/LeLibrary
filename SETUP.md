@@ -109,6 +109,12 @@ addon, and within a few minutes otherwise.
   library rows** in the Home step (visibility there comes from your Home rows).
 - **Language.** Quick Look now has the metadata language under **More library
   options**; Settle In and Move In have it in the Metadata step.
+- **Choose your TorBox sources.** By default your library holds everything in
+  your TorBox account: torrents, usenet and web downloads. Untick any of them
+  to leave them out of My Movies, My Shows, collections and search, for
+  example to keep only the NZBs you add yourself. Quick Look has it under
+  **More library options**; Settle In and Move In have it in the Metadata
+  step. At least one stays on. Your TorBox account itself is not changed.
 - **Add your own stream addon** (Settle In and Move In, Playback step). Paste
   the link to any Stremio stream addon you use, such as StreamNZB or your own
   AIOStreams, up to three. It joins the stream source list and follows your

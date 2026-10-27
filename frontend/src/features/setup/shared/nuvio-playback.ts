@@ -8,12 +8,15 @@ export interface NuvioPlaybackDraft {
   mode: PlaybackMode;
   regex: string;
   nextEpisode: boolean;
+  // Auto-play only LeLibrary's own streams (Nuvio's addon filter).
+  onlyLeLibrary: boolean;
 }
 
 export interface NuvioPlaybackConfig {
   mode: PlaybackMode;
   regex: string;
   nextEpisode: boolean;
+  onlyLeLibrary: boolean;
 }
 
 export const MAX_REGEX_LENGTH = 300;
@@ -25,6 +28,7 @@ export const EMPTY_NUVIO_PLAYBACK: NuvioPlaybackDraft = {
   mode: 'MANUAL',
   regex: '',
   nextEpisode: false,
+  onlyLeLibrary: false,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -48,6 +52,7 @@ export function cleanNuvioPlayback(input: unknown): NuvioPlaybackDraft {
     mode,
     regex: typeof input['regex'] === 'string' ? input['regex'].trim() : '',
     nextEpisode: input['nextEpisode'] === true,
+    onlyLeLibrary: input['onlyLeLibrary'] === true,
   };
 }
 
@@ -67,5 +72,6 @@ export function nuvioPlaybackForConfig(draft: NuvioPlaybackDraft): NuvioPlayback
     mode: draft.mode,
     regex: draft.regex.trim(),
     nextEpisode: draft.nextEpisode,
+    onlyLeLibrary: draft.onlyLeLibrary,
   };
 }

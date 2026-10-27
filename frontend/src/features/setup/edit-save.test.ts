@@ -46,16 +46,16 @@ describe('edit save body', () => {
   it('saves Nuvio playback only when the section was touched', () => {
     expect(buildEditSaveBody({
       ...BASE_EDIT_SAVE,
-      nuvioPlayback: { enabled: true, mode: 'FIRST_STREAM', regex: '', nextEpisode: true },
+      nuvioPlayback: { enabled: true, mode: 'FIRST_STREAM', regex: '', nextEpisode: true, onlyLeLibrary: false },
     })).toBe(null);
 
     const body = buildEditSaveBody({
       ...BASE_EDIT_SAVE,
-      nuvioPlayback: { enabled: true, mode: 'REGEX_MATCH', regex: '(2160p|4k)', nextEpisode: true },
+      nuvioPlayback: { enabled: true, mode: 'REGEX_MATCH', regex: '(2160p|4k)', nextEpisode: true, onlyLeLibrary: false },
       nuvioPlaybackTouched: true,
     });
     expect(body?.config).toEqual({
-      nuvioPlayback: { mode: 'REGEX_MATCH', regex: '(2160p|4k)', nextEpisode: true },
+      nuvioPlayback: { mode: 'REGEX_MATCH', regex: '(2160p|4k)', nextEpisode: true, onlyLeLibrary: false },
     });
   });
 

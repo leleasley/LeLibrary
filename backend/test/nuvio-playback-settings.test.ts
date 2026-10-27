@@ -19,11 +19,13 @@ test('normalises a valid payload and trims the pattern', () => {
     mode: 'REGEX_MATCH',
     regex: '(2160p|4k|remux)',
     nextEpisode: true,
+    onlyLeLibrary: false,
   });
-  assert.deepEqual(normalisePlaybackSettings({ mode: 'MANUAL', regex: '   ', nextEpisode: false }), {
+  assert.deepEqual(normalisePlaybackSettings({ mode: 'MANUAL', regex: '   ', nextEpisode: false, onlyLeLibrary: true }), {
     mode: 'MANUAL',
     regex: '',
     nextEpisode: false,
+    onlyLeLibrary: true,
   });
   assert.deepEqual(PLAYBACK_MODES, ['MANUAL', 'FIRST_STREAM', 'REGEX_MATCH']);
 });
@@ -81,3 +83,23 @@ test('a blob with an empty player_settings bucket is safe to fill', () => {
 });
 
 export interface NuvioPlaybackSettingsTestModule {}
+
+test('only LeLibrary: limits auto-play to the LeLibrary addon, and switching it off undoes only that', () => {
+  const blob = { version: 1, features: { player_settings: { other: { type: 'boolean', value: true } } } };
+  const on = applyPlaybackSettingsToBlob(blob, normalisePlaybackSettings({ mode: 'FIRST_STREAM', onlyLeLibrary: true }));
+  const player = on.features.player_settings;
+  assert.deepEqual(player.stream_auto_play_source, { type: 'string', value: 'INSTALLED_ADDONS_ONLY' });
+  assert.deepEqual(player.stream_auto_play_selected_addons, { type: 'string_set', value: ['LeLibrary'] });
+  assert.deepEqual(player.other, { type: 'boolean', value: true }, 'other player keys survive');
+
+  const off = applyPlaybackSettingsToBlob(on, normalisePlaybackSettings({ mode: 'FIRST_STREAM' })).features.player_settings;
+  assert.deepEqual(off.stream_auto_play_source, { type: 'string', value: 'ALL_SOURCES' });
+  assert.deepEqual(off.stream_auto_play_selected_addons, { type: 'string_set', value: [] });
+
+  const mine = { version: 1, features: { player_settings: {
+    stream_auto_play_source: { type: 'string', value: 'INSTALLED_ADDONS_ONLY' },
+    stream_auto_play_selected_addons: { type: 'string_set', value: ['LeLibrary', 'Torrentio'] },
+  } } };
+  const kept = applyPlaybackSettingsToBlob(mine, normalisePlaybackSettings({ mode: 'FIRST_STREAM' })).features.player_settings;
+  assert.deepEqual(kept.stream_auto_play_selected_addons.value, ['LeLibrary', 'Torrentio'], 'a choice made in Nuvio is left alone');
+});

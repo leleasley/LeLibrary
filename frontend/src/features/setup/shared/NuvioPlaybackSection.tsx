@@ -101,6 +101,18 @@ export function NuvioPlaybackSection({ value, onChange }: {
             <span>Auto-play next episode</span>
           </label>
 
+          <label className="nuvio-playback-next">
+            <input
+              type="checkbox"
+              checked={value.onlyLeLibrary}
+              onChange={(event) => onChange({ ...value, onlyLeLibrary: event.target.checked })}
+            />
+            <span>
+              Only auto-play LeLibrary's streams
+              <small>Auto-play never picks a source from your other addons. You can still choose one from the source list.</small>
+            </span>
+          </label>
+
           <p className="setup-hint">
             Applies to the Nuvio profile selected above the next time you push. Nuvio picks it up on its next sync.
           </p>

@@ -12,11 +12,13 @@ describe('cleanNuvioPlayback', () => {
       mode: 'REGEX_MATCH',
       regex: '(2160p|4k)',
       nextEpisode: true,
+      onlyLeLibrary: false,
     })).toEqual({
       enabled: true,
       mode: 'REGEX_MATCH',
       regex: '(2160p|4k)',
       nextEpisode: true,
+      onlyLeLibrary: false,
     });
 
     expect(cleanNuvioPlayback(null)).toEqual(EMPTY_NUVIO_PLAYBACK);
@@ -39,7 +41,8 @@ describe('nuvioPlaybackForConfig', () => {
       mode: 'FIRST_STREAM',
       regex: '',
       nextEpisode: true,
-    })).toEqual({ mode: 'FIRST_STREAM', regex: '', nextEpisode: true });
+      onlyLeLibrary: false,
+    })).toEqual({ mode: 'FIRST_STREAM', regex: '', nextEpisode: true, onlyLeLibrary: false });
   });
 
   it('refuses an invalid regex choice instead of saving a broken setting', () => {
@@ -48,6 +51,7 @@ describe('nuvioPlaybackForConfig', () => {
       mode: 'REGEX_MATCH',
       regex: '   ',
       nextEpisode: false,
+      onlyLeLibrary: false,
     })).toBeNull();
   });
 });
@@ -61,12 +65,23 @@ describe('playbackValidation', () => {
       mode: 'REGEX_MATCH',
       regex: '',
       nextEpisode: false,
+      onlyLeLibrary: false,
     })).toBe('regex-required');
     expect(playbackValidation({
       enabled: true,
       mode: 'REGEX_MATCH',
       regex: 'x'.repeat(301),
       nextEpisode: false,
+      onlyLeLibrary: false,
     })).toBe('regex-too-long');
+  });
+});
+
+describe('only LeLibrary auto-play', () => {
+  it('is saved with the playback choice and restored from it', () => {
+    const draft = cleanNuvioPlayback({ mode: 'FIRST_STREAM', regex: '', nextEpisode: false, onlyLeLibrary: true });
+    expect(draft.onlyLeLibrary).toBe(true);
+    expect(nuvioPlaybackForConfig(draft)).toEqual({ mode: 'FIRST_STREAM', regex: '', nextEpisode: false, onlyLeLibrary: true });
+    expect(cleanNuvioPlayback({ mode: 'FIRST_STREAM' }).onlyLeLibrary).toBe(false);
   });
 });

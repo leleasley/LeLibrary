@@ -718,6 +718,8 @@
     "Play the first source whose text matches your pattern.": "Reproduce la primera fuente cuyo texto coincida con tu patrón.",
     "Regex pattern": "Patrón regex",
     "Auto-play next episode": "Reproducir el siguiente episodio automáticamente",
+    "Only auto-play LeLibrary's streams": "Reproducir automáticamente solo las fuentes de LeLibrary",
+    "Auto-play never picks a source from your other addons. You can still choose one from the source list.": "La reproducción automática nunca elige una fuente de tus otros complementos. Puedes seguir eligiendo una en la lista de fuentes.",
     "Applies to the Nuvio profile selected above the next time you push. Nuvio picks it up on its next sync.": "Se aplica al perfil de Nuvio seleccionado arriba la próxima vez que publiques. Nuvio lo recoge en su siguiente sincronización.",
     "Enter a pattern for regex match.": "Introduce un patrón para la coincidencia regex.",
     "That pattern is too long (300 characters max).": "Ese patrón es demasiado largo (máximo 300 caracteres).",

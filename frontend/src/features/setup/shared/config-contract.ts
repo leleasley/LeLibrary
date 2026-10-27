@@ -423,6 +423,7 @@ export function pruneConfig(draft: SetupConfigDraft): Record<string, unknown> {
       mode: draft.nuvioPlayback.mode,
       regex: draft.nuvioPlayback.regex,
       nextEpisode: draft.nuvioPlayback.nextEpisode,
+      onlyLeLibrary: draft.nuvioPlayback.onlyLeLibrary === true,
     };
   }
   if (typeof draft.nuvioHideUnreleased === 'boolean') {

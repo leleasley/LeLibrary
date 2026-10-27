@@ -32,6 +32,7 @@ describe('NuvioPlaybackSection', () => {
       mode: 'REGEX_MATCH',
       regex: '',
       nextEpisode: false,
+      onlyLeLibrary: false,
     });
     expect(html).toContain('Regex pattern');
     expect(html).toContain('aria-invalid="true"');
@@ -44,6 +45,7 @@ describe('NuvioPlaybackSection', () => {
       mode: 'REGEX_MATCH',
       regex: '<script>alert(1)</script>',
       nextEpisode: true,
+      onlyLeLibrary: false,
     });
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');

@@ -13,11 +13,18 @@ const MAX_REGEX_LENGTH = 300;
 const MODE_KEY = 'stream_auto_play_mode';
 const REGEX_KEY = 'stream_auto_play_regex';
 const NEXT_EPISODE_KEY = 'stream_auto_play_next_episode_enabled';
+// Auto-play scope. Nuvio filters candidates by the addon's display name, and
+// the push installs LeLibrary under this name (push.ts installAddonOnNuvio).
+const SOURCE_KEY = 'stream_auto_play_source';
+const SELECTED_ADDONS_KEY = 'stream_auto_play_selected_addons';
+const LELIBRARY_ADDON_NAME = 'LeLibrary';
 
 export interface PlaybackSettings {
   mode: PlaybackMode;
   regex: string;
   nextEpisode: boolean;
+  // Auto-play only LeLibrary's own streams.
+  onlyLeLibrary: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -39,7 +46,15 @@ function normalisePlaybackSettings(input: unknown): PlaybackSettings | null {
     mode: mode as PlaybackMode,
     regex,
     nextEpisode: input.nextEpisode === true,
+    onlyLeLibrary: input.onlyLeLibrary === true,
   };
+}
+
+function isOurScope(player: Record<string, unknown>): boolean {
+  const source = player[SOURCE_KEY] as { value?: unknown } | undefined;
+  const selected = player[SELECTED_ADDONS_KEY] as { value?: unknown } | undefined;
+  return Boolean(source && source.value === 'INSTALLED_ADDONS_ONLY' && selected && Array.isArray(selected.value)
+    && selected.value.length === 1 && selected.value[0] === LELIBRARY_ADDON_NAME);
 }
 
 function applyPlaybackSettingsToBlob(
@@ -56,6 +71,15 @@ function applyPlaybackSettingsToBlob(
   target[MODE_KEY] = { type: 'string', value: settings.mode };
   target[REGEX_KEY] = { type: 'string', value: settings.regex };
   target[NEXT_EPISODE_KEY] = { type: 'boolean', value: settings.nextEpisode };
+  if (settings.onlyLeLibrary) {
+    target[SOURCE_KEY] = { type: 'string', value: 'INSTALLED_ADDONS_ONLY' };
+    target[SELECTED_ADDONS_KEY] = { type: 'string_set', value: [LELIBRARY_ADDON_NAME] };
+  } else if (isOurScope(target)) {
+    // Turned off: undo only LeLibrary's own scope, never an addon choice the
+    // user made in Nuvio.
+    target[SOURCE_KEY] = { type: 'string', value: 'ALL_SOURCES' };
+    target[SELECTED_ADDONS_KEY] = { type: 'string_set', value: [] };
+  }
   features.player_settings = target;
   return next;
 }
@@ -63,6 +87,7 @@ function applyPlaybackSettingsToBlob(
 export interface NuvioPlaybackSettingsApi {
   PLAYBACK_MODES: readonly PlaybackMode[];
   MAX_REGEX_LENGTH: number;
+  LELIBRARY_ADDON_NAME: string;
   normalisePlaybackSettings: (input: unknown) => PlaybackSettings | null;
   applyPlaybackSettingsToBlob: (
     blob: unknown,
@@ -73,6 +98,7 @@ export interface NuvioPlaybackSettingsApi {
 module.exports = {
   PLAYBACK_MODES,
   MAX_REGEX_LENGTH,
+  LELIBRARY_ADDON_NAME,
   normalisePlaybackSettings,
   applyPlaybackSettingsToBlob,
 } satisfies NuvioPlaybackSettingsApi;

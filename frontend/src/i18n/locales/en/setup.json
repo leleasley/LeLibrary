@@ -718,6 +718,8 @@
     "Play the first source whose text matches your pattern.": "Play the first source whose text matches your pattern.",
     "Regex pattern": "Regex pattern",
     "Auto-play next episode": "Auto-play next episode",
+    "Only auto-play LeLibrary's streams": "Only auto-play LeLibrary's streams",
+    "Auto-play never picks a source from your other addons. You can still choose one from the source list.": "Auto-play never picks a source from your other addons. You can still choose one from the source list.",
     "Applies to the Nuvio profile selected above the next time you push. Nuvio picks it up on its next sync.": "Applies to the Nuvio profile selected above the next time you push. Nuvio picks it up on its next sync.",
     "Enter a pattern for regex match.": "Enter a pattern for regex match.",
     "That pattern is too long (300 characters max).": "That pattern is too long (300 characters max).",

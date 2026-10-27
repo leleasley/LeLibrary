@@ -119,9 +119,9 @@ describe('config contract', () => {
   it('stores Nuvio playback only when the setup opted in', () => {
     expect(pruneConfig({})).toEqual({});
     expect(pruneConfig({
-      nuvioPlayback: { mode: 'REGEX_MATCH', regex: '(2160p|4k)', nextEpisode: true },
+      nuvioPlayback: { mode: 'REGEX_MATCH', regex: '(2160p|4k)', nextEpisode: true, onlyLeLibrary: false },
     })).toEqual({
-      nuvioPlayback: { mode: 'REGEX_MATCH', regex: '(2160p|4k)', nextEpisode: true },
+      nuvioPlayback: { mode: 'REGEX_MATCH', regex: '(2160p|4k)', nextEpisode: true, onlyLeLibrary: false },
     });
   });
 

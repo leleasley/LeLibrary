@@ -21,6 +21,11 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 - Your Simkl, Trakt and MDBList watchlists can now be picked, ordered and renamed as Home rows in Settle In and Move In. On Nuvio, only the watchlists you pick appear on Home; the others stay available in Discover. Setups made before this update keep their watchlists on Home, and the edit page shows them as picked rows.
 
+### Nuvio
+
+- Pushing a setup to a Nuvio profile now changes only that profile. It used to remove LeLibrary's collections and Home rows from every other profile on the account, so two people could not each have their own setup. Now everyone in a household can push their own setup to their own profile.
+- New in the Playback step of Settle In and Move In: "Only auto-play LeLibrary's streams". With it on, Nuvio's auto-play never picks a source from your other addons, so it plays the copy you own; you can still choose another source from the list yourself. Switching it off later puts Nuvio back to every source, unless you picked your own addons in Nuvio, which are left as they are.
+
 ### Monitoring
 
 - The hosted status page now shows the latest database backup result and the time of the last successful backup. This is hosted-only and adds no setup requirement for self-hosted installs.

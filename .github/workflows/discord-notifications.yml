@@ -5,10 +5,9 @@ name: Discord notifications
 # #new-releases when that secret is not set. The message builder is
 # .github/discord/notify.mjs.
 #
-# - Releases: a release published by hand in the GitHub UI fires `release`.
-#   The tag workflow (release.yml) creates its release with GITHUB_TOKEN, which
-#   GitHub never turns into a `release` event, so release.yml calls this file
-#   through `workflow_call` instead. Each release is announced exactly once.
+# - Releases: every published release fires `release`, including the ones
+#   release.yml creates as the LeLibrary GitHub Actions app (an app token,
+#   unlike GITHUB_TOKEN, does fire it). Each release is announced once.
 # - Pushes: one message per branch push, every branch except Dependabot's.
 #   Tag pushes are not announced here (the release covers them).
 # - Manual: Actions > Discord notifications > Run workflow sends a labelled

@@ -459,60 +459,6 @@ async function enableNuvioTmdbEnrichment(token: string, profileIndex: number, uu
   }
 }
 
-// Clean stale LeLibrary collections + home rows from every other profile.
-async function cleanOtherProfiles(token: string, targetIndex: number, profiles: NuvioProfile[], manifestId: string, uuidKey: string, origin: string): Promise<void> {
-  await Promise.all(profiles
-    .filter((p) => p.profile_index !== targetIndex)
-    .map((p) => removeLeLibraryFromNuvioProfile(token, p.profile_index, manifestId, uuidKey, origin)));
-}
-
-async function removeLeLibraryFromNuvioProfile(token: string, profileId: number, manifestId: string, uuidKey: string, origin: string): Promise<void> {
-  try {
-    const pulled = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_collections', { p_profile_id: profileId }) as { collections_json?: unknown } | unknown[];
-    const row = (Array.isArray(pulled) ? pulled[0] : pulled) as { collections_json?: unknown };
-    let collections = row?.collections_json;
-    collections = Array.isArray(collections) ? collections : parseNuvioJson(collections, []);
-    if (Array.isArray(collections)) {
-      const filtered = (collections as unknown[]).filter((c) => !isLeLibraryCollection(c));
-      if (filtered.length !== (collections as unknown[]).length) {
-        await nuvioRpc(token, '/rest/v1/rpc/sync_push_collections', {
-          p_profile_id: profileId,
-          p_collections_json: filtered,
-          p_origin_client_id: originClientId(uuidKey),
-        });
-      }
-    }
-    if (manifestId) {
-      const homePulled = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_home_catalog_settings', {
-        p_profile_id: profileId,
-        p_platform: 'home_catalog_shared',
-      }) as { settings_json?: unknown } | unknown[];
-      const homeRow = (Array.isArray(homePulled) ? homePulled[0] : homePulled) as { settings_json?: unknown };
-      const settings = parseNuvioJson(homeRow?.settings_json, {}) as { show_catalog_type?: boolean; hide_unreleased_content?: boolean; items?: Record<string, unknown>[] };
-      const items = Array.isArray(settings.items) ? settings.items : [];
-      const filteredItems = items.filter((item) => {
-        const catalog = String(item['catalog_id'] || '');
-        const itemKey = String(item['key'] || '');
-        return !(item['collection_id'] && String(item['collection_id']).startsWith('collection-lelibrary') ||
-          itemKey.startsWith('collection_collection-lelibrary') ||
-          (item['addon_id'] && item['addon_id'] === manifestId &&
-            (catalog === 'torbox-collections' || catalog.startsWith('torbox-collection-') || catalog.startsWith('lib-'))));
-      });
-      if (filteredItems.length !== items.length) {
-        await nuvioRpc(token, '/rest/v1/rpc/sync_push_home_catalog_settings', {
-          p_profile_id: profileId,
-          p_platform: 'home_catalog_shared',
-          // Other profiles keep their own choice: null preserves it.
-          p_settings_json: homeSettings.homeSettingsPayload(settings, filteredItems, null),
-          p_origin_client_id: originClientId(uuidKey),
-        });
-      }
-    }
-  } catch (err) {
-    log('Could not clean Nuvio profile', profileId + ':', (err as Error).message);
-  }
-}
-
 // Order Nuvio's Home rows to match the manifest catalogue order.
 async function syncNuvioHomeOrder(token: string, profileIndex: number, manifest: { id?: string; catalogs?: { type?: string; id?: string; showInHome?: boolean }[] }, homeRows: HomeRowDoc[] = [], collections: { id?: string }[] = [], uuidKey = 'setup', hideUnreleased: boolean | null = null): Promise<void> {
   try {
@@ -895,7 +841,8 @@ async function pushToNuvio(
     await require('./franchise-autopush.ts').recordPushed(options.uuidKey, franchiseCollection, options.origin).catch(() => {});
   }
 
-  await cleanOtherProfiles(token, profileIndex, profiles, addonId, options.uuidKey, options.origin);
+  // Only the chosen profile is touched. Other profiles keep whatever they
+  // have, including a different LeLibrary setup (one setup per person).
   if (manifest && Array.isArray((manifest as { catalogs?: unknown }).catalogs)) {
     await syncNuvioHomeOrder(
       token,

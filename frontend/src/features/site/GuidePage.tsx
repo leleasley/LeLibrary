@@ -428,8 +428,8 @@ export function GuidePage() {
             <p>
               Nuvio can read the same install link manually, or you can let Move In push the setup for you. Sign in
               to Nuvio in the destination step, choose the profile you want, and push from the review step. The
-              selected profile receives your new setup. LeLibrary may remove its own old rows and folders from
-              other profiles; it leaves other addons and collections alone.
+              selected profile receives your new setup. Other profiles are left exactly as they are, so each
+              person can push their own setup to their own profile.
             </p>
             <table className="gd-table">
               <thead>

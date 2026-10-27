@@ -717,6 +717,7 @@
     "Auto-play regex match": "Auto-play regex match",
     "Play the first source whose text matches your pattern.": "Play the first source whose text matches your pattern.",
     "Regex pattern": "Regex pattern",
+    "Choosing a batch for one episode does not guarantee the same batch for the next. Auto-play first source can pick a different language. To keep an English dub, use regex match with text unique to that release and check that it matches each episode. If you cannot distinguish the releases, choose sources manually.": "Choosing a batch for one episode does not guarantee the same batch for the next. Auto-play first source can pick a different language. To keep an English dub, use regex match with text unique to that release and check that it matches each episode. If you cannot distinguish the releases, choose sources manually.",
     "Auto-play next episode": "Auto-play next episode",
     "Only auto-play LeLibrary's streams": "Only auto-play LeLibrary's streams",
     "Auto-play never picks a source from your other addons. You can still choose one from the source list.": "Auto-play never picks a source from your other addons. You can still choose one from the source list.",

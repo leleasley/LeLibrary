@@ -423,6 +423,17 @@ It appears only when the setup is going to Nuvio.
      pattern, for example `(2160p|4k|remux)`.
 3. Optionally turn on **Auto-play next episode**.
 
+Choosing an English-dub batch for one episode does not guarantee that the
+player will choose it for the next. With **Auto-play first source**, a
+Japanese-only batch or a source from another addon could be selected instead.
+For Nuvio, **Auto-play regex match** can help: use text that uniquely identifies
+the English release in the displayed source text, and check that it matches
+each episode. A language label in a filename is not proof of the audio track,
+and a pattern that matches both releases cannot distinguish them. You can also
+restrict auto-play to LeLibrary's streams using the checkbox below the playback
+settings; that does not distinguish two batches within LeLibrary. If the
+releases cannot be reliably distinguished, use manual source selection.
+
 The values are written to the Nuvio profile you selected when you press the
 setup's push button. Nuvio applies them on its next sync. If you leave the block
 off, your existing Nuvio player settings are not touched.

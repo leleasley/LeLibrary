@@ -101,6 +101,10 @@ export function NuvioPlaybackSection({ value, onChange }: {
             <span>Auto-play next episode</span>
           </label>
 
+          <p className="setup-hint">
+            Choosing a batch for one episode does not guarantee the same batch for the next. Auto-play first source can pick a different language. To keep an English dub, use regex match with text unique to that release and check that it matches each episode. If you cannot distinguish the releases, choose sources manually.
+          </p>
+
           <label className="nuvio-playback-next">
             <input
               type="checkbox"

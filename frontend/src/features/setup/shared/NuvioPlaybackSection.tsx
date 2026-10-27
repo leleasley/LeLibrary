@@ -102,7 +102,7 @@ export function NuvioPlaybackSection({ value, onChange }: {
           </label>
 
           <p className="setup-hint">
-            Choosing a batch for one episode does not guarantee the same batch for the next. Auto-play first source can pick a different language. To keep an English dub, use regex match with text unique to that release and check that it matches each episode. If you cannot distinguish the releases, choose sources manually.
+            LeLibrary groups episodes from the same download. In Nuvio TV, enable Prefer Binge Group and auto-play next episode, then choose your English-dub batch. Reuse Binge Groups can also remember it when you return. Nuvio may fall back to another source if a match is unavailable or delayed, depending on its settings. Check the audio and choose manually if needed; settings may differ on other Nuvio clients.
           </p>
 
           <label className="nuvio-playback-next">

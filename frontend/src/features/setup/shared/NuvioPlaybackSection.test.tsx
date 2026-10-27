@@ -22,8 +22,8 @@ describe('NuvioPlaybackSection', () => {
     expect(html).toContain('Auto-play first source');
     expect(html).toContain('Auto-play regex match');
     expect(html).toContain('Auto-play next episode');
-    expect(html).toContain('does not guarantee the same batch');
-    expect(html).toContain('text unique to that release');
+    expect(html).toContain('Prefer Binge Group');
+    expect(html).toContain('fall back to another source');
     // No regex field for the non-regex modes.
     expect(html).not.toContain('Regex pattern');
   });

@@ -35,7 +35,7 @@ export const TIERS: TierDefinition[] = [
       'Choose and order your Home rows',
       'Tune library playback, artwork and filters',
     ],
-    steps: 7,
+    steps: 8,
     recommended: true,
   },
   {

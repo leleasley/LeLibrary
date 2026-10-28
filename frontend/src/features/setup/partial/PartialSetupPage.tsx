@@ -75,6 +75,7 @@ import type { StagedImport } from '@/features/setup/full/full-draft';
 // controls and artwork. External sources and list providers remain optional.
 // There is deliberately no Collections studio; collections are built in Move In.
 export const PARTIAL_SECTIONS = [
+  { id: 'destination', title: 'Destination', icon: '📍' },
   { id: 'providers', title: 'Providers', icon: '🔌' },
   { id: 'metadata', title: 'Metadata', icon: '🎬' },
   { id: 'streams', title: 'Playback', icon: '🎚️' },
@@ -338,9 +339,9 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
     if (payload.pushConn) setConnection(payload.pushConn);
   }
 
-  /* The end of a Settle In setup: the shared publish panel, with the player
-     login in the desk. This tier has no Destination step, so the login lives
-     here — without it a Settle In setup could never push its Home order. */
+  /* The end of a Settle In setup: the shared publish panel. The player login
+     is step 1 now; the desk only offers it again when that step was skipped,
+     since without it a Settle In setup could never push its Home order. */
   if (creation.result) {
     const platformName = platform === 'nuvio' ? 'Nuvio' : 'Stremio';
     const activeConn = connection && connection.platform === platform ? connection : null;
@@ -358,7 +359,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
             lang: meta.lang,
           }}
           deskTitle={activeConn ? `Publish to ${platformName}` : 'Choose where you watch'}
-          deskBody={
+          deskBody={activeConn ? undefined : (
             <div id="settle-in-destination">
               <DestinationStep
                 platform={platform}
@@ -367,7 +368,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
                 onConnection={setConnection}
               />
             </div>
-          }
+          )}
           action={{
             // Everything was saved at creation; this only pushes.
             label: push.busy ?? (push.pushed ? `Push to ${platformName} again` : `Push to ${platformName}`),
@@ -445,19 +446,26 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
       <TierHero
         eyebrow={edit ? 'SETTLE IN · EDITING' : 'SETTLE IN · RECOMMENDED'} title="Make your library" accent="feel like home"
         lede={edit ? 'Your saved settings and keys are filled in below. Change anything, then save.' : 'Start with your debrid library, then choose its Home rows, artwork and playback settings. Extra stream sources and MDBList are optional. Collections are in Move In.'}
-        facts={edit ? ['Saved keys stay hidden', 'Nothing changes until you save', 'Same install link'] : ['Seven guided steps', 'Home rows and filters', 'Keys sealed on the server']}
+        facts={edit ? ['Saved keys stay hidden', 'Nothing changes until you save', 'Same install link'] : ['Eight guided steps', 'Home rows and filters', 'Keys sealed on the server']}
         compact={wizard.step > 0}
       />
       <div className="qs-grid">
         <div className="qs-flow">
-          <TierStep id="providers" index={1} title="Library providers" hidden={wizard.step !== 0} lede="Connect the debrid account or accounts that hold your library.">
+          <TierStep id="destination" index={1} title="Destination" hidden={wizard.step !== 0} lede="Where this setup gets installed. Sign in now and your Home rows can be pushed straight to your player at the end. Already have a v5 setup? Bring it across instead.">
             {!edit && <ImportSection staged={stagedImport} platform={platform} keepsCollections={false} onStage={stageImport} />}
+            <DestinationStep
+              platform={platform} onPlatform={setPlatform}
+              connection={connection} onConnection={setConnection}
+              {...(edit ? { savedAccount: edit.savedAccount, onSavedProfile: edit.onSavedProfile } : {})}
+            />
+          </TierStep>
+          <TierStep id="providers" index={2} title="Library providers" hidden={wizard.step !== 1} lede="Connect the debrid account or accounts that hold your library.">
             <ProviderKeys
               values={keys} onChange={setKeys}
               {...(edit ? { savedServices: edit.savedServices, revealSaved: revealEdit, onRemove: edit.onRemoveKey } : {})}
             />
           </TierStep>
-          <TierStep id="metadata" index={2} title="Metadata" hidden={wizard.step !== 1} lede="Keys that power posters, matching and search.">
+          <TierStep id="metadata" index={3} title="Metadata" hidden={wizard.step !== 2} lede="Keys that power posters, matching and search.">
             <TierMetadata
               values={keys} onChange={setKeys}
               {...(edit ? { savedServices: edit.savedServices, revealSaved: revealEdit } : {})}
@@ -479,7 +487,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
               </Accordion>
             </div>
           </TierStep>
-          <TierStep id="streams" index={3} title="Playback" hidden={wizard.step !== 2} lede="Your library comes first. Set playback filters here; extra sources are optional.">
+          <TierStep id="streams" index={4} title="Playback" hidden={wizard.step !== 3} lede="Your library comes first. Set playback filters here; extra sources are optional.">
             <div className="qs-accordions">
               <Accordion title="Library playback filters" desc="Choose the resolutions, qualities and file details you want to see." icon="🎛️" defaultOpen>
                 <FilterSets draft={filterSets} onChange={setFilterSets} />
@@ -506,10 +514,10 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
               )}
             </div>
           </TierStep>
-          <TierStep id="artwork" index={4} title="Posters" hidden={wizard.step !== 3} lede="Pick a look and watch it render before you save anything.">
+          <TierStep id="artwork" index={5} title="Posters" hidden={wizard.step !== 4} lede="Pick a look and watch it render before you save anything.">
             <PostersSection draft={posters} keys={keys} onDraft={setPosters} onKeys={setKeys} hidePreview savedServices={edit?.savedServices} />
           </TierStep>
-          <TierStep id="stream-look" index={5} title="Formatting" hidden={wizard.step !== 4} lede="Choose how your library files appear in the player.">
+          <TierStep id="stream-look" index={6} title="Formatting" hidden={wizard.step !== 5} lede="Choose how your library files appear in the player.">
             <h3 className="qs-sub"><strong>Badge packs</strong><span>Nuvio</span></h3>
             <BadgePackStrip
               pack={badgePack} customUrl={customBadgeUrl}
@@ -520,7 +528,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
               <FormattingSection draft={formatting} onChange={setFormatting} templatesOnly />
             </StreamStylePicker>
           </TierStep>
-          <TierStep id="home-rows" index={6} title="Home rows" hidden={wizard.step !== 5} lede="Choose the library and discovery rows on your home screen.">
+          <TierStep id="home-rows" index={7} title="Home rows" hidden={wizard.step !== 6} lede="Choose the library and discovery rows on your home screen.">
             <HomeRowsSection
               rows={homeRows} onChange={setHomeRows} platform={platform}
               prefix={hubPrefix(providerSelectionWithSaved(keys, edit?.savedServices ?? []))}
@@ -531,20 +539,11 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
             </details>
           </TierStep>
           {edit ? (
-            <TierStep id="password" index={7} title="Save and publish" hidden={wizard.step !== 6} lede="Nothing changes until you save. Your install link stays the same.">
-              {edit.renderFinish({
-                name: { value: name, onChange: setName },
-                deskBody: (
-                  <DestinationStep
-                    platform={platform} onPlatform={setPlatform}
-                    connection={connection} onConnection={setConnection}
-                    savedAccount={edit.savedAccount} onSavedProfile={edit.onSavedProfile}
-                  />
-                ),
-              })}
+            <TierStep id="password" index={8} title="Save and publish" hidden={wizard.step !== 7} lede="Nothing changes until you save. Your install link stays the same.">
+              {edit.renderFinish({ name: { value: name, onChange: setName } })}
             </TierStep>
           ) : (
-          <TierStep id="password" index={7} title="Protect your setup" hidden={wizard.step !== 6} lede="Name it if you like, lock it with a password. Watching never asks for either.">
+          <TierStep id="password" index={8} title="Protect your setup" hidden={wizard.step !== 7} lede="Name it if you like, lock it with a password. Watching never asks for either.">
             <label className="setup-field qs-name">
               <span>Setup name <small className="setup-hint" style={{ display: 'inline' }}>· optional</small></span>
               <input

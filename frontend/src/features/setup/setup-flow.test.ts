@@ -40,7 +40,7 @@ describe('tier sections', () => {
       'providers', 'artwork', 'stream-look', 'password',
     ]);
     expect([...PARTIAL_SECTION_IDS]).toEqual([
-      'providers', 'metadata', 'streams', 'artwork', 'stream-look',
+      'destination', 'providers', 'metadata', 'streams', 'artwork', 'stream-look',
       'home-rows', 'password',
     ]);
     expect([...FULL_SECTION_IDS]).toEqual([

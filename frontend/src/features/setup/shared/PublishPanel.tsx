@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { ReplaceCollectionsToggle } from '@/features/setup/shared/ReplaceCollectionsToggle';
 import { toast } from '@/features/setup/shared/Toast';
 import { clearSetupCache } from '@/features/setup/resolver/api';
 import { installUrl } from '@/features/setup/resolver/validation';
@@ -137,6 +138,7 @@ export function PublishPanel({
   action,
   connected = false,
   profilePicker,
+  replaceOthers,
   secondaryAction,
   actionsExtra,
   children,
@@ -158,6 +160,8 @@ export function PublishPanel({
   action?: PublishAction | null;
   connected?: boolean;
   profilePicker?: PublishProfilePicker | null;
+  // Nuvio push only: the one-off "remove all other collections" tick box.
+  replaceOthers?: { value: boolean; onChange: (next: boolean) => void } | null;
   secondaryAction?: PublishSecondaryAction | null;
   actionsExtra?: ReactNode;
   children?: ReactNode;
@@ -262,6 +266,9 @@ export function PublishPanel({
               ))}
             </select>
           </label>
+        )}
+        {platform === 'nuvio' && action && replaceOthers && (
+          <ReplaceCollectionsToggle value={replaceOthers.value} onChange={replaceOthers.onChange} />
         )}
         {deskBody}
         {action ? (

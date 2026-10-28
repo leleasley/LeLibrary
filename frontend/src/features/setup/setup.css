@@ -1906,3 +1906,11 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
 @media (prefers-reduced-motion: reduce) {
   .created-modal, .created-modal .app-modal-box, .created-done { transition: none; }
 }
+
+/* One-off push choice: remove the Nuvio profile's other collections. */
+.replace-collections { display: flex; align-items: flex-start; gap: 10px; margin: 4px 0 10px; padding: 11px 13px; border: 1px solid rgba(239, 107, 115, 0.22); border-radius: 12px; background: rgba(239, 107, 115, 0.05); cursor: pointer; }
+.replace-collections input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: #ef6b73; }
+.replace-collections span { display: grid; gap: 3px; min-width: 0; }
+.replace-collections strong { font-size: 0.86rem; }
+.replace-collections small { color: var(--muted); font-size: 0.74rem; line-height: 1.45; }
+.replace-collections:has(input:checked) { border-color: rgba(239, 107, 115, 0.55); background: rgba(239, 107, 115, 0.1); }

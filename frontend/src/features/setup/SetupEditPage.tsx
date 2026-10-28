@@ -145,6 +145,8 @@ export function SetupEditPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedAccount, setSavedAccount] = useState<SavedAccount | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // One push only: remove the Nuvio profile's other collections.
+  const [replaceOthers, setReplaceOthers] = useState(false);
   const [deleting, setDeleting] = useState(false);
   // Which view the side rail shows: the tier page, the Library or the setup
   // settings. The tier page stays mounted while another view is open so
@@ -336,7 +338,8 @@ export function SetupEditPage() {
     try {
       if (dirty && !(await saveAll())) return;
       setPushing(`Pushing to ${name}…`);
-      const pushed = await pushSetup(uuid, { platform }, token);
+      const pushed = await pushSetup(uuid, { platform, ...(platform === 'nuvio' && replaceOthers ? { replace_other_collections: true } : {}) }, token);
+      setReplaceOthers(false);
       toast(dirty ? `Saved and pushed to ${name}` : `Pushed to ${name}`);
       if (pushed.libraryPending) toast('Your library folders are still being prepared and will appear on their own');
     } catch (caught) {
@@ -625,6 +628,7 @@ export function SetupEditPage() {
                   : `Sign in above (optional) and this pushes straight to ${platformName}.`,
               })}
               secondaryAction={{ label: 'Clear my edits', disabled: !dirty, onClick: clearEdits }}
+              replaceOthers={pushAvailable ? { value: replaceOthers, onChange: setReplaceOthers } : null}
               profilePicker={platform === 'nuvio' && savedAccount?.profiles?.length ? {
                 profiles: savedAccount.profiles,
                 value: savedAccount.selected,

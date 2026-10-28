@@ -302,6 +302,19 @@ function summarizePackEpisodes(fileNames) {
 
 const SUSPICIOUS_PACK_MIN_BYTES = 40 * 1024 * 1024 * 1024;
 
+// What a file inside a download says about its episode. TorBox names files
+// with their folder in front ("Show.S02.2160p/Show.S02E01.2160p.mkv"), and the
+// parser reads the folder's "S02" first and never sees "E01": every season
+// pack then matched no episode. Read the file's own name first, and the full
+// path only when that has no episode in it.
+function episodeFileInfo(file) {
+  const full = String(file?.name || file?.short_name || '');
+  const own = String(file?.short_name || '').trim() || full.split(/[\\/]+/).filter(Boolean).pop() || full;
+  const byName = own ? guessMediaInfo(own) : null;
+  if (byName && byName.episode != null) return byName;
+  return (full && full !== own ? guessMediaInfo(full) : null) || byName;
+}
+
 function embeddedItemFiles(item) {
   for (const key of ['files', 'file_list', 'innerFiles']) {
     const value = item?.[key];
@@ -1801,8 +1814,7 @@ async function buildStreamsInner(config = {}, tmdbApiKey, type, tmdbId, season, 
     let targetFiles = videoFiles;
     if ((type === 'series' || type === 'anime') && episode != null && episode !== '' && videoFiles.length > 1) {
       const byEp = videoFiles.filter(f => {
-        const fname = f.name || f.short_name || '';
-        const info  = guessMediaInfo(fname);
+        const info  = episodeFileInfo(f);
         if (!info || info.episode == null) return false;
         if (season != null && season !== '' && info.season != null && String(info.season) !== String(season)) return false;
         const epReq  = parseInt(episode, 10);
@@ -1815,7 +1827,7 @@ async function buildStreamsInner(config = {}, tmdbApiKey, type, tmdbId, season, 
       } else {
         const reqTitle = await requestedEpisodeTitle(tmdbApiKey, tmdbId, season, episode, lang);
         const byTitle = reqTitle
-          ? videoFiles.filter(f => episodeTitleMatches(guessMediaInfo(f.name || f.short_name || '')?.episodeTitle, reqTitle))
+          ? videoFiles.filter(f => episodeTitleMatches(episodeFileInfo(f)?.episodeTitle, reqTitle))
           : [];
         if (byTitle.length > 0) {
           targetFiles = byTitle;
@@ -2287,8 +2299,9 @@ export interface BuilderApi {
   probePackEpisodes: any;
   isEpisodePackMisreadAsMovie: any;
   episodeTitleMatches: any;
+  episodeFileInfo: any;
   flushMatchCache: any;
   matchItem: any;
 }
 
-module.exports = { PLAY_PREFIX, playRef, ownedStreamHints, wholeItemFileId, buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta, buildErdbUrl, erdbProxyUrl, buildRpdbUrl, buildBetterPosterUrl, buildPictoriumPosterUrl, getFanartArt, applyStreamNotices, streamNoticesEnabled, noticeKindEnabled, NOTICE_KINDS, makeProviderRateLimitNotice, libraryStreamFmtFp, buildMatchMeta, publishMatchEntry, remapSplitSeason, resolveSplitTarget, canonicalSource, SPLIT_SHOW_SEASON_REMAP, summarizePackEpisodes, shouldProbeEpisodeNamedPack, addOwnedEpisodeAvailability, addOwnedAirDates, ownedDateKey, mergePackEpisodeRange, embeddedPackEntry, probePackEpisodes, isEpisodePackMisreadAsMovie, episodeTitleMatches, flushMatchCache, matchItem } satisfies BuilderApi;
+module.exports = { PLAY_PREFIX, playRef, ownedStreamHints, wholeItemFileId, buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta, buildErdbUrl, erdbProxyUrl, buildRpdbUrl, buildBetterPosterUrl, buildPictoriumPosterUrl, getFanartArt, applyStreamNotices, streamNoticesEnabled, noticeKindEnabled, NOTICE_KINDS, makeProviderRateLimitNotice, libraryStreamFmtFp, buildMatchMeta, publishMatchEntry, remapSplitSeason, resolveSplitTarget, canonicalSource, SPLIT_SHOW_SEASON_REMAP, summarizePackEpisodes, shouldProbeEpisodeNamedPack, addOwnedEpisodeAvailability, addOwnedAirDates, ownedDateKey, mergePackEpisodeRange, embeddedPackEntry, probePackEpisodes, isEpisodePackMisreadAsMovie, episodeTitleMatches, episodeFileInfo, flushMatchCache, matchItem } satisfies BuilderApi;

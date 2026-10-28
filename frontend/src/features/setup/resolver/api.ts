@@ -254,7 +254,7 @@ const PUSH_TIMEOUT_MS = 90_000;
 
 export function pushSetup(
   uuid: string,
-  body: { platform: string; profile_id?: number | string; temporary_connection?: Record<string, unknown> },
+  body: { platform: string; profile_id?: number | string; temporary_connection?: Record<string, unknown>; replace_other_collections?: boolean },
   editToken: string,
 ): Promise<{ ok: boolean; platform?: string; profile_id?: string | null; libraryPending?: boolean }> {
   return apiClient.post<{ ok: boolean; platform?: string; profile_id?: string | null; libraryPending?: boolean }>(

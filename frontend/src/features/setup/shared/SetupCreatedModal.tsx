@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from '@/features/setup/shared/Toast';
 import { installUrl } from '@/features/setup/resolver/validation';
 import { usePlatformPush } from '@/features/setup/shared/usePlatformPush';
+import { ReplaceCollectionsToggle } from '@/features/setup/shared/ReplaceCollectionsToggle';
 import type { PlatformConnection } from '@/features/setup/full/platform-login';
 
 function CopyRow({ label, value }: { label: string; value: string }) {
@@ -127,6 +128,9 @@ export function SetupCreatedModal({ open, uuid, installToken, name, password, pl
                     ))}
                   </select>
                 </label>
+              )}
+              {platform === 'nuvio' && (
+                <ReplaceCollectionsToggle value={push.replaceOthers} onChange={push.setReplaceOthers} />
               )}
               <button
                 type="button"

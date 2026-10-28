@@ -105,6 +105,10 @@ export interface PushOptions {
   nuvioPlayback?: PlaybackSettings | null;
   // Tri-state: null leaves the user's Home-catalog choice untouched.
   nuvioHideUnreleased?: boolean | null;
+  // One push only, chosen with a tick box: drop every collection on the
+  // profile that is not LeLibrary's. Never read from the saved config, so
+  // background updates and replays always keep other collections.
+  replaceOtherCollections?: boolean;
 }
 
 export interface InstallSetupInput {
@@ -224,27 +228,48 @@ function nuvioHomeKey(addonId: unknown, type: unknown, catalogId: unknown): stri
   return `${addonId}_${type}_${catalogId}`;
 }
 
+// The `key` written into each Home item. Nuvio mobile matches Home items by
+// key and its own keys are "manifestId:type:catalogId"; an underscore key never
+// matched there and came back as a broken entry. The TV app ignores `key`.
+function nuvioItemKey(addonId: unknown, type: unknown, catalogId: unknown): string {
+  return `${addonId}:${type}:${catalogId}`;
+}
+
 // Pull the profiles, flip the target profile off "primary addons", push back.
+// Only when the profile still uses the primary profile's addons: otherwise
+// nothing is written. The push carries the whole freshly pulled list (an older
+// server version deleted profiles missing from it), with every field passed
+// through as Nuvio sent it: the old field subset dropped profile backgrounds
+// and, by always sending avatar_url, cleared avatars picked from the catalog.
 async function ensureOwnAddons(token: string, targetIndex: number): Promise<void> {
   try {
     const profData = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_profiles', {}) as { profiles?: unknown[] } | unknown[];
-    const rawProfiles = Array.isArray(profData) ? profData : ((profData as { profiles?: unknown[] })?.profiles || []);
-    const pushed = (rawProfiles as Record<string, unknown>[]).map((p) => {
-      const idx = Math.trunc(Number(p['profile_index'] ?? p['id']));
-      const isTarget = idx === targetIndex;
-      return {
+    const rawProfiles = (Array.isArray(profData) ? profData : ((profData as { profiles?: unknown[] })?.profiles || [])) as Record<string, unknown>[];
+    const indexOf = (p: Record<string, unknown>) => Math.trunc(Number(p['profile_index'] ?? p['id']));
+    const target = rawProfiles.find((p) => indexOf(p) === targetIndex);
+    const usesPrimary = (p: Record<string, unknown>) => Boolean(p['uses_primary_addons'] ?? p['usesPrimaryAddons']);
+    if (!target || !usesPrimary(target)) return;
+    const pushed = rawProfiles.map((p) => {
+      const idx = indexOf(p);
+      const avatarUrl = String(p['avatar_url'] || '').trim();
+      const out: Record<string, unknown> = {
         profile_index: idx,
         name: String(p['name'] || '').trim() || `Profile ${idx}`,
         avatar_color_hex: String(p['avatar_color_hex'] || p['avatarColorHex'] || '').trim() || '#1E88E5',
-        uses_primary_addons: isTarget ? false : !!((p as Record<string, unknown>)['uses_primary_addons'] ?? (p as Record<string, unknown>)['usesPrimaryAddons']),
-        uses_primary_plugins: !!((p as Record<string, unknown>)['uses_primary_plugins'] ?? (p as Record<string, unknown>)['usesPrimaryPlugins']),
-        avatar_id: (p as Record<string, unknown>)['avatar_url'] ? null : ((p as Record<string, unknown>)['avatar_id'] || null),
-        avatar_url: (p as Record<string, unknown>)['avatar_url'] || null,
+        uses_primary_addons: idx === targetIndex ? false : usesPrimary(p),
+        uses_primary_plugins: !!(p['uses_primary_plugins'] ?? p['usesPrimaryPlugins']),
       };
+      // avatar_url, when present, replaces avatar_id on the server: send it only when set.
+      if (avatarUrl) out['avatar_url'] = avatarUrl;
+      else if (p['avatar_id']) out['avatar_id'] = p['avatar_id'];
+      for (const field of ['profile_background_id', 'profile_background_url']) {
+        if (p[field] !== undefined && p[field] !== null && p[field] !== '') out[field] = p[field];
+      }
+      return out;
     });
     await nuvioRpc(token, '/rest/v1/rpc/sync_push_profiles', {
       p_profiles: pushed,
-      p_client_max_profiles: 5,
+      p_client_max_profiles: 6,
       p_origin_client_id: originClientId('setup'),
     });
     log('Profile', targetIndex, 'switched to own addons');
@@ -315,17 +340,17 @@ function isLeLibraryCollection(collection: unknown): boolean {
     String(record['title'] || '').trim().toLowerCase() === 'lelibrary special';
 }
 
-function mergeCollections(existing: unknown, ours: unknown): unknown {
-  return libraryCollections.mergeCollectionsInPlace(existing, ours, { removeMissing: isLeLibraryCollection });
+function mergeCollections(existing: unknown, ours: unknown, replaceOthers = false): unknown {
+  return libraryCollections.mergeCollectionsInPlace(existing, ours, { removeMissing: replaceOthers ? () => true : isLeLibraryCollection });
 }
 
-async function pushNuvioCollections(token: string, profileIndex: number, collections: unknown, uuidKey: string): Promise<void> {
+async function pushNuvioCollections(token: string, profileIndex: number, collections: unknown, uuidKey: string, replaceOthers = false): Promise<void> {
   const pulled = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_collections', { p_profile_id: profileIndex }) as { collections_json?: unknown } | unknown[];
   const row = (Array.isArray(pulled) ? pulled[0] : pulled) as { collections_json?: unknown };
   const existing = Array.isArray(row?.collections_json)
     ? row.collections_json
     : parseNuvioJson(row?.collections_json, []);
-  const merged = mergeCollections(existing, collections);
+  const merged = mergeCollections(existing, collections, replaceOthers);
   await nuvioRpc(token, '/rest/v1/rpc/sync_push_collections', {
     p_profile_id: profileIndex,
     p_collections_json: merged,
@@ -443,9 +468,14 @@ async function enableNuvioTmdbEnrichment(token: string, profileIndex: number, uu
         p_platform: platform,
       }) as { settings_json?: unknown } | unknown[];
       const row = (Array.isArray(pulled) ? pulled[0] : pulled) as { settings_json?: unknown };
-      const blob = row?.settings_json && typeof row.settings_json === 'object'
-        ? row.settings_json
-        : { version: 1, features: {} };
+      // Never create a settings blob: the mobile app resets every settings
+      // group missing from a pulled blob, so an almost empty one wiped a
+      // phone's settings. No blob yet means the app has not synced; leave it.
+      if (!row?.settings_json || typeof row.settings_json !== 'object') {
+        log(`Nuvio TMDB enrichment skipped (${platform}): no settings yet`);
+        continue;
+      }
+      const blob = row.settings_json;
       await nuvioRpc(token, '/rest/v1/rpc/sync_push_profile_settings_blob', {
         p_profile_id: profileIndex,
         p_settings_json: badgePacks.enableTmdbEnrichmentInBlob(blob),
@@ -526,7 +556,7 @@ async function syncNuvioHomeOrder(token: string, profileIndex: number, manifest:
           : (existing['custom_title'] || ''),
         is_collection: false,
         collection_id: existing['collection_id'] || '',
-        key,
+        key: nuvioItemKey(manifest.id, catalog.type, catalog.id),
       });
     }
 
@@ -546,7 +576,7 @@ async function syncNuvioHomeOrder(token: string, profileIndex: number, manifest:
         custom_title: existing['custom_title'] || homeRow.title || '',
         is_collection: false,
         collection_id: existing['collection_id'] || '',
-        key,
+        key: nuvioItemKey(source.addonId, source.type, catalogId),
       });
     }
 
@@ -588,7 +618,16 @@ async function syncNuvioHomeOrder(token: string, profileIndex: number, manifest:
       if (byKey.has(franchiseKey)) {
         allKeys.push(franchiseKey);
       }
-      return allKeys.map((key, order) => ({ ...byKey.get(key), key, order }));
+      // Each item keeps the key set above (the mobile format for catalogues,
+      // collection_<id> for collections); the map key is only for matching.
+      return allKeys.map((key, order) => {
+        const item = byKey.get(key) || {};
+        const own = typeof item['key'] === 'string' && item['key'] ? item['key'] : null;
+        const catalogKey = !item['is_collection'] && item['addon_id'] && item['type'] && item['catalog_id']
+          ? nuvioItemKey(item['addon_id'], item['type'], item['catalog_id'])
+          : null;
+        return { ...item, key: catalogKey || own || key, order };
+      });
     })();
 
     await nuvioRpc(token, '/rest/v1/rpc/sync_push_home_catalog_settings', {
@@ -834,7 +873,7 @@ async function pushToNuvio(
     (nuvioCollections as Record<string, unknown>[]).push({ ...franchiseCollection });
   }
 
-  await pushNuvioCollections(token, profileIndex, nuvioCollections, options.uuidKey);
+  await pushNuvioCollections(token, profileIndex, nuvioCollections, options.uuidKey, options.replaceOtherCollections === true);
   // Remember what this push sent, so the background update only acts on a
   // real change (setup/franchise-autopush.ts).
   if (franchiseCollection) {
@@ -914,6 +953,8 @@ async function installSetup(input: InstallSetupInput): Promise<InstallSetupResul
           badgePack: options.badgePack,
           badgeUrl: options.badgeUrl,
           nuvioPlayback: options.nuvioPlayback ?? null,
+          nuvioHideUnreleased: options.nuvioHideUnreleased ?? null,
+          replaceOtherCollections: options.replaceOtherCollections === true,
           uuidKey: uuid,
           origin,
           port,

@@ -665,6 +665,8 @@
     "{{name}} is on the server.": "{{name}} is on the server.",
     "Pushed to {{platform}} ✓": "Pushed to {{platform}} ✓",
     "Push to {{platform}}": "Push to {{platform}}",
+    "Remove all other collections from this profile": "Remove all other collections from this profile",
+    "Only for this push. Collections from other addons, and ones made in Nuvio, are deleted from the selected profile so only this setup's collections are left.": "Only for this push. Collections from other addons, and ones made in Nuvio, are deleted from the selected profile so only this setup's collections are left.",
     "Push to {{platform}} again": "Push to {{platform}} again",
     "Save and push to {{platform}}": "Save and push to {{platform}}",
     "Saved and pushed to {{platform}} ✓": "Saved and pushed to {{platform}} ✓",

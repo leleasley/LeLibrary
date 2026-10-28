@@ -250,7 +250,7 @@ function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', edi
       },
       // One parser for badge + playback options (shared with the background
       // replay), so the two push paths cannot drift.
-      options: push.pushOptionsFromConfig(config),
+      options: { ...push.pushOptionsFromConfig(config), replaceOtherCollections: body['replace_other_collections'] === true },
       origin: publicOrigin(req),
       port: parseInt(process.env['PORT'] || '', 10) || undefined,
     });

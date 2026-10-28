@@ -111,6 +111,7 @@ export function ReviewStep({ password, confirmation, busy, error, backTo, onPass
         profilePicker={platform === 'nuvio' && profiles.length > 0 ? {
           profiles, value: push.profileId, onChange: (value) => push.setProfileId(value),
         } : null}
+        replaceOthers={activeConn ? { value: push.replaceOthers, onChange: push.setReplaceOthers } : null}
         actionsExtra={<Link className="setup-secondary" to={`/${created.uuid}`}>Open your setup</Link>}
       >
         <div className="review-section-head"><h3>Watchlists</h3><p>Sync your personal lists into library rows.</p></div>

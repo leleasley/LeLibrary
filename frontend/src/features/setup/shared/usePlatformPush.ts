@@ -18,6 +18,9 @@ export interface PlatformPush {
   // The push published everything except the owned library folders, because the
   // library was still building. Pushing again in a minute adds them.
   libraryPending: boolean;
+  // Nuvio only, this push only: remove the profile's other collections.
+  replaceOthers: boolean;
+  setReplaceOthers: (value: boolean) => void;
   push: () => Promise<boolean>;
 }
 
@@ -42,6 +45,7 @@ export function usePlatformPush(input: {
   const [pushed, setPushed] = useState(false);
   const [libraryPending, setLibraryPending] = useState(false);
   const [profileId, setProfileId] = useState<number | null>(null);
+  const [replaceOthers, setReplaceOthers] = useState(false);
 
   const passwordRef = useRef(password);
   passwordRef.current = password;
@@ -80,10 +84,16 @@ export function usePlatformPush(input: {
       setBusy(`Preparing ${platformName}…`);
       const result = await pushSetup(
         uuid,
-        { platform, ...(platform === 'nuvio' && profileId ? { profile_id: profileId } : {}) },
+        {
+          platform,
+          ...(platform === 'nuvio' && profileId ? { profile_id: profileId } : {}),
+          ...(platform === 'nuvio' && replaceOthers ? { replace_other_collections: true } : {}),
+        },
         editToken ?? '',
       );
       if (!result.ok) throw new Error('Push failed');
+      // A one-off choice: the next push keeps other collections again.
+      setReplaceOthers(false);
       setPushed(true);
       setLibraryPending(result.libraryPending === true);
       handlers.current.onPushed?.();
@@ -105,6 +115,6 @@ export function usePlatformPush(input: {
 
   return {
     editToken, unlockError, connected: active !== null, profiles,
-    profileId, setProfileId, busy, pushed, libraryPending, push,
+    profileId, setProfileId, busy, pushed, libraryPending, replaceOthers, setReplaceOthers, push,
   };
 }

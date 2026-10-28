@@ -380,6 +380,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
                 ? { hint: 'Pushed. Your library folders are still being prepared and will appear on their own — nothing else to do.' }
                 : push.pushed ? { hint: 'Pushed. Your saved setup can be pushed again any time.' } : {}),
           }}
+          replaceOthers={activeConn ? { value: push.replaceOthers, onChange: push.setReplaceOthers } : null}
           actionsExtra={<Link className="setup-secondary" to={`/${creation.result.uuid}`}>Open your setup</Link>}
         />
         </div>

@@ -665,6 +665,8 @@
     "{{name}} is on the server.": "{{name}} está en el servidor.",
     "Pushed to {{platform}} ✓": "Enviado a {{platform}} ✓",
     "Push to {{platform}}": "Enviar a {{platform}}",
+    "Remove all other collections from this profile": "Quitar todas las demás colecciones de este perfil",
+    "Only for this push. Collections from other addons, and ones made in Nuvio, are deleted from the selected profile so only this setup's collections are left.": "Solo para este envío. Las colecciones de otros complementos, y las creadas en Nuvio, se eliminan del perfil seleccionado para que solo queden las de esta configuración.",
     "Push to {{platform}} again": "Enviar de nuevo a {{platform}}",
     "Save and push to {{platform}}": "Guardar y enviar a {{platform}}",
     "Saved and pushed to {{platform}} ✓": "Guardado y enviado a {{platform}} ✓",

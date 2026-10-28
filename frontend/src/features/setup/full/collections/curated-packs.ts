@@ -11,7 +11,7 @@ import {
 // into editable studio copies. Pack → collection compilation mirrors the old
 // wizard's packCollections()/togglePack() pair; ids stay `pack-{id}` so a
 // re-toggle removes exactly what adding created.
-export const HUB_VORTEX_GIF = '/collection-assets/collections/gifs/lelibrary-hub-vortex-focus.gif';
+export const HUB_VORTEX_GIF = '/collection-assets/collections/gifs/lelibrary-hub-movies-focus-v3.gif';
 export const HUB_SYSTEM_COVER = '/collection-assets/collections/covers/lelibrary-hub-movie-collections-v2.png?v=2';
 
 export interface CuratedSection {
@@ -98,7 +98,13 @@ function normalizeFolder(raw: Record<string, unknown> | null | undefined): Curat
         title: text(source['title']) || text(source['name']),
       }))
       .filter((source) => source.catalogId !== ''),
-    ...(Array.isArray(raw.sourceIds) ? { sourceIds: raw.sourceIds.map((id) => String(id)).filter(Boolean) } : {}),
+    // The compact payload leaves sourceIds out when they are just the catalogue
+    // ids without "lib-": rebuild them so every consumer sees the same thing.
+    sourceIds: Array.isArray(raw.sourceIds)
+      ? raw.sourceIds.map((id) => String(id)).filter(Boolean)
+      : (Array.isArray(raw.catalogSources) ? raw.catalogSources : [])
+        .map((source) => String((source as Record<string, unknown> | null)?.catalogId ?? '').replace(/^lib-/, ''))
+        .filter(Boolean),
     ...(Array.isArray(raw.regions) ? { regions: raw.regions.map((id) => String(id).toUpperCase()).filter((id) => /^[A-Z]{2}$/.test(id)) } : {}),
     ...(seasonOf(raw.season) ? { season: seasonOf(raw.season) as SeasonWindow } : {}),
     ...(raw.needsMdblistKey === true ? { needsMdblistKey: true } : {}),
@@ -149,18 +155,32 @@ export function normalizePack(raw: Record<string, unknown> | null | undefined): 
   };
 }
 
-export function useCuratedPacks(): { packs: CuratedPack[]; failed: boolean; aliases: Record<string, string> } {
+// The compact payload sends each folder once in folderIndex and packs list
+// folder ids; put the full folders back so the rest of the code is unchanged.
+export function expandCuratedPayload(payload: { collections?: unknown[]; folderIndex?: unknown } | null | undefined): unknown[] {
+  const list = Array.isArray(payload?.collections) ? payload.collections : [];
+  const index = payload?.folderIndex && typeof payload.folderIndex === 'object' ? payload.folderIndex as Record<string, unknown> : {};
+  return list.map((pack) => {
+    if (!pack || typeof pack !== 'object') return pack;
+    const raw = pack as Record<string, unknown>;
+    const folders = Array.isArray(raw.folders) ? raw.folders : [];
+    return { ...raw, folders: folders.map((folder) => (typeof folder === 'string' ? index[folder] ?? null : folder)).filter(Boolean) };
+  });
+}
+
+export function useCuratedPacks(options: { hideAnime?: boolean } = {}): { packs: CuratedPack[]; failed: boolean; aliases: Record<string, string> } {
   const [packs, setPacks] = useState<CuratedPack[]>([]);
   const [aliases, setAliases] = useState<Record<string, string>>({});
   const [failed, setFailed] = useState(false);
+  const hideAnime = options.hideAnime === true;
   useEffect(() => {
     let cancelled = false;
-    apiClient.get<{ collections?: unknown[]; aliases?: unknown }>('/api/curated-collections')
+    // Hide anime: the server drops anime sources and folders left empty.
+    apiClient.get<{ collections?: unknown[]; folderIndex?: unknown; aliases?: unknown }>(`/api/curated-collections${hideAnime ? '?hideAnime=true' : ''}`)
       .then((payload) => {
         if (cancelled) return;
-        const list = Array.isArray(payload?.collections) ? payload.collections : [];
         setPacks(
-          list
+          expandCuratedPayload(payload)
             .map((pack) => normalizePack(pack as Record<string, unknown> | null))
             .filter((pack): pack is CuratedPack => pack !== null),
         );
@@ -168,7 +188,7 @@ export function useCuratedPacks(): { packs: CuratedPack[]; failed: boolean; alia
       })
       .catch(() => { if (!cancelled) setFailed(true); });
     return () => { cancelled = true; };
-  }, []);
+  }, [hideAnime]);
   return { packs, failed, aliases };
 }
 

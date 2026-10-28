@@ -342,16 +342,23 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
   // Both reference payloads are static for the process lifetime: build and
   // validate them once, then serve the cached JSON string so a cold process
   // does not re-run asset validation on every request.
-  let curatedPayload: string | null = null;
+  // One cached body per Hide anime choice. no-cache + the ETag Express adds
+  // means a browser always re-checks (an unchanged list is a 304), so a new
+  // release's packs show at once instead of an hour-old copy.
+  const curatedPayloads = new Map<string, string>();
   router.get('/api/curated-collections', (req, res) => {
     try {
+      const hideAnime = req.query.hideAnime === 'true';
+      const variant = hideAnime ? 'no-anime' : 'all';
+      let curatedPayload = curatedPayloads.get(variant);
       if (!curatedPayload) {
         const curated = require('../catalog/curated-collections.ts');
         const validation = curated.validateCuratedCollections();
         if (!validation.ok) return res.status(500).json({ error: 'Invalid curated collections', details: validation.errors });
-        curatedPayload = JSON.stringify({ ...curated.curatedCollectionsPayload(), ...validation });
+        curatedPayload = JSON.stringify({ ...curated.curatedCollectionsPayload({ compact: true, hideAnime }), ...validation });
+        curatedPayloads.set(variant, curatedPayload);
       }
-      res.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+      res.set('Cache-Control', 'no-cache');
       res.type('application/json').send(curatedPayload);
     } catch (err) {
       const detail = err as any;
@@ -799,6 +806,12 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
     '/collection-assets/collections/covers/lelibrary-hub-shows-v2.png': '/collection-assets/collections/covers/lelibrary-hub-shows-v3.jpg',
     '/collection-assets/collections/gifs/lelibrary-hub-movies-focus-v2.gif': '/collection-assets/collections/gifs/lelibrary-hub-movies-focus-v3.gif',
     '/collection-assets/collections/gifs/lelibrary-hub-shows-focus-v2.gif': '/collection-assets/collections/gifs/lelibrary-hub-shows-focus-v3.gif',
+    // The first Hub art (the wizard kept using it after v3 shipped).
+    '/collection-assets/collections/covers/lelibrary-hub-focus.png': '/collection-assets/collections/covers/lelibrary-hub-movies-v3.jpg',
+    '/collection-assets/collections/covers/lelibrary-hub.png': '/collection-assets/collections/covers/lelibrary-hub-movies-v3.jpg',
+    '/collection-assets/collections/gifs/lelibrary-hub-vortex-focus.gif': '/collection-assets/collections/gifs/lelibrary-hub-movies-focus-v3.gif',
+    '/collection-assets/collections/gifs/lelibrary-hub-portal-focus.gif': '/collection-assets/collections/gifs/lelibrary-hub-movies-focus-v3.gif',
+    '/collection-assets/collections/gifs/lelibrary-hub-focus.gif': '/collection-assets/collections/gifs/lelibrary-hub-movies-focus-v3.gif',
   };
   for (const [from, to] of Object.entries(RETIRED_ARTWORK)) {
     router.get(from, (req: Request, res: Response) => res.redirect(301, to));

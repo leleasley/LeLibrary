@@ -285,3 +285,14 @@ test('logos are resolved with the server key only, and not at all without one', 
   const other = Object.keys(catalogs).find((id) => catalogs[id].handler === 'tmdb_company');
   assert.equal(await covers.resolveSourceLogo(other, { apiKey: 'synthetic', http: badHttp, cache: { get: async () => null, set: async () => {} } }), '');
 });
+
+test('a registered cover is served from its short URL; an unknown short URL is refused', async (t) => {
+  const files = { 'a.jpg': await fixture(342, 513, 10), 'b.jpg': await fixture(342, 513, 100), 'bg.jpg': await fixture(780, 439, 50) };
+  const { base } = await startRoute(t, files);
+  const spec = covers.buildSpec('wide', { posters: ['/a.jpg', '/b.jpg'], backdrop: '/bg.jpg', title: 'Short URL test' });
+  const short = covers.staticCoverUrl(spec);
+  assert.match(short, /^\/art\/generated\/wide\/[a-f0-9]{24}\.jpg$/, 'no query string');
+  const ok = await fetch(base + short);
+  assert.equal(ok.status, 200);
+  assert.equal((await fetch(`${base}/art/generated/wide/${'0'.repeat(24)}.jpg`)).status, 400);
+});

@@ -124,12 +124,32 @@ function isGeneratedCoverUrl(value: unknown): boolean {
 
 // Route side: strict. Any invalid path, too many posters, a bad version or a
 // hash that does not match the parameters rejects the request outright.
+// Covers known when the server starts (curated folders, curated-folder-art):
+// registered here so their URL can be short, with no query string. Same
+// content-addressed hash, so a changed cover is a new URL.
+const STATIC_COVERS = new Map<string, CoverSpec>();
+
+// [hash, spec] of every registered static cover (for background warming).
+function staticCovers(): [string, CoverSpec][] {
+  return [...STATIC_COVERS.entries()].map(([key, spec]) => [key.split(':')[1] as string, spec]);
+}
+
+function staticCoverUrl(spec: CoverSpec): string {
+  const hash = coverFingerprint(spec);
+  STATIC_COVERS.set(`${spec.kind}:${hash}`, spec);
+  return `${ROUTE_PREFIX}${spec.kind}/${hash}.jpg`;
+}
+
 function parseCoverRequest(kindParam: unknown, fileParam: unknown, query: Record<string, unknown>):
   { ok: true; spec: CoverSpec; hash: string } | { ok: false; error: string } {
   const kind = String(kindParam || '');
   if (kind !== 'poster' && kind !== 'wide') return { ok: false, error: 'kind' };
   const file = String(fileParam || '').match(/^([a-f0-9]{24})\.jpg$/);
   if (!file) return { ok: false, error: 'file' };
+  if (Object.keys(query || {}).length === 0) {
+    const known = STATIC_COVERS.get(`${kind}:${file[1]}`);
+    return known ? { ok: true, spec: known, hash: file[1] } : { ok: false, error: 'unknown' };
+  }
   const single = (key: string): string | null => {
     const value = query[key];
     if (value === undefined) return '';
@@ -205,12 +225,12 @@ function folderHasArt(folder: Folder | null | undefined): boolean {
 // Cover URLs for one folder, matching its tile shape. The hero backdrop is
 // the plain TMDB backdrop, straight from image.tmdb.org (no title on it, no
 // proxy): only filled when the folder has none.
-function generatedFolderArtwork(folder: Folder, parts: Partial<CoverParts>): Record<string, unknown> {
+function generatedFolderArtwork(folder: Folder, parts: Partial<CoverParts>, options: { short?: boolean } = {}): Record<string, unknown> {
   const shape = String(folder['tileShape'] || '').trim().toLowerCase();
   const kind: CoverKind = shape === 'landscape' || shape === 'wide' ? 'wide' : 'poster';
   const spec = buildSpec(kind, { ...parts, title: parts.title ?? String(folder['title'] || '') });
   if (!spec) return {};
-  const art: Record<string, unknown> = { coverImageUrl: coverUrl(spec) };
+  const art: Record<string, unknown> = { coverImageUrl: options.short ? staticCoverUrl(spec) : coverUrl(spec) };
   const hero = folder['heroBackdropUrl'];
   if ((typeof hero !== 'string' || !hero.trim()) && spec.backdrop) art['heroBackdropUrl'] = tmdbImageUrl('w1280', spec.backdrop);
   return art;
@@ -695,6 +715,8 @@ export interface GeneratedCoversApi {
   coverUrl: (spec: CoverSpec) => string;
   isGeneratedCoverUrl: (value: unknown) => boolean;
   parseCoverRequest: typeof parseCoverRequest;
+  staticCoverUrl: typeof staticCoverUrl;
+  staticCovers: typeof staticCovers;
   tmdbImageUrl: typeof tmdbImageUrl;
   tmdbPathFromImageUrl: (value: unknown) => string;
   artFromRows: typeof artFromRows;
@@ -718,6 +740,8 @@ module.exports = {
   coverUrl,
   isGeneratedCoverUrl,
   parseCoverRequest,
+  staticCoverUrl,
+  staticCovers,
   tmdbImageUrl,
   tmdbPathFromImageUrl,
   artFromRows,

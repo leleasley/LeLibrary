@@ -86,3 +86,16 @@ describe('curated packs', () => {
     expect(matchingFocusGif([{ catalogId: 'lib-unknown' }], library)).toBe(null);
   });
 });
+
+describe('compact pack payload', () => {
+  it('rebuilds packs from the folder index and restores sourceIds', async () => {
+    const { expandCuratedPayload, normalizePack } = await import('@/features/setup/full/collections/curated-packs');
+    const folder = { id: 'f1', title: 'Horror', catalogSources: [{ catalogId: 'lib-genre_horror_movies', type: 'movie', title: 'Horror' }] };
+    const inline = { id: 'f2', title: 'Odd', sourceIds: ['x'], catalogSources: [{ catalogId: 'lib-y', type: 'movie', title: 'Y' }] };
+    const packs = expandCuratedPayload({ folderIndex: { f1: folder }, collections: [{ id: 'p1', title: 'P', folders: ['f1', inline, 'missing'] }] });
+    const pack = normalizePack(packs[0] as Record<string, unknown>);
+    expect(pack?.folders.map((f) => f.id)).toEqual(['f1', 'f2']);
+    expect(pack?.folders[0]?.sourceIds).toEqual(['genre_horror_movies']);
+    expect(pack?.folders[1]?.sourceIds).toEqual(['x']);
+  });
+});

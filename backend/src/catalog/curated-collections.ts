@@ -6,6 +6,7 @@
 // definitions. Artwork is bundled and served locally, while catalog ids stay
 // LeLibrary's own stable `lib-*` sources.
 
+const { FOLDER_ART } = require('./curated-folder-art-58.ts');
 const { getSourceDefinition, listSources, canonicalSourceId } = require('./catalog-source-registry.ts');
 const fs = require('fs');
 const path = require('path');
@@ -776,6 +777,16 @@ function sectionContainsFolder(pack, section, folder) {
   });
 }
 
+function generatedArtFor(folder) {
+  const parts = FOLDER_ART[folder.id];
+  if (!parts) return {};
+  const art = require('./generated-covers.ts').generatedFolderArtwork(folder, parts, { short: true });
+  // Only fill gaps: never replace a value the folder already has.
+  const out = {};
+  for (const [key, value] of Object.entries(art)) if (!folder[key]) out[key] = value;
+  return out;
+}
+
 function collectionFromPack(pack, overrides = {}) {
   const folderOverrides = overrides && typeof overrides.folders === 'object' ? overrides.folders : {};
   const settings = normalisePackSettings({ ...DEFAULT_PACK_SETTINGS, ...(overrides.settings || {}) });
@@ -796,6 +807,9 @@ function collectionFromPack(pack, overrides = {}) {
       const type = source.type || 'movie';
       return { ...source, type, title: source.title || curatedSourceDisplayName(source.catalogId, type) };
     });
+    // No hand-made art: the generated cover from the folder's own posters
+    // (curated-folder-art-58.ts). A user's own cover (override) still wins.
+    if (!folder.coverImageUrl) Object.assign(folder, generatedArtFor(folder));
   }
   return {
     id: `collection-lelibrary-pack-${pack.id}`,
@@ -985,15 +999,17 @@ function listCuratedCollections(options = {}) {
       sections,
       folders: visible.map((item) => {
         const regions = folderRegions(item);
+        // No hand-made art: the same generated cover the push uses.
+        const generated = item.coverImageUrl ? {} : generatedArtFor(item);
         return {
           id: item.id,
           title: item.title,
           tileShape: item.tileShape || '',
           hideTitle: !!item.hideTitle,
-          coverImageUrl: item.coverImageUrl || '',
+          coverImageUrl: item.coverImageUrl || generated.coverImageUrl || '',
           focusGifUrl: item.focusGifUrl || '',
           focusGifEnabled: !!item.focusGifEnabled,
-          heroBackdropUrl: item.heroBackdropUrl || '',
+          heroBackdropUrl: item.heroBackdropUrl || generated.heroBackdropUrl || '',
           heroVideoUrl: item.heroVideoUrl || '',
           titleLogoUrl: item.titleLogoUrl || '',
           sourceIds: [...new Set((item.catalogSources || []).map((source) => canonicalSourceId(source.catalogId)))],
@@ -1018,10 +1034,46 @@ function listCuratedCollections(options = {}) {
 // The /api/curated-collections body. `aliases` maps an old catalogue id to
 // the one it serves, so the picker can tell a folder is already present when
 // an older collection still names the alias.
+// Fields a folder carries by default: omitted from the compact payload.
+const FOLDER_DEFAULTS = { focusGifUrl: '', focusGifEnabled: false, heroBackdropUrl: '', heroVideoUrl: '', titleLogoUrl: '', hideTitle: false, needsMdblistKey: false };
+
+function compactFolder(folder) {
+  const out = {};
+  for (const [key, value] of Object.entries(folder || {})) {
+    if (key in FOLDER_DEFAULTS && value === FOLDER_DEFAULTS[key]) continue;
+    if (Array.isArray(value) && value.length === 0 && key !== 'catalogSources') continue;
+    out[key] = value;
+  }
+  // sourceIds is the catalogue ids without "lib-" unless an alias is involved:
+  // only send it when it says something the sources do not.
+  const derived = (out.catalogSources || []).map((source) => String(source.catalogId || '').replace(/^lib-/, ''));
+  if (Array.isArray(out.sourceIds) && JSON.stringify(out.sourceIds) === JSON.stringify(derived)) delete out.sourceIds;
+  return out;
+}
+
+// The picker's payload. Bundles and LeLibrary Special reuse the folders of the
+// packs they include, so each folder is sent once in `folderIndex` and packs
+// list folder ids (the browser rebuilds the full packs). A folder whose id is
+// reused with different content stays inline. Default-valued fields and the
+// per-pack source list (unused by the picker) are left out.
 function curatedCollectionsPayload(options = {}) {
   const aliases = {};
   for (const source of listSources({ includeUnavailable: true })) if (source.aliasOf) aliases[source.id] = source.aliasOf;
-  return { collections: listCuratedCollections(options), aliases };
+  const collections = listCuratedCollections(options);
+  if (options.compact !== true) return { collections, aliases };
+  const folderIndex = {};
+  const seen = {};
+  const out = collections.map((pack) => {
+    const { sources: _sources, ...rest } = pack;
+    const folders = (pack.folders || []).map((folder) => {
+      const compact = compactFolder(folder);
+      const text = JSON.stringify(compact);
+      if (!(folder.id in seen)) { seen[folder.id] = text; folderIndex[folder.id] = compact; return folder.id; }
+      return seen[folder.id] === text ? folder.id : compact;
+    });
+    return { ...rest, folders };
+  });
+  return { collections: out, folderIndex, aliases };
 }
 
 function buildCuratedCollections(packIds = [], overrides = {}, options = {}) {
@@ -1115,3 +1167,7 @@ export interface CuratedCollectionsApi {
 }
 
 module.exports = { buildCuratedCollections, curatedSourceIds, curatedSourceDisplayName, curatedFolderLabel, resolveCuratedSourceLabel, listCuratedCollections, curatedCollectionsPayload, validateCuratedCollections, PACK_FILTERS } satisfies CuratedCollectionsApi;
+
+// Register every curated folder's generated cover once at load, so the art
+// route can serve the short URL even before any pack list was built.
+for (const pack of CURATED_COLLECTIONS) for (const folder of pack.folders || []) if (!folder.coverImageUrl) generatedArtFor(folder);

@@ -145,7 +145,46 @@ function mountGeneratedCoverRoute(app: Express, deps: CoreImageRoutesDeps): void
     return bucket.count > max;
   }
 
+  // One render per hash at a time; the result goes to the image cache.
+  function renderOnce(spec: Parameters<typeof covers.renderCover>[0], hash: string): Promise<CachedImage | null> {
+    let pending = inflight.get(hash);
+    if (!pending) {
+      pending = (async () => {
+        const images = await covers.fetchCoverImages(spec, http);
+        const usable = images.posters.some(Boolean) || !!images.backdrop;
+        if (!usable) return null;
+        const buf = await covers.renderCover(spec, images);
+        if (!buf || !buf.length) return null;
+        const value: CachedImage = { buf, type: 'image/jpeg', exp: Date.now() + MEM_TTL };
+        await cacheSet(hash, value);
+        return value;
+      })().finally(() => inflight.delete(hash));
+      inflight.set(hash, pending);
+    }
+    return pending;
+  }
+
+  // Curated folders' covers are known at start: draw them slowly in the
+  // background (about one a second) so a first visitor never waits on, or
+  // gets rate limited out of, a pack's worth of renders.
+  async function warmStaticCovers(): Promise<void> {
+    require('../catalog/curated-collections.ts');
+    for (const [hash, spec] of covers.staticCovers()) {
+      try {
+        if (await cacheGet(hash)) continue;
+        await renderOnce(spec, hash);
+      } catch { /* next one */ }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+  if (process.env['NODE_ENV'] !== 'test' && !process.argv.some((arg) => arg.includes('--test'))) {
+    const timer = setTimeout(() => { void warmStaticCovers(); }, 60_000);
+    timer.unref?.();
+  }
+
   app.get('/art/generated/:kind/:file', async (req: Request, res: Response) => {
+    // Loading the curated packs registers their short cover URLs.
+    require('../catalog/curated-collections.ts');
     const parsed = covers.parseCoverRequest(req.params.kind, req.params.file, req.query as Record<string, unknown>);
     if (!parsed.ok) { res.setHeader('Cache-Control', 'no-store'); res.status(400).end(); return; }
     const { spec, hash } = parsed;
@@ -158,22 +197,8 @@ function mountGeneratedCoverRoute(app: Express, deps: CoreImageRoutesDeps): void
     try {
       let hit = await cacheGet(hash);
       if (!hit) {
-        let pending = inflight.get(hash);
-        if (!pending) {
-          if (exceeded(req, 'render', RENDERS_PER_MINUTE)) { sendFallback(); return; }
-          pending = (async () => {
-            const images = await covers.fetchCoverImages(spec, http);
-            const usable = images.posters.some(Boolean) || !!images.backdrop;
-            if (!usable) return null;
-            const buf = await covers.renderCover(spec, images);
-            if (!buf || !buf.length) return null;
-            const value: CachedImage = { buf, type: 'image/jpeg', exp: Date.now() + MEM_TTL };
-            await cacheSet(hash, value);
-            return value;
-          })().finally(() => inflight.delete(hash));
-          inflight.set(hash, pending);
-        }
-        hit = await pending;
+        if (!inflight.has(hash) && exceeded(req, 'render', RENDERS_PER_MINUTE)) { sendFallback(); return; }
+        hit = await renderOnce(spec, hash);
       }
       if (!hit) { sendFallback(); return; }
       res.setHeader('Content-Type', hit.type);

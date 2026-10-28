@@ -25,7 +25,7 @@ import { NuvioPublicModal } from '@/features/setup/full/NuvioPublicModal';
 // Collections studio: the list of Nuvio collections, the Quick Pack launch
 // block and its library, the public Nuvio directory browser, plus the
 // LeLibrary Hub system toggle.
-export function CollectionStudio({ collections, onChange, providerPrefix, platform, packs, onPacks, ownedOn, onToggleOwned, nuvioToken, savedSetup, lang, hasMdblistKey = false }: {
+export function CollectionStudio({ collections, onChange, providerPrefix, platform, packs, onPacks, ownedOn, onToggleOwned, nuvioToken, savedSetup, lang, hasMdblistKey = false, hideAnime = false }: {
   collections: CollectionDoc[];
   onChange: (next: CollectionDoc[]) => void;
   providerPrefix: string | null;
@@ -42,6 +42,8 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
   savedSetup?: { uuid: string; editToken: string };
   // Setup language (meta.lang): the pack picker's watch region comes from it.
   lang?: string;
+  // Hide anime: packs come without anime sources and anime-only folders.
+  hideAnime?: boolean;
   // An MDBList key is typed in or already saved ("Optional list sources").
   hasMdblistKey?: boolean;
 }) {
@@ -52,7 +54,7 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
   const [editor, setEditor] = useState<{ ci: number; fi: number; draft?: CollectionDoc['folders'][number] } | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [publicOpen, setPublicOpen] = useState(false);
-  const { packs: curated, failed: packsFailed, aliases } = useCuratedPacks();
+  const { packs: curated, failed: packsFailed, aliases } = useCuratedPacks({ hideAnime });
   const region = regionForLang(lang);
   // Real catalogue names, so a folder source never shows its internal id.
   const { sources: catalogSources } = useCatalogSources(providerPrefix, platform);

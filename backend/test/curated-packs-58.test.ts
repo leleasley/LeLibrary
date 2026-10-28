@@ -266,3 +266,36 @@ test('region from language matches the frontend table for the seven setup langua
   assert.equal(regionForLang(''), 'GB');
   assert.equal(regionForLang('en'), 'GB');
 });
+
+test('the compact picker payload sends each folder once and rebuilds to the same folders', () => {
+  const curated = require('../src/catalog/curated-collections.ts');
+  const full = curated.curatedCollectionsPayload({});
+  const compact = curated.curatedCollectionsPayload({ compact: true });
+  assert.ok(JSON.stringify(compact).length < JSON.stringify(full).length * 0.75, 'clearly smaller');
+  for (const pack of compact.collections) {
+    const original = full.collections.find((p) => p.id === pack.id);
+    const rebuilt = pack.folders.map((f) => (typeof f === 'string' ? compact.folderIndex[f] : f));
+    assert.deepEqual(rebuilt.map((f) => f.id), original.folders.map((f) => f.id), pack.id);
+    assert.equal(pack.sources, undefined, 'the unused per-pack source list is dropped');
+  }
+});
+
+test('Hide anime takes anime folders out of the picker payload', () => {
+  const curated = require('../src/catalog/curated-collections.ts');
+  const anime = (payload) => payload.collections.find((p) => p.id === 'anime-hub');
+  const all = curated.curatedCollectionsPayload({ compact: true });
+  const hidden = curated.curatedCollectionsPayload({ compact: true, hideAnime: true });
+  assert.ok((anime(hidden)?.folders.length ?? 0) < anime(all).folders.length);
+});
+
+test('curated folders without hand-made art carry a short generated cover, in the picker and in the push', () => {
+  const curated = require('../src/catalog/curated-collections.ts');
+  const index = curated.curatedCollectionsPayload({ compact: true }).folderIndex;
+  const generated = Object.values(index).filter((f) => String(f.coverImageUrl).startsWith('/art/generated/'));
+  assert.ok(generated.length > 250);
+  for (const folder of generated) assert.match(folder.coverImageUrl, /^\/art\/generated\/(poster|wide)\/[a-f0-9]{24}\.jpg$/);
+  const pushed = curated.buildCuratedCollections(['horror-vault']).flat().flatMap((c) => c.folders || []);
+  assert.ok(pushed.length > 0);
+  const byId = new Map(Object.values(index).map((f) => [f.id, f.coverImageUrl]));
+  for (const folder of pushed) if (byId.has(folder.id)) assert.equal(folder.coverImageUrl, byId.get(folder.id), folder.id);
+});

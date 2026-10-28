@@ -58,7 +58,9 @@ export const HUB_SHOWS_FOLDER_ID = 'folder-lelibrary-hub-shows';
 
 // Bundled Hub artwork (served from public/collection-assets).
 // Stored absolute (see absoluteUrl): Nuvio clients fetch artwork directly.
-export const HUB_COVER = '/collection-assets/collections/covers/lelibrary-hub-focus.png?v=2';
+// The Hub's own art is the current Movies cover (v3); the old hub-focus
+// image is retired and redirects there for collections already pushed.
+export const HUB_COVER = '/collection-assets/collections/covers/lelibrary-hub-movies-v3.jpg';
 export const HUB_MOVIES_COVER = '/collection-assets/collections/covers/lelibrary-hub-movies-v3.jpg';
 export const HUB_MOVIES_FOCUS = '/collection-assets/collections/gifs/lelibrary-hub-movies-focus-v3.gif';
 export const HUB_SHOWS_COVER = '/collection-assets/collections/covers/lelibrary-hub-shows-v3.jpg';

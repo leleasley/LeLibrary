@@ -56,3 +56,37 @@ test('Pictorium proxy falls back on upstream failure and serves the recovered re
   assert.equal(Buffer.from(await cached.arrayBuffer()).toString(), 'synthetic-poster');
   assert.equal(calls.length, 2, 'the recovered poster should be served from cache');
 });
+
+test('Studio previews are rendered once and then reused (not redrawn on every view)', async (t) => {
+  const calls = [];
+  const imageHttpClient = {
+    get: async (url) => {
+      calls.push(url);
+      return { status: 200, data: Buffer.from('preview-poster'), headers: { 'content-type': 'image/jpeg' } };
+    },
+  };
+  const values = new Map();
+  const app = express();
+  const { mountImageRoutes } = require('../src/routes/images.ts');
+  mountImageRoutes(app, {
+    // A preview works before the setup saves Pictorium as its poster service.
+    resolveConfig: async () => ({ tmdbApiKey: 'synthetic-key', posterProvider: 'tmdb' }),
+    configStore: { mergeStoredConfig: async (config) => config },
+    imageHttpClient,
+    cache: { get: async (key) => values.get(key) ?? null, set: async (key, value) => { values.set(key, value); } },
+  });
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const url = `http://127.0.0.1:${server.address().port}/synthetic-token/pictorium/movie/550.jpg?preview=1&title=Fight%20Club`;
+
+  const first = await fetch(url);
+  assert.equal(first.status, 200);
+  assert.equal(first.headers.get('cache-control'), 'private, max-age=600');
+  const second = await fetch(url);
+  assert.equal(Buffer.from(await second.arrayBuffer()).toString(), 'preview-poster');
+  assert.equal(calls.length, 1, 'the same preview is drawn once');
+
+  await fetch(`${url}&age=1`);
+  assert.equal(calls.length, 2, 'a changed option is a new render');
+});

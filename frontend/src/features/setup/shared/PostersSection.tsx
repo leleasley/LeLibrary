@@ -159,27 +159,32 @@ export function PosterPreview({ provider, keys, draft }: {
     return [pair.movie, pair.series].map((sample) => ({ sample, ...previewUrl({ provider, sample, ...shared }) }));
   }, [provider, pair, keys, draft.customTemplate, draft.pictoriumOptions, draft.pictoriumUrl, posterTemplate, tokenMap, pictoriumOptions]);
 
-  // Smooth crossfade rotation: fade out, swap, fade in.
+  // Smooth crossfade rotation: fade out, swap, fade in. Not for Pictorium:
+  // every new pair is two fresh server renders (seconds each), so rotating
+  // kept Pictorium drawing non-stop and the preview lagging behind.
+  const rotate = provider !== 'pictorium';
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !rotate) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    let timer = 0;
+    // The interval and the fade timeouts need their own handles: sharing one
+    // lost the interval, and every return to the tab stacked another one, so
+    // the preview rotated faster and faster.
+    let interval = 0;
+    let fade = 0;
     const advance = () => {
       setFading(true);
-      timer = window.setTimeout(() => {
+      fade = window.setTimeout(() => {
         setPairIndex((value) => (value + 1) % POSTER_PAIRS.length);
-        timer = window.setTimeout(() => setFading(false), 50);
+        fade = window.setTimeout(() => setFading(false), 50);
       }, 400);
     };
-    const start = () => {
-      window.clearTimeout(timer);
-      timer = window.setInterval(advance, 7000);
-    };
-    const onVisibility = () => { if (document.hidden) window.clearTimeout(timer); else start(); };
+    const stop = () => { window.clearInterval(interval); window.clearTimeout(fade); };
+    const start = () => { stop(); interval = window.setInterval(advance, 7000); };
+    const onVisibility = () => { if (document.hidden) stop(); else start(); };
     start();
     document.addEventListener('visibilitychange', onVisibility);
-    return () => { window.clearTimeout(timer); document.removeEventListener('visibilitychange', onVisibility); };
-  }, []);
+    return () => { stop(); setFading(false); document.removeEventListener('visibilitychange', onVisibility); };
+  }, [rotate]);
 
   const label = POSTER_PROVIDERS.find((option) => option.id === provider)?.name ?? 'TMDB default';
   const note = resolved.find((entry) => entry.note)?.note ?? null;

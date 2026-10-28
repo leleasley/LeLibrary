@@ -305,7 +305,10 @@ function mountImageRoutes(app: Express, deps: ImageRoutesDeps): void {
       // image cache to a key hash: one user's ratings never fill another's entry.
       const mdbFp = mdblistKey ? hashShort(mdblistKey) : 'none';
       const cacheKey = [base, type, id, optionsModule.toQuery(opts), req.query.title || '', req.query.rd || '', req.query.lang || '', req.query.region || '', mdbFp].join('|');
-      let hit = preview ? null : await pictoriumCacheGet(cacheKey);
+      // Previews use the same cache: the key holds every option, so a changed
+      // option is a new render, and the setup page's rotating preview and its
+      // duplicate panels no longer make Pictorium draw the same poster again.
+      let hit = await pictoriumCacheGet(cacheKey);
       if (!hit) {
         // Fast path: don't make a client wait the full render if it can be
         // avoided — but DO wait briefly. Clients (Stremio especially) pin the
@@ -349,12 +352,14 @@ function mountImageRoutes(app: Express, deps: ImageRoutesDeps): void {
         const smaller = await pictoriumDownscale(buf);
         if (smaller) { buf = smaller; contentType = 'image/jpeg'; }
         hit = { buf, type: contentType, exp: Date.now() + PICTORIUM_CACHE_TTL };
-        if (!preview) await pictoriumCacheSet(cacheKey, hit);
+        await pictoriumCacheSet(cacheKey, hit);
         }
       }
       if (warm) { res.status(204).end(); return; }
       res.setHeader('Content-Type', hit.type);
-      res.setHeader('Cache-Control', preview ? 'no-store' : 'public, max-age=86400, immutable');
+      // The preview URL carries the setup's keys, so it stays private, but the
+      // browser may reuse it for a while instead of asking for a new render.
+      res.setHeader('Cache-Control', preview ? 'private, max-age=600' : 'public, max-age=86400, immutable');
       res.end(hit.buf);
     } catch {
       redirectFallback();

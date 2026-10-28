@@ -565,7 +565,6 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
         </div>
         <aside className="qs-aside">{panel}</aside>
       </div>
-      {edit?.settings}
       <TierDock hasArt={hasTmdb} label={hasTmdb ? `${artworkLabel} · ${presetLabel}` : 'Add your TMDB key to see posters'}
         next={next ? { onClick: wizard.next } : undefined}
       >

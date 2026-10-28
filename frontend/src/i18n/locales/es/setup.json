@@ -1159,6 +1159,8 @@
     "Anyone with this setup's id can open this page. Set a password in the setup settings to keep your file names private.": "Cualquiera con el id de esta configuración puede abrir esta página. Pon una contraseña en los ajustes de la configuración para mantener privados los nombres de tus archivos.",
     "Change this match": "Cambiar esta coincidencia",
     "Edit settings": "Editar ajustes",
+    "Edit": "Editar",
+    "Back to editing": "Volver a editar",
     "Every file in your debrid account and what it became in Stremio and Nuvio. Fix anything that was missed or matched wrong; your fixes only affect your own library.": "Cada archivo de tu cuenta debrid y en qué se convirtió en Stremio y Nuvio. Corrige lo que no se encontró o se emparejó mal; tus correcciones solo afectan a tu propia biblioteca.",
     "Everything in your library is matched.": "Todo en tu biblioteca está emparejado.",
     "Fix match": "Corregir",

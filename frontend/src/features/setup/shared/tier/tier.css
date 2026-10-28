@@ -14,6 +14,10 @@
   padding-bottom: 40px;
 }
 
+/* The step bar sits flush under the banner: cancel the shell's top padding
+   (app.css .shell-main, 24px). */
+.qs > .qs-progress:first-child { margin-top: -24px; }
+
 /* ── Progress rail: sticky under the banner, fill slides with scroll ── */
 .qs-progress {
   position: sticky; top: var(--qs-top); z-index: 40;
@@ -839,3 +843,68 @@
 .custom-addon-row { display: flex; gap: 8px; }
 .custom-addon-row input { box-sizing: border-box; flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 10px; background: #09090b; color: var(--text); font: 0.82rem var(--mono, monospace); }
 .custom-addon-row input:focus { outline: none; border-color: rgba(245, 158, 11, 0.55); }
+
+/* ── Edit page: side rail (Edit / Library / Settings) and view fades ── */
+.edit-rail {
+  position: fixed; z-index: 45; top: calc(var(--qs-top, 58px) + 96px);
+  left: max(12px, calc((100vw - 1180px) / 2 - 104px));
+  display: flex; flex-direction: column; gap: 4px; padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 18px;
+  background: rgba(14, 14, 17, 0.84); box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  animation: edit-rail-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.edit-rail-item {
+  position: relative; display: grid; justify-items: center; gap: 5px; width: 62px; padding: 11px 4px 9px;
+  border: 0; border-radius: 13px; background: none; color: var(--muted); cursor: pointer;
+  font-family: inherit; font-size: 0.68rem; font-weight: 500; line-height: 1.2; letter-spacing: 0.01em; transition: background 0.18s, color 0.18s;
+}
+.edit-rail-item svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: color 0.18s, transform 0.18s; }
+.edit-rail-item:hover { color: var(--text); background: rgba(255, 255, 255, 0.04); }
+.edit-rail-item:hover svg { transform: translateY(-1px); }
+.edit-rail-item.is-active { color: var(--text); background: rgba(245, 158, 11, 0.11); box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.32); }
+.edit-rail-item.is-active svg { color: var(--amber); }
+.edit-rail-item:focus-visible { outline: 2px solid rgba(245, 158, 11, 0.6); outline-offset: 2px; }
+.edit-rail-badge {
+  position: absolute; top: 5px; right: 7px; min-width: 17px; padding: 1px 5px; border-radius: 999px;
+  background: var(--amber); color: #111; font-family: inherit; font-size: 0.6rem; font-weight: 700; line-height: 1.35; font-style: normal; text-align: center; font-variant-numeric: tabular-nums;
+}
+@keyframes edit-rail-in { from { opacity: 0; translate: -8px 0; } }
+
+/* Fades out quickly, fades the next view in a little slower. */
+.edit-stage { transition: opacity 0.26s cubic-bezier(0.2, 0.8, 0.2, 1), translate 0.26s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.edit-stage.is-fading { opacity: 0; translate: 0 8px; transition-duration: 0.17s; transition-timing-function: ease-in; }
+
+/* Both views are centred at the width of their content, with the back
+   button lined up on the content's left edge. */
+.edit-view { box-sizing: border-box; width: min(940px, 100%); margin: 0 auto; padding: 26px 20px 60px; }
+.edit-view-settings .edit-settings { max-width: none; margin: 0; }
+.edit-view-library { width: min(980px, 100%); padding: 26px 0 0; }
+.edit-view-library .edit-back { margin-left: 20px; }
+.edit-back {
+  display: inline-flex; align-items: center; gap: 6px; margin: 0 0 18px; padding: 6px 12px 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 999px; background: none; color: var(--muted);
+  font-family: inherit; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: color 0.15s, border-color 0.15s;
+}
+.edit-back:hover { color: var(--text); border-color: rgba(245, 158, 11, 0.45); }
+.edit-back svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* No room in the margin: the rail becomes a slim bar under the site banner. */
+@media (max-width: 1379px) {
+  .edit-rail {
+    position: sticky; top: var(--qs-top, 58px); left: auto; flex-direction: row; justify-content: center; gap: 4px;
+    margin: -24px calc(50% - 50vw) 0; padding: 6px 12px; border: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 0; box-shadow: none; animation: none;
+  }
+  .edit-root.has-rail .qs > .qs-progress:first-child { margin-top: 0; }
+  .edit-rail-item { display: flex; align-items: center; width: auto; gap: 7px; padding: 7px 14px; border-radius: 999px; font-size: 0.78rem; }
+  .edit-rail-item svg { width: 17px; height: 17px; }
+  .edit-rail-badge { position: static; margin-left: 2px; }
+  /* The tier page's own progress bar sticks just under this bar. */
+  .edit-root.has-rail .qs-progress { top: calc(var(--qs-top, 58px) + 49px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .edit-stage, .edit-stage.is-fading { transition: none; translate: none; }
+  .edit-rail { animation: none !important; }
+}

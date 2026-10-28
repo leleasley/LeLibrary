@@ -71,8 +71,6 @@ export interface EditMode {
   // The last step's content (save, publish, install link). The page passes the
   // desk body it wants inside the publish panel (Settle In's player login).
   renderFinish: (options: { deskBody?: ReactNode; name?: { value: string; onChange: (next: string) => void } }) => ReactNode;
-  // Setup settings: tier switch, install link, clear edits, delete.
-  settings: ReactNode;
 }
 
 // Saved config + revealed keys -> the snapshot a page starts from.

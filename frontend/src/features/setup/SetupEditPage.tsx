@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -63,6 +63,11 @@ export function tierPageFor(tier: string | null | undefined): ComponentType<{ ed
 type SavedAccount = { user: string | null; profiles: NuvioProfileRef[]; selected: number | null };
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+
+type EditView = 'edit' | 'library' | 'settings';
+// Matches the .edit-stage fade in tier.css.
+const VIEW_FADE_MS = 170;
 
 function UnlockModal({ uuid, tier, busy, loading, error, leaving, password, onPassword, onSubmit }: {
   uuid: string;
@@ -141,9 +146,25 @@ export function SetupEditPage() {
   const [savedAccount, setSavedAccount] = useState<SavedAccount | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  // Settings (the tier page) or the Library view. The tier page stays mounted
-  // while the library is open so unsaved edits survive the switch.
-  const [section, setSection] = useState<'settings' | 'library'>('settings');
+  // Which view the side rail shows: the tier page, the Library or the setup
+  // settings. The tier page stays mounted while another view is open so
+  // unsaved edits (and its scroll position) survive the switch.
+  const [view, setView] = useState<EditView>('edit');
+  // The fade runs on the element directly: a React render of the tier page
+  // takes long enough to swallow the fade-out.
+  const stageRef = useRef<HTMLDivElement>(null);
+  const editScroll = useRef(0);
+  const pendingScroll = useRef<number | null>(null);
+  const fadeTimer = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (pendingScroll.current === null) return;
+    window.scrollTo({ top: pendingScroll.current });
+    pendingScroll.current = null;
+    const stage = stageRef.current;
+    // Next frame, so the hidden-to-shown swap is painted before it fades in.
+    if (stage) requestAnimationFrame(() => stage.classList.remove('is-fading'));
+  }, [view]);
+  useEffect(() => () => { if (fadeTimer.current) window.clearTimeout(fadeTimer.current); }, []);
   // How many files need attention, for the switch. Loaded once after unlock;
   // a setup without the library index or a debrid key simply shows no count.
   const [libraryAttention, setLibraryAttention] = useState<number | null>(null);
@@ -385,7 +406,7 @@ export function SetupEditPage() {
       .then((summaryOut) => { if (!cancelled) setLibraryAttention(summaryOut.attention); })
       .catch(() => { /* no index or no debrid key: no count */ });
     return () => { cancelled = true; };
-  }, [isUnlocked, uuid, section]);
+  }, [isUnlocked, uuid, view]);
 
   // Any single-segment path reaches this route (React Router has no shape
   // check), so /index.html or /foo.mp4 must be the shared 404.
@@ -446,6 +467,30 @@ export function SetupEditPage() {
       toast('Could not download the backup', 'error');
     }
   }
+
+  // Fade the current view out, swap, fade the next one in. Returning to the
+  // tier page puts it back where it was scrolled to.
+  function go(next: EditView) {
+    if (next === view) return;
+    if (fadeTimer.current) window.clearTimeout(fadeTimer.current);
+    if (view === 'edit') editScroll.current = window.scrollY;
+    const swap = () => {
+      fadeTimer.current = null;
+      pendingScroll.current = next === 'edit' ? editScroll.current : 0;
+      setView(next);
+    };
+    const stage = stageRef.current;
+    if (!stage || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { swap(); return; }
+    stage.classList.add('is-fading');
+    fadeTimer.current = window.setTimeout(swap, VIEW_FADE_MS);
+  }
+
+  const backToEditing = (
+    <button type="button" className="edit-back" onClick={() => go('edit')}>
+      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" /></svg>
+      <span>Back to editing</span>
+    </button>
+  );
 
   const settings = (
     <section className="edit-settings" aria-label="Setup settings">
@@ -590,33 +635,52 @@ export function SetupEditPage() {
         )}
       </div>
     ),
-    settings,
   };
 
+  const railItems: { id: EditView; label: string; title: string; icon: ReactNode; badge?: number | null }[] = [
+    { id: 'edit', label: 'Edit', title: 'Edit settings', icon: <path d="M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6" /> },
+    { id: 'library', label: 'Library', title: 'Your library', icon: <path d="M5 4v16M9 4v16M13 5l4 15M18 4.5l2 .5" />, badge: libraryAttention },
+    {
+      id: 'settings', label: 'Settings', title: 'Setup settings',
+      icon: <><circle cx="12" cy="12" r="3" /><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" /></>,
+    },
+  ];
+
   return (
-    <div className="edit-root">
+    <div className={`edit-root${unlocked ? ' has-rail' : ''}`}>
       {unlocked && (
-        <nav className="edit-switch" aria-label="Setup sections">
-          <div className="edit-switch-inner" role="tablist">
-            <button type="button" role="tab" aria-selected={section === 'settings'} className={section === 'settings' ? 'is-active' : ''} onClick={() => setSection('settings')}>
-              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6" /></svg>
-              <span><strong>Edit settings</strong><small>Keys, rows, posters and streams</small></span>
+        <nav className="edit-rail" aria-label="Setup sections">
+          {railItems.map((item) => (
+            <button
+              key={item.id} type="button" title={item.title}
+              aria-current={view === item.id ? 'page' : undefined}
+              className={`edit-rail-item${view === item.id ? ' is-active' : ''}`}
+              onClick={() => go(item.id)}
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24">{item.icon}</svg>
+              <span className="edit-rail-label">{item.label}</span>
+              {item.badge ? <em className="edit-rail-badge" aria-label={setupCount(item.badge, 'file needs attention', 'files need attention')}>{item.badge}</em> : null}
             </button>
-            <button type="button" role="tab" aria-selected={section === 'library'} className={section === 'library' ? 'is-active' : ''} onClick={() => setSection('library')}>
-              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4v16M9 4v16M13 5l4 15M18 4.5l2 .5" /></svg>
-              <span>
-                <strong>Your library</strong>
-                <small>{libraryAttention ? setupCount(libraryAttention, 'file needs attention', 'files need attention') : 'What was found in your cloud'}</small>
-              </span>
-              {libraryAttention ? <em className="edit-switch-badge">{libraryAttention}</em> : null}
-            </button>
-          </div>
+          ))}
         </nav>
       )}
-      <div className={unlocked ? 'edit-page' : 'edit-page is-locked'} inert={!unlocked} aria-hidden={!unlocked} hidden={unlocked && section === 'library'}>
-        <Page key={`${activeTier}-${pageKey}`} edit={editMode} />
+      <div className="edit-stage" ref={stageRef}>
+        <div className={unlocked ? 'edit-page' : 'edit-page is-locked'} inert={!unlocked} aria-hidden={!unlocked} hidden={unlocked && view !== 'edit'}>
+          <Page key={`${activeTier}-${pageKey}`} edit={editMode} />
+        </div>
+        {unlocked && view === 'library' && (
+          <div className="edit-view edit-view-library">
+            {backToEditing}
+            <LibraryPanel uuid={uuid} editToken={getEditToken()} />
+          </div>
+        )}
+        {unlocked && view === 'settings' && (
+          <div className="edit-view edit-view-settings">
+            {backToEditing}
+            {settings}
+          </div>
+        )}
       </div>
-      {unlocked && section === 'library' && <LibraryPanel uuid={uuid} editToken={getEditToken()} />}
       {(!unlocked || leaving) && (
         <UnlockModal
           uuid={uuid} tier={savedTier}

@@ -307,7 +307,6 @@ export function QuickSetupPage({ edit }: { edit?: EditMode } = {}) {
         <aside className="qs-aside">{panel}</aside>
       </div>
 
-      {edit?.settings}
 
       <TierDock hasArt={hasTmdb} label={hasTmdb ? `${posterLabel} · ${streamLabel}` : 'Add your TMDB key to see posters'}>
         {panel}

@@ -1059,7 +1059,24 @@ function compactFolder(folder) {
 function curatedCollectionsPayload(options = {}) {
   const aliases = {};
   for (const source of listSources({ includeUnavailable: true })) if (source.aliasOf) aliases[source.id] = source.aliasOf;
-  const collections = listCuratedCollections(options);
+  // Full links: art saved into a setup or shown anywhere else must work off
+  // this host too (Nuvio needs absolute URLs).
+  const origin = typeof options.origin === 'string' ? options.origin.replace(/\/+$/, '') : '';
+  const abs = (value) => (origin ? require('./collection-artwork.ts').absoluteLocalArtwork(value, origin) : value);
+  const collections = listCuratedCollections(options).map((pack) => ({
+    ...pack,
+    coverImageUrl: abs(pack.coverImageUrl),
+    backdropUrl: abs(pack.backdropUrl),
+    generatedCoverUrl: abs(pack.generatedCoverUrl),
+    folders: (pack.folders || []).map((folder) => ({
+      ...folder,
+      coverImageUrl: abs(folder.coverImageUrl),
+      focusGifUrl: abs(folder.focusGifUrl),
+      heroBackdropUrl: abs(folder.heroBackdropUrl),
+      heroVideoUrl: abs(folder.heroVideoUrl),
+      titleLogoUrl: abs(folder.titleLogoUrl),
+    })),
+  }));
   if (options.compact !== true) return { collections, aliases };
   const folderIndex = {};
   const seen = {};

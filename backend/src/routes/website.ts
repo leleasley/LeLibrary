@@ -349,13 +349,14 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
   router.get('/api/curated-collections', (req, res) => {
     try {
       const hideAnime = req.query.hideAnime === 'true';
-      const variant = hideAnime ? 'no-anime' : 'all';
+      const origin = String(process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+      const variant = `${hideAnime ? 'no-anime' : 'all'}|${origin}`;
       let curatedPayload = curatedPayloads.get(variant);
       if (!curatedPayload) {
         const curated = require('../catalog/curated-collections.ts');
         const validation = curated.validateCuratedCollections();
         if (!validation.ok) return res.status(500).json({ error: 'Invalid curated collections', details: validation.errors });
-        curatedPayload = JSON.stringify({ ...curated.curatedCollectionsPayload({ compact: true, hideAnime }), ...validation });
+        curatedPayload = JSON.stringify({ ...curated.curatedCollectionsPayload({ compact: true, hideAnime, origin }), ...validation });
         curatedPayloads.set(variant, curatedPayload);
       }
       res.set('Cache-Control', 'no-cache');

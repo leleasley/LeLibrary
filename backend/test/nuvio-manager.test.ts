@@ -574,3 +574,23 @@ test('create-flow preview reads a profile\'s settings with the browser\'s sessio
     server.close();
   }
 });
+
+test('Home rows are named from the addons\' own catalogues, with a tidy fallback', () => {
+  const projection = require('../src/nuvio/projection.ts');
+  const doc = { items: [
+    { addon_id: 'community.lelibrary', type: 'movie', catalog_id: 'torbox-watchlist-mdblist-movie', enabled: true, order: 0 },
+    { addon_id: 'com.other', type: 'movie', catalog_id: 'pop', enabled: true, order: 1 },
+    { addon_id: 'com.other', type: 'series', catalog_id: 'pop', enabled: true, order: 2 },
+    { addon_id: 'com.unknown', type: 'series', catalog_id: 'lib-top_rated-shows', enabled: false, order: 3, custom_title: '' },
+    { addon_id: 'com.other', type: 'movie', catalog_id: 'mine', enabled: true, order: 4, custom_title: 'My pick' },
+  ] };
+  const names = new Map([
+    ['community.lelibrary:movie:torbox-watchlist-mdblist-movie', '🎯 MDBList Watchlist'],
+    ['com.other:movie:pop', 'Popular'],
+    ['com.other:series:pop', 'Popular'],
+    ['com.other:movie:mine', 'Something'],
+  ]);
+  const titles = projection.projectHome(doc, [], names).items.map((i) => i.title);
+  assert.deepEqual(titles, ['🎯 MDBList Watchlist', 'Popular (Movies)', 'Popular (Series)', 'Top rated shows', 'My pick']);
+  assert.equal(projection.projectHome(doc, []).items[0].title, 'Torbox watchlist mdblist movie', 'no manifest: readable, not the raw id');
+});

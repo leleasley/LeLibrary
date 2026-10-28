@@ -36,6 +36,9 @@ export interface NuvioServiceOptions {
   own: OwnContext;
   // Display name from an addon's manifest, or null. Never throws.
   fetchManifestName?: (url: string) => Promise<string | null>;
+  // Catalogue names for Home rows, keyed "<manifestId>:<type>:<catalogId>",
+  // read from the profile's addon manifests. Never throws.
+  catalogNames?: (addonRows: Row[]) => Promise<Map<string, string>>;
 }
 
 const MAX_NAME = 40;
@@ -134,6 +137,11 @@ function createNuvioService(options: NuvioServiceOptions) {
     return { profiles: await profiles(), maxProfiles: MAX_PROFILES };
   }
 
+  async function namesFor(rows: Row[]): Promise<Map<string, string>> {
+    if (!options.catalogNames) return new Map();
+    try { return await options.catalogNames(rows); } catch { return new Map(); }
+  }
+
   async function profileState(index: number): Promise<ProfileState> {
     const profile = await requireProfile(index);
     const addonsFrom = profile.usesPrimaryAddons ? 1 : index;
@@ -149,7 +157,7 @@ function createNuvioService(options: NuvioServiceOptions) {
       addons: projection.projectAddons(addonRows, own),
       addonsFrom,
       collections: projection.projectCollections(collections.items, home.doc),
-      home: projection.projectHome(home.doc, collections.items),
+      home: projection.projectHome(home.doc, collections.items, await namesFor(addonRows)),
       settings: settingsFrom(tv.blob, mobile.blob, home.doc),
       readAt: new Date().toISOString(),
     };
@@ -465,7 +473,9 @@ function createNuvioService(options: NuvioServiceOptions) {
     }
     await client.pushHome(index, { ...doc, items: nextItems });
     const [home, collections] = await Promise.all([client.pullHome(index), client.pullCollections(index)]);
-    return { home: projection.projectHome(home.doc, collections.items) };
+    const profile = await requireProfile(index);
+    const rows = await client.listAddons(profile.usesPrimaryAddons ? 1 : index).catch(() => []);
+    return { home: projection.projectHome(home.doc, collections.items, await namesFor(rows as Row[])) };
   }
 
   // ── Backups ─────────────────────────────────────────────────

@@ -193,7 +193,19 @@ function projectCollections(collections: unknown, homeDoc: unknown): CollectionS
   });
 }
 
-function projectHome(doc: unknown, collections: unknown): Home {
+// Fallback for a catalogue no manifest names: "torbox-watchlist-mdblist-movie"
+// reads "Torbox watchlist mdblist movie" instead of the raw id.
+function humanizeCatalogId(id: string): string {
+  const words = String(id || '').replace(/^lib-/, '').split(/[-_.:\s]+/).filter(Boolean);
+  if (!words.length) return id;
+  const out = words.join(' ').toLowerCase();
+  return out.charAt(0).toUpperCase() + out.slice(1);
+}
+
+const TYPE_LABEL: Record<string, string> = { movie: 'Movies', series: 'Series', anime: 'Anime', tv: 'TV', channel: 'Channels' };
+
+// names: "<manifestId>:<type>:<catalogId>" -> catalogue name from that addon's manifest.
+function projectHome(doc: unknown, collections: unknown, names: Map<string, string> = new Map()): Home {
   const titles = new Map<string, string>();
   for (const collection of (Array.isArray(collections) ? collections : []).filter(isRecord)) {
     titles.set(String(collection['id'] ?? ''), text(collection['title']));
@@ -209,7 +221,9 @@ function projectHome(doc: unknown, collections: unknown): Home {
     const catalogId = isCollection ? collectionId : String(item['catalog_id'] ?? '');
     items.push({
       key,
-      title: (text(item['custom_title']) || (isCollection ? titles.get(collectionId) || '' : '') || catalogId).slice(0, 160),
+      title: (text(item['custom_title'])
+        || (isCollection ? titles.get(collectionId) || '' : names.get(key) || '')
+        || (isCollection ? collectionId : humanizeCatalogId(catalogId))).slice(0, 160),
       type: isCollection ? 'collection' : String(item['type'] ?? ''),
       catalogId,
       addonId: isCollection ? '' : String(item['addon_id'] ?? ''),
@@ -217,6 +231,13 @@ function projectHome(doc: unknown, collections: unknown): Home {
       enabled: item['enabled'] !== false,
       order: items.length,
     });
+  }
+  // Two rows with the same name (a catalogue in Movies and Series) get their type.
+  const counts = new Map<string, number>();
+  for (const item of items) counts.set(item.title, (counts.get(item.title) || 0) + 1);
+  for (const item of items) {
+    const label = TYPE_LABEL[item.type];
+    if (!item.isCollection && label && (counts.get(item.title) || 0) > 1) item.title = `${item.title} (${label})`.slice(0, 160);
   }
   const flag = isRecord(doc) ? doc['hide_unreleased_content'] : undefined;
   return { items, hideUnreleased: typeof flag === 'boolean' ? flag : null };
@@ -238,7 +259,8 @@ export interface ProjectionApi {
   homeItems: (doc: unknown) => Record<string, unknown>[];
   sortedHomeItems: (doc: unknown) => Record<string, unknown>[];
   projectCollections: (collections: unknown, homeDoc: unknown) => CollectionSummary[];
-  projectHome: (doc: unknown, collections: unknown) => Home;
+  projectHome: (doc: unknown, collections: unknown, names?: Map<string, string>) => Home;
+  humanizeCatalogId: (id: string) => string;
 }
 
 module.exports = {
@@ -255,6 +277,7 @@ module.exports = {
   isLeLibraryCollectionId,
   homeItemKey,
   homeItems,
+  humanizeCatalogId,
   sortedHomeItems,
   projectCollections,
   projectHome,

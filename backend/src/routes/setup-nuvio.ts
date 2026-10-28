@@ -28,6 +28,7 @@ export interface SetupNuvioDeps {
   getBackups?: () => BackupStore | null;
   http?: HttpTransport;
   fetchManifestName?: (url: string) => Promise<string | null>;
+  catalogNames?: (rows: Record<string, unknown>[]) => Promise<Map<string, string>>;
 }
 
 export interface SetupNuvioRoutesOptions {
@@ -39,6 +40,7 @@ export interface SetupNuvioRoutesOptions {
 export interface SetupNuvioRoutesApi {
   mountSetupNuvioRoutes: (app: Express, options?: SetupNuvioRoutesOptions) => void;
   fetchManifestName: (url: string) => Promise<string | null>;
+  catalogNamesFrom: (rows: Record<string, unknown>[], ownOrigin: string) => Promise<Map<string, string>>;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -77,27 +79,61 @@ function displayUser(conn: PushConnection): string {
 
 // Read an addon's display name from its manifest: public hosts only, the DNS
 // answer pinned, no redirects, size and time capped. null on any failure.
-async function fetchManifestName(url: string): Promise<string | null> {
+// An addon manifest, fetched safely (public hosts only, pinned DNS, no
+// redirects, size cap). LeLibrary's own manifest is read from this server
+// over loopback. Cached in memory by a hash of the link (links are secrets).
+const MANIFEST_TTL_MS = 6 * 60 * 60 * 1000;
+const manifestCache = new Map<string, { at: number; data: Record<string, unknown> | null }>();
+
+async function fetchManifest(url: string, timeoutMs = 6000, ownOrigin = ''): Promise<Record<string, unknown> | null> {
+  const crypto = require('node:crypto');
+  const cacheKey = crypto.createHash('sha256').update(url).digest('hex');
+  const hit = manifestCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < MANIFEST_TTL_MS) return hit.data;
+  let data: Record<string, unknown> | null = null;
   try {
-    const aio = require('../streams/aiostreams.ts');
-    const parsed = new URL(url);
-    const lookup = await aio.pinnedLookup(parsed.hostname, { allowPrivate: aio.allowPrivateHosts() });
-    if (!lookup) return null;
     const axios = require('axios');
-    const response = await axios.get(parsed.toString(), {
-      lookup,
-      timeout: 6000,
-      maxContentLength: MANIFEST_BYTES,
-      maxBodyLength: MANIFEST_BYTES,
-      maxRedirects: 0,
-      validateStatus: (status: number) => status === 200,
-      headers: { Accept: 'application/json' },
-    });
-    const name = asRecord(response.data)['name'];
-    return typeof name === 'string' && name.trim() ? name.trim().slice(0, 80) : null;
+    const parsed = new URL(url);
+    const common = { timeout: timeoutMs, maxContentLength: MANIFEST_BYTES, maxBodyLength: MANIFEST_BYTES, maxRedirects: 0, validateStatus: (status: number) => status === 200, headers: { Accept: 'application/json' } };
+    if (ownOrigin && url.toLowerCase().startsWith(`${ownOrigin.toLowerCase()}/`)) {
+      const port = parseInt(process.env['PORT'] || '', 10) || 7860;
+      data = asRecord((await axios.get(`http://127.0.0.1:${port}${parsed.pathname}${parsed.search}`, common)).data);
+    } else {
+      const aio = require('../streams/aiostreams.ts');
+      const lookup = await aio.pinnedLookup(parsed.hostname, { allowPrivate: aio.allowPrivateHosts() });
+      if (lookup) data = asRecord((await axios.get(parsed.toString(), { ...common, lookup })).data);
+    }
   } catch {
-    return null;
+    data = null;
   }
+  if (manifestCache.size > 500) manifestCache.clear();
+  manifestCache.set(cacheKey, { at: Date.now(), data });
+  return data;
+}
+
+async function fetchManifestName(url: string): Promise<string | null> {
+  const name = (await fetchManifest(url))?.['name'];
+  return typeof name === 'string' && name.trim() ? name.trim().slice(0, 80) : null;
+}
+
+// Home row names for a profile: every addon's catalogues, keyed the way Home
+// items are ("<manifestId>:<type>:<catalogId>"). A few addons at most, in
+// parallel, short timeouts; a slow or broken addon just keeps its fallback.
+async function catalogNamesFrom(rows: Record<string, unknown>[], ownOrigin: string): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  const urls = rows.map((row) => String(row['url'] ?? '')).filter((url) => /^https?:\/\//i.test(url)).slice(0, 12);
+  const manifests = await Promise.all(urls.map((url) => fetchManifest(url, 4000, ownOrigin)));
+  for (const manifest of manifests) {
+    if (!manifest) continue;
+    const id = String(manifest['id'] ?? '');
+    const catalogs = Array.isArray(manifest['catalogs']) ? manifest['catalogs'] : [];
+    for (const catalog of catalogs) {
+      const c = asRecord(catalog);
+      const name = typeof c['name'] === 'string' ? c['name'].trim() : '';
+      if (id && name && c['id'] != null && c['type'] != null) names.set(`${id}:${String(c['type'])}:${String(c['id'])}`, name.slice(0, 120));
+    }
+  }
+  return names;
 }
 
 function mountSetupNuvioRoutes(app: Express, { basePath = '/api/setup', editSessions, deps = {} }: SetupNuvioRoutesOptions = {}): void {
@@ -159,6 +195,7 @@ function mountSetupNuvioRoutes(app: Express, { basePath = '/api/setup', editSess
       backups,
       own: { origin: publicOrigin(req), uuid },
       fetchManifestName: nameOf,
+      catalogNames: deps.catalogNames || ((rows) => catalogNamesFrom(rows, publicOrigin(req))),
     });
     return { uuid, conn, service };
   }
@@ -286,4 +323,4 @@ function mountSetupNuvioRoutes(app: Express, { basePath = '/api/setup', editSess
   app.use(basePath, router);
 }
 
-module.exports = { mountSetupNuvioRoutes, fetchManifestName } satisfies SetupNuvioRoutesApi;
+module.exports = { mountSetupNuvioRoutes, fetchManifestName, catalogNamesFrom } satisfies SetupNuvioRoutesApi;

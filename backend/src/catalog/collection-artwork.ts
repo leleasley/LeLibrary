@@ -21,7 +21,9 @@ function versionLocalAsset(value) {
 function absoluteLocalArtwork(value, origin = '') {
   if (typeof value !== 'string') return '';
   const clean = versionLocalAsset(value.trim());
-  if (!clean.startsWith('/collection-assets/')) return clean;
+  // Generated covers (/art/generated/, catalog/generated-covers.ts) are served
+  // by this host too, so they need the same origin.
+  if (!clean.startsWith('/collection-assets/') && !clean.startsWith('/art/generated/')) return clean;
   return origin ? `${String(origin).replace(/\/+$/, '')}${clean}` : clean;
 }
 

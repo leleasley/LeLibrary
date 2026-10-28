@@ -44,6 +44,7 @@ const badgePacks = require('../catalog/nuvio-badge-packs.ts') as {
   fetchBadgeManifest: (sourceUrl: string) => Promise<unknown>;
   SETTINGS_PLATFORMS: string[];
 };
+const generatedCovers = require('../catalog/generated-covers.ts') as import('../catalog/generated-covers.ts').GeneratedCoversApi;
 const cacheWarm = require('../catalog/collection-cache-warm.ts') as {
   warmTokenLibraryCatalogs: (input: { origin: string; tokenId: string; libraryIds?: unknown[]; request?: (url: string) => Promise<unknown>; limit?: number }) => Promise<{ requested?: number; warmed?: number; timedOut?: boolean }>;
 };
@@ -751,7 +752,7 @@ async function pushToNuvio(
     integration: 'nuvio',
     hideAnime: options.hideAnime === true,
   });
-  const plannedCollections = collectionPlan.collections as Record<string, unknown>[];
+  let plannedCollections = collectionPlan.collections as Record<string, unknown>[];
   const plannedHomeRows = collectionPlan.homeRows as HomeRowDoc[];
   const franchiseCollectionEnabled = (collectionPlan.nativeFranchiseCollection as { enabled?: boolean } | undefined)?.enabled === true;
   const tokenId = new URL(manifestUrl).pathname.match(/^\/([^/]+)\/manifest\.json$/)?.[1];
@@ -809,6 +810,39 @@ async function pushToNuvio(
     log('Collection warming still in progress; publishing folders now');
   } else if (warmResult.requested) {
     log(`Warmed ${warmResult.warmed}/${warmResult.requested} collection catalogues`);
+  }
+
+  // Folders without hand-made art get a cover drawn from their own catalogue
+  // (catalog/generated-covers.ts). The rows are the same catalogue requests the
+  // warm step just made, so they are normally cache hits; a folder whose rows
+  // are not ready inside the budget simply keeps no cover until the next push.
+  // Only public TMDB image paths reach the cover URL, never the install token.
+  if (tokenId) {
+    try {
+      const generatedArt = await generatedCovers.collectGeneratedArt(collections, {
+        manifestId: manifest?.id || 'community.lelibrary.selfhosted',
+        budgetMs: 5000,
+        loadRows: async (catalogId: string, type: 'movie' | 'series') => {
+          const res = await axios.get(`${loopback}/${encodeURIComponent(tokenId)}/catalog/${type}/${encodeURIComponent(catalogId)}/skip=0.json`, { timeout: 5000 });
+          return Array.isArray(res.data?.metas) ? res.data.metas : [];
+        },
+        resolveLogo: (sourceId: string) => generatedCovers.resolveSourceLogo(sourceId),
+      });
+      if (Object.keys(generatedArt).length) {
+        plannedCollections = compileCollectionPlan({
+          collections,
+          homeRows,
+          sources,
+          externalSources: [],
+          manifestId: manifest?.id || 'community.lelibrary.selfhosted',
+          integration: 'nuvio',
+          hideAnime: options.hideAnime === true,
+          generatedArt,
+        }).collections as Record<string, unknown>[];
+      }
+    } catch (err) {
+      log('Could not build generated folder covers:', (err as Error).message);
+    }
   }
 
   await ensureOwnAddons(token, profileIndex);

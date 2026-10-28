@@ -101,7 +101,10 @@ const HUB_FOLDER_ART: Record<string, { coverImageUrl: string; focusGifUrl: strin
   },
 };
 
-function compileCollectionPlan({ collections = [], homeRows = [], sources = [], externalSources = [], manifestId = '', integration = 'nuvio', hideAnime = false } = {}) {
+// `generatedArt` maps folder id -> cover parts (TMDB poster/backdrop/logo paths
+// from the folder's own catalogue, see generated-covers.ts collectGeneratedArt).
+// Only folders without hand-made art use it; folders with art keep their URLs.
+function compileCollectionPlan({ collections = [], homeRows = [], sources = [], externalSources = [], manifestId = '', integration = 'nuvio', hideAnime = false, generatedArt = null } = {}) {
   const safeCollections = Array.isArray(collections) ? collections : [];
   const safeHomeRows = Array.isArray(homeRows) ? homeRows : [];
   // LeLibrary Collections is a native collection, not a Home row. It is always
@@ -261,10 +264,16 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
     folders: (Array.isArray(collection?.folders) ? collection.folders : []).map((folder, fi) => {
       if (hideAnime && isAnimeFolder(folder)) return null;
       const hubArt = HUB_FOLDER_ART[String(folder?.id || '')];
+      const folderId = folder?.id || `folder-${ci}-${fi}`;
+      const merged = { ...folder, ...(hubArt ? { ...hubArt, focusGifEnabled: true } : {}) };
+      const parts = generatedArt && typeof generatedArt === 'object' ? generatedArt[folderId] : null;
+      const generated = parts && !require('./generated-covers.ts').folderHasArt(merged)
+        ? require('./generated-covers.ts').generatedFolderArtwork(merged, parts)
+        : {};
       return ({
-      ...folder,
-      ...(hubArt ? { ...hubArt, focusGifEnabled: true } : {}),
-      id: folder?.id || `folder-${ci}-${fi}`,
+      ...merged,
+      ...generated,
+      id: folderId,
       catalogSources: (Array.isArray(folder?.catalogSources) ? folder.catalogSources : [])
         .map((source) => visit(source, 'folder'))
         // A flat torbox-collections source exposes every owned franchise film

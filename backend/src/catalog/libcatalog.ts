@@ -17,6 +17,7 @@ const { getTrending, getPopular, buildDiscoveryMetas, getImdbId, getImdbIds } = 
 const { normalizeImdbId } = require('../media/identity.ts');
 const { buildErdbUrl, erdbProxyUrl, buildRpdbUrl, buildBetterPosterUrl, buildPictoriumPosterUrl, getFanartArt } = require('./builder.ts');
 const { applyRotation } = require('./catalog-rotation.ts');
+const { regionForLang } = require('./region.ts');
 
 const TTL_LIB = 24 * 60 * 60; // 24h: these rows don't change often
 const TMDB_IMAGE = 'https://image.tmdb.org/t/p';
@@ -202,10 +203,7 @@ async function fetchNormalizedImportedPage({ definition, page, tmdbApiKey, mdbli
       let sortBy = definition.params.sortBy;
       if (mediaType === 'movie' && filters.with_release_type) {
         if (sortBy.startsWith('primary_release_date.')) sortBy = sortBy.replace('primary_release_date.', 'release_date.');
-        if (!filters.region) {
-          const region = String(lang || '').split('-')[1];
-          if (region && /^[A-Za-z]{2}$/.test(region)) filters.region = region.toUpperCase();
-        }
+        if (!filters.region) filters.region = regionForLang(lang);
       }
       const response = await request(`https://api.themoviedb.org/3/discover/${apiType}`, {
         params: { api_key: tmdbApiKey, language: lang, page, sort_by: sortBy, ...filters }, timeout: 15000,
@@ -400,7 +398,9 @@ async function buildCatalogRows(tmdbApiKey, def, lang = 'en-US', mdblistKey = ''
     }
 
     case 'tmdb_provider':
-      return await tmdbItemsToRows(tmdbApiKey, apiType, await discover(tmdbApiKey, apiType, { tmdb: { with_watch_providers: p.providerId, watch_region: 'US', ...(p.rotation || {}) } }, lang), stremioType);
+      // Region comes from the setup language (en-US means GB); the cache keys
+      // already include lang, so each region is cached separately.
+      return await tmdbItemsToRows(tmdbApiKey, apiType, await discover(tmdbApiKey, apiType, { tmdb: { with_watch_providers: p.providerId, watch_region: p.watchRegion || regionForLang(lang), ...(p.rotation || {}) } }, lang), stremioType);
 
     case 'tmdb_genre':
       return await tmdbItemsToRows(tmdbApiKey, apiType, await discover(tmdbApiKey, apiType, { sort: p.sort, tmdb: { with_genres: p.genreIds ? p.genreIds.join(',') : p.genreId, ...(p.rotation || {}) } }, lang), stremioType);
@@ -431,8 +431,12 @@ async function buildCatalogRows(tmdbApiKey, def, lang = 'en-US', mdblistKey = ''
 
     case 'tmdb_collection': {
       if (!p.collectionId) return [];
-      const res = await axios.get(`https://api.themoviedb.org/3/collection/${p.collectionId}`, { params: { api_key: tmdbApiKey, language: lang }, timeout: 15000 });
-      const parts = (res.data && res.data.parts) || [];
+      // "1709|173710": several collections (an original series and its reboot)
+      // shown as one row in release order.
+      const ids = String(p.collectionId).split('|').map((id) => id.trim()).filter((id) => /^\d+$/.test(id)).slice(0, 4);
+      const results = await Promise.all(ids.map((id) => axios.get(`https://api.themoviedb.org/3/collection/${id}`, { params: { api_key: tmdbApiKey, language: lang }, timeout: 15000 })));
+      const parts = results.flatMap((res) => (res.data && res.data.parts) || []);
+      if (ids.length > 1) parts.sort((a, b) => String(a.release_date || '9999').localeCompare(String(b.release_date || '9999')));
       return await tmdbItemsToRows(tmdbApiKey, 'movie', parts, 'movie');
     }
 
@@ -532,9 +536,11 @@ async function fetchMdblistItems(def, mdblistKey = '') {
 
 // ── Catalog entry point (called from handleCatalog) ──────────
 async function buildLibraryCatalog({ tmdbApiKey, catalogId, lang = 'en-US', userKey, skip = 0, search = '', enhance = {}, posterFp = '', mdblistKey = '', hideAnime = false }) {
-  const { getSourceDefinition } = require('./catalog-source-registry.ts');
-  const def = getSourceDefinition(catalogId);
+  const { getSourceDefinition, canonicalSourceId } = require('./catalog-source-registry.ts');
+  // An alias serves (and shares the cache of) its canonical definition.
+  const def = getSourceDefinition(canonicalSourceId(catalogId));
   if (!def) return [];
+  const sourceId = def.id;
   if (def.params.needsSource && def.handler !== 'tmdb_source') {
     // No resolvable source yet: empty row (log once).
     return [];
@@ -545,7 +551,7 @@ async function buildLibraryCatalog({ tmdbApiKey, catalogId, lang = 'en-US', user
   // Source families supported by the normalized importer share the exact same
   // paginated engine with static lib-* rows. This is what makes signature
   // matching an effective-runtime match rather than a name/first-page match.
-  const staticEntry = require('../import-sources/static-index.ts').staticDefinition(catalogId, def);
+  const staticEntry = require('../import-sources/static-index.ts').staticDefinition(sourceId, def, { region: regionForLang(lang) });
   // Rotating rows deliberately use the native dispatcher below: its effective
   // definition carries the daily TMDB filters, whereas the normalized static
   // recipe is intentionally stable for importer signature matching.
@@ -559,13 +565,14 @@ async function buildLibraryCatalog({ tmdbApiKey, catalogId, lang = 'en-US', user
   // caller's paid API key, so two users sharing no poster providers used to
   // collide on one cache entry and be served each other's private lists.
   const credFp = (effectiveDef.handler === 'mdb_list' && effectiveDef.params && effectiveDef.params.listId) ? hashShort(mdblistKey || '') : '';
-  // v3 invalidates source rows cached before the DC Universe source was moved
-  // from an incomplete TMDB collection to the DCEU keyword catalogue.
-  const libCacheKey = cache.makeKey('cat', 'lib6-base', catalogId, rotationSlot, lang, credFp);
+  // lib7 invalidates rows cached before the 2026-10-28 catalogue fixes (wrong
+  // TMDB ids, region from language). Keys include lang, so each derived watch
+  // region is cached separately.
+  const libCacheKey = cache.makeKey('cat', 'lib7-base', sourceId, rotationSlot, lang, credFp);
   let rows;
   try {
     rows = await cachedRows({ store: cache, key: libCacheKey,
-      staleKey: cache.makeKey('cat', 'lib6-base-lkg', catalogId, lang, credFp), ttl: TTL_LIB,
+      staleKey: cache.makeKey('cat', 'lib7-base-lkg', sourceId, lang, credFp), ttl: TTL_LIB,
       allowStale: !credFp,
       load: async () => {
         const rows = await buildCatalogRows(tmdbApiKey, effectiveDef, lang, mdblistKey);
@@ -644,8 +651,8 @@ async function buildImportedCatalog({ tmdbApiKey, ref, type, lang = 'en-US', use
           sanitized[tmdbParam] = str.slice(0, 500);
         }
         if (sortBy) sanitized.sort_by = sortBy;
-        // Default watch_region to US if watch providers used without region
-        if ((sanitized.with_watch_providers || sanitized.without_watch_providers) && !sanitized.watch_region) sanitized.watch_region = 'US';
+        // No region given: use the one derived from the setup language.
+        if ((sanitized.with_watch_providers || sanitized.without_watch_providers) && !sanitized.watch_region) sanitized.watch_region = regionForLang(lang);
         const apiType = type === 'series' ? 'tv' : 'movie';
         def = { id: ref, type, handler: 'tmdb_discover', params: { apiType, tmdb: sanitized } };
       }
@@ -653,7 +660,7 @@ async function buildImportedCatalog({ tmdbApiKey, ref, type, lang = 'en-US', use
   }
   if (!def) return [];
   const cacheId = `import-${ref}-${type}`;
-  const cacheKey = cache.makeKey('cat', 'lib-import-base-v3', cacheId, lang);
+  const cacheKey = cache.makeKey('cat', 'lib-import-base-v4', cacheId, lang);
   let rows;
   try {
     rows = await cachedRows({ store: cache, key: cacheKey, ttl: TTL_LIB,

@@ -6,7 +6,7 @@
 // definitions. Artwork is bundled and served locally, while catalog ids stay
 // LeLibrary's own stable `lib-*` sources.
 
-const { getSourceDefinition, listSources } = require('./catalog-source-registry.ts');
+const { getSourceDefinition, listSources, canonicalSourceId } = require('./catalog-source-registry.ts');
 const fs = require('fs');
 const path = require('path');
 
@@ -147,8 +147,26 @@ function mergeCompatibleMediaSources(packs) {
       folders.push(folder);
     }
 
-    return { ...pack, folders };
+    return dedupePackSources({ ...pack, folders });
   });
+}
+
+// One folder per source: an alias (catalogdefs-fixes.ts) serves exactly its
+// canonical definition, so a pack must never list the same canonical source
+// twice. The first folder keeps it; a folder left with no source is dropped.
+function dedupePackSources(pack) {
+  const seen = new Set();
+  const folders = [];
+  for (const item of pack.folders) {
+    const catalogSources = (item.catalogSources || []).filter((source) => {
+      const key = `${source.type || 'movie'}:${canonicalSourceId(source.catalogId)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    if (catalogSources.length) folders.push({ ...item, catalogSources });
+  }
+  return { ...pack, folders };
 }
 
 // Preset packs for the hand-maintained source families (directors, decades and
@@ -341,7 +359,7 @@ const CURATED_COLLECTIONS = mergeCompatibleMediaSources([
     description: 'In theatres, upcoming releases and newly available films.',
     folders: [
       folder('preset-cinema-now-theatres', 'In Theatres', 'now_playing_movies', artwork('discover', 'in-theaters', 'jpg', false, 'discover-in-theaters.jpg')),
-      folder('preset-cinema-now-next', 'Coming Soon', 'upcoming_movies', artwork('discover', 'new-releases', 'jpg', false, 'discover-new-releases.jpg'), ['new_latest_digital_movies', 'new_latest_releases_movies']),
+      folder('preset-cinema-now-next', 'Coming Soon', 'upcoming_movies', artwork('discover', 'new-releases', 'jpg', false, 'discover-new-releases.jpg'), ['new_latest_releases_movies']),
     ],
   },
   {
@@ -674,10 +692,10 @@ if (SPECIAL_PACK) {
     title: pack.title,
     folders: pack.folders.map((folder) => folder.id),
   }));
-  SPECIAL_PACK.folders = standardPacks.flatMap((pack) => pack.folders.map((folder) => ({
+  SPECIAL_PACK.folders = dedupePackSources({ folders: standardPacks.flatMap((pack) => pack.folders.map((folder) => ({
     ...folder,
     catalogSources: (folder.catalogSources || []).map((source) => ({ ...source })),
-  })));
+  }))) }).folders;
 }
 Object.freeze(CURATED_COLLECTIONS);
 

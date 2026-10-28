@@ -65,6 +65,13 @@ function getSourceDefinition(id) {
   return { id: sourceId, ...definition, ...availability(definition) };
 }
 
+// An alias is an old id kept working for saved setups and pushed folders; it
+// serves exactly its canonical definition. Unknown ids come back unchanged.
+function canonicalSourceId(id) {
+  const sourceId = String(id || '').replace(/^lib-/, '').replace(/^snoak_/, 'streaming_');
+  return catalogs[sourceId]?.aliasOf || sourceId;
+}
+
 function listSources({ includeUnavailable = false } = {}) {
   return Object.keys(catalogs).map(getSourceDefinition)
     .filter(Boolean)
@@ -80,6 +87,7 @@ function listSources({ includeUnavailable = false } = {}) {
       engine: source.handler,
       requirements: requirements(source),
       featured: FEATURED_IDS.has(source.id),
+      ...(source.aliasOf ? { aliasOf: source.aliasOf } : {}),
       available: source.available,
       unavailableReason: source.reason,
     }))
@@ -93,14 +101,16 @@ function validateSourceDefinitions() {
     if (!String(definition?.name || '').trim()) errors.push(`${id}: missing display name`);
     if (!['movie', 'series'].includes(definition?.type)) errors.push(`${id}: invalid media type`);
     if (!HANDLERS.has(definition?.handler)) errors.push(`${id}: unsupported handler`);
+    if (definition?.aliasOf && (!catalogs[definition.aliasOf] || catalogs[definition.aliasOf].aliasOf)) errors.push(`${id}: unresolvable alias`);
   }
   return { ok: errors.length === 0, errors, total: Object.keys(catalogs).length };
 }
 
 export interface CatalogSourceRegistryApi {
   getSourceDefinition: any;
+  canonicalSourceId: any;
   listSources: any;
   validateSourceDefinitions: any;
 }
 
-module.exports = { getSourceDefinition, listSources, validateSourceDefinitions } satisfies CatalogSourceRegistryApi;
+module.exports = { getSourceDefinition, canonicalSourceId, listSources, validateSourceDefinitions } satisfies CatalogSourceRegistryApi;

@@ -7,6 +7,7 @@ import type { PictoriumApi } from '../runtime/pictorium.ts';
 import type { PictoriumOptionsApi } from '../runtime/pictorium-options.ts';
 import type { RateLimitApi } from '../middleware/rate-limit.ts';
 import type { SharedApi } from './shared.ts';
+import type { GeneratedCoversApi } from '../catalog/generated-covers.ts';
 
 type HttpImageResponse = { status: number; data: any; headers: Record<string, unknown> };
 interface CacheLike {
@@ -32,16 +33,23 @@ export interface ImageRoutesDeps {
   configStore?: ConfigStoreLike;
 }
 
+export interface CoreImageRoutesDeps {
+  /** Test seams: a fake image.tmdb.org client and a fake Redis cache. */
+  imageHttpClient?: HttpClient;
+  cache?: CacheLike;
+}
+
 export interface ImageRoutesApi {
   mountImageRoutes: (app: Express, deps: ImageRoutesDeps) => void;
-  mountCoreImageRoutes: (app: Express) => void;
+  mountCoreImageRoutes: (app: Express, deps?: CoreImageRoutesDeps) => void;
 }
 
 // The TMDB image passthrough is registered BEFORE the website router (whose
 // trailing 404 would otherwise answer /img/tmdb/*), so it has its own mount
 // point rather than living with the poster proxies.
-function mountCoreImageRoutes(app: Express): void {
+function mountCoreImageRoutes(app: Express, deps: CoreImageRoutesDeps = {}): void {
   const axiosImg = require('axios') as HttpClient;
+  mountGeneratedCoverRoute(app, deps);
   // Express 5 wildcard: named, and captured as path segments.
   app.get('/img/tmdb/*splat', async (req: Request, res: Response) => {
     try {
@@ -70,6 +78,112 @@ function mountCoreImageRoutes(app: Express): void {
 }
 
 interface CachedImage { buf: Buffer; type: string; exp: number }
+
+// ── Generated folder covers ─────────────────────────────────────────────
+// /art/generated/<poster|wide>/<hash>.jpg?p=..&b=..&l=..&t=..&v=1
+// Content-addressed (catalog/generated-covers.ts): the query holds only public
+// TMDB image paths and the title, the hash must match them, and the route only
+// ever fetches image.tmdb.org. No key, no token, no catalogue fetch. One URL
+// always means the same bytes, so it is cached as immutable and kept in the
+// same memory + Redis image cache shape as the Pictorium renders.
+function mountGeneratedCoverRoute(app: Express, deps: CoreImageRoutesDeps): void {
+  const covers = require('../catalog/generated-covers.ts') as GeneratedCoversApi;
+  const http = deps.imageHttpClient || require('axios') as HttpClient;
+  const store = deps.cache || cache;
+  const MEM_MAX = Math.max(50, parseInt(process.env.GENERATED_COVER_CACHE_MAX ?? '', 10) || 500);
+  const MEM_TTL = 24 * 60 * 60 * 1000;
+  const REDIS_TTL = 90 * 24 * 60 * 60;
+  const REDIS_PREFIX = 'gencover:v1:';
+  const memory = new Map<string, CachedImage>();
+  const inflight = new Map<string, Promise<CachedImage | null>>();
+  const RENDERS_PER_MINUTE = 60;
+  const REQUESTS_PER_MINUTE = 600;
+
+  function memGet(key: string): CachedImage | null {
+    const hit = memory.get(key);
+    if (!hit) return null;
+    if (hit.exp < Date.now()) { memory.delete(key); return null; }
+    memory.delete(key);
+    memory.set(key, hit);
+    return hit;
+  }
+  function memSet(key: string, value: CachedImage): void {
+    memory.set(key, value);
+    while (memory.size > MEM_MAX) {
+      const oldest = memory.keys().next().value;
+      if (oldest === undefined) break;
+      memory.delete(oldest);
+    }
+  }
+  async function cacheGet(key: string): Promise<CachedImage | null> {
+    const mem = memGet(key);
+    if (mem) return mem;
+    try {
+      const stored = await store.get(REDIS_PREFIX + key) as { b64?: string; type?: string } | null;
+      if (stored && stored.b64) {
+        const value: CachedImage = { buf: Buffer.from(stored.b64, 'base64'), type: stored.type || 'image/jpeg', exp: Date.now() + MEM_TTL };
+        memSet(key, value);
+        return value;
+      }
+    } catch { /* Redis blip: render */ }
+    return null;
+  }
+  async function cacheSet(key: string, value: CachedImage): Promise<void> {
+    memSet(key, value);
+    try { await store.set(REDIS_PREFIX + key, { b64: value.buf.toString('base64'), type: value.type }, REDIS_TTL); } catch { /* best effort */ }
+  }
+  function exceeded(req: Request, name: string, max: number): boolean {
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    const key = `gencover-${name}:${ip}`;
+    const now = Date.now();
+    let bucket = rateLimitBuckets.get(key);
+    if (!bucket || now - bucket.start > 60000) {
+      bucket = { start: now, count: 0 };
+      rateLimitBuckets.set(key, bucket);
+    }
+    bucket.count++;
+    return bucket.count > max;
+  }
+
+  app.get('/art/generated/:kind/:file', async (req: Request, res: Response) => {
+    const parsed = covers.parseCoverRequest(req.params.kind, req.params.file, req.query as Record<string, unknown>);
+    if (!parsed.ok) { res.setHeader('Cache-Control', 'no-store'); res.status(400).end(); return; }
+    const { spec, hash } = parsed;
+    const fallback = covers.coverFallbackUrl(spec);
+    const sendFallback = () => {
+      res.setHeader('Cache-Control', 'no-store');
+      if (fallback) res.redirect(302, fallback); else res.status(404).end();
+    };
+    if (exceeded(req, 'req', REQUESTS_PER_MINUTE)) { res.setHeader('Retry-After', '60'); res.status(429).end(); return; }
+    try {
+      let hit = await cacheGet(hash);
+      if (!hit) {
+        let pending = inflight.get(hash);
+        if (!pending) {
+          if (exceeded(req, 'render', RENDERS_PER_MINUTE)) { sendFallback(); return; }
+          pending = (async () => {
+            const images = await covers.fetchCoverImages(spec, http);
+            const usable = images.posters.some(Boolean) || !!images.backdrop;
+            if (!usable) return null;
+            const buf = await covers.renderCover(spec, images);
+            if (!buf || !buf.length) return null;
+            const value: CachedImage = { buf, type: 'image/jpeg', exp: Date.now() + MEM_TTL };
+            await cacheSet(hash, value);
+            return value;
+          })().finally(() => inflight.delete(hash));
+          inflight.set(hash, pending);
+        }
+        hit = await pending;
+      }
+      if (!hit) { sendFallback(); return; }
+      res.setHeader('Content-Type', hit.type);
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.end(hit.buf);
+    } catch {
+      sendFallback();
+    }
+  });
+}
 
 function mountImageRoutes(app: Express, deps: ImageRoutesDeps): void {
   const { resolveConfig } = deps;

@@ -2,7 +2,10 @@
 const { catalogs } = require('../catalog/catalogdefs.ts');
 const { normalizeImportedSourceDefinition } = require('./definition.ts');
 
-function staticDefinition(id, def) {
+// `region` is the watch region for provider rows. The signature index below
+// keeps the historical US recipe so importer matching is unchanged; the
+// runtime passes the region derived from the setup language.
+function staticDefinition(id, def, { region = 'US' } = {}) {
   if (!def || def.deferred || def.params?.needsSource || !['movie', 'series'].includes(def.type)) return null;
   const p = def.params || {};
   const mediaType = def.type === 'series' ? 'series' : 'movie';
@@ -40,7 +43,7 @@ function staticDefinition(id, def) {
       candidate = { provider: 'tmdb', engine: 'discover', mediaType: 'movie', params: { filters: { [p.director ? 'with_crew' : 'with_cast']: p.personId } } };
       break;
     case 'tmdb_provider':
-      candidate = { provider: 'tmdb', engine: 'discover', mediaType, params: { sortBy: p.sort, filters: { with_watch_providers: p.providerId, watch_region: 'US' } } };
+      candidate = { provider: 'tmdb', engine: 'discover', mediaType, params: { sortBy: p.sort, filters: { with_watch_providers: p.providerId, watch_region: p.watchRegion || region } } };
       break;
     default:
       return null;

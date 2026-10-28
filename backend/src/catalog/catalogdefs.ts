@@ -5080,4 +5080,9 @@ export interface CatalogdefsApi {
   catalogs: any;
 }
 
-module.exports = { catalogs: { ...generated.catalogs, ...extra.catalogs } };
+// Corrections (wrong TMDB ids, duplicates resolved as aliases, series rows on
+// movie-only genres) are applied last and live in catalogdefs-fixes.ts, so a
+// regeneration of this file cannot bring the wrong ids back.
+const { applyCatalogFixes } = require('./catalogdefs-fixes.ts');
+
+module.exports = { catalogs: applyCatalogFixes({ ...generated.catalogs, ...extra.catalogs }) };

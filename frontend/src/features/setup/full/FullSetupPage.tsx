@@ -588,6 +588,8 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
               collections={collections} onChange={setCollections} providerPrefix={providerPrefix}
               platform={platform} packs={packs} onPacks={setPacks}
               ownedOn={ownedFranchiseOn} onToggleOwned={toggleOwnedFranchise}
+              lang={meta.lang}
+              hasMdblistKey={Boolean((keys.mdblistKey ?? '').trim()) || Boolean(edit?.savedServices.includes('mdblistKey'))}
               nuvioToken={pushConn?.platform === 'nuvio' ? pushConn.nuvioToken ?? null : null}
               {...(edit && edit.savedAccount && edit.editToken ? { savedSetup: { uuid: edit.uuid, editToken: edit.editToken } } : {})}
             />

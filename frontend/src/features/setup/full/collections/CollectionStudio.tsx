@@ -9,11 +9,13 @@ import {
   type CollectionDoc,
 } from '@/features/setup/shared/collection-doc';
 import {
-  addPackToCollections,
   focusGifLibrary,
   removePackFromCollections,
   useCuratedPacks,
+  type CuratedPack,
 } from '@/features/setup/full/collections/curated-packs';
+import { addPackFolders, packKind, sizeMeter } from '@/features/setup/full/collections/pack-picker-model';
+import { regionForLang } from '@/features/setup/full/collections/region';
 import { CollectionCard, applyCollectionField } from '@/features/setup/full/collections/CollectionCard';
 import { FolderEditorModal } from '@/features/setup/full/collections/FolderEditorModal';
 import { PackLibraryModal } from '@/features/setup/full/collections/PackLibraryModal';
@@ -23,7 +25,7 @@ import { NuvioPublicModal } from '@/features/setup/full/NuvioPublicModal';
 // Collections studio: the list of Nuvio collections, the Quick Pack launch
 // block and its library, the public Nuvio directory browser, plus the
 // LeLibrary Hub system toggle.
-export function CollectionStudio({ collections, onChange, providerPrefix, platform, packs, onPacks, ownedOn, onToggleOwned, nuvioToken, savedSetup }: {
+export function CollectionStudio({ collections, onChange, providerPrefix, platform, packs, onPacks, ownedOn, onToggleOwned, nuvioToken, savedSetup, lang, hasMdblistKey = false }: {
   collections: CollectionDoc[];
   onChange: (next: CollectionDoc[]) => void;
   providerPrefix: string | null;
@@ -38,6 +40,10 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
   // Editing a saved setup whose Nuvio login is sealed on the server: browse
   // through the setup's own proxy (which also renews the session).
   savedSetup?: { uuid: string; editToken: string };
+  // Setup language (meta.lang): the pack picker's watch region comes from it.
+  lang?: string;
+  // An MDBList key is typed in or already saved ("Optional list sources").
+  hasMdblistKey?: boolean;
 }) {
   const canBrowse = Boolean(nuvioToken) || Boolean(savedSetup);
   const [openId, setOpenId] = useState<string | null>(collections[0]?.id ?? null);
@@ -46,7 +52,8 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
   const [editor, setEditor] = useState<{ ci: number; fi: number; draft?: CollectionDoc['folders'][number] } | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [publicOpen, setPublicOpen] = useState(false);
-  const { packs: curated, failed: packsFailed } = useCuratedPacks();
+  const { packs: curated, failed: packsFailed, aliases } = useCuratedPacks();
+  const region = regionForLang(lang);
   // Real catalogue names, so a folder source never shows its internal id.
   const { sources: catalogSources } = useCatalogSources(providerPrefix, platform);
   const sourceNames = useMemo(() => {
@@ -58,9 +65,9 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
 
   const hubOn = collections.some((collection) => collection.id === HUB_COLLECTION_ID);
   const regularCount = collections.filter((collection) => collection.id !== HUB_COLLECTION_ID).length;
-  const packCount = curated.filter((pack) => (pack.folderCount || pack.folders.length) > 1).length;
-  const starterCount = curated.length - packCount;
-  const selectedCount = packs.length + (ownedOn ? 1 : 0) + (hubOn ? 1 : 0);
+  const bundleCount = curated.filter((pack) => packKind(pack) === 'bundle').length;
+  const packCount = curated.filter((pack) => packKind(pack) !== 'bundle').length;
+  const meter = sizeMeter(collections, aliases);
 
   function importPublic(cols: CollectionDoc[]) {
     const known = new Set(collections.map((collection) => collection.id));
@@ -74,19 +81,23 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
     if (first) setOpenId(first.id);
   }
 
-  function togglePackById(id: string) {
-    const pack = curated.find((entry) => entry.id === id);
-    if (!pack) return;
-    if (packs.includes(id)) {
-      const next = removePackFromCollections(collections, packs, id);
-      onChange(orderCollections(next.collections));
-      onPacks(next.packs);
+  // Adding materialises only the chosen, new folders as editable copies. The
+  // pack id is not recorded: the manifest and the push follow the folders
+  // themselves, so an unticked folder never comes back through the pack.
+  function addPack(pack: CuratedPack, excluded: ReadonlySet<string>) {
+    const next = addPackFolders(collections, pack, { region, hasMdblistKey, excluded, aliases });
+    if (next.added === 0) {
+      toast('Those folders are already in this setup');
       return;
     }
-    const next = addPackToCollections(collections, packs, pack);
     onChange(orderCollections(next.collections));
-    onPacks(next.packs);
     if (next.openedId) setOpenId(next.openedId);
+  }
+
+  function removePack(packId: string) {
+    const next = removePackFromCollections(collections, packs, packId);
+    onChange(orderCollections(next.collections));
+    if (next.packs.length !== packs.length) onPacks(next.packs);
   }
 
   function update(index: number, next: CollectionDoc) {
@@ -184,13 +195,13 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
       <div className="quick-pack-launch">
         <div className="quick-pack-launch-icon" aria-hidden="true">▦</div>
         <div className="quick-pack-launch-copy">
-          <span className="quick-pack-kicker">{packCount} collection packs · {starterCount} focused starters</span>
+          <span className="quick-pack-kicker">{`${bundleCount} bundles · ${packCount} packs`}</span>
           <strong>Find a collection that fits the moment</strong>
-          <small>Browse complete multi-folder collections first, then open focused starters when you only need one shelf.</small>
+          <small>Start with a bundle, or pick themed packs and single collections. Peek inside and untick anything you do not want.</small>
           <div className="quick-pack-launch-tags"><span>One-click setup</span><span>Fully editable</span><span>Live sources</span></div>
         </div>
         <div className="quick-pack-launch-actions">
-          <span><b>{selectedCount}</b> selected</span>
+          <span>{meter.folders === 1 ? '1 folder' : `${meter.folders} folders`}</span>
           <button type="button" className="setup-primary" onClick={() => setLibraryOpen(true)}>Explore Quick Packs →</button>
         </div>
       </div>
@@ -253,11 +264,15 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
         onClose={() => setLibraryOpen(false)}
         curated={curated}
         failed={packsFailed}
-        selectedIds={packs}
+        aliases={aliases}
+        collections={collections}
+        region={region}
+        hasMdblistKey={hasMdblistKey}
         ownedOn={ownedOn}
         hubOn={hubOn}
         platform={platform}
-        onTogglePack={togglePackById}
+        onAddPack={addPack}
+        onRemovePack={removePack}
         onToggleOwned={onToggleOwned}
         onToggleHub={toggleHub}
       />

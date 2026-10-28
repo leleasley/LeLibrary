@@ -33,6 +33,9 @@ function isReleaseOrRatingRow(definition = {}) {
 // editorial/result pools.
 function isRotationEligible(definition = {}) {
   if (!definition || isReleaseOrRatingRow(definition)) return false;
+  // Small regional services (5.8 Streaming by Region) would come back empty
+  // on an old release window; their rows opt out with params.stable.
+  if (definition.params?.stable === true) return false;
   if (definition.group === '📚 Film Collections') return false;
   return ['tmdb_provider', 'tmdb_genre', 'tmdb_company', 'tmdb_network', 'tmdb_keyword'].includes(definition.handler);
 }

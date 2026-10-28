@@ -119,6 +119,8 @@ test('the wrong ids from the 2026-10-28 audit are gone', () => {
       if (value == null) continue;
       // DreamWorks Television (15258) is still right for the DreamWorks series row.
       if (id === 'studio_dreamworks_series') continue;
+      // 300 IS Pluto TV: wrong for Shudder, right for the 5.8 Pluto TV rows.
+      if (key === 'providerId' && id.startsWith('svc_pluto_tv_')) continue;
       for (const part of String(value).split(/[|,]/)) assert.ok(!values.includes(Number(part)), `${id}: ${key} ${part}`);
     }
   }

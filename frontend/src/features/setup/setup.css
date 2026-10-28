@@ -633,6 +633,77 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
   .quick-pack-library-grid, .quick-pack-starter-grid, .quick-pack-system-grid, .gif-picker-grid { grid-template-columns: 1fr; }
 }
 
+/* ── Pack picker (5.8): bundles, themed packs, single collections ───────────
+   Cards are a portrait generated cover beside the copy, so one column still
+   reads well on a 390px phone. Every box sizes border-box. */
+.pack-picker *, .pack-picker *::before, .pack-picker *::after { box-sizing: border-box; }
+.pp-toolbar { display: grid; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--border); min-width: 0; }
+.pp-filters { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.pp-filter { padding: 6px 11px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.pp-filter.active { border-color: var(--amber); color: var(--amber); }
+.pp-region { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; color: var(--muted); font-size: 0.72rem; line-height: 1.5; }
+.pp-region-hidden { color: var(--text); }
+.pp-section { padding-bottom: 6px; }
+.pp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; padding: 12px 0; align-content: start; }
+.pp-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,.015); transition: border-color .15s; }
+.pp-card:hover { border-color: var(--amber); }
+.pp-card.is-added { border-color: rgba(245,158,11,.5); }
+.pp-card.is-locked { opacity: .82; }
+.pp-card-main { display: grid; grid-template-columns: 84px minmax(0,1fr); gap: 12px; align-items: start; min-width: 0; }
+.pp-card-cover { position: relative; aspect-ratio: 2/3; border-radius: 8px; overflow: hidden; background: #14151a; }
+.pp-card-cover-wide { aspect-ratio: 1/1; }
+.pp-card-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pp-card-fallback { display: grid; place-items: center; height: 100%; font-size: 1.8rem; }
+.pp-card-copy { display: grid; gap: 4px; min-width: 0; }
+.pp-card-title { font-size: 0.9rem; overflow-wrap: anywhere; }
+.pp-card-counts { color: var(--amber); font-size: 0.68rem; font-weight: 700; }
+.pp-card-description { color: var(--muted); font-size: 0.72rem; line-height: 1.5; overflow-wrap: anywhere; }
+.pp-card-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.pp-card-badges:empty { display: none; }
+.pp-badge { padding: 2px 7px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: 0.6rem; font-weight: 700; }
+.pp-badge-lock { border-color: rgba(245,158,11,.45); color: var(--amber); }
+.pp-lock-note { margin: 0; padding: 8px 10px; border-radius: 8px; background: rgba(245,158,11,.08); color: var(--text); font-size: 0.7rem; line-height: 1.5; }
+.pp-card-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-top: auto; }
+.pp-peek { margin-right: auto; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text); font: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
+.pp-remove { padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 0.72rem; cursor: pointer; }
+.pp-add { padding: 7px 12px; border: 1px solid var(--amber); border-radius: 8px; background: var(--amber); color: #111; font: inherit; font-size: 0.74rem; font-weight: 800; cursor: pointer; }
+.pp-add.is-added, .pp-add:disabled { background: transparent; color: var(--muted); border-color: var(--border); cursor: default; }
+.pp-add.is-added { color: var(--amber); border-color: rgba(245,158,11,.5); }
+.pp-peek-body { display: grid; gap: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.pp-peek-group h4 { margin: 0 0 6px; font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.pp-peek-group ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.pp-peek-group label { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 4px 2px; font-size: 0.76rem; cursor: pointer; }
+.pp-peek-group li.is-added label, .pp-peek-group li.is-locked label { cursor: default; color: var(--muted); }
+.pp-folder-title { min-width: 0; overflow-wrap: anywhere; }
+.pp-folder-note { margin-left: auto; padding-left: 8px; color: var(--muted); font-size: 0.64rem; white-space: nowrap; }
+.pp-footer { display: flex; flex-wrap: wrap; gap: 10px 16px; }
+.pp-meter { display: grid; gap: 4px; flex: 1 1 260px; min-width: 0; }
+.pp-meter-label { display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline; color: var(--muted); font-size: 0.74rem; }
+.pp-meter-label b { margin-right: 6px; color: var(--text); }
+.pp-meter-bar { display: block; height: 6px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; max-width: 360px; }
+.pp-meter-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--amber); }
+.pp-meter.is-warn .pp-meter-bar > span { background: #f97316; }
+.pp-meter-note { color: var(--muted); font-size: 0.68rem; line-height: 1.5; }
+.pp-meter.is-warn .pp-meter-note { color: #fdba74; }
+@media (max-width: 860px) {
+  .pp-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  /* Full-screen sheet on phones. .app-modal is declared later in this file,
+     so the padding override needs the extra class. */
+  .app-modal.pack-picker-modal { padding: 0; place-items: stretch; }
+  .pack-picker { width: 100% !important; height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; }
+  .pack-picker .quick-pack-library-head { padding: 14px; }
+  .pack-picker .quick-pack-library-head p { display: none; }
+  .pp-filters { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .pp-filters::-webkit-scrollbar { display: none; }
+  .pp-region { font-size: 0.66rem; }
+  .pp-toolbar, .pp-footer { padding: 10px 14px; }
+  .pp-scroll { padding: 0 14px 14px; }
+  .pp-card-main { grid-template-columns: 68px minmax(0,1fr); }
+  .pp-footer .setup-primary { width: 100%; }
+}
+
 /* ── Destination + review (Move In Steps 1 and 8) ──────────────────────────
    Old class names kept; palette re-tokened. */
 .destination-step { display: grid; gap: 14px; }

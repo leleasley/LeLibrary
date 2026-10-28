@@ -5085,4 +5085,12 @@ export interface CatalogdefsApi {
 // regeneration of this file cannot bring the wrong ids back.
 const { applyCatalogFixes } = require('./catalogdefs-fixes.ts');
 
-module.exports = { catalogs: applyCatalogFixes({ ...generated.catalogs, ...extra.catalogs }) };
+// 5.8 pack catalogues (catalogdefs-packs.ts). New ids only: a clash with the
+// generated table or the extra families would silently replace a catalogue
+// that saved setups already reference, so it is refused outright.
+const packs = require('./catalogdefs-packs.ts');
+for (const id of Object.keys(packs.catalogs)) {
+  if (generated.catalogs[id] || extra.catalogs[id]) throw new Error(`pack catalogue id ${id} collides with an existing catalogue`);
+}
+
+module.exports = { catalogs: applyCatalogFixes({ ...generated.catalogs, ...extra.catalogs, ...packs.catalogs }) };

@@ -226,13 +226,13 @@ const CURATED_COLLECTIONS = mergeCompatibleMediaSources([
       folder('streaming-hulu', 'Hulu', 'streaming_hulu_movies', artwork('streaming', 'hulu', 'png', true), ['streaming_hulu_series', 'streaming_latest_hulu_movies', 'streaming_latest_hulu_series']),
       folder('streaming-paramount', 'Paramount+', 'streaming_paramount_movies', artwork('streaming', 'paramount', 'png', true), ['streaming_paramount_series', 'streaming_paramount_top10_movies', 'streaming_paramount_top10_series', 'streaming_latest_paramount_movies', 'streaming_latest_paramount_series']),
       folder('streaming-crunchyroll', 'Crunchyroll', 'streaming_crunchyroll_series', artwork('streaming', 'crunchyroll', 'png', true)),
-      folder('streaming-crave', 'Crave', 'streaming_crave_movies', artwork('streaming', 'crave', 'png', false, 'special-crave.png'), ['streaming_crave_series']),
-      folder('streaming-hayu', 'Hayu', 'streaming_hayu_movies', artwork('streaming', 'hayu', 'png', false, 'special-hayu.png'), ['streaming_hayu_series']),
-      folder('streaming-magellan', 'Magellan TV', 'streaming_magellan_movies', artwork('streaming', 'magellan', 'png', false, 'special-magellan.png'), ['streaming_magellan_series']),
-      folder('streaming-starz', 'Starz', 'streaming_starz_movies', artwork('streaming', 'starz', 'png', false, 'special-starz.png'), ['streaming_starz_series']),
-      folder('streaming-mubi', 'Mubi', 'streaming_mubi_movies', artwork('streaming', 'mubi', 'png', false, 'special-mubi.png'), ['streaming_mubi_series']),
-      folder('streaming-britbox', 'BritBox', 'streaming_britbox_movies', artwork('streaming', 'britbox', 'png', false, 'special-britbox.png'), ['streaming_britbox_series']),
-      folder('streaming-curiosity', 'Curiosity Stream', 'streaming_curiosity_movies', artwork('streaming', 'curiosity', 'png', false, 'special-curiosity.png'), ['streaming_curiosity_series']),
+      folder('streaming-crave', 'Crave', 'streaming_crave_movies', artwork('streaming', 'crave', 'png', false, 'special-crave.png', 'special-crave-focus.gif'), ['streaming_crave_series']),
+      folder('streaming-hayu', 'Hayu', 'streaming_hayu_movies', artwork('streaming', 'hayu', 'png', false, 'special-hayu.png', 'special-hayu-focus.gif'), ['streaming_hayu_series']),
+      folder('streaming-magellan', 'Magellan TV', 'streaming_magellan_movies', artwork('streaming', 'magellan', 'png', false, 'special-magellan.png', 'special-magellan-focus.gif'), ['streaming_magellan_series']),
+      folder('streaming-starz', 'Starz', 'streaming_starz_movies', artwork('streaming', 'starz', 'png', false, 'special-starz.png', 'special-starz-focus.gif'), ['streaming_starz_series']),
+      folder('streaming-mubi', 'Mubi', 'streaming_mubi_movies', artwork('streaming', 'mubi', 'png', false, 'special-mubi.png', 'special-mubi-focus.gif'), ['streaming_mubi_series']),
+      folder('streaming-britbox', 'BritBox', 'streaming_britbox_movies', artwork('streaming', 'britbox', 'png', false, 'special-britbox.png', 'special-britbox-focus.gif'), ['streaming_britbox_series']),
+      folder('streaming-curiosity', 'Curiosity Stream', 'streaming_curiosity_movies', artwork('streaming', 'curiosity', 'png', false, 'special-curiosity.png', 'special-curiosity-focus.gif'), ['streaming_curiosity_series']),
     ],
   },
   {
@@ -597,96 +597,21 @@ const CURATED_COLLECTIONS = mergeCompatibleMediaSources([
     ],
   },
   {
+    // Sections and folders are derived below from the standard packs.
     id: 'lelibrary-special', title: 'LeLibrary Special', icon: '🌟',
     description: 'The ultimate LeLibrary sampler: big, bold, and packed with variety. Made for Home Rows and Nuvio Collections.',
-    sections: [
-      { id: 'discover', title: 'Discover', folders: ['special-trending-movies', 'special-trending-series', 'special-popular-movies', 'special-popular-series', 'special-new-releases', 'special-top-rated'] },
-      { id: 'streaming', title: 'Streaming Services', folders: ['special-netflix', 'special-prime', 'special-disney', 'special-hbo', 'special-apple', 'special-hulu', 'special-paramount', 'special-crave', 'special-hayu', 'special-magellan', 'special-starz', 'special-mubi', 'special-britbox', 'special-curiosity'] },
-      { id: 'genres', title: 'Genres', folders: ['special-action', 'special-comedy', 'special-horror', 'special-scifi', 'special-documentary', 'special-mystery', 'special-romance', 'special-war', 'special-adventure'] },
-      { id: 'franchises', title: 'Film Collections', folders: ['special-marvel', 'special-star-wars', 'special-harry-potter', 'special-lotr', 'special-dune', 'special-avatar', 'special-planet-of-the-apes', 'special-taken', 'special-minions', 'special-avengers', 'special-john-wick', 'special-jurassic', 'special-mission-impossible', 'special-fast-furious', 'special-matrix', 'special-pirates', 'special-transformers', 'special-hunger-games'] },
-    ],
-    folders: [
-      folder('special-trending-movies', 'Trending Now', 'trending_movies', artwork('discover', 'trending', 'jpg', false, 'discover-trending-movies.jpg', 'discover-trending-movies-focus.gif')),
-      folder('special-trending-series', 'Trending Series', 'trending_series', artwork('discover', 'trending-series', 'jpg', false, 'discover-trending-series.jpg', 'discover-trending-series-focus.gif')),
-      folder('special-popular-movies', 'Popular Movies', 'tmdb_popular_movies', artwork('discover', 'popular', 'jpg', false, 'discover-popular-movies.jpg', 'discover-popular-movies-focus.gif')),
-      folder('special-popular-series', 'Popular Series', 'tmdb_popular_series', artwork('discover', 'popular-series', 'jpg', false, 'discover-popular-series.jpg', 'discover-popular-series-focus.gif')),
-      folder('special-new-releases', 'New Releases', 'upcoming_movies', artwork('discover', 'new-releases', 'jpg', false, 'discover-new-releases.jpg')),
-      folder('special-top-rated', 'Top Rated', 'trending_imdb_top100_movies', artwork('discover', 'top-rated', 'jpg', false, 'discover-top-rated.jpg', 'discover-top-rated-focus.gif')),
-      folder('special-netflix', 'Netflix', 'streaming_netflix_movies', artwork('streaming', 'netflix', 'png', false, 'streaming-netflix.png', 'streaming-netflix-focus.gif'), ['streaming_netflix_series', 'streaming_netflix_top10_movies', 'streaming_netflix_top10_series', 'streaming_latest_netflix_movies', 'streaming_latest_netflix_series']),
-      folder('special-prime', 'Prime Video', 'streaming_prime_movies', artwork('streaming', 'prime-video', 'png', false, 'streaming-prime.png', 'streaming-prime-focus.gif'), ['streaming_prime_series', 'streaming_prime_top10_movies', 'streaming_prime_top10_series', 'streaming_latest_prime_movies', 'streaming_latest_prime_series']),
-      folder('special-disney', 'Disney+', 'streaming_disney_movies', artwork('streaming', 'disney', 'png', false, 'streaming-disney.png', 'streaming-disney-focus.gif'), ['streaming_disney_series', 'streaming_disney_top10_movies', 'streaming_disney_top10_series', 'streaming_latest_disney_movies', 'streaming_latest_disney_series']),
-      folder('special-hbo', 'HBO Max', 'streaming_hbo_movies', artwork('streaming', 'hbo-max', 'png', false, 'streaming-hbo.png', 'streaming-hbo-focus.gif'), ['streaming_hbo_series', 'streaming_hbo_top10_movies', 'streaming_hbo_top10_series', 'streaming_latest_hbo_movies', 'streaming_latest_hbo_series']),
-      folder('special-apple', 'Apple TV+', 'streaming_apple_movies', artwork('streaming', 'apple-tv', 'png', false, 'streaming-apple.png', 'streaming-apple-focus.gif'), ['streaming_apple_series', 'streaming_apple_top10_movies', 'streaming_apple_top10_series', 'streaming_latest_apple_movies', 'streaming_latest_apple_series']),
-      folder('special-hulu', 'Hulu', 'streaming_hulu_movies', artwork('streaming', 'hulu', 'png', false, 'streaming-hulu.png', 'streaming-hulu-focus.gif'), ['streaming_hulu_series', 'streaming_latest_hulu_movies', 'streaming_latest_hulu_series']),
-      folder('special-paramount', 'Paramount+', 'streaming_paramount_movies', artwork('streaming', 'paramount', 'png', false, 'streaming-paramount.png', 'streaming-paramount-focus.gif'), ['streaming_paramount_series', 'streaming_paramount_top10_movies', 'streaming_paramount_top10_series', 'streaming_latest_paramount_movies', 'streaming_latest_paramount_series']),
-      folder('special-crave', 'Crave', 'streaming_crave_movies', artwork('streaming', 'crave', 'png', true, 'special-crave.png'), ['streaming_crave_series']),
-      folder('special-hayu', 'Hayu', 'streaming_hayu_movies', artwork('streaming', 'hayu', 'png', true, 'special-hayu.png'), ['streaming_hayu_series']),
-      folder('special-magellan', 'Magellan TV', 'streaming_magellan_movies', artwork('streaming', 'magellan', 'png', true, 'special-magellan.png'), ['streaming_magellan_series']),
-      folder('special-starz', 'Starz', 'streaming_starz_movies', artwork('streaming', 'starz', 'png', true, 'special-starz.png'), ['streaming_starz_series']),
-      folder('special-mubi', 'Mubi', 'streaming_mubi_movies', artwork('streaming', 'mubi', 'png', true, 'special-mubi.png'), ['streaming_mubi_series']),
-      folder('special-britbox', 'BritBox', 'streaming_britbox_movies', artwork('streaming', 'britbox', 'png', true, 'special-britbox.png'), ['streaming_britbox_series']),
-      folder('special-curiosity', 'Curiosity Stream', 'streaming_curiosity_movies', artwork('streaming', 'curiosity', 'png', true, 'special-curiosity.png'), ['streaming_curiosity_series']),
-      folder('special-action', 'Action', 'genre_action_movies', artwork('genres', 'action', 'png', false, 'genre-action.png', '', 'https://imkaptain.github.io/nuvio-assets/Genres/Action/Action_Hover.gif')),
-      folder('special-comedy', 'Comedy', 'genre_comedy_movies', artwork('genres', 'comedy', 'png', false, 'genre-comedy.png', '', 'https://imkaptain.github.io/nuvio-assets/Genres/Comedy/Comedy_Hover.gif')),
-      folder('special-horror', 'Horror', 'genre_horror_movies', artwork('genres', 'horror', 'png', false, 'genre-horror.png', '', 'https://imkaptain.github.io/nuvio-assets/Genres/Horror/Horror_Hover.gif')),
-      folder('special-scifi', 'Sci-Fi', 'genre_scifi_movies', artwork('genres', 'sci-fi', 'png', false, 'genre-scifi.png', '', 'https://imkaptain.github.io/nuvio-assets/Genres/Science%20Fiction/Science_Fiction_Hover.gif')),
-      folder('special-documentary', 'Documentary', 'genre_documentary_movies', artwork('genres', 'documentary', 'png', false, 'genre-action.png', '', 'https://imkaptain.github.io/nuvio-assets/Genres/Documentary/Documentary_Hover.gif')),
-      folder('special-mystery', 'Mystery', 'genre_mystery_movies', artwork('genres', 'mystery', 'png', false, 'genre-thriller.png', '', 'https://imkaptain.github.io/nuvio-assets/Genres/Mystery/Mystery_Hover.gif')),
-      folder('special-romance', 'Romance', 'genre_romance_movies', artwork('genres', 'romance', 'png', false, 'genre-drama.png', '', 'https://imkaptain.github.io/nuvio-assets/Genres/Romance/Romance_Hover.gif')),
-      folder('special-war', 'War', 'genre_war_movies', artwork('genres', 'war', 'png', false, 'genre-action.png', '', 'https://imkaptain.github.io/nuvio-assets/Genres/War/War_Hover.gif')),
-      folder('special-adventure', 'Adventure', 'genre_adventure_movies', artwork('genres', 'adventure', 'png', false, 'genre-fantasy.png', '', 'https://imkaptain.github.io/nuvio-assets/Genres/Adventure/Adventure_Hover.gif')),
-      folder('special-marvel', 'Marvel', 'collection_marvel_universe_mdb', artwork('franchises', 'mcu', 'jpg', false, 'franchise-marvel.jpg', 'franchise-marvel-focus.gif')),
-      folder('special-star-wars', 'Star Wars', 'collection_star_wars', artwork('franchises', 'star-wars', 'jpg', false, 'franchise-star-wars.jpg')),
-      folder('special-harry-potter', 'Harry Potter', 'collection_harry_potter', artwork('franchises', 'wizarding-world', 'png', false, 'franchise-harry-potter.png')),
-      folder('special-lotr', 'Lord of the Rings', 'collection_lord_of_the_rings', artwork('franchises', 'lord-of-the-rings', 'jpg', false, 'franchise-lotr.jpg')),
-      folder('special-dune', 'Dune', 'collection_dune', artwork('franchises', 'dune', 'jpg', false, 'franchise-dune.jpg')),
-      folder('special-avatar', 'Avatar', 'collection_avatar', artwork('franchises', 'avatar', 'jpg', false, '', '', '',
-        'https://raw.githubusercontent.com/ImKaptain/nuvio-assets/main/collections/Avatar_Collection/Avatar_Collection_Base.jpg',
-        'https://raw.githubusercontent.com/ImKaptain/nuvio-assets/main/collections/Avatar_Collection/Avatar_Collection_Backdrop.jpg')),
-      folder('special-planet-of-the-apes', 'Planet of the Apes', 'collection_planet_of_apes', artwork('franchises', 'planet-of-the-apes', 'jpg', false, '', '', '',
-        'https://raw.githubusercontent.com/ImKaptain/nuvio-assets/main/collections/Planet_of_the_Apes__Reboot__Collection/Planet_of_the_Apes__Reboot__Collection_Base.jpg',
-        'https://raw.githubusercontent.com/ImKaptain/nuvio-assets/main/collections/Planet_of_the_Apes__Reboot__Collection/Planet_of_the_Apes__Reboot__Collection_Backdrop.jpg')),
-      folder('special-taken', 'Taken', 'collection_taken', artwork('franchises', 'taken', 'jpg', false, '', '', '',
-        'https://raw.githubusercontent.com/ImKaptain/nuvio-assets/main/collections/Taken_Collection/Taken_Collection_Base.jpg',
-        'https://raw.githubusercontent.com/ImKaptain/nuvio-assets/main/collections/Taken_Collection/Taken_Collection_Backdrop.jpg')),
-      folder('special-minions', 'Minions', 'collection_minions', artwork('franchises', 'minions', 'jpg', false, '', '', '',
-        'https://raw.githubusercontent.com/ImKaptain/nuvio-assets/main/collections/Minions_Collection/Minions_Collection_Base.jpg',
-        'https://raw.githubusercontent.com/ImKaptain/nuvio-assets/main/collections/Minions_Collection/Minions_Collection_Backdrop.jpg')),
-      folder('special-avengers', 'The Avengers', 'collection_avengers', artwork('franchises', 'the-avengers', 'jpg', false, '', '', '',
-        'https://raw.githubusercontent.com/ImKaptain/nuvio-assets/main/collections/The_Avengers_Collection/The_Avengers_Collection_Base.jpg',
-        'https://raw.githubusercontent.com/ImKaptain/nuvio-assets/main/collections/The_Avengers_Collection/The_Avengers_Collection_Backdrop.jpg')),
-      folder('special-john-wick', 'John Wick', 'collection_john_wick', artwork('franchises', 'john-wick', 'jpg', false, '', '', '',
-        'https://raw.githubusercontent.com/rrevanth/nuvio-assets/main/franchises/john-wick/john-wick-landscape.jpg')),
-      folder('special-jurassic', 'Jurassic Park', 'collection_jurassic_park', artwork('franchises', 'jurassic-world', 'jpg', false, '', '', '',
-        'https://raw.githubusercontent.com/rrevanth/nuvio-assets/main/franchises/jurassic-world/jurassic-world-landscape.jpg')),
-      folder('special-mission-impossible', 'Mission: Impossible', 'collection_mission_impossible', artwork('franchises', 'mission-impossible', 'jpg', false, '', '', '',
-        'https://raw.githubusercontent.com/rrevanth/nuvio-assets/main/franchises/mission-impossible/mission-impossible-landscape.jpg')),
-      folder('special-fast-furious', 'Fast & Furious', 'collection_fast_furious', artwork('franchises', 'fast-furious', 'webp', false, '', '', '',
-        'https://imkaptain.github.io/nuvio-assets/assets/images/b132769f.webp')),
-      folder('special-matrix', 'The Matrix', 'collection_matrix', artwork('franchises', 'matrix', 'png', false, '', '',
-        'https://raw.githubusercontent.com/ImKaptain/nuvio-assets/main/assets/images/Action_The%20Matrix_1080p_Opt01_Hover.gif',
-        'https://raw.githubusercontent.com/ImKaptain/nuvio-assets/main/assets/images/Action_The%20Matrix_1080p_Opt01_Base.png',
-        'https://raw.githubusercontent.com/ImKaptain/nuvio-assets/main/assets/images/Action_The%20Matrix_1080p_Opt01_Base.png')),
-      folder('special-pirates', 'Pirates of the Caribbean', 'collection_pirates', artwork('franchises', 'pirates-caribbean', 'jpg', false, '', '',
-        'https://raw.githubusercontent.com/rrevanth/nuvio-assets/main/franchises/pirates-caribbean/pirates-caribbean.gif',
-        'https://raw.githubusercontent.com/rrevanth/nuvio-assets/main/franchises/pirates-caribbean/pirates-caribbean-landscape.jpg',
-        '')),
-      folder('special-transformers', 'Transformers', 'collection_transformers', artwork('franchises', 'transformers', 'jpg', false, '', '', '',
-        'https://raw.githubusercontent.com/rrevanth/nuvio-assets/main/franchises/transformers/transformers-landscape.jpg')),
-      folder('special-hunger-games', 'The Hunger Games', 'collection_hunger_games', artwork('franchises', 'hunger-games', 'jpg', false, '', '', '',
-        'https://raw.githubusercontent.com/rrevanth/nuvio-assets/main/franchises/hunger-games/hunger-games-landscape.jpg')),
-    ],
+    sections: [],
+    folders: [],
   },
 ]);
 
-// LeLibrary Special is the all-in-one choice. Derive it from every normal
-// pack so a new curated source is automatically included here too. The
-// selection logic below suppresses those normal packs when Special is chosen,
-// which keeps its folders inside the seven Special sections instead of adding
-// duplicate ordinary collections or Home rows.
+// LeLibrary Special is the all-in-one sampler of the seven standard packs.
+// It is a fixed list on purpose: the 5.8 themed packs (Horror Vault, Kids &
+// Family...) are opt-in on their own and must not swell Special.
+const STANDARD_PACK_IDS = ['discover', 'streaming', 'franchises', 'genres', 'studios', 'themes', 'actors'];
 const SPECIAL_PACK = CURATED_COLLECTIONS.find((pack) => pack.id === 'lelibrary-special');
 if (SPECIAL_PACK) {
-  const standardPacks = CURATED_COLLECTIONS.filter((pack) => pack !== SPECIAL_PACK && !pack.id.startsWith('preset-'));
+  const standardPacks = STANDARD_PACK_IDS.map((id) => CURATED_COLLECTIONS.find((pack) => pack.id === id)).filter(Boolean);
   SPECIAL_PACK.sections = standardPacks.map((pack) => ({
     id: pack.id,
     title: pack.title,
@@ -697,7 +622,131 @@ if (SPECIAL_PACK) {
     catalogSources: (folder.catalogSources || []).map((source) => ({ ...source })),
   }))) }).folders;
 }
+
+// ── 5.8 packs and persona bundles ─────────────────────────────────────
+const { buildNewPacks, PERSONA_BUNDLES, PACK_COVERS } = require('./curated-packs-58.ts');
+const FOLDER_PREFIX = 'folder-lelibrary-';
+
+// Sections of the new packs name folders by their folder() id. Expand to the
+// full id and keep only folders that survived the media-pair merge.
+function resolveSections(pack) {
+  if (!Array.isArray(pack.sections) || !pack.sections.length) return pack;
+  const ids = new Set(pack.folders.map((item) => item.id));
+  return {
+    ...pack,
+    exactSections: true,
+    sections: pack.sections.map((section) => ({
+      id: section.id,
+      title: section.title,
+      folders: section.folders.map((id) => `${FOLDER_PREFIX}${id}`).filter((id) => ids.has(id)),
+    })),
+  };
+}
+
+for (const pack of mergeCompatibleMediaSources(buildNewPacks({ folder }))) CURATED_COLLECTIONS.push(resolveSections(pack));
+
+// A persona bundle only references folders defined by other packs. The
+// copies keep the original folder id, so the picker sees "already added"
+// across packs and bundles alike.
+function buildBundle(definition, packs) {
+  const byId = new Map();
+  for (const pack of packs) {
+    if (pack.id === 'lelibrary-special') continue;
+    for (const item of pack.folders) if (!byId.has(item.id)) byId.set(item.id, item);
+  }
+  const folders = [];
+  const sections = definition.sections.map((section) => {
+    const ids = section.refs.map((ref) => {
+      const id = `${FOLDER_PREFIX}${ref}`;
+      const source = byId.get(id);
+      if (!source) throw new Error(`bundle ${definition.id} references unknown folder ${ref}`);
+      if (folders.some((item) => item.id === id)) throw new Error(`bundle ${definition.id} references folder ${ref} twice`);
+      folders.push(clone(source));
+      return id;
+    });
+    return { id: section.id, title: section.title, folders: ids };
+  });
+  const deduped = dedupePackSources({ folders });
+  const kept = new Set(deduped.folders.map((item) => item.id));
+  return {
+    ...definition,
+    exactSections: true,
+    sections: sections.map((section) => ({ ...section, folders: section.folders.filter((id) => kept.has(id)) })),
+    folders: deduped.folders,
+  };
+}
+
+const BASE_PACKS = CURATED_COLLECTIONS.slice();
+for (const bundle of PERSONA_BUNDLES) CURATED_COLLECTIONS.push(buildBundle(bundle, BASE_PACKS));
 Object.freeze(CURATED_COLLECTIONS);
+
+// Picker metadata for the packs that predate 5.8. kind: 'bundle' = a set of
+// collections, 'pack' = a themed pack, 'single' = one focused collection.
+// filters: the picker's fixed filter ids (see PACK_FILTERS).
+const PACK_FILTERS = ['streaming', 'genres', 'franchises', 'people', 'world', 'seasonal', 'kids', 'charts'];
+const LEGACY_PACK_META = {
+  'lelibrary-special': { kind: 'bundle', filters: ['charts', 'streaming', 'franchises', 'genres', 'people'] },
+  discover: { kind: 'pack', filters: ['charts'] },
+  streaming: { kind: 'pack', filters: ['streaming'] },
+  franchises: { kind: 'pack', filters: ['franchises'] },
+  genres: { kind: 'pack', filters: ['genres'] },
+  studios: { kind: 'pack', filters: ['franchises'] },
+  themes: { kind: 'pack', filters: ['genres'] },
+  actors: { kind: 'pack', filters: ['people'] },
+  'preset-directors': { kind: 'pack', filters: ['people'] },
+  'preset-decades': { kind: 'pack', filters: ['genres'] },
+  'preset-world-cinema': { kind: 'pack', filters: ['world'] },
+  'preset-latest-streaming': { kind: 'pack', filters: ['streaming'] },
+  'preset-top-rated': { kind: 'pack', filters: ['genres'] },
+  'preset-studio-spotlight': { kind: 'pack', filters: ['franchises'] },
+  'preset-just-added': { kind: 'single', filters: ['charts'] },
+  'preset-family-night': { kind: 'single', filters: ['kids'] },
+  'preset-hidden-gems': { kind: 'single', filters: ['genres'] },
+  'preset-documentaries': { kind: 'single', filters: ['genres'] },
+  'preset-weekend-binge': { kind: 'single', filters: ['charts'] },
+  'preset-cinema-now': { kind: 'single', filters: ['charts'] },
+  'preset-tv-binge': { kind: 'single', filters: ['charts'] },
+  'preset-action-rush': { kind: 'single', filters: ['genres'] },
+  'preset-comedy-fix': { kind: 'single', filters: ['genres'] },
+  'preset-horror-night': { kind: 'single', filters: ['genres'] },
+  'preset-scifi-worlds': { kind: 'single', filters: ['genres'] },
+  'preset-mystery-thriller': { kind: 'single', filters: ['genres'] },
+  'preset-romance-night': { kind: 'single', filters: ['genres'] },
+  'preset-fantasy-adventure': { kind: 'single', filters: ['genres'] },
+  'preset-crime-files': { kind: 'single', filters: ['genres'] },
+  'preset-animation-station': { kind: 'single', filters: ['kids', 'genres'] },
+  'preset-true-stories': { kind: 'single', filters: ['genres'] },
+  'preset-quick-watches': { kind: 'single', filters: ['genres'] },
+  'preset-retro-rewind': { kind: 'single', filters: ['genres'] },
+  'preset-modern-classics': { kind: 'single', filters: ['genres'] },
+  'preset-prestige-tv': { kind: 'single', filters: ['streaming'] },
+  'preset-streaming-top-ten': { kind: 'single', filters: ['streaming', 'charts'] },
+  'preset-free-streaming': { kind: 'single', filters: ['streaming'] },
+  'preset-superhero-universe': { kind: 'single', filters: ['franchises'] },
+  'preset-epic-marathons': { kind: 'single', filters: ['franchises'] },
+  'preset-holiday-comfort': { kind: 'single', filters: ['seasonal', 'kids'] },
+};
+
+// Regions for provider folders of the older packs (same verification as the
+// 5.8 rows). A folder whose primary source is listed here is hidden by the
+// picker outside those countries.
+const { REGIONS: PROVIDER_REGIONS } = require('./curated-regions-58.ts');
+
+function packMeta(pack) {
+  const legacy = LEGACY_PACK_META[pack.id] || {};
+  return {
+    kind: pack.kind || legacy.kind || 'pack',
+    filters: (pack.filters || legacy.filters || []).filter((id) => PACK_FILTERS.includes(id)),
+  };
+}
+
+function packCoverUrl(pack) {
+  const posters = PACK_COVERS[pack.id];
+  if (!Array.isArray(posters) || !posters.length) return '';
+  const { buildSpec, coverUrl } = require('./generated-covers.ts');
+  const spec = buildSpec('poster', { posters, title: '' }, 'grid');
+  return spec ? coverUrl(spec) : '';
+}
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 
@@ -705,7 +754,10 @@ function isAnimeCuratedSource(source) {
   // Keep this source-level. A folder can deliberately combine an anime source
   // with a normal one: Hide anime must remove only the anime contribution,
   // never throw away the remaining catalogue sources.
-  return String(source?.catalogId || '').replace(/^lib-/, '').startsWith('studio_ghibli_');
+  // Studio Ghibli, plus every 5.8 anime row (anime_*, the ADN service and
+  // the trending-anime chart all carry "anime" as a whole id word).
+  const id = String(source?.catalogId || '').replace(/^lib-/, '');
+  return id.startsWith('studio_ghibli_') || /(^|_)anime(_|$)/.test(id);
 }
 
 function withoutAnimeSources(folder) {
@@ -714,6 +766,9 @@ function withoutAnimeSources(folder) {
 }
 
 function sectionContainsFolder(pack, section, folder) {
+  // 5.8 packs and bundles list exact folder ids; only the older packs need
+  // the loose match below.
+  if (pack.exactSections) return (section.folders || []).includes(folder.id);
   const folderKey = folder.id.replace(`folder-${pack.id}-`, '').replace(/-(movies|series)$/, '');
   return (section.folders || []).some((id) => {
     const sectionKey = String(id).replace(/^special-/, '').replace(/-(movies|series)$/, '');
@@ -882,47 +937,91 @@ function resolveCuratedSourceLabel(label, type) {
   return entry && entry.unique ? entry.id : '';
 }
 
+function folderRegions(item) {
+  if (Array.isArray(item.regions) && item.regions.length) return item.regions.slice();
+  const raw = String(item.catalogSources?.[0]?.catalogId || '').replace(/^lib-/, '');
+  // Regions are keyed by the movie row; a series-first folder uses its pair.
+  const movie = raw.replace(/_series$/, '_movies');
+  const regions = PROVIDER_REGIONS[raw] || PROVIDER_REGIONS[canonicalSourceId(raw)] || PROVIDER_REGIONS[movie];
+  return Array.isArray(regions) ? regions.slice() : null;
+}
+
+function folderNeedsMdblistKey(pack, item) {
+  if (pack.requiresMdblistKey === true) return true;
+  return (item.catalogSources || []).some((source) => {
+    const definition = getSourceDefinition(String(source.catalogId || '').replace(/^lib-/, ''));
+    return definition?.handler === 'mdb_list' && !!definition.params?.listId;
+  });
+}
+
 function listCuratedCollections(options = {}) {
-  return CURATED_COLLECTIONS.map((pack) => ({
-    id: pack.id,
-    title: pack.title,
-    icon: pack.icon,
-    category: pack.category || (pack.id.startsWith('preset-') ? 'More picks' : pack.title),
-    refresh: pack.refresh || 'live',
-    description: pack.description,
-    coverImageUrl: pack.coverImageUrl || '',
-    backdropUrl: pack.backdropUrl || '',
-    folderCount: pack.folders.filter((folder) => options.hideAnime !== true || !!withoutAnimeSources(folder)).length,
-    settings: normalisePackSettings(pack.settings),
-    sections: (pack.sections || []).map((section) => ({
+  return CURATED_COLLECTIONS.map((pack) => {
+    const visible = pack.folders.map((item) => options.hideAnime === true ? withoutAnimeSources(item) : item).filter(Boolean);
+    const sections = (pack.sections || []).map((section) => ({
       id: section.id,
       title: section.title,
-      folders: pack.folders
-        .filter((folder) => (options.hideAnime !== true || !!withoutAnimeSources(folder)) && sectionContainsFolder(pack, section, folder))
-        .map((folder) => folder.id),
-    })),
-    folders: pack.folders.map((folder) => options.hideAnime === true ? withoutAnimeSources(folder) : folder).filter(Boolean).map((folder) => ({
-      id: folder.id,
-      title: folder.title,
-      tileShape: folder.tileShape || '',
-      hideTitle: !!folder.hideTitle,
-      coverImageUrl: folder.coverImageUrl || '',
-      focusGifUrl: folder.focusGifUrl || '',
-      focusGifEnabled: !!folder.focusGifEnabled,
-      heroBackdropUrl: folder.heroBackdropUrl || '',
-      heroVideoUrl: folder.heroVideoUrl || '',
-      titleLogoUrl: folder.titleLogoUrl || '',
-      catalogSources: (folder.catalogSources || []).map((source) => {
-        const type = source.type || 'movie';
+      folders: visible
+        .filter((item) => sectionContainsFolder(pack, section, item))
+        .map((item) => item.id),
+    }));
+    const meta = packMeta(pack);
+    return {
+      id: pack.id,
+      title: pack.title,
+      icon: pack.icon,
+      category: pack.category || (pack.id.startsWith('preset-') ? 'More picks' : pack.title),
+      refresh: pack.refresh || 'live',
+      description: pack.description,
+      coverImageUrl: pack.coverImageUrl || '',
+      backdropUrl: pack.backdropUrl || '',
+      // 5.8 picker metadata (additive: older clients ignore it).
+      kind: meta.kind,
+      filters: meta.filters,
+      generatedCoverUrl: packCoverUrl(pack),
+      requiresMdblistKey: pack.requiresMdblistKey === true,
+      collectionCount: sections.length ? sections.filter((section) => section.folders.length).length : 1,
+      folderCount: visible.length,
+      settings: normalisePackSettings(pack.settings),
+      sections,
+      folders: visible.map((item) => {
+        const regions = folderRegions(item);
         return {
-          catalogId: source.catalogId,
-          type,
-          title: curatedSourceDisplayName(source.catalogId, type),
+          id: item.id,
+          title: item.title,
+          tileShape: item.tileShape || '',
+          hideTitle: !!item.hideTitle,
+          coverImageUrl: item.coverImageUrl || '',
+          focusGifUrl: item.focusGifUrl || '',
+          focusGifEnabled: !!item.focusGifEnabled,
+          heroBackdropUrl: item.heroBackdropUrl || '',
+          heroVideoUrl: item.heroVideoUrl || '',
+          titleLogoUrl: item.titleLogoUrl || '',
+          sourceIds: [...new Set((item.catalogSources || []).map((source) => canonicalSourceId(source.catalogId)))],
+          ...(regions ? { regions } : {}),
+          ...(item.season ? { season: { from: item.season.from, to: item.season.to } } : {}),
+          needsMdblistKey: folderNeedsMdblistKey(pack, item),
+          catalogSources: (item.catalogSources || []).map((source) => {
+            const type = source.type || 'movie';
+            return {
+              catalogId: source.catalogId,
+              type,
+              title: curatedSourceDisplayName(source.catalogId, type),
+            };
+          }),
         };
       }),
-    })),
-    sources: pack.folders.flatMap((f) => f.catalogSources.map((source) => source.catalogId.slice(4))),
-  }));
+      sources: pack.folders.flatMap((f) => f.catalogSources.map((source) => source.catalogId.slice(4))),
+    };
+  });
+}
+
+// The /api/curated-collections body. `aliases` maps an old catalogue id to
+// the one it serves, so the picker can tell a folder is already present when
+// an older collection still names the alias.
+function curatedCollectionsPayload(options = {}) {
+  const aliases = {};
+  for (const source of listSources({ includeUnavailable: true })) if (source.aliasOf) aliases[source.id] = source.aliasOf;
+  return { collections: listCuratedCollections(options), aliases };
 }
 
 function buildCuratedCollections(packIds = [], overrides = {}, options = {}) {
@@ -1010,7 +1109,9 @@ export interface CuratedCollectionsApi {
   curatedFolderLabel: any;
   resolveCuratedSourceLabel: any;
   listCuratedCollections: any;
+  curatedCollectionsPayload: any;
   validateCuratedCollections: any;
+  PACK_FILTERS: string[];
 }
 
-module.exports = { buildCuratedCollections, curatedSourceIds, curatedSourceDisplayName, curatedFolderLabel, resolveCuratedSourceLabel, listCuratedCollections, validateCuratedCollections } satisfies CuratedCollectionsApi;
+module.exports = { buildCuratedCollections, curatedSourceIds, curatedSourceDisplayName, curatedFolderLabel, resolveCuratedSourceLabel, listCuratedCollections, curatedCollectionsPayload, validateCuratedCollections, PACK_FILTERS } satisfies CuratedCollectionsApi;

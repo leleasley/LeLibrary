@@ -349,7 +349,7 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
         const curated = require('../catalog/curated-collections.ts');
         const validation = curated.validateCuratedCollections();
         if (!validation.ok) return res.status(500).json({ error: 'Invalid curated collections', details: validation.errors });
-        curatedPayload = JSON.stringify({ collections: curated.listCuratedCollections(), ...validation });
+        curatedPayload = JSON.stringify({ ...curated.curatedCollectionsPayload(), ...validation });
       }
       res.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
       res.type('application/json').send(curatedPayload);

@@ -27,6 +27,12 @@ export interface CuratedFolderSource {
   title?: string;
 }
 
+export interface SeasonWindow {
+  // MM-DD, inclusive; `to` may be earlier than `from` (wraps the year end).
+  from: string;
+  to: string;
+}
+
 export interface CuratedFolder {
   id: string;
   title: string;
@@ -37,7 +43,16 @@ export interface CuratedFolder {
   focusGifUrl: string;
   heroBackdropUrl: string;
   catalogSources: CuratedFolderSource[];
+  // 5.8 picker metadata. Canonical catalogue ids (no `lib-`), the countries a
+  // provider folder exists in (absent = everywhere), a yearly season window
+  // and whether the folder is locked until an MDBList key is saved.
+  sourceIds?: string[];
+  regions?: string[];
+  season?: SeasonWindow;
+  needsMdblistKey?: boolean;
 }
+
+export type PackKind = 'bundle' | 'pack' | 'single';
 
 export interface CuratedPack {
   id: string;
@@ -51,6 +66,11 @@ export interface CuratedPack {
   folderCount: number;
   folders: CuratedFolder[];
   sections: CuratedSection[];
+  kind?: PackKind;
+  filters?: string[];
+  generatedCoverUrl?: string;
+  requiresMdblistKey?: boolean;
+  collectionCount?: number;
 }
 
 function text(value: unknown, fallback = ''): string {
@@ -78,7 +98,22 @@ function normalizeFolder(raw: Record<string, unknown> | null | undefined): Curat
         title: text(source['title']) || text(source['name']),
       }))
       .filter((source) => source.catalogId !== ''),
+    ...(Array.isArray(raw.sourceIds) ? { sourceIds: raw.sourceIds.map((id) => String(id)).filter(Boolean) } : {}),
+    ...(Array.isArray(raw.regions) ? { regions: raw.regions.map((id) => String(id).toUpperCase()).filter((id) => /^[A-Z]{2}$/.test(id)) } : {}),
+    ...(seasonOf(raw.season) ? { season: seasonOf(raw.season) as SeasonWindow } : {}),
+    ...(raw.needsMdblistKey === true ? { needsMdblistKey: true } : {}),
   };
+}
+
+function seasonOf(value: unknown): SeasonWindow | null {
+  if (!value || typeof value !== 'object') return null;
+  const { from, to } = value as Record<string, unknown>;
+  const ok = (day: unknown) => typeof day === 'string' && /^\d{2}-\d{2}$/.test(day);
+  return ok(from) && ok(to) ? { from: from as string, to: to as string } : null;
+}
+
+function packKind(value: unknown): PackKind | undefined {
+  return value === 'bundle' || value === 'pack' || value === 'single' ? value : undefined;
 }
 
 export function normalizePack(raw: Record<string, unknown> | null | undefined): CuratedPack | null {
@@ -106,15 +141,21 @@ export function normalizePack(raw: Record<string, unknown> | null | undefined): 
         title: text(section.title, typeof section.id === 'string' ? section.id : ''),
         folders: (Array.isArray(section.folders) ? section.folders : []).map((id) => String(id)),
       })),
+    ...(packKind(raw.kind) ? { kind: packKind(raw.kind) as PackKind } : {}),
+    ...(Array.isArray(raw.filters) ? { filters: raw.filters.map((id) => String(id)) } : {}),
+    ...(text(raw.generatedCoverUrl) ? { generatedCoverUrl: text(raw.generatedCoverUrl) } : {}),
+    ...(raw.requiresMdblistKey === true ? { requiresMdblistKey: true } : {}),
+    ...(typeof raw.collectionCount === 'number' ? { collectionCount: raw.collectionCount } : {}),
   };
 }
 
-export function useCuratedPacks(): { packs: CuratedPack[]; failed: boolean } {
+export function useCuratedPacks(): { packs: CuratedPack[]; failed: boolean; aliases: Record<string, string> } {
   const [packs, setPacks] = useState<CuratedPack[]>([]);
+  const [aliases, setAliases] = useState<Record<string, string>>({});
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    apiClient.get<{ collections?: unknown[] }>('/api/curated-collections')
+    apiClient.get<{ collections?: unknown[]; aliases?: unknown }>('/api/curated-collections')
       .then((payload) => {
         if (cancelled) return;
         const list = Array.isArray(payload?.collections) ? payload.collections : [];
@@ -123,11 +164,21 @@ export function useCuratedPacks(): { packs: CuratedPack[]; failed: boolean } {
             .map((pack) => normalizePack(pack as Record<string, unknown> | null))
             .filter((pack): pack is CuratedPack => pack !== null),
         );
+        setAliases(normalizeAliases(payload?.aliases));
       })
       .catch(() => { if (!cancelled) setFailed(true); });
     return () => { cancelled = true; };
   }, []);
-  return { packs, failed };
+  return { packs, failed, aliases };
+}
+
+export function normalizeAliases(value: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!value || typeof value !== 'object') return out;
+  for (const [alias, canonical] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof canonical === 'string' && /^[a-z0-9_]+$/.test(alias) && /^[a-z0-9_]+$/.test(canonical)) out[alias] = canonical;
+  }
+  return out;
 }
 
 function packFolderCopy(folder: CuratedFolder): FolderDoc {

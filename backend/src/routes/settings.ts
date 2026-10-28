@@ -134,7 +134,7 @@ app.get('/api/curated-collections', (req, res) => {
   const curated = require('../catalog/curated-collections.ts');
   const validation = curated.validateCuratedCollections();
   if (!validation.ok) return res.status(500).json({ error: 'Invalid curated collections', details: validation.errors });
-  res.json({ collections: curated.listCuratedCollections({ hideAnime: req.query.hideAnime === 'true' }), ...validation });
+  res.json({ ...curated.curatedCollectionsPayload({ hideAnime: req.query.hideAnime === 'true' }), ...validation });
 });
 }
 

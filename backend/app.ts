@@ -5,6 +5,7 @@ const addonRoutes = require('./src/routes/addon.ts');
 const { mountSetupRoutes } = require('./src/routes/setup.ts');
 const { mountSetupConnectionRoutes } = require('./src/routes/setup-connections.ts');
 const { mountSetupLibraryRoutes } = require('./src/routes/setup-library.ts');
+const { mountSetupNuvioRoutes } = require('./src/routes/setup-nuvio.ts');
 const { createEditSessionStore } = require('./src/setup/edit-sessions.ts');
 const { mountCoreRoutes, mountAddonRoutes } = addonRoutes;
 
@@ -112,6 +113,7 @@ mountAddonRoutes(app, { resolveConfig });
 const setupEditSessions = createEditSessionStore();
 mountSetupRoutes(app, { editSessions: setupEditSessions });
 mountSetupConnectionRoutes(app, { editSessions: setupEditSessions });
+mountSetupNuvioRoutes(app, { editSessions: setupEditSessions });
 mountSetupLibraryRoutes(app, { editSessions: setupEditSessions });
 
 // ── v5.5 React frontend (served at /) ──

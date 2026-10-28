@@ -5,6 +5,8 @@ import {
   type PlaybackMode,
 } from '@/features/setup/shared/nuvio-playback';
 import { setupCopy } from '@/features/setup/shared/setup-copy';
+import { NuvioCurrentNote, playbackSummary } from '@/features/setup/nuvio/NuvioCurrentNote';
+import type { NuvioSettingValues } from '@/features/setup/nuvio/prefill';
 
 // Mirror of Nuvio's own playback choices (labels and descriptions match its
 // settings screen) so a user can configure the player from the setup instead
@@ -27,13 +29,16 @@ const MODES: { id: PlaybackMode; label: string; desc: string }[] = [
   },
 ];
 
-export function NuvioPlaybackSection({ value, onChange }: {
+export function NuvioPlaybackSection({ value, onChange, current }: {
   value: NuvioPlaybackDraft;
   onChange: (next: NuvioPlaybackDraft) => void;
+  // Edit page: what the Nuvio profile has now.
+  current?: NuvioSettingValues | null | undefined;
 }) {
   const error = playbackValidation(value);
   return (
     <div className="nuvio-playback">
+      <NuvioCurrentNote summary={playbackSummary(current)} />
       <label className="nuvio-playback-enable">
         <input
           type="checkbox"

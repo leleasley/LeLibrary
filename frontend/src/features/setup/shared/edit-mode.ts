@@ -55,6 +55,8 @@ export interface EditMode {
   editToken: string | null;
   // Read-only preview behind the password modal: the page renders, but inert.
   locked: boolean;
+  // The Nuvio profile's current settings (SettingId values), when signed in.
+  nuvioCurrent?: Partial<Record<string, unknown>> | null;
   initial: TierSnapshot;
   dirty: boolean;
   savedServices: string[];

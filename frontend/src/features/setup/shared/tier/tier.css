@@ -908,3 +908,6 @@
   .edit-stage, .edit-stage.is-fading { transition: none; translate: none; }
   .edit-rail { animation: none !important; }
 }
+
+/* The Nuvio view shares the Library view's width and back-button placement. */
+.edit-view-nuvio { overflow-x: clip; }

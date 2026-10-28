@@ -971,6 +971,9 @@ async function installSetup(input: InstallSetupInput): Promise<InstallSetupResul
 }
 
 export interface PushApi {
+  NUVIO_API_BASE: string;
+  NUVIO_PUBLISHABLE_KEY: string;
+  originClientId: (key: string) => string;
   allowPush: (key: string) => boolean;
   savedNuvioAccessToken: (data: PushConnection | null | undefined) => string;
   savedNuvioRefreshToken: (data: PushConnection | null | undefined) => string;
@@ -994,6 +997,9 @@ export interface PushApi {
 }
 
 module.exports = {
+  NUVIO_API_BASE,
+  NUVIO_PUBLISHABLE_KEY,
+  originClientId,
   allowPush,
   savedNuvioAccessToken,
   savedNuvioRefreshToken,

@@ -400,6 +400,11 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     const removed = await store.remove(uuid);
     if (!removed) { res.status(404).json({ error: 'Setup not found' }); return; }
     sessions.revokeUuid(uuid);
+    // Its sealed Nuvio manager backups go with it.
+    try {
+      const nuvioBackups = require('../nuvio/backups.ts').defaultBackupStore();
+      if (nuvioBackups) await nuvioBackups.removeAll(uuid);
+    } catch { /* best effort: the rows are sealed and keyed to a uuid that no longer exists */ }
     console.warn(`[setup] deleted setup uuid=${uuid.slice(0, 8)}`);
     res.json({ ok: true });
   });

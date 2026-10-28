@@ -1914,3 +1914,7 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
 .replace-collections strong { font-size: 0.86rem; }
 .replace-collections small { color: var(--muted); font-size: 0.74rem; line-height: 1.45; }
 .replace-collections:has(input:checked) { border-color: rgba(239, 107, 115, 0.55); background: rgba(239, 107, 115, 0.1); }
+
+/* Edit page: what the Nuvio profile has now, above the setup's own choice. */
+.nuvio-current-note { margin: 0 0 12px; padding: 9px 12px; border: 1px solid rgba(52, 211, 153, 0.25); border-radius: 10px; background: rgba(52, 211, 153, 0.06); color: var(--muted); font-size: 0.8rem; line-height: 1.45; }
+.nuvio-current-note strong { color: var(--text); font-weight: 600; }

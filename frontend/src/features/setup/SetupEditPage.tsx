@@ -1,4 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
+import { fetchNuvioProfile } from '@/features/setup/nuvio/api';
+import { playbackFromNuvio, type NuvioSettingValues } from '@/features/setup/nuvio/prefill';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +17,7 @@ import { toast } from '@/features/setup/shared/Toast';
 import { isSetupUuid, rememberSetup } from '@/features/setup/shared/setup-history';
 import { setupCopy, setupCount } from '@/features/setup/shared/setup-copy';
 import { LibraryPanel } from '@/features/setup/library/LibraryPanel';
+import { NuvioPanel } from '@/features/setup/nuvio/NuvioPanel';
 import { fetchLibrarySummary } from '@/features/setup/library/library-api';
 import { forgetDeletedSetup } from '@/features/setup/shared/saved-setups';
 import { ErrorState } from '@/features/site/ErrorPage';
@@ -65,7 +68,7 @@ type SavedAccount = { user: string | null; profiles: NuvioProfileRef[]; selected
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 
-type EditView = 'edit' | 'library' | 'settings';
+type EditView = 'edit' | 'library' | 'nuvio' | 'settings';
 // Matches the .edit-stage fade in tier.css.
 const VIEW_FADE_MS = 170;
 
@@ -152,6 +155,7 @@ export function SetupEditPage() {
   // settings. The tier page stays mounted while another view is open so
   // unsaved edits (and its scroll position) survive the switch.
   const [view, setView] = useState<EditView>('edit');
+  const dirtyRef = useRef(false);
   // The fade runs on the element directly: a React render of the tier page
   // takes long enough to swallow the fade-out.
   const stageRef = useRef<HTMLDivElement>(null);
@@ -278,6 +282,43 @@ export function SetupEditPage() {
     return () => { cancelled = true; };
   }, [uuid, platform, saved]);
 
+  // What the selected Nuvio profile has now, shown under the setup's Nuvio
+  // sections. Read after the profile list (one token refresh at a time). If
+  // the setup leaves playback to Nuvio, its options start from Nuvio's values
+  // (still off, so nothing becomes unsaved) and switching them on keeps them.
+  const [nuvioCurrent, setNuvioCurrent] = useState<NuvioSettingValues | null>(null);
+  const nuvioSeeded = useRef(false);
+  const nuvioSelected = savedAccount?.selected ?? null;
+  useEffect(() => {
+    const token = getEditToken();
+    if (platform !== 'nuvio' || nuvioSelected == null || !token) { setNuvioCurrent(null); return; }
+    let cancelled = false;
+    fetchNuvioProfile(uuid, token, nuvioSelected)
+      .then((detail) => {
+        if (cancelled) return;
+        const values = (detail?.settings?.values ?? {}) as NuvioSettingValues;
+        setNuvioCurrent(values);
+        if (nuvioSeeded.current || dirtyRef.current) return;
+        nuvioSeeded.current = true;
+        const fromNuvio = playbackFromNuvio(values, false);
+        if (!fromNuvio || saved?.nuvioPlayback.enabled) return;
+        setSaved((prev) => (prev ? { ...prev, nuvioPlayback: fromNuvio } : prev));
+        setSeed((prev) => (prev ? { ...prev, nuvioPlayback: fromNuvio } : prev));
+        setPageKey((key) => key + 1);
+      })
+      .catch(() => { if (!cancelled) setNuvioCurrent(null); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uuid, platform, nuvioSelected]);
+
+  // The Nuvio view works on the saved connection only, so a Nuvio setup
+  // needs one stored on the server before the rail offers it. Losing it
+  // (platform switched to Stremio) drops back to the edit view.
+  const nuvioAvailable = platform === 'nuvio' && savedAccount !== null;
+  useEffect(() => {
+    if (view === 'nuvio' && !nuvioAvailable) setView('edit');
+  }, [view, nuvioAvailable]);
+
   const body = useMemo(() => {
     if (!current || !saved || !summary) return null;
     return editSaveBody({
@@ -291,6 +332,7 @@ export function SetupEditPage() {
   }, [current, saved, summary, savedTier, activeTier, clearCount]);
   const newConnection = Boolean(current?.connection) && !same(current?.connection, saved?.connection);
   const dirty = body !== null || newConnection;
+  dirtyRef.current = dirty;
 
   async function saveAll(): Promise<boolean> {
     const token = getEditToken();
@@ -545,6 +587,7 @@ export function SetupEditPage() {
     tier: activeTier,
     editToken: getEditToken(),
     locked: !unlocked,
+    nuvioCurrent,
     initial: seed ?? emptySnapshot(),
     dirty,
     savedServices: summary.keyServices ?? [],
@@ -644,6 +687,10 @@ export function SetupEditPage() {
   const railItems: { id: EditView; label: string; title: string; icon: ReactNode; badge?: number | null }[] = [
     { id: 'edit', label: 'Edit', title: 'Edit settings', icon: <path d="M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6" /> },
     { id: 'library', label: 'Library', title: 'Your library', icon: <path d="M5 4v16M9 4v16M13 5l4 15M18 4.5l2 .5" />, badge: libraryAttention },
+    ...(nuvioAvailable ? [{
+      id: 'nuvio' as const, label: 'Nuvio', title: 'Your Nuvio',
+      icon: <><rect x="3.5" y="3.5" width="17" height="17" rx="4.5" /><path d="M10 8.6v6.8l5.4-3.4z" /></>,
+    }] : []),
     {
       id: 'settings', label: 'Settings', title: 'Setup settings',
       icon: <><circle cx="12" cy="12" r="3" /><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" /></>,
@@ -676,6 +723,12 @@ export function SetupEditPage() {
           <div className="edit-view edit-view-library">
             {backToEditing}
             <LibraryPanel uuid={uuid} editToken={getEditToken()} />
+          </div>
+        )}
+        {unlocked && view === 'nuvio' && nuvioAvailable && (
+          <div className="edit-view edit-view-library edit-view-nuvio">
+            {backToEditing}
+            <NuvioPanel uuid={uuid} editToken={getEditToken()} />
           </div>
         )}
         {unlocked && view === 'settings' && (

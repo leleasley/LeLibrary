@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNuvioCreatePrefill } from '@/features/setup/nuvio/prefill';
 import { Link } from 'react-router-dom';
 import { Accordion } from '@/features/setup/shared/Accordion';
 import { useRestoreToast } from '@/features/setup/shared/Toast';
@@ -172,6 +173,12 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
   // desk; it still has to survive a refresh like every other choice.
   const [platform, setPlatform] = useState<'nuvio' | 'stremio'>(restored?.platform ?? 'nuvio');
   const [connection, setConnection] = useState<PlatformConnection | null>(restored?.pushConn ?? null);
+  // Settings the Nuvio profile already has are filled in after sign-in.
+  useNuvioCreatePrefill({
+    enabled: !edit, platform, connection: connection, onConnection: setConnection,
+    playback: nuvioPlayback, setPlayback: setNuvioPlayback,
+    unreleased: nuvioHideUnreleased, setUnreleased: setNuvioHideUnreleased,
+  });
   const [stagedImport, setStagedImport] = useState<StagedImport | null>(restored?.stagedImport ?? null);
   const [confirmReset, setConfirmReset] = useState(false);
   const wizard = useWizardStep(PARTIAL_SECTIONS.length);
@@ -505,10 +512,10 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
               {platform === 'nuvio' && (
                 <>
                   <Accordion title="Nuvio playback" desc="Set Nuvio's auto stream selection and next-episode behaviour from here." icon="▶️">
-                    <NuvioPlaybackSection value={nuvioPlayback} onChange={setNuvioPlayback} />
+                    <NuvioPlaybackSection value={nuvioPlayback} onChange={setNuvioPlayback} current={edit?.nuvioCurrent} />
                   </Accordion>
                   <Accordion title="Nuvio library" desc="Choose what Nuvio does with titles that have not been released yet." icon="🗓️">
-                    <NuvioUnreleasedSection value={nuvioHideUnreleased} onChange={setNuvioHideUnreleased} />
+                    <NuvioUnreleasedSection value={nuvioHideUnreleased} onChange={setNuvioHideUnreleased} current={edit?.nuvioCurrent} />
                   </Accordion>
                 </>
               )}

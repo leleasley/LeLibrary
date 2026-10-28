@@ -1,4 +1,6 @@
 import type { NuvioHideUnreleased } from '@/features/setup/shared/nuvio-library';
+import { NuvioCurrentNote, unreleasedSummary } from '@/features/setup/nuvio/NuvioCurrentNote';
+import type { NuvioSettingValues } from '@/features/setup/nuvio/prefill';
 
 // Nuvio's "Hide Unreleased Content" lives in its Home layout settings, but the
 // value travels in the Home-catalog settings blob that LeLibrary already
@@ -21,12 +23,15 @@ const OPTIONS: { id: NuvioHideUnreleased; label: string; desc: string }[] = [
   },
 ];
 
-export function NuvioUnreleasedSection({ value, onChange }: {
+export function NuvioUnreleasedSection({ value, onChange, current }: {
   value: NuvioHideUnreleased;
   onChange: (next: NuvioHideUnreleased) => void;
+  // Edit page: what the Nuvio profile has now.
+  current?: NuvioSettingValues | null | undefined;
 }) {
   return (
     <div className="nuvio-playback">
+      <NuvioCurrentNote summary={unreleasedSummary(current)} />
       <fieldset className="nuvio-playback-modes">
         <legend>Unreleased content</legend>
         {OPTIONS.map((option) => (

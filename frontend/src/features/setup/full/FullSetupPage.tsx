@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNuvioCreatePrefill } from '@/features/setup/nuvio/prefill';
 import { Accordion } from '@/features/setup/shared/Accordion';
 import { ConfirmModal } from '@/features/setup/shared/Modal';
 import { useWizardStep } from '@/features/setup/shared/WizardStepper';
@@ -170,6 +171,12 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
   const [nuvioHideUnreleased, setNuvioHideUnreleased] = useState<NuvioHideUnreleased>(
     restored?.nuvioHideUnreleased ?? DEFAULT_NUVIO_HIDE_UNRELEASED,
   );
+  // Settings the Nuvio profile already has are filled in after sign-in.
+  useNuvioCreatePrefill({
+    enabled: !edit, platform, connection: pushConn, onConnection: setPushConn,
+    playback: nuvioPlayback, setPlayback: setNuvioPlayback,
+    unreleased: nuvioHideUnreleased, setUnreleased: setNuvioHideUnreleased,
+  });
   const [libraryRows, setLibraryRows] = useState<LibraryRowsDraft>(restored?.libraryRows ?? EMPTY_LIBRARY_ROWS);
   const [customAddons, setCustomAddons] = useState<CustomAddonRef[]>(restored?.customAddons ?? []);
   const customAddonActions = useCustomAddonActions({
@@ -547,10 +554,10 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
               {platform === 'nuvio' && (
                 <>
                   <Accordion title="Nuvio playback" desc="Set Nuvio's auto stream selection and next-episode behaviour from here." icon="▶️">
-                    <NuvioPlaybackSection value={nuvioPlayback} onChange={setNuvioPlayback} />
+                    <NuvioPlaybackSection value={nuvioPlayback} onChange={setNuvioPlayback} current={edit?.nuvioCurrent} />
                   </Accordion>
                   <Accordion title="Nuvio library" desc="Choose what Nuvio does with titles that have not been released yet." icon="🗓️">
-                    <NuvioUnreleasedSection value={nuvioHideUnreleased} onChange={setNuvioHideUnreleased} />
+                    <NuvioUnreleasedSection value={nuvioHideUnreleased} onChange={setNuvioHideUnreleased} current={edit?.nuvioCurrent} />
                   </Accordion>
                 </>
               )}

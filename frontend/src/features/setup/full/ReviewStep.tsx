@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from '@/features/setup/shared/Toast';
 import { TierInstall } from '@/features/setup/shared/tier/TierInstall';
 import { PublishPanel, type PublishCounts } from '@/features/setup/shared/PublishPanel';
@@ -81,8 +82,10 @@ export function ReviewStep({ password, confirmation, busy, error, backTo, onPass
     }
   }
 
+  // The finished page waits behind the "your setup is live" modal and fades
+  // in once it closes, so the two never offer the same push side by side.
   return (
-    <div className="review-step">
+    <div className={`review-step created-done${createdOpen ? ' is-waiting' : ''}`}>
       {push.unlockError && <p className="setup-error">{push.unlockError}</p>}
       <PublishPanel
         installToken={created.installToken}
@@ -94,12 +97,13 @@ export function ReviewStep({ password, confirmation, busy, error, backTo, onPass
         hasCollections
         connected={Boolean(activeConn)}
         action={{
-          label: push.busy ?? (push.pushed ? `Push to ${platformName} again` : `Save and push to ${platformName}`),
+          // Everything was saved at creation; this only pushes.
+          label: push.busy ?? (push.pushed ? `Push to ${platformName} again` : `Push to ${platformName}`),
           busy: push.busy !== null,
           disabled: !activeConn || !push.editToken,
           onClick: () => void push.push(),
           ...(!activeConn
-            ? { hint: `Connect ${platformName} in step 1 to push from here. Your install link below works either way.` }
+            ? { hint: `Open your setup and sign in to ${platformName} on the Destination step to push. Your install link below works either way.` }
             : push.libraryPending
               ? { hint: 'Pushed. Your library folders are still being prepared and will appear on their own — nothing else to do.' }
               : push.pushed ? { hint: 'Pushed. Your saved setup can be pushed again any time.' } : {}),
@@ -107,6 +111,7 @@ export function ReviewStep({ password, confirmation, busy, error, backTo, onPass
         profilePicker={platform === 'nuvio' && profiles.length > 0 ? {
           profiles, value: push.profileId, onChange: (value) => push.setProfileId(value),
         } : null}
+        actionsExtra={<Link className="setup-secondary" to={`/${created.uuid}`}>Open your setup</Link>}
       >
         <div className="review-section-head"><h3>Watchlists</h3><p>Sync your personal lists into library rows.</p></div>
         <WatchlistSection uuid={created.uuid} editToken={push.editToken} />

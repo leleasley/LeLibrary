@@ -432,6 +432,31 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
     />
   );
 
+  // Once created, the steps make way for the finished page (like Settle In):
+  // edits made on a created setup's wizard were never saved, so a push sent
+  // the setup as it was at creation. Changes go through the edit page now.
+  if (!edit && creation.result) {
+    return (
+      <section className="setup">
+        <ReviewStep
+          password={creation.password} confirmation={creation.confirmation}
+          busy={creation.busy} error={creation.error} backTo="/configure"
+          onPassword={creation.setPassword} onConfirmation={creation.setConfirmation}
+          onSubmit={submit} created={creation.result}
+          name={name}
+          platform={platform} pushConn={pushConn}
+          counts={{
+            homeRows: homeRows.filter((row) => row.enabled !== false).length,
+            collections: collections.length,
+            folders: folderCount,
+            lang: meta.lang,
+          }}
+          collections={collections} onImportCollections={importPublicCollections}
+        />
+      </section>
+    );
+  }
+
   return (
     <section className="setup setup-wide qs qs-wizard">
       <TierProgress

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from '@/features/setup/shared/Toast';
 import { installUrl } from '@/features/setup/resolver/validation';
 import { usePlatformPush } from '@/features/setup/shared/usePlatformPush';
@@ -43,23 +43,37 @@ export function SetupCreatedModal({ open, uuid, installToken, name, password, pl
   onConnectPrompt?: (() => void) | undefined;
   onClose: () => void;
 }) {
+  // Closing fades the modal out first; the finished page behind it then fades in.
+  const [leaving, setLeaving] = useState(false);
+  const leaveTimer = useRef<number | null>(null);
+  const close = useCallback(() => {
+    if (leaveTimer.current) return;
+    setLeaving(true);
+    leaveTimer.current = window.setTimeout(() => { leaveTimer.current = null; setLeaving(false); onClose(); }, 220);
+  }, [onClose]);
+  useEffect(() => () => { if (leaveTimer.current) window.clearTimeout(leaveTimer.current); }, []);
+
   const push = usePlatformPush({
     uuid: open ? uuid : null,
     password,
     platform,
     connection: pushConn,
-    onPushed: () => toast(`Pushed to ${platform === 'stremio' ? 'Stremio' : 'Nuvio'}`),
+    onPushed: () => {
+      toast(`Saved and pushed to ${platform === 'stremio' ? 'Stremio' : 'Nuvio'}`);
+      // Long enough to see the tick, then on to the finished page.
+      window.setTimeout(close, 1100);
+    },
     onError: (message) => toast(message, 'error'),
   });
 
   useEffect(() => {
     if (!open) return;
     function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') close();
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open, close]);
 
   if (!open) return null;
 
@@ -70,8 +84,8 @@ export function SetupCreatedModal({ open, uuid, installToken, name, password, pl
 
   return (
     <div
-      className="app-modal" role="dialog" aria-modal="true" aria-label="Your setup is live"
-      onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
+      className={`app-modal created-modal${leaving ? ' is-leaving' : ''}`} role="dialog" aria-modal="true" aria-label="Your setup is live"
+      onClick={(event) => { if (event.target === event.currentTarget) close(); }}
     >
       <div className="app-modal-box setup-created-dialog">
         <div className="app-modal-head">
@@ -80,7 +94,7 @@ export function SetupCreatedModal({ open, uuid, installToken, name, password, pl
             <h3>Your setup is live</h3>
             <p>{name ? <><strong>{name}</strong> is on the server.</> : 'It is on the server.'} Copy the links, or push straight into your player.</p>
           </div>
-          <button type="button" className="eye-btn" aria-label="Close" onClick={onClose}>✕</button>
+          <button type="button" className="eye-btn" aria-label="Close" onClick={close}>✕</button>
         </div>
 
         <div className="setup-created-body">
@@ -120,7 +134,7 @@ export function SetupCreatedModal({ open, uuid, installToken, name, password, pl
                 disabled={push.busy !== null || !push.editToken}
                 onClick={() => void push.push()}
               >
-                {push.busy ?? (push.pushed ? `Pushed to ${platformName} ✓` : `Push to ${platformName}`)}
+                {push.busy ?? (push.pushed ? `Saved and pushed to ${platformName} ✓` : `Save and push to ${platformName}`)}
               </button>
               {push.unlockError && <p className="setup-error">{push.unlockError}</p>}
             </div>
@@ -143,7 +157,7 @@ export function SetupCreatedModal({ open, uuid, installToken, name, password, pl
         </div>
 
         <div className="app-modal-actions">
-          <button type="button" className="setup-secondary" onClick={onClose}>Done</button>
+          <button type="button" className="setup-secondary" onClick={close}>Done</button>
         </div>
       </div>
     </div>

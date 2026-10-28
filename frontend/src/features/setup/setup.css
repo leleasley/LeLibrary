@@ -1894,3 +1894,15 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
   .imp-card { gap: 14px; padding: 16px; }
   .imp-side.is-row > * { flex: 1; }
 }
+
+/* After creating: the "your setup is live" modal fades out, then the finished
+   page fades in behind it (they never offer the same push side by side). */
+.created-modal { transition: opacity 0.22s ease; }
+.created-modal.is-leaving { opacity: 0; }
+.created-modal .app-modal-box { transition: translate 0.22s ease, scale 0.22s ease; }
+.created-modal.is-leaving .app-modal-box { translate: 0 10px; scale: 0.98; }
+.created-done { transition: opacity 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), translate 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.created-done.is-waiting { opacity: 0; translate: 0 12px; visibility: hidden; transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .created-modal, .created-modal .app-modal-box, .created-done { transition: none; }
+}

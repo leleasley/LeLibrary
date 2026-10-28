@@ -346,6 +346,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
     const activeConn = connection && connection.platform === platform ? connection : null;
     return (
       <section className="setup">
+        <div className={`created-done${createdOpen ? ' is-waiting' : ''}`}>
         <PublishPanel
           installToken={creation.result.installToken}
           uuid={creation.result.uuid}
@@ -368,7 +369,8 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
             </div>
           }
           action={{
-            label: push.busy ?? (push.pushed ? `Push to ${platformName} again` : `Save and push to ${platformName}`),
+            // Everything was saved at creation; this only pushes.
+            label: push.busy ?? (push.pushed ? `Push to ${platformName} again` : `Push to ${platformName}`),
             busy: push.busy !== null,
             disabled: !activeConn || !push.editToken,
             onClick: () => void push.push(),
@@ -380,6 +382,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
           }}
           actionsExtra={<Link className="setup-secondary" to={`/${creation.result.uuid}`}>Open your setup</Link>}
         />
+        </div>
         <SetupCreatedModal
           open={createdOpen}
           uuid={creation.result.uuid}

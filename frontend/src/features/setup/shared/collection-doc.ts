@@ -193,6 +193,17 @@ export function hubPrefix(providerCsv: string): string | null {
 }
 
 // Artwork saved into the document is absolute: Nuvio fetches it directly.
+// The small copy of a cover for tiles in the setup pages. LeLibrary's own
+// fixed covers have a 480 wide copy under /collection-art/thumbs/ and Live
+// covers take ?w=480; anything else is returned unchanged.
+export function artThumb(value: string): string {
+  const raw = String(value || '').trim();
+  const fixed = raw.match(/^(.*\/collection-art\/)([a-z0-9][a-z0-9_-]*-v\d+\.jpg)(\?.*)?$/);
+  if (fixed) return `${fixed[1]}thumbs/${fixed[2]}`;
+  if (/\/art\/folder\/folder-lelibrary-[a-z0-9_-]+\.jpg$/.test(raw)) return `${raw}?w=480`;
+  return raw;
+}
+
 export function absoluteUrl(origin: string, value: string): string {
   const raw = String(value || '').trim();
   if (!raw) return '';

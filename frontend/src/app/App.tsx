@@ -2,6 +2,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { AppProviders } from '@/app/providers';
 import { AppRouter } from '@/app/router';
 import { ErrorPage } from '@/features/site/ErrorPage';
+import '@/app/fonts.css';
 import '@/app/app.css';
 import '@/features/setup/setup.css';
 

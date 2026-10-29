@@ -1,10 +1,15 @@
 import { useState } from 'react';
-import { sourceDisplayName, type FolderDoc } from '@/features/setup/shared/collection-doc';
+import { artThumb, sourceDisplayName, type FolderDoc } from '@/features/setup/shared/collection-doc';
 
 // Folder artwork, or a designed empty tile when there is none (or the link is
 // broken): a folder glyph and the folder's title instead of the site logo.
+// Covers load as their small tile copy (artThumb); if that copy is missing the
+// full cover is tried before the empty tile.
 export function FolderArt({ src, title, className = '' }: { src: string; title: string; className?: string }) {
   const [failed, setFailed] = useState<string | null>(null);
+  const [full, setFull] = useState<string | null>(null);
+  const thumb = artThumb(src);
+  const shown = full === src ? src : thumb;
   if (!src.trim() || failed === src) {
     return (
       <span className={`folder-art-empty ${className}`}>
@@ -16,7 +21,10 @@ export function FolderArt({ src, title, className = '' }: { src: string; title: 
       </span>
     );
   }
-  return <img className={className} src={src} alt="" loading="lazy" onError={() => setFailed(src)} />;
+  return (
+    <img className={className} src={shown} alt="" loading="lazy" decoding="async"
+      onError={() => { if (shown !== src) setFull(src); else setFailed(src); }} />
+  );
 }
 
 // One folder tile in the studio grid. Markup mirrors the old
@@ -30,13 +38,17 @@ export function FolderCard({ folder, names = {}, onEdit, onRemove }: {
 }) {
   const animated = folder.focusGifEnabled && folder.focusGifUrl.trim() !== '';
   const still = folder.coverImageUrl || folder.heroBackdropUrl || '';
-  const image = animated ? folder.focusGifUrl : still;
+  // Like Nuvio, the animation plays only on focus: a grid of GIFs is tens of
+  // megabytes, a grid of stills a few hundred kilobytes.
+  const [focused, setFocused] = useState(false);
+  const image = animated && (focused || !still) ? folder.focusGifUrl : still;
   const sources = folder.catalogSources || [];
   const types = [...new Set(sources.map((source) => (source.type === 'series' ? 'Series' : 'Movies')))];
   const shape = folder.tileShape === 'PORTRAIT' ? 'PORTRAIT' : 'LANDSCAPE';
 
   return (
-    <article className="folder-card">
+    <article className="folder-card" onMouseEnter={() => setFocused(true)} onMouseLeave={() => setFocused(false)}
+      onFocus={() => setFocused(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false); }}>
       <div className={`folder-art${shape === 'PORTRAIT' ? ' portrait' : ''}`}>
         <FolderArt key={image} src={image} title={folder.title} />
         <div className="folder-badges">

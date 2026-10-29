@@ -41,6 +41,30 @@ function absoluteLocalArtwork(value, origin = '') {
   return origin ? `${String(origin).replace(/\/+$/, '')}${clean}` : clean;
 }
 
+// A saved setup's collections as the editor should see them: every artwork
+// link full (this host's origin) and every retired community file swapped for
+// the art that replaced it. Returns new objects; the saved config is untouched.
+const FOLDER_ART_FIELDS = ['coverImageUrl', 'focusGifUrl', 'heroBackdropUrl', 'heroVideoUrl', 'titleLogoUrl'];
+function upgradeCollectionArtwork(collections, origin = '') {
+  if (!Array.isArray(collections)) return collections;
+  return collections.map((collection) => {
+    if (!collection || typeof collection !== 'object') return collection;
+    const out = { ...collection };
+    if (typeof out.backdropUrl === 'string' && out.backdropUrl) out.backdropUrl = absoluteLocalArtwork(out.backdropUrl, origin);
+    if (Array.isArray(out.folders)) {
+      out.folders = out.folders.map((folder) => {
+        if (!folder || typeof folder !== 'object') return folder;
+        const next = { ...folder };
+        for (const key of FOLDER_ART_FIELDS) {
+          if (typeof next[key] === 'string' && next[key]) next[key] = absoluteLocalArtwork(next[key], origin);
+        }
+        return next;
+      });
+    }
+    return out;
+  });
+}
+
 // Nuvio's tile shapes are POSTER, LANDSCAPE and SQUARE (TV also accepts the
 // mobile spellings poster/wide/square). LeLibrary's editor says PORTRAIT;
 // Nuvio TV rejects that value outright, so every folder sent to Nuvio goes
@@ -71,6 +95,8 @@ export interface CollectionArtworkApi {
   nuvioTileShape: any;
   absoluteLocalArtwork: any;
   versionLocalAsset: any;
+  upgradeCollectionArtwork: any;
 }
 
-module.exports = { nuvioTileShape, normaliseNuvioArtwork, absoluteLocalArtwork, versionLocalAsset } satisfies CollectionArtworkApi;
+module.exports = {
+  upgradeCollectionArtwork, nuvioTileShape, normaliseNuvioArtwork, absoluteLocalArtwork, versionLocalAsset } satisfies CollectionArtworkApi;

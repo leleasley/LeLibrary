@@ -75,7 +75,7 @@ export function TierDock({ hasArt, label, next, children }: {
         <span className="qs-dock-stack" aria-hidden="true">
           {[0, 1, 2].map((index) => (
             <span key={index} className="qs-dock-poster">
-              {hasArt && <img src={samplePoster(index, 'w154')} alt="" loading="lazy" />}
+              {hasArt && <img src={samplePoster(index, 'w185')} alt="" loading="lazy" />}
             </span>
           ))}
         </span>

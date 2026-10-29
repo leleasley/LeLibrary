@@ -25,18 +25,20 @@ export function FolderEditorModal({ folder, gifLibrary, names = {}, onSave, onCl
   onSave: (next: FolderDoc) => void;
   onClose: () => void;
 }) {
+  const origin = typeof window === 'undefined' ? '' : window.location.origin;
+  // Older saved folders can hold relative links: always show the full one.
+  const full = (value: string) => (origin ? absoluteUrl(origin, value) : value);
   const [title, setTitle] = useState(folder.title);
   const [shape, setShape] = useState(folder.tileShape);
   const [hideTitle, setHideTitle] = useState(folder.hideTitle);
-  const [cover, setCover] = useState(folder.coverImageUrl);
-  const [backdrop, setBackdrop] = useState(folder.heroBackdropUrl);
+  const [cover, setCover] = useState(() => full(folder.coverImageUrl));
+  const [backdrop, setBackdrop] = useState(() => full(folder.heroBackdropUrl));
   const [gifOn, setGifOn] = useState(folder.focusGifEnabled);
-  const [gifUrl, setGifUrl] = useState(folder.focusGifUrl);
+  const [gifUrl, setGifUrl] = useState(() => full(folder.focusGifUrl));
   const [sources, setSources] = useState<CatalogSourceRef[]>(folder.catalogSources);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [gifPickerOpen, setGifPickerOpen] = useState(false);
 
-  const origin = typeof window === 'undefined' ? '' : window.location.origin;
   const animated = gifOn && gifUrl.trim() !== '';
   const still = cover.trim() || backdrop.trim();
   const match = matchingFocusGif(sources, gifLibrary);

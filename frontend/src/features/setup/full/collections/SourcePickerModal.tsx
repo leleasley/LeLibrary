@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { apiClient } from '@/api/client';
+import { fetchCatalogLibrary } from '@/features/setup/full/collections/catalog-sources';
 import { sourceKey, type CatalogSourceRef } from '@/features/setup/shared/collection-doc';
 
 interface RegistrySource {
@@ -42,7 +42,7 @@ export function SourcePickerModal({ open, selected, onApply, onClose }: {
     setFailed(false);
     setChosen(new Set(selected.map(sourceKey)));
     let cancelled = false;
-    apiClient.get<{ catalogs?: RegistrySource[] }>('/api/catalog-library')
+    fetchCatalogLibrary<RegistrySource>()
       .then((payload) => {
         if (cancelled) return;
         const list = Array.isArray(payload?.catalogs) ? payload.catalogs : [];

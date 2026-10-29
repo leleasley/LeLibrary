@@ -26,7 +26,22 @@ export function normalizeFeatures(payload: unknown): Features {
   };
 }
 
-export async function fetchFeatures(signal?: AbortSignal): Promise<Features> {
+async function loadFeatures(signal?: AbortSignal): Promise<Features> {
   const payload = await apiClient.get<unknown>('/api/features', signal ? { signal } : {});
   return normalizeFeatures(payload);
 }
+
+// One request serves every caller for a minute: the nav, the route guard and
+// the setup picker each asked separately, three round trips on a page load.
+const FEATURES_FRESH_MS = 60_000;
+let shared: { at: number; promise: Promise<Features> } | null = null;
+
+export function fetchFeatures(signal?: AbortSignal): Promise<Features> {
+  if (signal) return loadFeatures(signal);
+  if (shared && Date.now() - shared.at < FEATURES_FRESH_MS) return shared.promise;
+  const promise = loadFeatures().catch((error: unknown) => { shared = null; throw error; });
+  shared = { at: Date.now(), promise };
+  return promise;
+}
+
+export function resetFeaturesCache(): void { shared = null; }

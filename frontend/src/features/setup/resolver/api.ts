@@ -313,8 +313,14 @@ export function startWatchlistOAuthPublic(provider: string): Promise<{ url: stri
 
 // Which providers this server can connect, so pre-creation cards know
 // whether Connect is live before any UUID exists.
+// Server configuration, fixed for the page's life: asked once, shared.
+let watchlistConfigShared: Promise<{ simkl: boolean; trakt: boolean }> | null = null;
 export function watchlistConfig(): Promise<{ simkl: boolean; trakt: boolean }> {
-  return apiClient.get<{ simkl: boolean; trakt: boolean }>('/api/setup/watchlist-config');
+  if (!watchlistConfigShared) {
+    watchlistConfigShared = apiClient.get<{ simkl: boolean; trakt: boolean }>('/api/setup/watchlist-config')
+      .catch((error: unknown) => { watchlistConfigShared = null; throw error; });
+  }
+  return watchlistConfigShared;
 }
 
 // Drop empty connects before saving: only real tokens ride into the row.

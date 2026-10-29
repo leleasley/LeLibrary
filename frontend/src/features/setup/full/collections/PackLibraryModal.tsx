@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { i18n } from '@/i18n';
-import { HUB_COVER, type CollectionDoc } from '@/features/setup/shared/collection-doc';
+import { HUB_COVER, artThumb, type CollectionDoc } from '@/features/setup/shared/collection-doc';
 import {
   HUB_SYSTEM_COVER,
   type CuratedFolder,
@@ -154,7 +154,8 @@ export function PackLibraryModal({
         <div className="pp-card-main">
           <div className="pp-card-cover">
             {cover ? (
-              <img key={cover} src={cover} alt="" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} />
+              <img key={cover} src={artThumb(cover)} alt="" loading="lazy" decoding="async"
+                onError={(event) => { const img = event.currentTarget; if (img.dataset['full'] !== '1') { img.dataset['full'] = '1'; img.src = cover; } else img.hidden = true; }} />
             ) : (
               <span className="pp-card-fallback" aria-hidden="true">{pack.icon || '✨'}</span>
             )}

@@ -5,10 +5,10 @@ import { useState } from 'react';
 // and resolved by the backend: never rename them.
 const STREAM_ADDONS: { id: string; name: string; logo: string; desc: string }[] = [
   { id: 'torrentio', name: 'Torrentio', logo: 'https://cdn.brandfetch.io/idmo5AU-sJ/w/204/h/185/theme/dark/logo.png?c=1dxbfHSJFAPEGdCLU4o5B', desc: 'Broad torrent and debrid coverage.' },
-  { id: 'comet', name: 'Comet', logo: 'https://raw.githubusercontent.com/g0ldyy/comet/refs/heads/main/comet/assets/icon.png', desc: 'Fast curated debrid results.' },
-  { id: 'meteor', name: 'Meteor', logo: 'https://meteorfortheweebs.midnightignite.me/static/icon.png', desc: 'Torrent and debrid streams, plus Usenet with TorBox Pro.' },
-  { id: 'mediafusion', name: 'MediaFusion', logo: 'https://raw.githubusercontent.com/mhdzumair/MediaFusion/refs/heads/main/resources/images/mediafusion_logo.png', desc: 'Movies, series and anime coverage.' },
-  { id: 'jackettio', name: 'Jackettio', logo: 'https://raw.githubusercontent.com/Jackett/Jackett/bbea5febd623f6e536e11aa1fa8d6674d8d4043f/src/Jackett.Common/Content/jacket_medium.png', desc: 'Extra tracker results through debrid.' },
+  { id: 'comet', name: 'Comet', logo: '/addon-logos/comet.png', desc: 'Fast curated debrid results.' },
+  { id: 'meteor', name: 'Meteor', logo: '/addon-logos/meteor.png', desc: 'Torrent and debrid streams, plus Usenet with TorBox Pro.' },
+  { id: 'mediafusion', name: 'MediaFusion', logo: '/addon-logos/mediafusion.png', desc: 'Movies, series and anime coverage.' },
+  { id: 'jackettio', name: 'Jackettio', logo: '/addon-logos/jackettio.png', desc: 'Extra tracker results through debrid.' },
   { id: 'knaben', name: 'KNABEN', logo: '/addon-logos/knaben.png', desc: 'Searches public torrent indexes and resolves playback through your debrid account.' },
 ];
 

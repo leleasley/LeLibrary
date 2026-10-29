@@ -310,7 +310,15 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     const opened = await store.resolveByUuid(uuid);
     if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
     if (!(await authorizeEdit(req, uuid, store, opened))) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
-    res.json(editorConfigView(opened));
+    const view = editorConfigView(opened);
+    // Saved collections can still name relative or retired artwork links
+    // (made before 5.8): the editor gets the full link to the current art.
+    if (Array.isArray(view.config['collections'])) {
+      const origin = (process.env['BASE_URL'] || '').replace(/\/+$/, '') || `${req.protocol}://${req.get('host')}`;
+      const { upgradeCollectionArtwork } = require('../catalog/collection-artwork.ts');
+      view.config = { ...view.config, collections: upgradeCollectionArtwork(view.config['collections'], origin) };
+    }
+    res.json(view);
   });
 
   // Reveal one saved key value to an unlocked editor so the UI can prefill

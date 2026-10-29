@@ -219,7 +219,19 @@ function mountGeneratedCoverRoute(app: Express, deps: CoreImageRoutesDeps): void
 // the same link. No key, no current rows or a draw error: the fixed snapshot.
 function mountLiveArtRoute(app: Express): void {
   const FILE = /^(folder-lelibrary-[a-z0-9][a-z0-9_-]{0,120})\.jpg$/;
+  // ?w=480: the tile size the setup pages show (studio, pack picker).
+  const thumbs = new Map<string, Buffer>();
+  async function thumbOf(etag: string, buf: Buffer): Promise<Buffer> {
+    const hit = thumbs.get(etag);
+    if (hit) return hit;
+    const sharp = require('sharp');
+    const out: Buffer = await sharp(buf).resize(480, 270).jpeg({ quality: 80, progressive: true, mozjpeg: true }).toBuffer();
+    thumbs.set(etag, out);
+    while (thumbs.size > 200) { const oldest = thumbs.keys().next().value; if (oldest === undefined) break; thumbs.delete(oldest); }
+    return out;
+  }
   app.get('/art/folder/:file', async (req: Request, res: Response) => {
+    const thumb = req.query['w'] === '480';
     const match = String(req.params['file'] || '').match(FILE);
     const own = require('../catalog/own-art.ts');
     const entry = match ? own.ownArtEntry(match[1]) : null;
@@ -228,17 +240,21 @@ function mountLiveArtRoute(app: Express): void {
     let cover = null;
     try { cover = await require('../catalog/live-art-service.ts').getLiveCover(folderId); } catch { cover = null; }
     if (cover) {
-      res.setHeader('ETag', cover.etag);
+      const etag = thumb ? cover.etag.replace(/"$/, '-t"') : cover.etag;
+      res.setHeader('ETag', etag);
       // A cover drawn with a missing image (etag ends in -p) must not sit in
       // Cloudflare or a device for hours: it is redrawn within minutes.
       const partial = cover.etag.endsWith('-p"');
       res.setHeader('Cache-Control', partial ? 'public, max-age=300' : 'public, max-age=21600, stale-while-revalidate=86400');
-      if (req.headers['if-none-match'] === cover.etag) { res.status(304).end(); return; }
+      if (req.headers['if-none-match'] === etag) { res.status(304).end(); return; }
       res.setHeader('Content-Type', 'image/jpeg');
-      res.end(cover.buf);
+      let body = cover.buf;
+      if (thumb) { try { body = await thumbOf(etag, cover.buf); } catch { /* full size */ } }
+      res.end(body);
       return;
     }
-    const file = require('path').join(own.artDir(), entry.cover);
+    const thumbFile = require('path').join(own.artDir(), 'thumbs', entry.cover);
+    const file = thumb && own.artDir() && require('fs').existsSync(thumbFile) ? thumbFile : require('path').join(own.artDir(), entry.cover);
     if (!own.artDir() || !require('fs').existsSync(file)) { res.setHeader('Cache-Control', 'no-store'); res.status(404).end(); return; }
     // Short cache: the drawn cover replaces the snapshot as soon as it can.
     res.setHeader('Cache-Control', 'public, max-age=1800');

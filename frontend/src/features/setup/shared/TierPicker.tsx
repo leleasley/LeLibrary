@@ -41,10 +41,10 @@ function formatUpdated(ms: number): string {
 // /collection-art/ is not in the public repo). A self-hosted build has no such
 // file, so a tile falls back to the franchise's plain TMDB still.
 const FOLDER_ART = [
-  { src: '/collection-art/franchise-marvel-v2.jpg', fallback: 'https://image.tmdb.org/t/p/w780/mDfJG3LC3Dqb67AZ52x3Z0jU0uB.jpg', title: 'Marvel' },
-  { src: '/collection-art/franchise-star-wars-v2.jpg', fallback: 'https://image.tmdb.org/t/p/w780/iY2ujEY2m68OTTlPFTiHub9joHS.jpg', title: 'Star Wars' },
-  { src: '/collection-art/franchise-john-wick-v2.jpg', fallback: 'https://image.tmdb.org/t/p/w780/fSwYa5q2xRkBoOOjueLpkLf3N1m.jpg', title: 'John Wick' },
-  { src: '/collection-art/franchise-dune-v2.jpg', fallback: 'https://image.tmdb.org/t/p/w780/fahk0Fu7VUUfK6IkTt1R3waOD9F.jpg', title: 'Dune' },
+  { src: '/collection-art/thumbs/franchise-marvel-v2.jpg', fallback: 'https://image.tmdb.org/t/p/w300/mDfJG3LC3Dqb67AZ52x3Z0jU0uB.jpg', title: 'Marvel' },
+  { src: '/collection-art/thumbs/franchise-star-wars-v2.jpg', fallback: 'https://image.tmdb.org/t/p/w300/iY2ujEY2m68OTTlPFTiHub9joHS.jpg', title: 'Star Wars' },
+  { src: '/collection-art/thumbs/franchise-john-wick-v2.jpg', fallback: 'https://image.tmdb.org/t/p/w300/fSwYa5q2xRkBoOOjueLpkLf3N1m.jpg', title: 'John Wick' },
+  { src: '/collection-art/thumbs/franchise-dune-v2.jpg', fallback: 'https://image.tmdb.org/t/p/w300/fahk0Fu7VUUfK6IkTt1R3waOD9F.jpg', title: 'Dune' },
 ];
 
 function showFallback(event: SyntheticEvent<HTMLImageElement>, fallback: string): void {
@@ -58,7 +58,7 @@ function Row({ label, count, offset }: { label: string; count: number; offset: n
       <span className="pk-row-label">{label}</span>
       <span className="pk-row-track">
         {Array.from({ length: count }, (_, index) => (
-          <img key={index} src={samplePoster(index + offset, 'w154')} alt="" loading="lazy" />
+          <img key={index} src={samplePoster(index + offset, 'w185')} alt="" loading="lazy" />
         ))}
       </span>
     </span>

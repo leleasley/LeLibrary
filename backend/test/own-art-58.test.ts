@@ -224,6 +224,11 @@ test('live route: ETag + 304 on a drawn cover, snapshot without one, 404 otherwi
     assert.match(res.headers.get('cache-control'), /max-age=21600/);
     res = await fetch(url, { headers: { 'If-None-Match': '"live-abc"' } });
     assert.equal(res.status, 304);
+    // Tile size: its own ETag, a 480x270 JPEG.
+    res = await fetch(url + '?w=480');
+    assert.equal(res.headers.get('etag'), '"live-abc-t"');
+    const small = await sharp(Buffer.from(await res.arrayBuffer())).metadata();
+    assert.equal(small.width, 480); assert.equal(small.height, 270);
     // Drawn with a missing image: short cache only.
     service.getLiveCover = async () => ({ buf: jpg, etag: '"live-abc-p"', fingerprint: 'abc-partial', checkedAt: Date.now() });
     res = await fetch(url);
@@ -277,4 +282,26 @@ test('daily art check flags a franchise with a new film once, and never sends a 
     restore();
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('the editor gets full links to the current art for saved collections', () => {
+  const { upgradeCollectionArtwork } = require('../src/catalog/collection-artwork.ts');
+  const origin = 'https://lelibrary.uk';
+  const marvel = curated.curatedFolderById('folder-lelibrary-franchise-marvel').coverImageUrl;
+  const saved = [{
+    id: 'collection-lelibrary-pack-x', backdropUrl: '',
+    folders: [
+      { id: 'a', coverImageUrl: '/collection-assets/collections/covers/franchise-marvel.jpg?v=2', focusGifUrl: '', heroBackdropUrl: 'https://image.tmdb.org/t/p/w1280/x.jpg' },
+      { id: 'b', coverImageUrl: '/collection-art/hv-halloween-v2.jpg', focusGifUrl: '/collection-art/hv-halloween-focus-v2.gif' },
+      { id: 'c', coverImageUrl: 'https://example.com/mine.jpg' },
+    ],
+  }];
+  const out = upgradeCollectionArtwork(saved, origin);
+  assert.equal(out[0].folders[0].coverImageUrl, origin + marvel);
+  assert.equal(out[0].folders[0].heroBackdropUrl, 'https://image.tmdb.org/t/p/w1280/x.jpg');
+  assert.equal(out[0].folders[1].coverImageUrl, `${origin}/collection-art/hv-halloween-v2.jpg`);
+  assert.equal(out[0].folders[1].focusGifUrl, `${origin}/collection-art/hv-halloween-focus-v2.gif`);
+  assert.equal(out[0].folders[2].coverImageUrl, 'https://example.com/mine.jpg');
+  // The saved config itself is untouched.
+  assert.equal(saved[0].folders[0].coverImageUrl, '/collection-assets/collections/covers/franchise-marvel.jpg?v=2');
 });

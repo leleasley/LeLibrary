@@ -8,6 +8,17 @@ import {
   type BrowserSource,
 } from '@/features/setup/shared/collection-doc';
 
+// The catalogue registry is the same for every picker on the page: one
+// request, shared (the studio and the source picker each fetched it).
+let catalogLibraryShared: Promise<{ catalogs?: unknown[] }> | null = null;
+export function fetchCatalogLibrary<T>(): Promise<{ catalogs?: T[] }> {
+  if (!catalogLibraryShared) {
+    catalogLibraryShared = apiClient.get<{ catalogs?: unknown[] }>('/api/catalog-library')
+      .catch((error: unknown) => { catalogLibraryShared = null; throw error; });
+  }
+  return catalogLibraryShared as Promise<{ catalogs?: T[] }>;
+}
+
 interface RegistryEntry {
   catalogId?: string;
   id?: string;
@@ -43,7 +54,7 @@ export function useCatalogSources(prefix: string | null, platform: string, withW
 
   useEffect(() => {
     let cancelled = false;
-    apiClient.get<{ catalogs?: RegistryEntry[] }>('/api/catalog-library')
+    fetchCatalogLibrary<RegistryEntry>()
       .then((payload) => {
         if (cancelled) return;
         const list = Array.isArray(payload?.catalogs) ? payload.catalogs : [];

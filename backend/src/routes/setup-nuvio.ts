@@ -29,6 +29,7 @@ export interface SetupNuvioDeps {
   http?: HttpTransport;
   fetchManifestName?: (url: string) => Promise<string | null>;
   catalogNames?: (rows: Record<string, unknown>[]) => Promise<Map<string, string>>;
+  addonManifests?: (rows: Record<string, unknown>[]) => Promise<Map<string, unknown>>;
 }
 
 export interface SetupNuvioRoutesOptions {
@@ -83,13 +84,16 @@ function displayUser(conn: PushConnection): string {
 // redirects, size cap). LeLibrary's own manifest is read from this server
 // over loopback. Cached in memory by a hash of the link (links are secrets).
 const MANIFEST_TTL_MS = 6 * 60 * 60 * 1000;
+// A failed read (timeout, deploy, addon down) is retried soon: caching it for
+// the full TTL kept Home rows on their fallback names for hours.
+const MANIFEST_MISS_TTL_MS = 60 * 1000;
 const manifestCache = new Map<string, { at: number; data: Record<string, unknown> | null }>();
 
 async function fetchManifest(url: string, timeoutMs = 6000, ownOrigin = ''): Promise<Record<string, unknown> | null> {
   const crypto = require('node:crypto');
   const cacheKey = crypto.createHash('sha256').update(url).digest('hex');
   const hit = manifestCache.get(cacheKey);
-  if (hit && Date.now() - hit.at < MANIFEST_TTL_MS) return hit.data;
+  if (hit && Date.now() - hit.at < (hit.data ? MANIFEST_TTL_MS : MANIFEST_MISS_TTL_MS)) return hit.data;
   let data: Record<string, unknown> | null = null;
   try {
     const axios = require('axios');
@@ -119,10 +123,24 @@ async function fetchManifestName(url: string): Promise<string | null> {
 // Home row names for a profile: every addon's catalogues, keyed the way Home
 // items are ("<manifestId>:<type>:<catalogId>"). A few addons at most, in
 // parallel, short timeouts; a slow or broken addon just keeps its fallback.
+// Each addon row's manifest, keyed by Nuvio's row id (same cache, same caps).
+async function addonManifestsFrom(rows: Record<string, unknown>[], ownOrigin: string): Promise<Map<string, unknown>> {
+  const out = new Map<string, unknown>();
+  const list = rows.filter((row) => /^https?:\/\//i.test(String(row['url'] ?? ''))).slice(0, 12);
+  const manifests = await Promise.all(list.map((row) => fetchManifest(manifestUrl(String(row['url'])), 4000, ownOrigin)));
+  list.forEach((row, at) => { if (manifests[at]) out.set(String(row['id'] ?? ''), manifests[at]); });
+  return out;
+}
+
+// Nuvio stores links with or without the trailing /manifest.json.
+function manifestUrl(url: string): string {
+  return /\/manifest\.json(\?|$)/i.test(url) ? url : `${url.replace(/\/+$/, '')}/manifest.json`;
+}
+
 async function catalogNamesFrom(rows: Record<string, unknown>[], ownOrigin: string): Promise<Map<string, string>> {
   const names = new Map<string, string>();
   const urls = rows.map((row) => String(row['url'] ?? '')).filter((url) => /^https?:\/\//i.test(url)).slice(0, 12);
-  const manifests = await Promise.all(urls.map((url) => fetchManifest(url, 4000, ownOrigin)));
+  const manifests = await Promise.all(urls.map((url) => fetchManifest(manifestUrl(url), 4000, ownOrigin)));
   for (const manifest of manifests) {
     if (!manifest) continue;
     const id = String(manifest['id'] ?? '');
@@ -196,6 +214,7 @@ function mountSetupNuvioRoutes(app: Express, { basePath = '/api/setup', editSess
       own: { origin: publicOrigin(req), uuid },
       fetchManifestName: nameOf,
       catalogNames: deps.catalogNames || ((rows) => catalogNamesFrom(rows, publicOrigin(req))),
+      addonManifests: deps.addonManifests || ((rows) => addonManifestsFrom(rows, publicOrigin(req))),
     });
     return { uuid, conn, service };
   }
@@ -285,6 +304,11 @@ function mountSetupNuvioRoutes(app: Express, { basePath = '/api/setup', editSess
   ), true);
   route('delete', '/profiles/:index/addons/:id', WRITE_LIMIT, async (ctx, req) => (
     ctx.service.deleteAddon(index(req), idParam(req, ROW_ID_RE))
+  ), true);
+  // An addon's settings page, only on an explicit click (POST, never cached,
+  // never logged): the link can carry that addon's keys.
+  route('post', '/profiles/:index/addons/:id/configure', WRITE_LIMIT, async (ctx, req) => (
+    ctx.service.configureLink(index(req), idParam(req, ROW_ID_RE))
   ), true);
   route('put', '/profiles/:index/collections/order', WRITE_LIMIT, async (ctx, req) => ctx.service.reorderCollections(index(req), body(req)), true);
   route('patch', '/profiles/:index/collections/:id', WRITE_LIMIT, async (ctx, req) => (

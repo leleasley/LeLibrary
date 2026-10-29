@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ConfirmModal } from '@/features/setup/shared/Modal';
 import { setupCopy, setupCount } from '@/features/setup/shared/setup-copy';
+import { toast } from '@/features/setup/shared/Toast';
 import {
-  addNuvioAddon, deleteNuvioCollection, orderNuvioAddons, orderNuvioCollections, removeNuvioAddon,
+  addNuvioAddon, deleteNuvioCollection, nuvioAddonConfigureLink, orderNuvioAddons, orderNuvioCollections, removeNuvioAddon,
   saveNuvioHome, setNuvioCollectionHidden, updateNuvioAddon, updateNuvioProfile,
   type NuvioAddon, type NuvioCollection, type NuvioHomeItem, type NuvioProfileDetail,
 } from '@/features/setup/nuvio/api';
@@ -20,10 +21,12 @@ export function normaliseManifestLink(raw: string): string | null {
   return value;
 }
 
-export function AddonsTab({ ctx, detail, primaryName }: {
+export function AddonsTab({ ctx, detail, primaryName, onEditSetup }: {
   ctx: NuvioCtx;
   detail: NuvioProfileDetail;
   primaryName: string;
+  /** Back to this setup's own Edit view (its addon row's "Edit this setup"). */
+  onEditSetup?: (() => void) | undefined;
 }) {
   const profile = detail.profile;
   const managed = !profile.isPrimary && (profile.usesPrimaryAddons || detail.addonsFrom !== profile.index);
@@ -38,6 +41,30 @@ export function AddonsTab({ ctx, detail, primaryName }: {
   useEffect(() => { setOrder(sortByOrder(detail.addons)); setRenaming(null); }, [detail.addons]);
   const dirty = !sameOrder(order, saved);
   const { uuid, editToken, run, busy } = ctx;
+
+  const [opening, setOpening] = useState<string | null>(null);
+
+  // The addon's settings page in a new tab. The tab is opened inside the click
+  // (pop-up blockers allow that), then pointed at the link once the server
+  // hands it over; the link itself is never kept on this page.
+  async function configure(addon: NuvioAddon) {
+    const win = window.open('about:blank', '_blank');
+    setOpening(addon.id);
+    try {
+      const { url } = await nuvioAddonConfigureLink(uuid, editToken, profile.index, addon.id);
+      if (win) {
+        win.opener = null;
+        win.location.href = url;
+      } else {
+        toast(setupCopy('Allow pop-ups for this site to open the addon\'s settings.', 'Allow pop-ups for this site to open the addon\'s settings.'));
+      }
+    } catch {
+      win?.close();
+      toast(setupCopy('Could not open this addon\'s settings. Try again.', 'Could not open this addon\'s settings. Try again.'));
+    } finally {
+      setOpening(null);
+    }
+  }
 
   function startRename(addon: NuvioAddon) {
     setRenaming(addon.id);
@@ -83,7 +110,7 @@ export function AddonsTab({ ctx, detail, primaryName }: {
           <ol className="nv-list is-readonly">
             {saved.map((addon) => (
               <li key={addon.id} className={`nv-row${addon.enabled ? '' : ' is-off'}`}>
-                <div className="nv-row-main"><AddonLabel addon={addon} /></div>
+                <div className="nv-row-main nv-addon"><AddonLogo addon={addon} /><AddonLabel addon={addon} /></div>
                 <span className="nv-state">{addon.enabled ? 'On' : 'Off'}</span>
               </li>
             ))}
@@ -128,6 +155,7 @@ export function AddonsTab({ ctx, detail, primaryName }: {
           onMove={(from, to) => setOrder((prev) => moveItem(prev, from, to))}
           render={(addon) => (
             <div className={`nv-addon${addon.enabled ? '' : ' is-off'}`}>
+              <AddonLogo addon={addon} />
               {renaming === addon.id ? (
                 <form className="nv-rename" onSubmit={(event) => { event.preventDefault(); void saveRename(addon); }}>
                   <input
@@ -147,6 +175,19 @@ export function AddonsTab({ ctx, detail, primaryName }: {
                   ariaLabel={setupCopy('Use {{name}}', 'Use {{name}}', { name: addon.name })}
                   onChange={(enabled) => void run(() => updateNuvioAddon(uuid, editToken, profile.index, addon.id, { enabled }), { undo: profile.index })}
                 />
+                {kindOf(addon) === 'this-setup' && onEditSetup && (
+                  <button type="button" className="nv-text-btn" onClick={onEditSetup}>Edit this setup</button>
+                )}
+                {kindOf(addon) !== 'this-setup' && addon.configurable && (
+                  <button
+                    type="button" className="nv-text-btn nv-external" disabled={opening === addon.id}
+                    aria-label={setupCopy('Configure {{name}} (opens in a new tab)', 'Configure {{name}} (opens in a new tab)', { name: addon.name })}
+                    onClick={() => void configure(addon)}
+                  >
+                    Configure
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></svg>
+                  </button>
+                )}
                 {renaming !== addon.id && (
                   <button type="button" className="nv-text-btn" disabled={busy} onClick={() => startRename(addon)}>Rename</button>
                 )}
@@ -203,14 +244,43 @@ export function AddonsTab({ ctx, detail, primaryName }: {
   );
 }
 
+// Older servers send no kind: their own-row flag still says "this setup".
+function kindOf(addon: NuvioAddon): 'this-setup' | 'lelibrary' | 'other' {
+  return addon.kind ?? (addon.isLeLibrary ? 'this-setup' : 'other');
+}
+
+const TYPE_LABELS: Record<string, string> = { movie: 'Movies', series: 'Series', anime: 'Anime', tv: 'TV', channel: 'Channels', events: 'Events', other: 'Other' };
+
+// The addon's own logo, or its initial on a colour drawn from the name.
+function AddonLogo({ addon }: { addon: NuvioAddon }) {
+  const [broken, setBroken] = useState(false);
+  if (addon.logo && !broken) {
+    return <img className="nv-addon-logo" src={addon.logo} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} />;
+  }
+  const hue = [...addon.name].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 360, 11);
+  return (
+    <span className="nv-addon-logo is-mono" aria-hidden="true" style={{ background: `hsl(${hue} 45% 26%)` }}>
+      {(addon.name.trim()[0] || '?').toUpperCase()}
+    </span>
+  );
+}
+
 function AddonLabel({ addon }: { addon: NuvioAddon }) {
+  const types = (addon.types ?? []).map((type) => TYPE_LABELS[type]).filter(Boolean) as string[];
   return (
     <div className="nv-addon-label">
-      <strong data-i18n-preserve>{addon.name}</strong>
-      <span className="nv-addon-meta">
-        {addon.isLeLibrary && <em className="nv-badge">This setup</em>}
+      <span className="nv-addon-title">
+        <strong data-i18n-preserve>{addon.name}</strong>
+        {addon.version && <small className="nv-addon-version" data-i18n-preserve>v{addon.version}</small>}
+        {kindOf(addon) === 'this-setup' && <em className="nv-badge">This setup</em>}
+        {kindOf(addon) === 'lelibrary' && <em className="nv-badge is-soft">LeLibrary setup</em>}
         {!addon.enabled && <em className="nv-badge is-muted">Off</em>}
+      </span>
+      {addon.description && <p className="nv-addon-desc" data-i18n-preserve>{addon.description}</p>}
+      <span className="nv-addon-meta">
         {addon.host && <small data-i18n-preserve>{addon.host}</small>}
+        {types.map((type) => <span key={type} className="nv-chip">{type}</span>)}
+        {(addon.catalogs ?? 0) > 0 && <small>{setupCount(addon.catalogs ?? 0, 'catalogue', 'catalogues')}</small>}
       </span>
     </div>
   );

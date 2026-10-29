@@ -82,10 +82,12 @@ function PanelSkeleton() {
   );
 }
 
-export function NuvioPanel({ uuid, editToken, initial }: {
+export function NuvioPanel({ uuid, editToken, initial, onEditSetup }: {
   uuid: string;
   editToken: string | null;
   initial?: NuvioPanelInitial | undefined;
+  /** Switches the edit page back to this setup's Edit view. */
+  onEditSetup?: (() => void) | undefined;
 }) {
   const [overview, setOverview] = useState<NuvioOverview | null>(initial?.overview ?? null);
   const [overviewProblem, setOverviewProblem] = useState<Problem | null>(null);
@@ -238,6 +240,17 @@ export function NuvioPanel({ uuid, editToken, initial }: {
   const ctx: NuvioCtx = { uuid, editToken, busy, run };
   const current = profiles.find((profile) => profile.index === profileIndex) ?? null;
   const needsDetail = tab !== 'profiles' && tab !== 'backups';
+  // At a glance for the profile on show: each count opens its tab.
+  const glance = detail && current && detail.profile.index === current.index ? (() => {
+    const addonsOn = detail.addons.filter((addon) => addon.enabled).length;
+    const rowsShown = detail.home.items.filter((item) => item.enabled).length;
+    const collections = detail.collections.length;
+    return [
+      { count: addonsOn, label: addonsOn === 1 ? 'addon on' : 'addons on', tab: 'addons' as const },
+      { count: rowsShown, label: rowsShown === 1 ? 'Home row shown' : 'Home rows shown', tab: 'home' as const },
+      { count: collections, label: collections === 1 ? 'collection' : 'collections', tab: 'home' as const },
+    ];
+  })() : null;
 
   return (
     <section className="lib-page nv-page" aria-label="Your Nuvio">
@@ -283,6 +296,19 @@ export function NuvioPanel({ uuid, editToken, initial }: {
         </div>
       )}
 
+      {glance && (
+        <ul className="nv-summary" aria-label="This profile at a glance">
+          {glance.map((item) => (
+            <li key={item.label}>
+              <button type="button" onClick={() => setTab(item.tab)}>
+                <strong>{item.count}</strong>
+                <span>{setupCopy(item.label, item.label)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <div className="lib-toolbar nv-toolbar">
         <div className="lib-tabs nv-tabs" role="tablist" aria-label="Nuvio sections">
           {TABS.map((item) => (
@@ -320,7 +346,7 @@ export function NuvioPanel({ uuid, editToken, initial }: {
       {needsDetail && detail && (
         <>
           {tab === 'addons' && (
-<AddonsTab ctx={ctx} detail={detail} primaryName={primaryName} />
+            <AddonsTab ctx={ctx} detail={detail} primaryName={primaryName} onEditSetup={onEditSetup} />
           )}
           {tab === 'home' && <HomeTab ctx={ctx} detail={detail} />}
           {tab === 'settings' && <SettingsTab ctx={ctx} detail={detail} />}

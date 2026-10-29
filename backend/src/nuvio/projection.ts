@@ -21,6 +21,50 @@ export interface Addon {
   enabled: boolean;
   order: number;
   isLeLibrary: boolean;
+  // From the addon's own manifest (empty when it could not be read).
+  logo: string | null;
+  description: string;
+  version: string;
+  types: string[];
+  catalogs: number;
+  // An addon settings page exists (a LeLibrary setup, or behaviorHints).
+  configurable: boolean;
+  // "this-setup" (the setup being edited), "lelibrary" (another LeLibrary
+  // setup) or "other". Never the link itself.
+  kind: 'this-setup' | 'lelibrary' | 'other';
+}
+
+// LeLibrary install links: /<setup uuid>.<secret>/manifest.json.
+const LELIBRARY_PATH = /^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.[A-Za-z0-9_-]+\/manifest\.json$/i;
+const KNOWN_TYPES = ['movie', 'series', 'anime', 'tv', 'channel', 'events', 'other'];
+
+// A LeLibrary setup's edit page for an install link, else empty. The page
+// needs only the setup id (the password still gates editing), never the secret.
+function leLibraryEditPage(url: unknown): string {
+  try {
+    const parsed = new URL(String(url));
+    const match = parsed.pathname.match(LELIBRARY_PATH);
+    return match ? `${parsed.origin}/${String(match[1]).toLowerCase()}` : '';
+  } catch {
+    return '';
+  }
+}
+
+interface ManifestFacts { logo: string | null; description: string; version: string; types: string[]; catalogs: number; configurable: boolean }
+
+// Display fields from a manifest: short plain text, https images only.
+function manifestFacts(manifest: unknown): ManifestFacts {
+  const m = isRecord(manifest) ? manifest : {};
+  const logo = text(m['logo']);
+  const hints = isRecord(m['behaviorHints']) ? m['behaviorHints'] : {};
+  return {
+    logo: /^https:\/\/[^\s"'<>]+$/i.test(logo) && logo.length <= 1024 ? logo : null,
+    description: text(m['description']).replace(/\s+/g, ' ').slice(0, 220),
+    version: /^[0-9A-Za-z.+-]{1,24}$/.test(text(m['version'])) ? text(m['version']) : '',
+    types: (Array.isArray(m['types']) ? m['types'] : []).map((t) => String(t).toLowerCase()).filter((t) => KNOWN_TYPES.includes(t)).slice(0, 5),
+    catalogs: Array.isArray(m['catalogs']) ? m['catalogs'].length : 0,
+    configurable: hints['configurable'] === true || hints['configurationRequired'] === true,
+  };
 }
 
 export interface CollectionSummary {
@@ -135,20 +179,50 @@ function sortedAddonRows(rows: unknown): Record<string, unknown>[] {
     .map((entry) => entry.row);
 }
 
-function projectAddon(row: Record<string, unknown>, order: number, ctx: OwnContext): Addon {
+function projectAddon(row: Record<string, unknown>, order: number, ctx: OwnContext, manifest?: unknown): Addon {
   const host = addonHost(row['url']);
+  const own = isOwnAddon(row, ctx);
+  const facts = manifestFacts(manifest);
+  const lelibrary = leLibraryEditPage(row['url']) !== '';
   return {
     id: String(row['id'] ?? ''),
     name: text(row['name']).slice(0, 120) || host || 'Addon',
     host,
     enabled: row['enabled'] !== false,
     order,
-    isLeLibrary: isOwnAddon(row, ctx),
+    isLeLibrary: own,
+    logo: facts.logo,
+    description: facts.description,
+    version: facts.version,
+    types: facts.types,
+    catalogs: facts.catalogs,
+    configurable: lelibrary || facts.configurable,
+    kind: own ? 'this-setup' : lelibrary ? 'lelibrary' : 'other',
   };
 }
 
-function projectAddons(rows: unknown, ctx: OwnContext): Addon[] {
-  return sortedAddonRows(rows).map((row, order) => projectAddon(row, order, ctx));
+// manifests: Nuvio addon row id -> that addon's manifest (optional).
+function projectAddons(rows: unknown, ctx: OwnContext, manifests: Map<string, unknown> = new Map()): Addon[] {
+  return sortedAddonRows(rows).map((row, order) => projectAddon(row, order, ctx, manifests.get(String(row['id'] ?? ''))));
+}
+
+// The settings page of one addon row: a LeLibrary setup's edit page, or the
+// addon's own /configure page when its manifest says it has one; empty if
+// none. A /configure link carries the addon's settings (often keys): it is
+// only ever returned to the unlocked owner on an explicit click, never listed.
+function configureLink(row: unknown, manifest?: unknown): string {
+  if (!isRecord(row)) return '';
+  const edit = leLibraryEditPage(row['url']);
+  if (edit) return edit;
+  if (!manifestFacts(manifest).configurable) return '';
+  try {
+    const parsed = new URL(String(row['url']));
+    if (parsed.protocol !== 'https:') return '';
+    parsed.pathname = parsed.pathname.replace(/\/manifest\.json$/i, '').replace(/\/+$/, '') + '/configure';
+    return parsed.toString();
+  } catch {
+    return '';
+  }
 }
 
 function isLeLibraryCollectionId(id: unknown): boolean {
@@ -252,8 +326,10 @@ export interface ProjectionApi {
   canonicalAddonUrl: (url: unknown) => string;
   isOwnAddon: (row: unknown, ctx: OwnContext) => boolean;
   sortedAddonRows: (rows: unknown) => Record<string, unknown>[];
-  projectAddon: (row: Record<string, unknown>, order: number, ctx: OwnContext) => Addon;
-  projectAddons: (rows: unknown, ctx: OwnContext) => Addon[];
+  projectAddon: (row: Record<string, unknown>, order: number, ctx: OwnContext, manifest?: unknown) => Addon;
+  projectAddons: (rows: unknown, ctx: OwnContext, manifests?: Map<string, unknown>) => Addon[];
+  configureLink: (row: unknown, manifest?: unknown) => string;
+  leLibraryEditPage: (url: unknown) => string;
   isLeLibraryCollectionId: (id: unknown) => boolean;
   homeItemKey: (item: Record<string, unknown>) => string;
   homeItems: (doc: unknown) => Record<string, unknown>[];
@@ -274,6 +350,8 @@ module.exports = {
   sortedAddonRows,
   projectAddon,
   projectAddons,
+  configureLink,
+  leLibraryEditPage,
   isLeLibraryCollectionId,
   homeItemKey,
   homeItems,

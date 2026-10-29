@@ -39,6 +39,9 @@ export interface NuvioServiceOptions {
   // Catalogue names for Home rows, keyed "<manifestId>:<type>:<catalogId>",
   // read from the profile's addon manifests. Never throws.
   catalogNames?: (addonRows: Row[]) => Promise<Map<string, string>>;
+  // Each addon row's manifest (keyed by Nuvio row id), read through the same
+  // cache as catalogNames. Never throws; missing rows simply have no facts.
+  addonManifests?: (addonRows: Row[]) => Promise<Map<string, unknown>>;
 }
 
 const MAX_NAME = 40;
@@ -129,8 +132,27 @@ function createNuvioService(options: NuvioServiceOptions) {
     }
   }
 
+  async function manifestsFor(rows: Row[]): Promise<Map<string, unknown>> {
+    if (!options.addonManifests) return new Map();
+    try { return await options.addonManifests(rows); } catch { return new Map(); }
+  }
+
   async function addonList(index: number): Promise<Addon[]> {
-    return projection.projectAddons(await client.listAddons(index), own);
+    const rows = await client.listAddons(index);
+    return projection.projectAddons(rows, own, await manifestsFor(rows));
+  }
+
+  // One addon's settings page, for the unlocked owner's explicit click. The
+  // link can hold the addon's keys: it goes back to that request only.
+  async function configureLink(index: number, id: string): Promise<{ url: string }> {
+    const profile = await requireProfile(index);
+    const rows = await client.listAddons(profile.usesPrimaryAddons ? 1 : index);
+    const row = rows.find((entry) => String(entry['id']) === id);
+    if (!row) notFound('That addon is no longer on this profile.');
+    const manifests = await manifestsFor([row]);
+    const url = projection.configureLink(row, manifests.get(id));
+    if (!url) fail(422, 'not-configurable', 'This addon has no settings page.');
+    return { url };
   }
 
   async function overview(): Promise<{ profiles: Profile[]; maxProfiles: number }> {
@@ -152,12 +174,13 @@ function createNuvioService(options: NuvioServiceOptions) {
       client.pullSettings(index, 'tv'),
       client.pullSettings(index, 'mobile'),
     ]);
+    const [names, manifests] = await Promise.all([namesFor(addonRows), manifestsFor(addonRows)]);
     return {
       profile,
-      addons: projection.projectAddons(addonRows, own),
+      addons: projection.projectAddons(addonRows, own, manifests),
       addonsFrom,
       collections: projection.projectCollections(collections.items, home.doc),
-      home: projection.projectHome(home.doc, collections.items, await namesFor(addonRows)),
+      home: projection.projectHome(home.doc, collections.items, names),
       settings: settingsFrom(tv.blob, mobile.blob, home.doc),
       readAt: new Date().toISOString(),
     };
@@ -528,6 +551,7 @@ function createNuvioService(options: NuvioServiceOptions) {
     updateAddon,
     reorderAddons,
     deleteAddon,
+    configureLink,
     setCollectionHidden,
     reorderCollections,
     deleteCollection,

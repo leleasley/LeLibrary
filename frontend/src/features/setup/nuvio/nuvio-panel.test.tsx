@@ -94,6 +94,33 @@ describe('NuvioPanel', () => {
     expect(html).toContain('Add an addon');
   });
 
+  it('shows each addon\'s manifest facts, a settings button and an edit jump for this setup', () => {
+    const addons: NuvioAddon[] = [
+      { id: 'row-a', name: 'LeLibrary', host: 'lelibrary.uk', enabled: true, order: 0, isLeLibrary: true, kind: 'this-setup', configurable: true },
+      { id: 'row-b', name: 'Torrentio', host: 'torrentio.strem.fun', enabled: true, order: 1, isLeLibrary: false, kind: 'other', configurable: true,
+        version: '0.0.15', description: 'Provides torrent streams', types: ['movie', 'series'], catalogs: 0, logo: 'https://torrentio.strem.fun/logo.png' },
+      { id: 'row-c', name: 'Old LeLibrary', host: 'lelibrary.uk', enabled: true, order: 2, isLeLibrary: false, kind: 'lelibrary', configurable: true, catalogs: 140 },
+      { id: 'row-d', name: 'Subs', host: 'subs.example', enabled: true, order: 3, isLeLibrary: false, kind: 'other', configurable: false },
+    ];
+    const html = renderToStaticMarkup(
+      <NuvioPanel uuid="11111111-2222-3333-4444-555555555555" editToken="edit-token" onEditSetup={() => {}}
+        initial={{ overview: OVERVIEW, detail: detailFor(PROFILES[0]!, { addons }) }} />,
+    );
+    const rows = html.split('<li ').slice(1);
+    const row = (name: string) => rows.find((r) => r.includes(`>${name}<`))!;
+    expect(row('LeLibrary')).toContain('Edit this setup');
+    expect(row('LeLibrary')).not.toContain('>Configure');
+    expect(row('Torrentio')).toContain('>Configure');
+    expect(row('Torrentio')).toContain('v0.0.15');
+    expect(row('Torrentio')).toContain('Provides torrent streams');
+    expect(row('Torrentio')).toContain('Movies');
+    expect(row('Old LeLibrary')).toContain('LeLibrary setup');
+    expect(row('Old LeLibrary')).toContain('140 catalogues');
+    expect(row('Subs')).not.toContain('>Configure');
+    // The at-a-glance strip.
+    expect(html).toContain('addons on');
+  });
+
   it('gives LeLibrary\'s own addon no remove button', () => {
     const html = render({ overview: OVERVIEW, detail: detailFor(PROFILES[0]!) });
     const rows = html.split('<li ').slice(1);

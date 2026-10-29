@@ -29,7 +29,7 @@ function setup(options = {}) {
     http: nuvio.http,
     persist: async (conn) => { saved = conn; },
   });
-  const service = createNuvioService({ client, backups: store, own: OWN, fetchManifestName: options.fetchManifestName || (async () => 'Cool Addon') });
+  const service = createNuvioService({ client, backups: store, own: OWN, fetchManifestName: options.fetchManifestName || (async () => 'Cool Addon'), addonManifests: options.addonManifests });
   return { nuvio, pool, store, client, service, saved: () => saved };
 }
 
@@ -44,7 +44,8 @@ test('projections never carry links, tokens or PIN state beyond pinEnabled', asy
   assert.ok(!text.includes('SECRETKEY123'), 'no addon link');
   assert.ok(!text.includes('s3cr3t'), 'not even our own install secret');
   assert.ok(!/pin_hash|\$2b\$|access-0|refresh-0|"url"/.test(text));
-  assert.deepEqual(Object.keys(state.addons[0]).sort(), ['enabled', 'host', 'id', 'isLeLibrary', 'name', 'order']);
+  assert.deepEqual(Object.keys(state.addons[0]).sort(), ['catalogs', 'configurable', 'description', 'enabled', 'host', 'id', 'isLeLibrary', 'kind', 'logo', 'name', 'order', 'types', 'version']);
+  assert.deepEqual(state.addons.map((a) => a.kind), ['other', 'this-setup', 'other']);
   assert.deepEqual(Object.keys(state.profile).sort(), ['avatarUrl', 'color', 'index', 'isPrimary', 'name', 'pinEnabled', 'usesPrimaryAddons']);
   assert.equal(state.addons[0].host, 'torrentio.strem.fun');
   assert.equal(state.addons[1].isLeLibrary, true);
@@ -593,4 +594,38 @@ test('Home rows are named from the addons\' own catalogues, with a tidy fallback
   const titles = projection.projectHome(doc, [], names).items.map((i) => i.title);
   assert.deepEqual(titles, ['🎯 MDBList Watchlist', 'Popular (Movies)', 'Popular (Series)', 'Top rated shows', 'My pick']);
   assert.equal(projection.projectHome(doc, []).items[0].title, 'Torbox watchlist mdblist movie', 'no manifest: readable, not the raw id');
+});
+
+
+test('addon rows show manifest facts and offer a settings page only on request', async () => {
+  const manifests = new Map([
+    ['a1', { id: 'com.torrentio', name: 'Torrentio', version: '0.0.15', description: '  Provides torrent\n streams  ', logo: 'https://torrentio.strem.fun/images/logo.png', types: ['movie', 'series', 'bogus'], catalogs: [], behaviorHints: { configurable: true } }],
+    ['a3', { id: 'org.subs', name: 'Subs', logo: 'javascript:alert(1)', version: '1.0 <b>', types: ['movie'] }],
+  ]);
+  const { service } = setup({ addonManifests: async () => manifests });
+  const state = await service.profileState(1);
+  const [torrentio, own, subs] = state.addons;
+  assert.deepEqual([torrentio.logo, torrentio.description, torrentio.version, torrentio.types, torrentio.configurable],
+    ['https://torrentio.strem.fun/images/logo.png', 'Provides torrent streams', '0.0.15', ['movie', 'series'], true]);
+  assert.equal(subs.logo, null, 'only https images');
+  assert.equal(subs.version, '', 'no markup in the version');
+  assert.equal(subs.configurable, false);
+  assert.equal(own.kind, 'this-setup');
+  assert.equal(own.configurable, true);
+  assert.ok(!JSON.stringify(state).includes('SECRETKEY123'));
+  // The click: Torrentio's own settings page (its link, for the owner only),
+  // a LeLibrary setup's edit page (no secret), nothing for an addon without one.
+  assert.equal((await service.configureLink(1, 'a1')).url, 'https://torrentio.strem.fun/realdebrid=SECRETKEY123/configure');
+  assert.equal((await service.configureLink(1, 'a2')).url, `https://lelibrary.example/${UUID}`);
+  await assert.rejects(() => service.configureLink(1, 'a3'), (err) => err.status === 422);
+  await assert.rejects(() => service.configureLink(1, 'nope'), (err) => err.status === 404);
+});
+
+test('another LeLibrary setup links to its own edit page, never its secret', () => {
+  const row = { id: 'x', url: 'https://lelibrary.uk/40d85727-1111-4222-8333-444455556666.TOPSECRET/manifest.json', name: 'LeLibrary' };
+  assert.equal(projection.configureLink(row), 'https://lelibrary.uk/40d85727-1111-4222-8333-444455556666');
+  const [addon] = projection.projectAddons([row], OWN);
+  assert.equal(addon.kind, 'lelibrary');
+  assert.equal(addon.configurable, true);
+  assert.ok(!JSON.stringify(addon).includes('TOPSECRET'));
 });

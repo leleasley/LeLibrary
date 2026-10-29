@@ -23,6 +23,14 @@ export interface NuvioAddon {
   enabled: boolean;
   order: number;
   isLeLibrary: boolean;
+  // From the addon's manifest; absent or empty when it could not be read.
+  logo?: string | null;
+  description?: string;
+  version?: string;
+  types?: string[];
+  catalogs?: number;
+  configurable?: boolean;
+  kind?: 'this-setup' | 'lelibrary' | 'other';
 }
 
 export interface NuvioCollection {
@@ -184,6 +192,12 @@ export function updateNuvioAddon(
 
 export function orderNuvioAddons(uuid: string, editToken: string, index: number, ids: string[]): Promise<{ addons: NuvioAddon[] }> {
   return apiClient.put<{ addons: NuvioAddon[] }>(`${profilePath(uuid, index)}/addons/order`, { ids }, auth(editToken));
+}
+
+// The addon's settings page, asked for on click only: the link can carry the
+// addon's own keys, so it is never part of the profile listing.
+export function nuvioAddonConfigureLink(uuid: string, editToken: string, index: number, id: string): Promise<{ url: string }> {
+  return apiClient.post<{ url: string }>(`${profilePath(uuid, index)}/addons/${encodeURIComponent(id)}/configure`, {}, auth(editToken));
 }
 
 export function removeNuvioAddon(uuid: string, editToken: string, index: number, id: string): Promise<{ ok: true }> {

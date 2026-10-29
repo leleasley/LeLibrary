@@ -1589,6 +1589,22 @@
     "Binge TV": "Maratón de series",
     "Series first: your services, prestige channels, fresh episodes, world dramas and comfort sitcoms.": "Primero las series: tus servicios, cadenas de prestigio, episodios nuevos, dramas del mundo y comedias reconfortantes.",
     "Fresh Episodes": "Episodios nuevos",
-    "World Dramas": "Dramas del mundo"
+    "World Dramas": "Dramas del mundo",
+    "LeLibrary setup": "Configuración de LeLibrary",
+    "catalogues": "catálogos",
+    "TV": "TV",
+    "Channels": "Canales",
+    "Events": "Eventos",
+    "Other": "Otros",
+    "Edit this setup": "Editar esta configuración",
+    "Configure": "Configurar",
+    "Configure {{name}} (opens in a new tab)": "Configurar {{name}} (se abre en una pestaña nueva)",
+    "Allow pop-ups for this site to open the addon's settings.": "Permite las ventanas emergentes de este sitio para abrir los ajustes del complemento.",
+    "Could not open this addon's settings. Try again.": "No se pudieron abrir los ajustes de este complemento. Inténtalo de nuevo.",
+    "addon on": "complemento activo",
+    "addons on": "complementos activos",
+    "Home row shown": "fila visible en Inicio",
+    "Home rows shown": "filas visibles en Inicio",
+    "This profile at a glance": "Este perfil de un vistazo"
   }
 }

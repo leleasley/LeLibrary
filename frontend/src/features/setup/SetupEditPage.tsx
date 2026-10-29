@@ -728,7 +728,7 @@ export function SetupEditPage() {
         {unlocked && view === 'nuvio' && nuvioAvailable && (
           <div className="edit-view edit-view-library edit-view-nuvio">
             {backToEditing}
-            <NuvioPanel uuid={uuid} editToken={getEditToken()} />
+            <NuvioPanel uuid={uuid} editToken={getEditToken()} onEditSetup={() => go('edit')} />
           </div>
         )}
         {unlocked && view === 'settings' && (

@@ -1589,6 +1589,22 @@
     "Binge TV": "Binge TV",
     "Series first: your services, prestige channels, fresh episodes, world dramas and comfort sitcoms.": "Series first: your services, prestige channels, fresh episodes, world dramas and comfort sitcoms.",
     "Fresh Episodes": "Fresh Episodes",
-    "World Dramas": "World Dramas"
+    "World Dramas": "World Dramas",
+    "LeLibrary setup": "LeLibrary setup",
+    "catalogues": "catalogues",
+    "TV": "TV",
+    "Channels": "Channels",
+    "Events": "Events",
+    "Other": "Other",
+    "Edit this setup": "Edit this setup",
+    "Configure": "Configure",
+    "Configure {{name}} (opens in a new tab)": "Configure {{name}} (opens in a new tab)",
+    "Allow pop-ups for this site to open the addon's settings.": "Allow pop-ups for this site to open the addon's settings.",
+    "Could not open this addon's settings. Try again.": "Could not open this addon's settings. Try again.",
+    "addon on": "addon on",
+    "addons on": "addons on",
+    "Home row shown": "Home row shown",
+    "Home rows shown": "Home rows shown",
+    "This profile at a glance": "This profile at a glance"
   }
 }

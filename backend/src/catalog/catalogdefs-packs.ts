@@ -172,6 +172,31 @@ add('collection_texas_chainsaw', collection('The Texas Chainsaw Massacre', 11175
 add('collection_28_days_later', collection('28 Days Later', 1565, FILM_COLLECTIONS, '📚'));
 add('collection_insidious', collection('Insidious', 228446, FILM_COLLECTIONS, '📚'));
 add('collection_final_destination', collection('Final Destination', 8864, FILM_COLLECTIONS, '📚'));
+// More horror franchises (TMDB collection ids checked 2026-10-29; '|' merges
+// an original series with its reboot, in release order).
+add('collection_childs_play', collection('Child\'s Play', 10455, FILM_COLLECTIONS, '📚'));
+add('collection_hellraiser', collection('Hellraiser', 8917, FILM_COLLECTIONS, '📚'));
+add('collection_candyman', collection('Candyman', 98580, FILM_COLLECTIONS, '📚'));
+add('collection_the_omen', collection('The Omen', 10919, FILM_COLLECTIONS, '📚'));
+add('collection_jaws', collection('Jaws', 2366, FILM_COLLECTIONS, '📚'));
+add('collection_pet_sematary', collection('Pet Sematary', '10789|830781', FILM_COLLECTIONS, '📚'));
+add('collection_paranormal_activity', collection('Paranormal Activity', 41437, FILM_COLLECTIONS, '📚'));
+add('collection_annabelle', collection('Annabelle', 402074, FILM_COLLECTIONS, '📚'));
+add('collection_sinister', collection('Sinister', 357173, FILM_COLLECTIONS, '📚'));
+add('collection_the_ring', collection('The Ring', 14563, FILM_COLLECTIONS, '📚'));
+add('collection_the_grudge', collection('The Grudge', 1974, FILM_COLLECTIONS, '📚'));
+add('collection_the_purge', collection('The Purge', 256322, FILM_COLLECTIONS, '📚'));
+add('collection_the_exorcist', collection('The Exorcist', 12263, FILM_COLLECTIONS, '📚'));
+add('collection_wrong_turn', collection('Wrong Turn', 52985, FILM_COLLECTIONS, '📚'));
+add('collection_hostel', collection('Hostel', 86578, FILM_COLLECTIONS, '📚'));
+add('collection_terrifier', collection('Terrifier', 727761, FILM_COLLECTIONS, '📚'));
+add('collection_it', collection('It', 477962, FILM_COLLECTIONS, '📚'));
+add('collection_a_quiet_place', collection('A Quiet Place', 521226, FILM_COLLECTIONS, '📚'));
+add('collection_resident_evil', collection('Resident Evil', 17255, FILM_COLLECTIONS, '📚'));
+add('collection_jeepers_creepers', collection('Jeepers Creepers', 94899, FILM_COLLECTIONS, '📚'));
+add('collection_hills_have_eyes', collection('The Hills Have Eyes', '267922|8918', FILM_COLLECTIONS, '📚'));
+add('collection_poltergeist', collection('Poltergeist', 10453, FILM_COLLECTIONS, '📚'));
+add('collection_smile', collection('Smile', 1100788, FILM_COLLECTIONS, '📚'));
 
 // ── Kids & Family ──
 // US certifications: TMDB's discover needs one certification country, and

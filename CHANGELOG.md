@@ -4,6 +4,14 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 ## [5.8.0]
 
+### LeLibrary's own artwork
+
+- Every collection folder now has LeLibrary's own cover and animated focus art, designed in-house from film stills, posters and official logos. The community artwork used before has been retired. Thank you to everyone who shared it.
+- Live rows such as Trending, charts and streaming services redraw their covers by themselves as their titles change, at the same link, so Nuvio picks up the new art without pushing again.
+- Franchises fan out their own posters with the real title logo and the run of years. Genres, moods and decades use timeless stills, so they do not date.
+- Every folder also gets its own hero backdrop, the picture behind a folder's contents when you open it: a tilted wall of the folder's own posters. Live rows show their current titles, franchises add a new film's poster by themselves, and genres and moods use timeless titles.
+- Collections you already pushed switch to the new covers on their own. Push once more to get the new hero backdrops.
+
 ### Manage Nuvio from your setup
 
 - The edit page has a new Nuvio view. Sign in once and manage each profile from LeLibrary: turn addons on or off, reorder, rename, remove or add them, and see your Home rows, collections and playback settings.
@@ -20,13 +28,6 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 - Streaming services outside your region are hidden, seasonal packs show up in season, and Hide anime now applies in the picker.
 - Packs built on MDBList charts stay locked until an MDBList key is saved under Optional list sources.
 - New packs now show up straight away instead of after a day.
-
-### LeLibrary's own artwork
-
-- Every collection folder now has LeLibrary's own cover and animated focus art, designed in-house from film stills, posters and official logos. The community artwork used before has been retired. Thank you to everyone who shared it.
-- Live rows such as Trending, charts and streaming services redraw their covers by themselves as their titles change, at the same link, so Nuvio picks up the new art without pushing again.
-- Franchises fan out their own posters with the real title logo and the run of years. Genres, moods and decades use timeless stills, so they do not date.
-- Collections you already pushed switch to the new art on their own.
 
 ### Posters
 

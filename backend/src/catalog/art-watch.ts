@@ -40,24 +40,37 @@ async function tmdbGet(http: HttpLike, key: string, p: string): Promise<any> {
 
 // What changed for one folder since its cover was drawn ('' = nothing, or
 // TMDB did not answer: never mark stale on a failed read).
-async function changeFor(entry: { basis?: Record<string, any> }, deps: { http: HttpLike; key: string }): Promise<string> {
+// What changed, plus a franchise's current posters in release order (for its
+// hero backdrop). posters is null when TMDB did not answer.
+async function inspect(entry: { basis?: Record<string, any> }, deps: { http: HttpLike; key: string }): Promise<{ reason: string; posters: string[] | null }> {
   const b = entry.basis || {};
+  let posters: string[] | null = null;
   if (Array.isArray(b['collections']) && Array.isArray(b['parts'])) {
     const now: number[] = [];
+    const parts: { date: string; poster: string }[] = [];
     for (const id of b['collections']) {
       const c = await tmdbGet(deps.http, deps.key, `/collection/${Number(id)}`);
-      if (!c || !Array.isArray(c.parts)) return '';
-      for (const part of c.parts) if (part && part.release_date) now.push(Number(part.id));
+      if (!c || !Array.isArray(c.parts)) return { reason: '', posters: null };
+      for (const part of c.parts) {
+        if (!part || !part.release_date) continue;
+        now.push(Number(part.id));
+        if (typeof part.poster_path === 'string') parts.push({ date: String(part.release_date), poster: part.poster_path });
+      }
     }
+    posters = parts.sort((x, y) => x.date.localeCompare(y.date)).map((p) => p.poster);
     const before = new Set(b['parts'].map(Number));
     const added = now.filter((id) => !before.has(id));
-    if (added.length) return `${added.length} new film${added.length > 1 ? 's' : ''} in the franchise`;
+    if (added.length) return { reason: `${added.length} new film${added.length > 1 ? 's' : ''} in the franchise`, posters };
   }
   if (b['person'] && b['profile']) {
     const p = await tmdbGet(deps.http, deps.key, `/person/${Number(b['person'])}`);
-    if (p && p.profile_path && p.profile_path !== b['profile']) return 'new profile photo';
+    if (p && p.profile_path && p.profile_path !== b['profile']) return { reason: 'new profile photo', posters };
   }
-  return '';
+  return { reason: '', posters };
+}
+
+async function changeFor(entry: { basis?: Record<string, any> }, deps: { http: HttpLike; key: string }): Promise<string> {
+  return (await inspect(entry, deps)).reason;
 }
 
 function staleFile(): string {
@@ -69,16 +82,23 @@ async function readStale(store: StoreLike): Promise<Record<string, StaleEntry>> 
   return {};
 }
 
-async function checkSubjects(deps: { http: HttpLike; store: StoreLike; key: string; gapMs?: number; webhook?: string }): Promise<{ checked: number; stale: Record<string, StaleEntry>; added: string[] }> {
+async function checkSubjects(deps: { http: HttpLike; store: StoreLike; key: string; gapMs?: number; webhook?: string; skipHeroes?: boolean }): Promise<{ checked: number; stale: Record<string, StaleEntry>; added: string[] }> {
   const own = require('./own-art.ts');
   const entries: Record<string, { kind: string; basis?: Record<string, unknown> }> = own.allEntries();
   const stale = await readStale(deps.store);
   const added: string[] = [];
+  const heroesToRedraw: string[] = [];
   let checked = 0;
   for (const [id, entry] of Object.entries(entries)) {
     if (entry.kind !== 'subject' || !entry.basis) continue;
     checked++;
-    const reason = await changeFor(entry, deps);
+    const { reason, posters } = await inspect(entry, deps);
+    // The franchise's current posters feed its hero backdrop, so a new
+    // film's poster appears there without a redraw by hand.
+    if (posters && posters.length) {
+      await require('./hero-art-service.ts').setSavedParts(id, posters);
+      if (reason) heroesToRedraw.push(id);
+    }
     if (reason && !stale[id]) { stale[id] = { reason, since: new Date().toISOString() }; added.push(id); }
     if (deps.gapMs) await new Promise((r) => setTimeout(r, deps.gapMs));
   }
@@ -91,6 +111,7 @@ async function checkSubjects(deps: { http: HttpLike; store: StoreLike; key: stri
       await deps.http.post(deps.webhook, { content: `Folder art to redraw before the next release:\n${lines.join('\n')}${more}`, allowed_mentions: { parse: [] } }, { timeout: 10000 });
     } catch { /* the file and Redis still hold it */ }
   }
+  if (heroesToRedraw.length && !deps.skipHeroes) void require('./hero-art-service.ts').warmHeroes(heroesToRedraw, 2000).catch(() => 0);
   return { checked, stale, added };
 }
 
@@ -101,7 +122,13 @@ function start(): void {
   const http = require('axios') as HttpLike;
   const store = require('../runtime/cache.ts') as StoreLike;
   const key = own.liveArtKey();
-  const warm = () => { void require('./live-art-service.ts').warmLiveArt().catch(() => null); };
+  const warm = () => {
+    void require('./live-art-service.ts').warmLiveArt()
+      .then(() => require('./hero-art-service.ts').warmHeroes(own.liveFolderIds()))
+      .catch(() => null);
+  };
+  // Every hero once after start (cached in Redis for a month after that).
+  const warmAllHeroes = () => { void require('./hero-art-service.ts').warmHeroes(Object.keys(own.allEntries()), 3000).catch(() => 0); };
   const watch = () => {
     void checkSubjects({ http, store, key, gapMs: 300, webhook: String(process.env.ART_WATCH_WEBHOOK_URL || '').trim() }).catch(() => null);
   };
@@ -109,6 +136,7 @@ function start(): void {
     timers.push(setTimeout(warm, 2 * 60 * 1000));
     timers.push(setInterval(warm, HOUR_MS));
   }
+  timers.push(setTimeout(warmAllHeroes, 15 * 60 * 1000));
   if (process.env.ART_WATCH !== 'off') {
     timers.push(setTimeout(watch, 10 * 60 * 1000));
     timers.push(setInterval(watch, DAY_MS));

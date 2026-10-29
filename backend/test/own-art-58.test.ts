@@ -305,3 +305,99 @@ test('the editor gets full links to the current art for saved collections', () =
   // The saved config itself is untouched.
   assert.equal(saved[0].folders[0].coverImageUrl, '/collection-assets/collections/covers/franchise-marvel.jpg?v=2');
 });
+
+// ── Hero backdrops (5.8) ──────────────────────────────────────────────
+test('hero backdrops draw a 1920x1080 poster mosaic, and need four posters', async () => {
+  const { drawHero } = require('../src/catalog/hero-art.ts');
+  const posters = await Promise.all([10, 50, 90, 130, 170, 210].map((h) => solid(342, 513, h)));
+  const out = await drawHero(posters, 7);
+  const meta = await sharp(out).metadata();
+  assert.equal(meta.width, 1920); assert.equal(meta.height, 1080); assert.equal(meta.format, 'jpeg');
+  assert.ok((await drawHero(posters, 7)).equals(out), 'same posters, same picture');
+  assert.equal(await drawHero(posters.slice(0, 3), 7), null);
+});
+
+test('folders with a poster list get the hero link, the rest keep their still', async () => {
+  const dir = await fixtureDir();
+  const index = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8'));
+  index.folders['folder-lelibrary-genre-horror'].heroPosters = ['/a1.jpg', '/a2.jpg', '/a3.jpg', '/a4.jpg'];
+  index.folders['folder-lelibrary-hv-halloween'].heroPosters = ['/a1.jpg', 'javascript:x'];
+  fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify(index));
+  const restore = withArt(dir);
+  try {
+    assert.equal(own.ownArtFor({ id: 'folder-lelibrary-genre-horror' }).heroBackdropUrl, '/art/hero/folder-lelibrary-genre-horror.jpg');
+    // A bad poster list makes the whole entry invalid (no art at all for it).
+    assert.equal(own.ownArtFor({ id: 'folder-lelibrary-hv-halloween' }), null);
+    assert.equal(absoluteLocalArtwork('/art/hero/folder-lelibrary-genre-horror.jpg', 'https://lelibrary.uk'), 'https://lelibrary.uk/art/hero/folder-lelibrary-genre-horror.jpg');
+  } finally {
+    restore();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('hero route: ETag + 304, a smaller copy for previews, 404 without a hero', async () => {
+  const dir = await fixtureDir();
+  const index = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8'));
+  index.folders['folder-lelibrary-genre-horror'].heroPosters = ['/a1.jpg', '/a2.jpg', '/a3.jpg', '/a4.jpg'];
+  fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify(index));
+  const restore = withArt(dir);
+  const service = require('../src/catalog/hero-art-service.ts');
+  const original = service.getHero;
+  const big = await sharp({ create: { width: 1920, height: 1080, channels: 3, background: { r: 20, g: 20, b: 30 } } }).jpeg().toBuffer();
+  service.getHero = async () => ({ buf: big, etag: '"hero-abc"', fingerprint: 'abc', checkedAt: Date.now() });
+  const app = express();
+  require('../src/routes/images.ts').mountCoreImageRoutes(app, {});
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}/art/hero`;
+  try {
+    let res = await fetch(`${base}/folder-lelibrary-genre-horror.jpg`);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('etag'), '"hero-abc"');
+    assert.match(res.headers.get('cache-control'), /max-age=86400/);
+    res = await fetch(`${base}/folder-lelibrary-genre-horror.jpg`, { headers: { 'If-None-Match': '"hero-abc"' } });
+    assert.equal(res.status, 304);
+    res = await fetch(`${base}/folder-lelibrary-genre-horror.jpg?w=960`);
+    assert.equal((await sharp(Buffer.from(await res.arrayBuffer())).metadata()).width, 960);
+    for (const bad of ['folder-lelibrary-hv-halloween.jpg', 'folder-lelibrary-nope.jpg', 'x.png']) {
+      assert.equal((await fetch(`${base}/${bad}`)).status, 404, bad);
+    }
+  } finally {
+    service.getHero = original;
+    server.close();
+    restore();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the daily art check keeps a franchise hero up to date with its films', async () => {
+  const watch = require('../src/catalog/art-watch.ts');
+  const heroService = require('../src/catalog/hero-art-service.ts');
+  const dir = await fixtureDir();
+  const restore = withArt(dir);
+  const saved = [];
+  const original = heroService.setSavedParts;
+  heroService.setSavedParts = async (id, posters) => { saved.push([id, posters]); };
+  const http = {
+    get: async () => ({ status: 200, data: { parts: [
+      { id: 2, release_date: '1981-10-30', poster_path: '/b.jpg' },
+      { id: 1, release_date: '1978-10-25', poster_path: '/a.jpg' },
+      { id: 3, release_date: '2027-10-15', poster_path: '/c.jpg' },
+    ] } }),
+    post: async () => {},
+  };
+  const mem = new Map();
+  const store = { get: async (k) => mem.get(k) ?? null, set: async (k, v) => { mem.set(k, v); } };
+  const savedDataDir = process.env.DATA_DIR;
+  process.env.DATA_DIR = dir;
+  try {
+    const out = await watch.checkSubjects({ http, store, key: 'synthetic', skipHeroes: true });
+    assert.deepEqual(out.added, ['folder-lelibrary-hv-halloween']);
+    assert.deepEqual(saved, [['folder-lelibrary-hv-halloween', ['/a.jpg', '/b.jpg', '/c.jpg']]], 'posters in release order');
+  } finally {
+    heroService.setSavedParts = original;
+    if (savedDataDir === undefined) delete process.env.DATA_DIR; else process.env.DATA_DIR = savedDataDir;
+    restore();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -183,8 +183,13 @@ function resetLiveArt(): void {
 
 export interface LiveArtServiceApi {
   getLiveCover: typeof getLiveCover;
+  folderRows: typeof folderRows;
+  tmdbImage: (size: 'w342' | 'w1280', path: string) => Promise<Buffer | null>;
   warmLiveArt: typeof warmLiveArt;
   resetLiveArt: typeof resetLiveArt;
 }
 
-module.exports = { getLiveCover, warmLiveArt, resetLiveArt } satisfies LiveArtServiceApi;
+module.exports = {
+  getLiveCover, warmLiveArt, resetLiveArt, folderRows,
+  tmdbImage: (size: 'w342' | 'w1280', path: string) => image(deps().http, size, path),
+} satisfies LiveArtServiceApi;

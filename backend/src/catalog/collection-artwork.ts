@@ -32,7 +32,7 @@ function upgradeRetiredArtwork(value, origin = '') {
 
 // Paths this host serves: the Hub art, generated covers and LeLibrary's own
 // folder art (fixed files and the Live route). They need the same origin.
-const LOCAL_ART = ['/collection-assets/', '/art/generated/', '/collection-art/', '/art/folder/'];
+const LOCAL_ART = ['/collection-assets/', '/art/generated/', '/collection-art/', '/art/folder/', '/art/hero/'];
 
 function absoluteLocalArtwork(value, origin = '') {
   if (typeof value !== 'string') return '';

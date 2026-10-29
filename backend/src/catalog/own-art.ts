@@ -41,6 +41,8 @@ export interface OwnArtEntry {
   backdrop?: string;
   live?: LiveSpec;
   basis?: ArtBasis;
+  // TMDB poster paths for the hero backdrop mosaic (hero-art.ts).
+  heroPosters?: string[];
 }
 
 interface OwnArtIndex { version: number; generatedAt?: string; folders: Record<string, OwnArtEntry> }
@@ -48,6 +50,7 @@ interface OwnArtIndex { version: number; generatedAt?: string; folders: Record<s
 const ROOT = path.join(__dirname, '..', '..', '..');
 const URL_PREFIX = '/collection-art/';
 const LIVE_PREFIX = '/art/folder/';
+const HERO_PREFIX = '/art/hero/';
 const FILE = /^[a-z0-9][a-z0-9_-]{0,120}-(?:focus-)?v\d{1,4}\.(?:jpg|gif)$/;
 const FOLDER_ID = /^folder-lelibrary-[a-z0-9][a-z0-9_-]{0,120}$/;
 const TMDB_PATH = /^\/[A-Za-z0-9]+\.jpg$/;
@@ -72,6 +75,7 @@ function validEntry(id: string, raw: unknown): raw is OwnArtEntry {
   if (typeof e['cover'] !== 'string' || !FILE.test(e['cover'])) return false;
   if (e['gif'] !== undefined && (typeof e['gif'] !== 'string' || !FILE.test(e['gif']))) return false;
   if (e['backdrop'] !== undefined && (typeof e['backdrop'] !== 'string' || !TMDB_PATH.test(e['backdrop']))) return false;
+  if (e['heroPosters'] !== undefined && (!Array.isArray(e['heroPosters']) || !e['heroPosters'].every((p) => typeof p === 'string' && TMDB_PATH.test(p)))) return false;
   return Number.isInteger(e['version']);
 }
 
@@ -148,7 +152,10 @@ function ownArtFor(folder: { id?: unknown }): Record<string, unknown> | null {
     focusGifUrl: entry.gif ? fixedUrl(entry.gif) : '',
     focusGifEnabled: !!entry.gif,
   };
-  if (entry.backdrop) out['heroBackdropUrl'] = `https://image.tmdb.org/t/p/w1280${entry.backdrop}`;
+  // The hero: our poster mosaic (drawn by the server, kept up to date like
+  // the cover), else the plain still the cover was designed from.
+  if (require('./hero-art-service.ts').hasHero(id)) out['heroBackdropUrl'] = `${HERO_PREFIX}${id}.jpg`;
+  else if (entry.backdrop) out['heroBackdropUrl'] = `https://image.tmdb.org/t/p/w1280${entry.backdrop}`;
   return out;
 }
 
@@ -164,7 +171,7 @@ function redirectFor(file: string): string {
 }
 
 function isOwnArtUrl(value: unknown): boolean {
-  return typeof value === 'string' && (value.startsWith(URL_PREFIX) || value.startsWith(LIVE_PREFIX));
+  return typeof value === 'string' && (value.startsWith(URL_PREFIX) || value.startsWith(LIVE_PREFIX) || value.startsWith(HERO_PREFIX));
 }
 
 function resetOwnArtCache(): void { cached = undefined; }

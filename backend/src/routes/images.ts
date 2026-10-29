@@ -51,6 +51,7 @@ function mountCoreImageRoutes(app: Express, deps: CoreImageRoutesDeps = {}): voi
   const axiosImg = require('axios') as HttpClient;
   mountGeneratedCoverRoute(app, deps);
   mountLiveArtRoute(app);
+  mountHeroArtRoute(app);
   // Express 5 wildcard: named, and captured as path segments.
   app.get('/img/tmdb/*splat', async (req: Request, res: Response) => {
     try {
@@ -259,6 +260,46 @@ function mountLiveArtRoute(app: Express): void {
     // Short cache: the drawn cover replaces the snapshot as soon as it can.
     res.setHeader('Cache-Control', 'public, max-age=1800');
     res.sendFile(file);
+  });
+}
+
+// ── Folder hero backdrops ───────────────────────────────────────────────
+// /art/hero/<folderId>.jpg: the tilted poster mosaic Nuvio shows behind a
+// folder's contents (catalog/hero-art-service.ts). ETag = fingerprint of the
+// posters drawn; Live heroes follow the folder's titles, the rest change
+// rarely (a franchise's new film). ?w=960 is the review/preview size.
+function mountHeroArtRoute(app: Express): void {
+  const FILE = /^(folder-lelibrary-[a-z0-9][a-z0-9_-]{0,120})\.jpg$/;
+  const small = new Map<string, Buffer>();
+  app.get('/art/hero/:file', async (req: Request, res: Response) => {
+    const match = String(req.params['file'] || '').match(FILE);
+    const service = require('../catalog/hero-art-service.ts');
+    if (!match || !service.hasHero(match[1])) { res.setHeader('Cache-Control', 'no-store'); res.status(404).end(); return; }
+    const folderId = match[1] as string;
+    let hero = null;
+    try { hero = await service.getHero(folderId); } catch { hero = null; }
+    if (!hero) { res.setHeader('Cache-Control', 'no-store'); res.status(404).end(); return; }
+    const preview = req.query['w'] === '960';
+    const etag = preview ? hero.etag.replace(/"$/, '-s"') : hero.etag;
+    const live = require('../catalog/own-art.ts').ownArtEntry(folderId)?.kind === 'live';
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', hero.etag.endsWith('-p"') ? 'public, max-age=300'
+      : live ? 'public, max-age=21600, stale-while-revalidate=86400' : 'public, max-age=86400, stale-while-revalidate=604800');
+    if (req.headers['if-none-match'] === etag) { res.status(304).end(); return; }
+    let body = hero.buf;
+    if (preview) {
+      const hit = small.get(etag);
+      if (hit) body = hit;
+      else {
+        try {
+          body = await require('sharp')(hero.buf).resize(960, 540).jpeg({ quality: 78, progressive: true, mozjpeg: true }).toBuffer();
+          small.set(etag, body);
+          while (small.size > 300) { const oldest = small.keys().next().value; if (oldest === undefined) break; small.delete(oldest); }
+        } catch { body = hero.buf; }
+      }
+    }
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.end(body);
   });
 }
 

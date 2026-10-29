@@ -32,3 +32,5 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 - Many catalogues pointed at the wrong studio, network, service or keyword and showed the wrong titles. They are corrected, broken collections and dead lists are replaced, and decade rows each have their own list.
 - Streaming service rows use the region of your setup language (English is the UK).
 - The poster preview in setup no longer redraws non-stop, and previews load faster.
+- The setup pages load faster, most noticeably on slow connections and VPNs: much smaller images, no outside font service, and fewer requests.
+- Folder artwork links in the collection editor are always full links.

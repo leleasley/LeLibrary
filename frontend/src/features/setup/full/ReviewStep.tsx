@@ -84,7 +84,10 @@ export function ReviewStep({ password, confirmation, busy, error, backTo, onPass
 
   // The finished page waits behind the "your setup is live" modal and fades
   // in once it closes, so the two never offer the same push side by side.
+  // The modal sits beside the waiting page, never inside it: the waiting page
+  // is visibility:hidden, which hid the modal too and left an empty screen.
   return (
+    <>
     <div className={`review-step created-done${createdOpen ? ' is-waiting' : ''}`}>
       {push.unlockError && <p className="setup-error">{push.unlockError}</p>}
       <PublishPanel
@@ -131,6 +134,7 @@ export function ReviewStep({ password, confirmation, busy, error, backTo, onPass
           </>
         )}
       </PublishPanel>
+    </div>
 
       <SetupCreatedModal
         open={createdOpen}
@@ -142,6 +146,6 @@ export function ReviewStep({ password, confirmation, busy, error, backTo, onPass
         pushConn={pushConn}
         onClose={() => setCreatedOpen(false)}
       />
-    </div>
+    </>
   );
 }

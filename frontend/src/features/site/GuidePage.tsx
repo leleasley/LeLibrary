@@ -57,7 +57,7 @@ const TOPICS: GuideTopic[] = [
     id: 'home',
     title: 'Home rows and collections',
     summary: 'Choose the rows you actually watch and build folders that live in Nuvio.',
-    keywords: ['home', 'rows', 'collections', 'folders', 'franchise', 'quick packs', 'artwork', 'nuvio', 'catalogues', 'main meta', 'tmdb enrichment', 'tt ids'],
+    keywords: ['home', 'rows', 'collections', 'folders', 'franchise', 'quick packs', 'artwork', 'nuvio', 'catalogues', 'main meta', 'tmdb enrichment', 'tt ids', 'trakt', 'scrobble', 'scrobbling', 'watch history'],
   },
   {
     id: 'edit',
@@ -496,6 +496,14 @@ export function GuidePage() {
               Turning on Use Main Meta serves eligible library titles with their IMDb IDs instead. That is what
               lets external stream addons answer them and what lets Nuvio enrich their detail pages. You can switch
               it on at any time; no reinstall is needed.
+            </p>
+            <h3>Trakt scrobbling</h3>
+            <p>
+              LeLibrary does not connect to Trakt itself, but your player can still scrobble what you watch. Turn on
+              Use Main Meta so library titles carry their IMDb IDs, then connect Trakt in Nuvio's or Stremio's own
+              settings. Progress and watch history then sync through the player's Trakt connection. Titles that only
+              LeLibrary can identify are not scrobbled, and LeLibrary cannot show your Trakt watchlists or lists as
+              rows.
             </p>
             <h3>Collections</h3>
             <p>

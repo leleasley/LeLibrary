@@ -385,7 +385,7 @@
     "Unsaved changes": "Cambios sin guardar",
     "Untick resolutions you never want returned.": "Desmarca las resoluciones que nunca quieras recibir.",
     "Updates as you edit": "Se actualiza mientras editas",
-    "Use IMDb IDs for My Movies, My Shows and LeLibrary Collections. This enables richer client metadata, external streams and scrobbling support.": "Usa IDs de IMDb para Mis películas, Mis series y las colecciones de LeLibrary. Así se habilitan metadatos más completos, streams externos y el seguimiento de reproducción.",
+    "Use IMDb IDs for My Movies, My Shows and LeLibrary Collections. This enables richer client metadata, external streams and Trakt scrobbling through Nuvio or Stremio (connect Trakt in the player).": "Usa IDs de IMDb para Mis películas, Mis series y las colecciones de LeLibrary. Así se habilitan metadatos más completos, streams externos y el registro en Trakt desde Nuvio o Stremio (conecta Trakt en el reproductor).",
     "Use Main Metadata": "Usar metadatos principales",
     "Use a clear name, add an emoji, or both. The catalogue source and its content stay exactly the same.": "Usa un nombre claro, añade un emoji o ambas cosas. La fuente del catálogo y su contenido no cambiarán.",
     "Used for the folder tile.": "Se usa para el mosaico de la carpeta.",

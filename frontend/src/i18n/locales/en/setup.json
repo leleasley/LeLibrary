@@ -385,7 +385,7 @@
     "Unsaved changes": "Unsaved changes",
     "Untick resolutions you never want returned.": "Untick resolutions you never want returned.",
     "Updates as you edit": "Updates as you edit",
-    "Use IMDb IDs for My Movies, My Shows and LeLibrary Collections. This enables richer client metadata, external streams and scrobbling support.": "Use IMDb IDs for My Movies, My Shows and LeLibrary Collections. This enables richer client metadata, external streams and scrobbling support.",
+    "Use IMDb IDs for My Movies, My Shows and LeLibrary Collections. This enables richer client metadata, external streams and Trakt scrobbling through Nuvio or Stremio (connect Trakt in the player).": "Use IMDb IDs for My Movies, My Shows and LeLibrary Collections. This enables richer client metadata, external streams and Trakt scrobbling through Nuvio or Stremio (connect Trakt in the player).",
     "Use Main Metadata": "Use Main Metadata",
     "Use a clear name, add an emoji, or both. The catalogue source and its content stay exactly the same.": "Use a clear name, add an emoji, or both. The catalogue source and its content stay exactly the same.",
     "Used for the folder tile.": "Used for the folder tile.",

@@ -245,7 +245,7 @@ export function MetadataExtras({ draft, onChange }: {
         </label>
       </div>
       <label className="switch-row">
-        <span><strong>Use Main Metadata</strong><small>Use IMDb IDs for My Movies, My Shows and LeLibrary Collections. This enables richer client metadata, external streams and scrobbling support.</small></span>
+        <span><strong>Use Main Metadata</strong><small>Use IMDb IDs for My Movies, My Shows and LeLibrary Collections. This enables richer client metadata, external streams and Trakt scrobbling through Nuvio or Stremio (connect Trakt in the player).</small></span>
         <input type="checkbox" checked={draft.mainMetadata} onChange={(event) => onChange({ ...draft, mainMetadata: event.target.checked })} />
         <i aria-hidden="true" />
       </label>

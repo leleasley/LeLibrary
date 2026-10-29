@@ -36,6 +36,7 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 ### Fixes
 
+- The Guide now explains how to scrobble to Trakt: turn on Use Main Meta and connect Trakt in Nuvio or Stremio. LeLibrary itself still does not show Trakt watchlists.
 - Many catalogues pointed at the wrong studio, network, service or keyword and showed the wrong titles. They are corrected, broken collections and dead lists are replaced, and decade rows each have their own list.
 - Streaming service rows use the region of your setup language (English is the UK).
 - The poster preview in setup no longer redraws non-stop, and previews load faster.

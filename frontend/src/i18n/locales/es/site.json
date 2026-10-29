@@ -13,14 +13,10 @@
     "stremioText": "Donde empezó LeLibrary. Tu biblioteca, catálogos y streams en un solo complemento.",
     "nuvioText": "Filas de inicio, colecciones y ajustes enviados directamente desde tu configuración.",
     "artistsEyebrow": "Los artistas",
-    "artistsTitle": "Las personas detrás de las imágenes",
-    "artistsLede": "Las portadas de colecciones, las animaciones de enfoque y las insignias de streams que ves en LeLibrary las crearon y compartieron estas personas.",
-    "artistsNote": "Las imágenes se sirven desde LeLibrary por fiabilidad, y cada archivo guarda de dónde viene. Si creaste alguna y quieres cambiar el crédito o que se retire, escríbenos en GitHub o Discord.",
+    "artistsTitle": "Las personas detrás de las insignias",
+    "artistsLede": "Las insignias y plantillas de streams que ves en LeLibrary las crearon y compartieron estas personas. Las portadas de colecciones y las animaciones de enfoque son propias de LeLibrary.",
+    "artistsNote": "Si creaste alguna y quieres cambiar el crédito, escríbenos en GitHub o Discord.",
     "role": {
-      "collections": "Portadas de colecciones y GIF de enfoque",
-      "actors": "Portadas de actores, GIF de enfoque y fondos",
-      "services": "Portadas de servicios de streaming y estudios",
-      "artwork": "Imágenes de colecciones",
       "badges": "Pack de insignias de streams",
       "formatter": "Plantillas de streams e insignias"
     },

@@ -93,16 +93,14 @@ test('curated Nuvio packs only reference valid LeLibrary sources', () => {
   );
   const worldCinema = buildCuratedCollections(['preset-world-cinema']);
   assert.ok(worldCinema[0].folders.every((folder) => folder.catalogSources.every((source) => source.catalogId.startsWith('lib-language_'))));
-  const expectedPackArtwork = {
-    'preset-directors': '/collection-assets/collections/covers/preset-directors.png?v=2',
-    'preset-decades': '/collection-assets/collections/covers/preset-by-decade.png?v=2',
-    'preset-world-cinema': '/collection-assets/collections/covers/preset-world-cinema.png?v=2',
-  };
-  for (const [id, artwork] of Object.entries(expectedPackArtwork)) {
+  // 5.8 retired the community pack covers: the picker uses the generated
+  // pack cover and no pushed collection names a retired file.
+  for (const id of ['preset-directors', 'preset-decades', 'preset-world-cinema']) {
     const pack = listCuratedCollections().find((item) => item.id === id);
-    assert.equal(pack?.coverImageUrl, artwork);
-    assert.equal(pack?.backdropUrl, artwork);
-    assert.equal(buildCuratedCollections([id])[0].backdropUrl, artwork);
+    assert.equal(pack?.coverImageUrl, '');
+    assert.equal(pack?.backdropUrl, '');
+    assert.ok(pack?.generatedCoverUrl);
+    assert.equal(buildCuratedCollections([id])[0].backdropUrl, '');
   }
   const weekendBinge = listCuratedCollections().find((pack) => pack.id === 'preset-weekend-binge');
   assert.equal(weekendBinge.category, 'Discover');

@@ -819,6 +819,24 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
   }
   router.use(express.static(FRONTEND_DIST_ASSETS, staticOpts));
   router.use(express.static(FRONTEND_PUBLIC, staticOpts));
+  // 5.8 retired the community artwork: any old /collection-assets/ file that
+  // is no longer on disk goes to the art that replaced it (a curated folder's
+  // own cover/GIF, else the Hub cover), so collections already pushed to Nuvio
+  // and saved setups keep showing art. Our own Hub files are served above.
+  router.get('/collection-assets/*splat', (req: Request, res: Response, next: NextFunction) => {
+    const target = require('../catalog/curated-collections.ts').retiredArtworkTarget(req.path);
+    if (!target) { next(); return; }
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.redirect(301, target);
+  });
+  // LeLibrary's own folder art is versioned (<folder>-v<N>.jpg): an older
+  // version that was redrawn goes to the current file.
+  router.get('/collection-art/:file', (req: Request, res: Response, next: NextFunction) => {
+    const target = require('../catalog/own-art.ts').redirectFor(String(req.params['file'] || ''));
+    if (!target) { next(); return; }
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.redirect(301, target);
+  });
 
   // Static files from website/public (frozen legacy configure JS/CSS only)
   if (fs.existsSync(PUBLIC_DIR)) {

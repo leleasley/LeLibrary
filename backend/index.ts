@@ -41,6 +41,9 @@ const server = app.listen(PORT, () => {
   require('./src/setup/pending-push.ts');
   require('./src/setup/franchise-autopush.ts');
   require('./src/runtime/jobs.ts').startJobs();
+  // LeLibrary's own folder art (hosted, needs the server's TMDB key): hourly
+  // Live cover redraws and the daily "has this Subject changed?" check.
+  require('./src/catalog/art-watch.ts').start();
   // Phase 0 perf probe: sampled event-loop lag, behind PERF_TIMING=1 only.
   if (process.env.PERF_TIMING === '1') {
     require('./src/runtime/event-loop-lag.ts').startLagProbe();

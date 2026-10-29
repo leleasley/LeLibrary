@@ -118,3 +118,10 @@ frontend/src/features/site/status.css
 
 # Hosted-only walkthrough videos (built by promo/guide, shipped with the hosted bundle)
 frontend/public/guide/videos/
+
+# Dev-only artwork review page (never shipped: deploy-oracle.sh drops it)
+frontend/public/art-review/
+
+# LeLibrary's own collection folder art (hosted only: shipped to Oracle inside
+# the built bundle by deploy-oracle.sh; self-hosters fall back to generated covers)
+frontend/public/collection-art/

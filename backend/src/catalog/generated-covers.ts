@@ -401,7 +401,7 @@ function safeSvg(buffer: Buffer): boolean {
   return !/<!ENTITY|<!DOCTYPE|<script|<foreignObject|(?:xlink:)?href\s*=\s*["'](?!#|data:image\/)/i.test(text);
 }
 
-async function fetchTmdbImage(http: CoverHttpClient, size: 'w342' | 'w780' | 'w300', path: string): Promise<Buffer | null> {
+async function fetchTmdbImage(http: CoverHttpClient, size: 'w342' | 'w780' | 'w300' | 'w1280', path: string): Promise<Buffer | null> {
   if (!validTmdbPath(path)) return null;
   try {
     const res = await http.get(tmdbImageUrl(size, path), {
@@ -725,6 +725,7 @@ export interface GeneratedCoversApi {
   collectGeneratedArt: typeof collectGeneratedArt;
   resolveSourceLogo: typeof resolveSourceLogo;
   fetchCoverImages: typeof fetchCoverImages;
+  fetchTmdbImage: typeof fetchTmdbImage;
   renderCover: typeof renderCover;
   coverFallbackUrl: typeof coverFallbackUrl;
 }
@@ -750,6 +751,7 @@ module.exports = {
   collectGeneratedArt,
   resolveSourceLogo,
   fetchCoverImages,
+  fetchTmdbImage,
   renderCover,
   coverFallbackUrl,
 } satisfies GeneratedCoversApi;

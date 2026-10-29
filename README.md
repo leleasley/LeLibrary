@@ -287,24 +287,8 @@ Nuvio's richer metadata sections require a valid TMDB key in Nuvio's own setting
 
 ## Special thanks
 
-LeLibrary looks the way it does because of artwork made and shared by people
-in the Stremio and Nuvio community. Thank you to:
-
-**Collection artwork** (covers, focus GIFs and backdrops for the Nuvio
-collection packs):
-
-- [rrevanth](https://github.com/rrevanth) for
-  [`nuvio-assets`](https://github.com/rrevanth/nuvio-assets): collection
-  covers and focus GIFs.
-- [ImKaptain](https://github.com/ImKaptain) for
-  [`nuvio-assets`](https://github.com/ImKaptain/nuvio-assets): actor covers,
-  focus GIFs and backdrops.
-- [luckynumb3rs](https://github.com/luckynumb3rs) for
-  [`stremio-perfect-setup`](https://github.com/luckynumb3rs/stremio-perfect-setup):
-  streaming-service, studio and Discover covers and focus GIFs.
-- [Deimosdm7](https://github.com/Deimosdm7) for artwork from
-  `Coisas-de-app`, plus the community members whose shared images are listed
-  in the provenance file below.
+Thank you to the people in the Stremio and Nuvio community whose work ships
+with LeLibrary:
 
 **Stream badges** (the quality and format badges in stream lists):
 
@@ -325,12 +309,12 @@ TMDB API but is not endorsed or certified by TMDB.
 The full list of projects LeLibrary relies on is on the
 [Supporters page](https://lelibrary.uk/supporters).
 
-Collection artwork is served locally for reliability, not fetched from GitHub
-at runtime. Every imported file keeps its original source path in
-`frontend/public/collection-assets/sources.json`, and
-`frontend/public/collection-assets/ASSET_SOURCES.md` records where each set
-came from. If you made one of these images and want the credit changed or the
-image removed, open an issue and it will be fixed in the next release.
+**Collection artwork**: every collection folder's cover and focus GIF is
+LeLibrary's own, drawn in code from TMDB stills, posters and official logos
+(see `frontend/public/collection-assets/ASSET_SOURCES.md`). Live rows such as
+Trending, charts and streaming services are redrawn by the server as their
+titles change. The community artwork used before 5.8 has been retired; thank
+you to everyone who shared it.
 
 ## License
 

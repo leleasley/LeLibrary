@@ -12,14 +12,10 @@ import { useTranslation } from 'react-i18next';
 
 interface Credit { name: string; href?: string }
 
-// The artists whose images ship with LeLibrary (collection artwork in
-// public/collection-assets, badge packs in the stream formatter). Keep in step
+// The artists whose images ship with LeLibrary (badge packs in the stream
+// formatter; since 5.8 every collection cover is LeLibrary's own). Keep in step
 // with README "Special thanks" and collection-assets/ASSET_SOURCES.md.
 const ARTISTS: { handle: string; work: string; href: string; role: string }[] = [
-  { handle: 'rrevanth', work: 'nuvio-assets', href: 'https://github.com/rrevanth/nuvio-assets', role: 'collections' },
-  { handle: 'ImKaptain', work: 'nuvio-assets', href: 'https://github.com/ImKaptain/nuvio-assets', role: 'actors' },
-  { handle: 'luckynumb3rs', work: 'stremio-perfect-setup', href: 'https://github.com/luckynumb3rs/stremio-perfect-setup', role: 'services' },
-  { handle: 'Deimosdm7', work: 'Coisas-de-app', href: 'https://github.com/Deimosdm7', role: 'artwork' },
   { handle: 'vowl313', work: 'NardBadges', href: 'https://github.com/vowl313/NardBadges', role: 'badges' },
   { handle: 'leonevz', work: 'Elite Badges', href: 'https://github.com/leonevz/Elite-Badges', role: 'badges' },
   { handle: 'sweatycab', work: 'Nuvio Minimalist Badges', href: 'https://github.com/sweatycab/nuvio-minimalist-badges', role: 'badges' },

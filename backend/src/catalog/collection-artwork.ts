@@ -18,12 +18,26 @@ function versionLocalAsset(value) {
   return value + (value.includes('?') ? '&' : '?') + `v=${ASSET_VERSION}`;
 }
 
+// 5.8 retired the community artwork in /collection-assets/. A saved setup or
+// an older push can still name one of those files (relative, or as a full
+// link to this host): send the art that replaced it instead of a redirect.
+function upgradeRetiredArtwork(value, origin = '') {
+  let pathPart = value;
+  const host = String(origin || '').replace(/\/+$/, '');
+  if (host && value.startsWith(host + '/collection-assets/')) pathPart = value.slice(host.length);
+  if (!pathPart.startsWith('/collection-assets/')) return value;
+  const { retiredArtworkTarget } = require('./curated-collections.ts');
+  return retiredArtworkTarget(pathPart) || value;
+}
+
+// Paths this host serves: the Hub art, generated covers and LeLibrary's own
+// folder art (fixed files and the Live route). They need the same origin.
+const LOCAL_ART = ['/collection-assets/', '/art/generated/', '/collection-art/', '/art/folder/'];
+
 function absoluteLocalArtwork(value, origin = '') {
   if (typeof value !== 'string') return '';
-  const clean = versionLocalAsset(value.trim());
-  // Generated covers (/art/generated/, catalog/generated-covers.ts) are served
-  // by this host too, so they need the same origin.
-  if (!clean.startsWith('/collection-assets/') && !clean.startsWith('/art/generated/')) return clean;
+  const clean = versionLocalAsset(upgradeRetiredArtwork(value.trim(), origin));
+  if (!LOCAL_ART.some((prefix) => clean.startsWith(prefix))) return clean;
   return origin ? `${String(origin).replace(/\/+$/, '')}${clean}` : clean;
 }
 

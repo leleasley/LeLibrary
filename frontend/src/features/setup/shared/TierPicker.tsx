@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import { useState, type CSSProperties, type SyntheticEvent } from 'react';
 import { parseBackup, stageBackup } from '@/features/setup/shared/setup-backup';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -37,13 +37,20 @@ function formatUpdated(ms: number): string {
     .format(new Date(ms));
 }
 
-// Local collection covers for the Move In preview's folder tiles.
+// LeLibrary's own folder covers for the Move In preview's tiles (hosted only:
+// /collection-art/ is not in the public repo). A self-hosted build has no such
+// file, so a tile falls back to the franchise's plain TMDB still.
 const FOLDER_ART = [
-  { src: '/collection-assets/collections/covers/franchise-marvel.jpg', title: 'Marvel' },
-  { src: '/collection-assets/collections/covers/franchise-star-wars.jpg', title: 'Star Wars' },
-  { src: '/collection-assets/collections/covers/franchise-john-wick.jpg', title: 'John Wick' },
-  { src: '/collection-assets/collections/covers/franchise-dune.jpg', title: 'Dune' },
+  { src: '/collection-art/franchise-marvel-v2.jpg', fallback: 'https://image.tmdb.org/t/p/w780/mDfJG3LC3Dqb67AZ52x3Z0jU0uB.jpg', title: 'Marvel' },
+  { src: '/collection-art/franchise-star-wars-v2.jpg', fallback: 'https://image.tmdb.org/t/p/w780/iY2ujEY2m68OTTlPFTiHub9joHS.jpg', title: 'Star Wars' },
+  { src: '/collection-art/franchise-john-wick-v2.jpg', fallback: 'https://image.tmdb.org/t/p/w780/fSwYa5q2xRkBoOOjueLpkLf3N1m.jpg', title: 'John Wick' },
+  { src: '/collection-art/franchise-dune-v2.jpg', fallback: 'https://image.tmdb.org/t/p/w780/fahk0Fu7VUUfK6IkTt1R3waOD9F.jpg', title: 'Dune' },
 ];
+
+function showFallback(event: SyntheticEvent<HTMLImageElement>, fallback: string): void {
+  const img = event.currentTarget;
+  if (img.src !== fallback) img.src = fallback;
+}
 
 function Row({ label, count, offset }: { label: string; count: number; offset: number }) {
   return (
@@ -83,7 +90,7 @@ function TierMini({ id }: { id: TierId }) {
             <span className="pk-folders">
               {FOLDER_ART.map((folder) => (
                 <span key={folder.title} className="pk-folder">
-                  <img src={folder.src} alt="" loading="lazy" />
+                  <img src={folder.src} alt="" loading="lazy" onError={(event) => showFallback(event, folder.fallback)} />
                   <b data-i18n-preserve>{folder.title}</b>
                 </span>
               ))}

@@ -1162,7 +1162,10 @@ function validateCuratedCollections() {
             path.join(__dirname, '..', '..', '..', 'frontend', 'public', relative),
           ];
           if (!candidates.some((diskPath) => fs.existsSync(diskPath))) errors.push(`${pack.id}/${item.id}: missing local ${key}`);
-        } else if (!/^https:\/\//.test(value)) {
+        } else if (value.startsWith('/collection-art/') || value.startsWith('/art/folder/')) {
+          // LeLibrary's own art: only ever set from own-art.ts, which checked the file.
+          if (!require('./own-art.ts').ownArtEntry(item.id)) errors.push(`${pack.id}/${item.id}: ${key} names own art this install does not have`);
+        } else if (!/^https:\/\//.test(value) && !value.startsWith('/art/generated/')) {
           errors.push(`${pack.id}/${item.id}: ${key} must use HTTPS or /collection-assets/`);
         }
       }
@@ -1171,7 +1174,19 @@ function validateCuratedCollections() {
   return { ok: errors.length === 0, errors, packs: CURATED_COLLECTIONS.length, folders: CURATED_COLLECTIONS.reduce((n, p) => n + p.folders.length, 0) };
 }
 
+// A curated folder by id (first pack that has it), for the Live art route.
+let folderById = null;
+function curatedFolderById(id) {
+  if (!folderById) {
+    folderById = new Map();
+    for (const pack of CURATED_COLLECTIONS) for (const folder of pack.folders || []) if (!folderById.has(folder.id)) folderById.set(folder.id, folder);
+  }
+  return folderById.get(String(id || '')) || null;
+}
+
 export interface CuratedCollectionsApi {
+  curatedFolderById: any;
+  retiredArtworkTarget: any;
   buildCuratedCollections: any;
   curatedSourceIds: any;
   curatedSourceDisplayName: any;
@@ -1183,8 +1198,68 @@ export interface CuratedCollectionsApi {
   PACK_FILTERS: string[];
 }
 
-module.exports = { buildCuratedCollections, curatedSourceIds, curatedSourceDisplayName, curatedFolderLabel, resolveCuratedSourceLabel, listCuratedCollections, curatedCollectionsPayload, validateCuratedCollections, PACK_FILTERS } satisfies CuratedCollectionsApi;
+module.exports = { curatedFolderById, retiredArtworkTarget, buildCuratedCollections, curatedSourceIds, curatedSourceDisplayName, curatedFolderLabel, resolveCuratedSourceLabel, listCuratedCollections, curatedCollectionsPayload, validateCuratedCollections, PACK_FILTERS } satisfies CuratedCollectionsApi;
 
-// Register every curated folder's generated cover once at load, so the art
-// route can serve the short URL even before any pack list was built.
-for (const pack of CURATED_COLLECTIONS) for (const folder of pack.folders || []) if (!folder.coverImageUrl) generatedArtFor(folder);
+// ── LeLibrary's own art (5.8) ─────────────────────────────────────────
+// Every folder uses LeLibrary's own cover and focus GIF (own-art.ts) when this
+// install has them, else its generated cover. The community artwork that used
+// to ship in /collection-assets/ was retired in 5.8: those files are gone, and
+// every old link (already pushed to Nuvio, or saved in a setup) is sent to the
+// art that replaced it. Only the Hub art in /collection-assets/ is ours and
+// stays.
+const HUB_ART = /^\/collection-assets\/collections\/(?:covers|gifs)\/lelibrary-hub-(?:movies|shows)(?:-focus)?-v3\.(?:jpg|gif)$/;
+const HUB_COVER_PATH = '/collection-assets/collections/covers/lelibrary-hub-movies-v3.jpg';
+const RETIRED_ART = new Map();
+const bareUrl = (value) => String(value || '').split('?')[0].split('#')[0];
+function isRetiredCommunityArt(value) {
+  const url = bareUrl(value);
+  return url.startsWith('/collection-assets/') && !HUB_ART.test(url);
+}
+
+function applyOwnArt(folder) {
+  const before = { cover: folder.coverImageUrl, gif: folder.focusGifUrl, hero: folder.heroBackdropUrl };
+  if (isRetiredCommunityArt(before.cover)) folder.coverImageUrl = '';
+  if (isRetiredCommunityArt(before.gif)) { folder.focusGifUrl = ''; folder.focusGifEnabled = false; }
+  if (isRetiredCommunityArt(before.hero)) folder.heroBackdropUrl = '';
+  if (isRetiredCommunityArt(folder.titleLogoUrl)) folder.titleLogoUrl = '';
+  const own = folder.coverImageUrl ? null : require('./own-art.ts').ownArtFor(folder);
+  if (own) {
+    folder.coverImageUrl = own.coverImageUrl;
+    folder.focusGifUrl = own.focusGifUrl;
+    folder.focusGifEnabled = own.focusGifEnabled;
+    if (!folder.heroBackdropUrl && own.heroBackdropUrl) folder.heroBackdropUrl = own.heroBackdropUrl;
+  } else if (!folder.coverImageUrl) {
+    Object.assign(folder, generatedArtFor(folder));
+  }
+  const cover = folder.coverImageUrl || HUB_COVER_PATH;
+  if (isRetiredCommunityArt(before.cover) && !RETIRED_ART.has(bareUrl(before.cover))) RETIRED_ART.set(bareUrl(before.cover), cover);
+  if (isRetiredCommunityArt(before.gif) && !RETIRED_ART.has(bareUrl(before.gif))) RETIRED_ART.set(bareUrl(before.gif), folder.focusGifUrl || cover);
+  if (isRetiredCommunityArt(before.hero) && !RETIRED_ART.has(bareUrl(before.hero))) RETIRED_ART.set(bareUrl(before.hero), folder.heroBackdropUrl || cover);
+}
+
+for (const pack of CURATED_COLLECTIONS) {
+  for (const key of ['coverImageUrl', 'backdropUrl']) {
+    if (!isRetiredCommunityArt(pack[key])) continue;
+    if (!RETIRED_ART.has(bareUrl(pack[key]))) RETIRED_ART.set(bareUrl(pack[key]), packCoverUrl(pack) || HUB_COVER_PATH);
+    pack[key] = '';
+  }
+  for (const folder of pack.folders || []) applyOwnArt(folder);
+}
+
+// Where an old /collection-assets/ link goes now. Exact matches first (the
+// file a curated folder used), then the folder named by the file (old files
+// of folders since merged or renamed), else the Hub cover. '' for our own Hub
+// art, which is still served as a file.
+function retiredArtworkTarget(value) {
+  const url = bareUrl(value);
+  if (!isRetiredCommunityArt(url)) return '';
+  if (RETIRED_ART.has(url)) return RETIRED_ART.get(url);
+  const gif = url.endsWith('.gif');
+  const stem = (url.split('/').pop() || '').replace(/\.[a-z0-9]+$/i, '').replace(/-focus$/, '');
+  const base = stem.replace(/-(movies|series)$/, '');
+  for (const id of [stem, base, `${base}-movies`, `${base}-series`]) {
+    const folder = curatedFolderById(`folder-lelibrary-${id}`);
+    if (folder && folder.coverImageUrl) return (gif && folder.focusGifUrl) || folder.coverImageUrl;
+  }
+  return HUB_COVER_PATH;
+}

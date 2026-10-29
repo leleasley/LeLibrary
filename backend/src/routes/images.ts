@@ -50,6 +50,7 @@ export interface ImageRoutesApi {
 function mountCoreImageRoutes(app: Express, deps: CoreImageRoutesDeps = {}): void {
   const axiosImg = require('axios') as HttpClient;
   mountGeneratedCoverRoute(app, deps);
+  mountLiveArtRoute(app);
   // Express 5 wildcard: named, and captured as path segments.
   app.get('/img/tmdb/*splat', async (req: Request, res: Response) => {
     try {
@@ -207,6 +208,41 @@ function mountGeneratedCoverRoute(app: Express, deps: CoreImageRoutesDeps): void
     } catch {
       sendFallback();
     }
+  });
+}
+
+// ── Live folder covers ──────────────────────────────────────────────────
+// /art/folder/<folderId>.jpg: one fixed link per Live folder (Trending,
+// charts, streaming services). The server draws it from the folder's current
+// titles (catalog/live-art-service.ts); the ETag is the fingerprint of what is
+// drawn, so an unchanged cover answers 304 and a changed one reaches Nuvio at
+// the same link. No key, no current rows or a draw error: the fixed snapshot.
+function mountLiveArtRoute(app: Express): void {
+  const FILE = /^(folder-lelibrary-[a-z0-9][a-z0-9_-]{0,120})\.jpg$/;
+  app.get('/art/folder/:file', async (req: Request, res: Response) => {
+    const match = String(req.params['file'] || '').match(FILE);
+    const own = require('../catalog/own-art.ts');
+    const entry = match ? own.ownArtEntry(match[1]) : null;
+    if (!match || !entry || entry.kind !== 'live') { res.setHeader('Cache-Control', 'no-store'); res.status(404).end(); return; }
+    const folderId = match[1] as string;
+    let cover = null;
+    try { cover = await require('../catalog/live-art-service.ts').getLiveCover(folderId); } catch { cover = null; }
+    if (cover) {
+      res.setHeader('ETag', cover.etag);
+      // A cover drawn with a missing image (etag ends in -p) must not sit in
+      // Cloudflare or a device for hours: it is redrawn within minutes.
+      const partial = cover.etag.endsWith('-p"');
+      res.setHeader('Cache-Control', partial ? 'public, max-age=300' : 'public, max-age=21600, stale-while-revalidate=86400');
+      if (req.headers['if-none-match'] === cover.etag) { res.status(304).end(); return; }
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.end(cover.buf);
+      return;
+    }
+    const file = require('path').join(own.artDir(), entry.cover);
+    if (!own.artDir() || !require('fs').existsSync(file)) { res.setHeader('Cache-Control', 'no-store'); res.status(404).end(); return; }
+    // Short cache: the drawn cover replaces the snapshot as soon as it can.
+    res.setHeader('Cache-Control', 'public, max-age=1800');
+    res.sendFile(file);
   });
 }
 

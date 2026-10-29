@@ -1,25 +1,22 @@
-# Curated collection artwork
+# Collection artwork
 
-LeLibrary serves the files in this directory locally for reliability. They were
-imported from the following community repositories, which remain the source of
-provenance:
+Since 5.8 every collection folder uses LeLibrary's own artwork. Covers and
+focus GIFs are designed and drawn in code by LeLibrary from TMDB stills,
+posters and official title and studio logos (served through TMDB), with
+openly licensed fonts (SIL Open Font License). No community or third-party
+artwork is used.
 
-- `rrevanth/nuvio-assets`: collection covers and focus GIFs.
-- `ImKaptain/nuvio-assets`: selected actor covers, focus GIFs and backdrops.
-- `luckynumb3rs/stremio-perfect-setup`: locally bundled streaming-service and
-  studio covers/focus GIFs, plus Discover artwork.
-- User-selected artwork imported from the URLs recorded in `sources.json`,
-  including i.ibb.co, i.postimg.cc, Deimosdm7/Coisas-de-app, Kojima
-  Productions' site, and 1000logos.net.
+- **Hub art** (this folder: `lelibrary-hub-movies-v3`, `lelibrary-hub-shows-v3`
+  and their focus GIFs): drawn in code by LeLibrary.
+- **Folder covers and focus GIFs**: hosted only, served from
+  `/collection-art/` and, for live rows such as Trending, charts and streaming
+  services, drawn by the server from the folder's current titles at
+  `/art/folder/`. They are not part of the public repository; a self-hosted
+  build shows a generated cover made from the folder's own TMDB posters.
 
-`sources.json` records the upstream repository path for each imported file.
-The files are not fetched from GitHub at runtime. The upstream repository pages
-do not provide a clear standalone licence grant, so each imported file keeps
-its source path here for attribution and audit. If an upstream author asks us
-to correct attribution or remove an asset, its local entry should be removed or
-replaced and the provenance record updated in the same change.
+Images come from [TMDB](https://www.themoviedb.org/). This product uses the
+TMDB API but is not endorsed or certified by TMDB. Film and studio names and
+logos belong to their owners.
 
-The user-selected image hosts and third-party artwork URLs do not provide a
-uniform redistribution licence in the URLs themselves. They are retained as
-requested, with their original URLs and local copies recorded in `sources.json`;
-their trademark or copyright status should be reviewed before a public release.
+The community artwork used before 5.8 has been retired and removed. Thank you
+to the artists who shared it in the Stremio and Nuvio community.

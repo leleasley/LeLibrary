@@ -17,6 +17,11 @@ backend/src/registry.ts
 # Instance-specific sitemap (listed in .gitignore; never publish prod URLs).
 frontend/public/sitemap.xml
 
+# Hosted-only artwork and the dev-only art review page.
+frontend/public/collection-art/
+frontend/public/art-review/
+frontend/public/guide/videos/
+
 # Development, test, documentation, secrets and repository state.
 test/
 Docs/

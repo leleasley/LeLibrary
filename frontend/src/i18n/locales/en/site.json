@@ -13,14 +13,10 @@
     "stremioText": "Where LeLibrary started. Your library, catalogues and streams in one addon.",
     "nuvioText": "Home rows, collections and settings pushed straight from your setup.",
     "artistsEyebrow": "The artists",
-    "artistsTitle": "The people behind the artwork",
-    "artistsLede": "The collection covers, animated focus art and stream badges you see in LeLibrary were made and shared by these creators.",
-    "artistsNote": "Artwork is served from LeLibrary for reliability, and every file keeps a record of where it came from. If you made one of these and want your credit changed or the image removed, get in touch on GitHub or Discord.",
+    "artistsTitle": "The people behind the badges",
+    "artistsLede": "The stream badges and templates you see in LeLibrary were made and shared by these creators. Collection covers and focus art are LeLibrary's own.",
+    "artistsNote": "If you made one of these and want your credit changed, get in touch on GitHub or Discord.",
     "role": {
-      "collections": "Collection covers and focus GIFs",
-      "actors": "Actor covers, focus GIFs and backdrops",
-      "services": "Streaming service and studio covers",
-      "artwork": "Collection artwork",
       "badges": "Stream badge pack",
       "formatter": "Stream templates and badges"
     },

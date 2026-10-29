@@ -12,7 +12,9 @@ import {
 // wizard's packCollections()/togglePack() pair; ids stay `pack-{id}` so a
 // re-toggle removes exactly what adding created.
 export const HUB_VORTEX_GIF = '/collection-assets/collections/gifs/lelibrary-hub-movies-focus-v3.gif';
-export const HUB_SYSTEM_COVER = '/collection-assets/collections/covers/lelibrary-hub-movie-collections-v2.png?v=2';
+// The owned LeLibrary Movie Collection uses the Hub cover (5.8: the older
+// "Movie Collections" image was retired with the community art).
+export const HUB_SYSTEM_COVER = '/collection-assets/collections/covers/lelibrary-hub-movies-v3.jpg';
 
 export interface CuratedSection {
   id: string;

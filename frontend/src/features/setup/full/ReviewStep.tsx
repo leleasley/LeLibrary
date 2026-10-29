@@ -60,7 +60,7 @@ export function ReviewStep({ password, confirmation, busy, error, backTo, onPass
           onSubmit={onSubmit} submitLabel={submitLabel ?? 'Create my setup'}
         >
           {activeConn && (
-            <p className="setup-note">Push to {platformName} is armed — creating the setup pushes straight after.</p>
+            <p className="setup-note">Push to {platformName} is armed - creating the setup pushes straight after.</p>
           )}
         </TierInstall>
       </>
@@ -78,7 +78,7 @@ export function ReviewStep({ password, confirmation, busy, error, backTo, onPass
     try {
       await saveSetup(session.uuid, { config: { collections: merged } }, push.editToken ?? '');
     } catch {
-      toast('Imported locally, but the save failed — push again from a fresh open', 'error');
+      toast('Imported locally, but the save failed - push again from a fresh open', 'error');
     }
   }
 
@@ -105,7 +105,7 @@ export function ReviewStep({ password, confirmation, busy, error, backTo, onPass
           ...(!activeConn
             ? { hint: `Open your setup and sign in to ${platformName} on the Destination step to push. Your install link below works either way.` }
             : push.libraryPending
-              ? { hint: 'Pushed. Your library folders are still being prepared and will appear on their own — nothing else to do.' }
+              ? { hint: 'Pushed. Your library folders are still being prepared and will appear on their own - nothing else to do.' }
               : push.pushed ? { hint: 'Pushed. Your saved setup can be pushed again any time.' } : {}),
         }}
         profilePicker={platform === 'nuvio' && profiles.length > 0 ? {

@@ -1,8 +1,8 @@
 // Platform + watchlist credentials inside a v5.5 config row.
 //
 // The row has exactly one encryption mechanism (seal.js, AES-256-GCM, server
-// key) for every secret type. Platform credentials are sealed — never hashed,
-// because a push must read them back — under `keys.push.{stremio,nuvio}` and
+// key) for every secret type. Platform credentials are sealed - never hashed,
+// because a push must read them back - under `keys.push.{stremio,nuvio}` and
 // watchlist tokens under `keys.watchlist.{simkl,trakt}`. The setup password
 // stays a one-way hash gating edits and has nothing to do with these.
 import type { OpenedConfig } from './config-store.ts';
@@ -123,7 +123,7 @@ async function refreshTraktForSetup(store: SetupStoreLike, uuid: string, conn: W
       if (opened) await store.save(uuid, { keys: mergeWatchlistKeys(asRecord(opened.keys), 'trakt', next) }).catch(() => {});
       return next;
     } catch {
-      // Another concurrent refresh may have just rotated the stored token —
+      // Another concurrent refresh may have just rotated the stored token -
       // re-read it before declaring the connection dead.
       try {
         const reread = await store.resolveByUuid(uuid).catch(() => null);

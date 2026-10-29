@@ -68,7 +68,7 @@ export function StreamAddonsSection({ selected, onChange, custom = [], onAddCust
     const on = position > -1;
     return (
       <article className={`stream-addon-row${on ? ' enabled' : ''}`} key={addon.id}>
-        <span className="addon-priority">{on ? position + 1 : '—'}</span>
+        <span className="addon-priority">{on ? position + 1 : '-'}</span>
         <span className="addon-logo">
           {addon.custom ? <span aria-hidden="true">⚡</span> : (
             <img

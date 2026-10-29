@@ -23,7 +23,7 @@ import { cleanCustomAddons, type CustomAddonRef } from '@/features/setup/shared/
 // Maps a saved structural config (from GET /api/setup/:uuid/config or the
 // unlock response) onto editor drafts so an edit starts where the setup left
 // off. Unknown values fall back to defaults; keys are never part of this
-// shape — the server excludes them before anything reaches the browser.
+// shape - the server excludes them before anything reaches the browser.
 // Saved structural config -> editor drafts. Both create flows persist the same
 // shape, so the editor seeds from the same fields and can therefore expose the
 // same sections the setup was created with.

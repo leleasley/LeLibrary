@@ -56,7 +56,7 @@ describe('import section layout', () => {
   it('notifies the page when the staged import is removed', () => {
     const onStage = vi.fn();
     // Static markup cannot click; assert the banner wires the remover by
-    // rendering it — interaction is covered by the staged round-trip below.
+    // rendering it - interaction is covered by the staged round-trip below.
     const html = renderToStaticMarkup(
       <MemoryRouter>
         <ImportSection

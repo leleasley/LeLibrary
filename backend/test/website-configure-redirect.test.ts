@@ -1,8 +1,8 @@
 // @ts-nocheck
 'use strict';
 // Token-scoped /:token/configure links (Stremio/Nuvio Configure buttons on
-// older cached manifests) must land on the setup's own UUID page — password
-// gate plus tier surface — never the generic picker.
+// older cached manifests) must land on the setup's own UUID page - password
+// gate plus tier surface - never the generic picker.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

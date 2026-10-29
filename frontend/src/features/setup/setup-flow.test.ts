@@ -87,7 +87,7 @@ describe('config contract', () => {
 
   it('carries the real poster provider set and preview samples', () => {
     expect(POSTER_PROVIDERS.map((provider) => provider.id)).toEqual([
-      '', 'erdb', 'rpdb', 'betterposter', 'pictorium', 'fanart', 'custom',
+      '', 'erdb', 'rpdb', 'betterposter', 'pictorium', 'postersplus', 'fanart', 'custom',
     ]);
     expect(POSTER_SAMPLES.length).toBeGreaterThanOrEqual(6);
     expect(POSTER_SAMPLES.every((sample) => /^tt\d+$/.test(sample.imdb))).toBe(true);

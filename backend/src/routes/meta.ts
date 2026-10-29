@@ -168,7 +168,7 @@ async function handleMeta(req: any, res: any, deps: MetaDeps): Promise<void> {
 
     // "More from this saga": for movies that belong to a built collection, add
     // a Stremio detail link that opens the franchise's own movie catalog (one
-    // row per franchise on Stremio manifests — folder-style, plain movies,
+    // row per franchise on Stremio manifests - folder-style, plain movies,
     // never a series/season view), plus the raw TMDB collection id (NuvioWeb
     // reads it for its native Collection tab). Purely additive; skipped when
     // the saga isn't in the collections cache (then the single

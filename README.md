@@ -303,7 +303,8 @@ with LeLibrary:
 
 **Posters and metadata**: [TMDB](https://www.themoviedb.org/),
 [Fanart.tv](https://fanart.tv/), [RPDB](https://ratingposterdb.com/),
-[BetterPosters](https://btttr.cc/), ERDB and Pictorium. This product uses the
+[BetterPosters](https://btttr.cc/), ERDB, Pictorium and
+[Posters+](https://github.com/UmbraProjects/PostersPlus). This product uses the
 TMDB API but is not endorsed or certified by TMDB.
 
 The full list of projects LeLibrary relies on is on the

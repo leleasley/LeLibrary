@@ -29,7 +29,7 @@ function isChunkError(error: unknown): boolean {
 }
 
 // Client-side route errors (render crashes, failed lazy chunk loads after a
-// deploy). Chunk failures auto-reload once — a fresh deploy ships new hashed
+// deploy). Chunk failures auto-reload once - a fresh deploy ships new hashed
 // assets, so the first load after release can reference stale chunks. The
 // 60s guard stops any reload loop if the reload itself fails.
 export function RouteErrorPage() {

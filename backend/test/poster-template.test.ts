@@ -56,3 +56,54 @@ test('custom poster edits change the non-secret artwork cache fingerprint', () =
 });
 
 export interface PosterTemplateTestTestModule {};
+
+// ── Posters+ and Nuvio-style placeholders (5.8) ───────────────────────
+const LINK = 'https://postersplus.elfhosted.com/poster?tmdb_id={tmdb_id?}&imdb_id={imdb_id?}&stremio_id={id}&type={type}&shape={shape}&vpcb=e0b84f&access_key=SECRETKEY&tmdb_key=TMDBKEY';
+
+test('optional placeholders are sent empty instead of dropping the poster', () => {
+  const t = 'https://p.example/poster?tmdb_id={tmdb_id?}&imdb_id={imdb_id?}&stremio_id={id}&type={type}&shape={shape}';
+  assert.equal(posters.resolve(t, { tmdbId: 278, imdbId: 'tt0111161', type: 'movie' }),
+    'https://p.example/poster?tmdb_id=278&imdb_id=tt0111161&stremio_id=tt0111161&type=movie&shape=poster');
+  // No IMDb id: still a poster, the Stremio id falls back to tmdb:<id>.
+  assert.equal(posters.resolve(t, { tmdbId: 1396, type: 'series' }),
+    'https://p.example/poster?tmdb_id=1396&imdb_id=&stremio_id=tmdb%3A1396&type=series&shape=poster');
+  // No identifier with a value at all: no poster (the row keeps its own).
+  assert.equal(posters.resolve('https://p.example/poster?tmdb_id={tmdb_id?}', { type: 'movie' }), null);
+  // Required placeholders keep their old rule.
+  assert.equal(posters.resolve('https://p.example/{tmdbId}.jpg', { imdbId: 'tt1' }), null);
+  assert.equal(posters.validate('https://p.example/poster?x={kitsu_id?}&tmdb_id={tmdb_id}').ok, false);
+});
+
+test('a Posters+ copied link becomes a template, keeping its style and keys', () => {
+  const checked = posters.fromPostersPlus(LINK);
+  assert.equal(checked.ok, true);
+  const url = posters.resolve(checked.value, { tmdbId: 278, imdbId: 'tt0111161', type: 'movie' });
+  assert.match(url, /^https:\/\/postersplus\.elfhosted\.com\/poster\?tmdb_id=278&imdb_id=tt0111161&stremio_id=tt0111161&type=movie&shape=poster&vpcb=e0b84f&access_key=SECRETKEY&tmdb_key=TMDBKEY$/);
+  // Encoded braces (some clients copy them that way) and other clients' placeholders.
+  const encoded = posters.fromPostersPlus('https://pp.example/poster?tmdb_id=%7Btmdb_id%7D&type=%7Btype%7D&anilist={anilist_id?}&access_key=k');
+  assert.equal(encoded.ok, true);
+  assert.ok(!encoded.value.includes('anilist'));
+  // A bare instance address gets the documented Nuvio identifier set.
+  const bare = posters.fromPostersPlus('https://pp.example/?access_key=k');
+  assert.equal(bare.ok, true);
+  assert.equal(posters.resolve(bare.value, { tmdbId: 5, type: 'movie' }), 'https://pp.example/poster?tmdb_id=5&imdb_id=&stremio_id=tmdb%3A5&type=movie&shape=poster&access_key=k');
+  for (const bad of ['', 'not a link', 'http://pp.example/poster?tmdb_id={tmdb_id}', 'https://pp.example/logo?tmdb_id={tmdb_id}']) {
+    assert.equal(posters.fromPostersPlus(bad).ok, false, bad);
+  }
+});
+
+test('Posters+ reaches every catalogue path as a custom template', () => {
+  const { posterEnhance, posterFp } = require('../src/runtime/cache-fingerprint.ts');
+  const enhance = posterEnhance({ posterProvider: 'postersplus', postersPlusUrl: LINK });
+  assert.equal(enhance.posterProvider, 'custom');
+  assert.ok(enhance.customPosterTemplate.startsWith('https://postersplus.elfhosted.com/poster?'));
+  // A broken link falls back to TMDB posters, never a broken image.
+  assert.deepEqual(
+    [posterEnhance({ posterProvider: 'postersplus', postersPlusUrl: 'nope' }).posterProvider, posterEnhance({ posterProvider: 'postersplus' }).customPosterTemplate],
+    ['', ''],
+  );
+  // Changing the link (a new style) changes the catalogue cache identity.
+  assert.notEqual(posterFp({ posterProvider: 'postersplus', postersPlusUrl: LINK }), posterFp({ posterProvider: 'postersplus', postersPlusUrl: LINK + '&vpct=000000' }));
+  // Other providers are untouched.
+  assert.equal(posterEnhance({ posterProvider: 'custom', customPosterTemplate: 'https://x.example/{tmdbId}.jpg' }).customPosterTemplate, 'https://x.example/{tmdbId}.jpg');
+});

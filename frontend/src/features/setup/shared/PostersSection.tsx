@@ -129,6 +129,15 @@ export function previewUrl(input: {
       const base = `/${encodeURIComponent(token)}/pictorium/${sample.type}/${sample.id}.jpg?preview=1&title=${encodeURIComponent(sample.title)}`;
       return { url: query ? `${base}&${query}` : base, note: null, error: null };
     }
+    case 'postersplus': {
+      const link = (keys.postersPlusUrl ?? '').trim();
+      if (!link) return { url: null, note: 'Paste your Posters+ link to see your style.', error: null };
+      if (!input.posterTemplate?.fromPostersPlus) return { url: null, note: 'Preparing the Posters+ preview…', error: null };
+      const checked = input.posterTemplate.fromPostersPlus(link);
+      if (!checked.ok) return { url: null, note: null, error: checked.error };
+      const url = input.posterTemplate.resolve(checked.value, { imdbId: sample.imdb, tmdbId: sample.id, type: sample.type });
+      return url ? { url, note: null, error: null } : { url: null, note: 'That link needs a field this title does not have.', error: null };
+    }
     case 'fanart':
       return { url: null, note: 'Fanart.tv art is fetched per title when your library loads.', error: null };
     default:
@@ -373,6 +382,7 @@ export function PostersSection({ draft, keys, onDraft, onKeys, hidePreview, hide
   const keyForProvider = draft.provider === 'erdb' ? 'erdbToken'
     : draft.provider === 'rpdb' ? 'rpdbKey'
     : draft.provider === 'fanart' ? 'fanartKey'
+    : draft.provider === 'postersplus' ? 'postersPlusUrl'
     : null;
   const keyField = keyForProvider ? ARTWORK_KEY_FIELDS.find((field) => field.field === keyForProvider) : null;
 

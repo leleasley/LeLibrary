@@ -182,7 +182,7 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
     res.type('image/svg+xml').send(svg);
   });
   // PNG twin of the SVG above. Nuvio's badge image loader ships no SVG
-  // decoder, so SVG badges decode to empty black chips there — the manifest
+  // decoder, so SVG badges decode to empty black chips there - the manifest
   // advertises these PNGs instead. Rendered once from the SVG source and
   // held in memory (37 small pills).
   const badgePngCache = new Map();
@@ -735,7 +735,7 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
     return res.redirect(target);
   });
 
-  // Wizard shared util — git-tracked, self-host safe (UMD)
+  // Wizard shared util - git-tracked, self-host safe (UMD)
   router.get('/wizard-shared.js', (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=300');
     res.sendFile(path.join(ROOT_DIR, 'backend', 'src', 'config', 'wizard-shared.js'));
@@ -1602,7 +1602,7 @@ const STATUS_CHECKS = [
   });
 
   // Setup edit pages (/:uuid): the React app. UUIDs are shaped, so this can
-  // never swallow an addon protocol route — anything else falls through to
+  // never swallow an addon protocol route - anything else falls through to
   // the addon handlers and the 404 below. Without a frontend build, unknown
   // ids fall through to the 404 as well.
   router.get('/:uuid', (req: Request, res: Response, next: NextFunction) => {

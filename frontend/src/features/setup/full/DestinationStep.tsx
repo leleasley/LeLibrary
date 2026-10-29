@@ -172,7 +172,7 @@ export function DestinationStep({ platform, onPlatform, connection, onConnection
               <strong>{saved?.user || 'Your account'}</strong>
               <span className="setup-note">
                 Already saved on this server: a push uses it, no login needed
-                {platform === 'nuvio' && saved && saved.profiles.length > 0 ? ` — ${saved.profiles.find((p) => p.profile_index === saved.selected)?.name ?? 'first profile'} receives it.` : '.'}
+                {platform === 'nuvio' && saved && saved.profiles.length > 0 ? ` - ${saved.profiles.find((p) => p.profile_index === saved.selected)?.name ?? 'first profile'} receives it.` : '.'}
               </span>
               {platform === 'nuvio' && saved && saved.profiles.length > 1 && (
                 <label className="setup-field action-inline-field">
@@ -309,7 +309,7 @@ export function DestinationStep({ platform, onPlatform, connection, onConnection
           </div>
           {profilesError && (
             <p className="setup-error">
-              {profilesError} — the list below is the one saved with your import. Reconnect the account to load it fresh.
+              {profilesError} - the list below is the one saved with your import. Reconnect the account to load it fresh.
             </p>
           )}
           {!profilesError && profiles.length === 0 && !profilesBusy && (

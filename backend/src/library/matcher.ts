@@ -649,7 +649,7 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
 
   // Newly matched items change what their title's meta shows (a new episode
   // joins the videos[] list), but meta responses are cached 24h under keys
-  // with no sync component — so without this, a new download stays invisible
+  // with no sync component - so without this, a new download stays invisible
   // on the detail page for a day even though the catalog card already lists
   // it. Evict this scope's metas (stream keys carry S/E, so new episodes are
   // fresh keys already; collection metas live under the same meta: prefix).

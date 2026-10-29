@@ -8,7 +8,7 @@ import {
 } from '@/features/setup/shared/BadgePackPicker';
 
 // Live per-pack preview: the bundled PNGs for the local pack, remote matches
-// through the JSON proxy for community packs — the same matching the stream
+// through the JSON proxy for community packs - the same matching the stream
 // preview already uses, so the card shows what Nuvio will actually render.
 export function PackPreview({ pack, customUrl }: { pack: string; customUrl: string }) {
   const preset = BADGE_PACKS.find((entry) => entry.id === pack);
@@ -99,7 +99,7 @@ export function BadgePackButton({ pack, customUrl, onChange }: {
         <div className="app-modal" role="dialog" aria-modal="true" aria-label="Choose a badge pack">
           <div className="app-modal-box app-modal-wide">
             <h3>Badge packs</h3>
-            <p>Tick one to apply it — the stream preview updates straight away. Packs are independent of stream formatting; Nuvio imports the pack once per profile.</p>
+            <p>Tick one to apply it - the stream preview updates straight away. Packs are independent of stream formatting; Nuvio imports the pack once per profile.</p>
             <div className="pack-grid">
               {BADGE_PACKS.map((entry) => (
                 <button

@@ -386,7 +386,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
             ...(!activeConn
               ? { hint: `Choose Stremio or Nuvio and sign in above to push your Home rows. The install link below works either way.` }
               : push.libraryPending
-                ? { hint: 'Pushed. Your library folders are still being prepared and will appear on their own — nothing else to do.' }
+                ? { hint: 'Pushed. Your library folders are still being prepared and will appear on their own - nothing else to do.' }
                 : push.pushed ? { hint: 'Pushed. Your saved setup can be pushed again any time.' } : {}),
           }}
           replaceOthers={activeConn ? { value: push.replaceOthers, onChange: push.setReplaceOthers } : null}
@@ -433,11 +433,11 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
       keys={keys} posters={posters} formatting={formatting} badgePack={{ pack: badgePack, url: badgeUrl }}
       rows={[
         { label: 'Library', value: connected.length ? connected.join(' + ') : 'Not connected yet', ok: connected.length > 0 },
-        { label: 'Name', value: name.trim() || '—' },
+        { label: 'Name', value: name.trim() || '-' },
         { label: 'Posters', value: artworkLabel },
         { label: 'Formatting', value: presetLabel },
         { label: 'Badges', value: BADGE_PACKS.find((entry) => entry.id === badgePack)?.name ?? badgePack },
-        { label: 'Home rows', value: enabledRows > 0 ? String(enabledRows) : '—' },
+        { label: 'Home rows', value: enabledRows > 0 ? String(enabledRows) : '-' },
         { label: 'Filters', value: filtersActive ? 'Custom' : 'Default' },
       ]}
     />

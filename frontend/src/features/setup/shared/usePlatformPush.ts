@@ -104,7 +104,7 @@ export function usePlatformPush(input: {
       // say so instead of implying nothing happened.
       handlers.current.onError?.(
         /timed out/i.test(message)
-          ? 'The push is taking longer than expected. It may still finish — check Nuvio in a minute, then push again if your collections are missing.'
+          ? 'The push is taking longer than expected. It may still finish - check Nuvio in a minute, then push again if your collections are missing.'
           : message,
       );
       return false;

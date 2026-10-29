@@ -181,7 +181,7 @@ export function importOldSetup(input: { email: string; idMasked: string }): Prom
 // setup, and the whole old account (collections, keys, logins, email) once it
 // has no other old setups left to import. Same
 // email+mask gate as the import, tight limit, and strictly a background
-// best-effort after creation — it can never fail the setup itself.
+// best-effort after creation - it can never fail the setup itself.
 export function purgeOldAccount(input: { email: string; idMasked: string }): Promise<{ ok: boolean; purged?: 'token' | 'account' }> {
   return apiClient.post<{ ok: boolean; purged?: 'token' | 'account' }>('/api/setup/migrate/purge', input);
 }

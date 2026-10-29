@@ -17,7 +17,7 @@ function hashShort(s) {
 // Rebuild the catalog meta shape from a persisted match_meta + the raw provider
 // item, preserving everything the stream/meta paths rely on. The MATCHED
 // season/episode win over the parsed row columns: they are equal except when
-// the match is smarter than the filename — split-season remaps (Kitchen
+// the match is smarter than the filename - split-season remaps (Kitchen
 // Nightmares US S10 stored as season 10 on the row, resolved to season 3),
 // pack-probe availability, date resolutions. Preferring the row there points
 // the owned-episode index at seasons the canonical entry never had, so the

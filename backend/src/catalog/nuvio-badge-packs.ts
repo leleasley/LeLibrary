@@ -2,7 +2,7 @@
 // Shared Nuvio badge-pack catalogue for Node. The browser picker's table is
 // BADGE_PACKS in frontend/src/features/setup/shared/BadgePackPicker.tsx; the
 // two must stay in sync (same ids and official community URLs). Only LeLibrary
-// artwork is bundled locally — community packs are always fetched from their
+// artwork is bundled locally - community packs are always fetched from their
 // maintainers' official URLs and never copied in.
 
 const LOCAL_PATH = '/api/nuvio-badges/lelibrary-premium.json';

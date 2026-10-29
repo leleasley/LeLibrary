@@ -17,17 +17,32 @@ function posterFp(config: Config = {}): string {
   const pictorium = posterProvider === 'pictorium'
     ? `${config.pictoriumUrl || ''}|${JSON.stringify(config.pictoriumOptions || {})}`
     : '';
-  return hashShort([posterProvider, erdbToken, rpdbKey, fanartKey, omdbKey, customPosterTemplate, enhanceBackground ? 1 : 0, enhanceLogo ? 1 : 0, pictorium].join('|'));
+  const postersPlus = posterProvider === 'postersplus' ? String(config.postersPlusUrl || '') : '';
+  return hashShort([posterProvider, erdbToken, rpdbKey, fanartKey, omdbKey, customPosterTemplate, enhanceBackground ? 1 : 0, enhanceLogo ? 1 : 0, pictorium, postersPlus].join('|'));
+}
+
+// Posters+ is a poster service driven by one link (its configurator's "Copy
+// config"), kept sealed with the keys. Every catalogue, search and meta path
+// already resolves custom templates, so it is handed over as one; a link that
+// cannot be read leaves TMDB posters in place.
+function postersPlusAsCustom(config: Config): { posterProvider: string; customPosterTemplate: string } {
+  const checked = require('../media/poster-template.ts').fromPostersPlus(config.postersPlusUrl);
+  return checked.ok
+    ? { posterProvider: 'custom', customPosterTemplate: checked.value }
+    : { posterProvider: '', customPosterTemplate: '' };
 }
 
 function posterEnhance(config: Config = {}) {
+  const poster = config.posterProvider === 'postersplus'
+    ? postersPlusAsCustom(config)
+    : { posterProvider: config.posterProvider, customPosterTemplate: config.customPosterTemplate };
   return {
     erdbToken: config.erdbToken,
     rpdbKey: config.rpdbKey,
     fanartKey: config.fanartKey,
     omdbKey: config.omdbKey,
-    posterProvider: config.posterProvider,
-    customPosterTemplate: config.customPosterTemplate,
+    posterProvider: poster.posterProvider,
+    customPosterTemplate: poster.customPosterTemplate,
     enhanceBackground: config.enhanceBackground,
     enhanceLogo: config.enhanceLogo,
     pictorium: {

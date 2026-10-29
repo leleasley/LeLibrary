@@ -381,7 +381,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
 
   // An import hands back a live setup, so it travels the same road as a fresh
   // creation: /{uuid} with the just-created install link. (Staged old-setup
-  // imports migrate at submit instead — see submit().)
+  // imports migrate at submit instead - see submit().)
 
   // Keys the import holds that are sitting empty here: they will not travel to
   // the new setup, and creation removes the old one, so name them.
@@ -427,12 +427,12 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
         { label: 'Destination', value: platform === 'nuvio' ? 'Nuvio' : 'Stremio' },
         { label: 'Library', value: connected.length ? connected.join(' + ') : 'Not connected yet', ok: connected.length > 0 },
         { label: 'Catalogs', value: rdCatalog === 'separate' ? 'Separate rows' : 'Combined' },
-        { label: 'Name', value: name.trim() || '—' },
+        { label: 'Name', value: name.trim() || '-' },
         { label: 'Posters', value: artworkLabel },
         { label: 'Formatting', value: presetLabel },
         { label: 'Badges', value: BADGE_PACKS.find((entry) => entry.id === badgePack)?.name ?? badgePack },
-        { label: 'Home rows', value: homeRows.length > 0 ? String(homeRows.length) : '—' },
-        { label: 'Collections', value: collections.length > 0 ? `${collections.length} · ${folderCount} folders` : '—' },
+        { label: 'Home rows', value: homeRows.length > 0 ? String(homeRows.length) : '-' },
+        { label: 'Collections', value: collections.length > 0 ? `${collections.length} · ${folderCount} folders` : '-' },
         ...(stagedImport ? [{ label: 'Import', value: stagedImport.label ?? stagedImport.idMasked }] : []),
         { label: 'Filters', value: filtersActive ? 'Custom' : 'Default' },
       ]}

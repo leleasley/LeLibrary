@@ -39,6 +39,8 @@ export interface PosterTemplateLib {
   validate: (template: string) => PosterValidation;
   resolve: (template: string, media: Record<string, unknown>) => string | null;
   apply: (row: unknown, template: string) => unknown;
+  // Present on servers from 5.8: a Posters+ copied link as a template.
+  fromPostersPlus?: (link: string) => PosterValidation;
 }
 
 export interface PictoriumOptionsLib {

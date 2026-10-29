@@ -123,7 +123,7 @@ function mountIntegrationRoutes(app: Express, deps: IntegrationDeps): void {
   const { resolveConfig } = deps;
 // Stable path-based client facade. Some clients derive every resource URL by
 // stripping `/manifest.json`, so the integration identity must live in the
-// path—not a query string—and all resource routes must remain siblings.
+// path-not a query string-and all resource routes must remain siblings.
 app.get('/:token/i/:client/manifest.json', (req: any, res: any) => runClientIntegration(req, res, 'manifest', (fReq: any, fRes: any) => handleConfiguredManifest(fReq, fRes, { resolveConfig }), { error: 'Manifest unavailable' }));
 app.get('/:token/i/:client/catalog/:type/:catalogId.json', (req: any, res: any) => runClientIntegration(req, res, 'catalog', (fReq: any, fRes: any) => handleCatalog(fReq, fRes, { resolveConfig }), { metas: [] }));
 app.get('/:token/i/:client/catalog/:type/:catalogId/:extra.json', (req: any, res: any) => runClientIntegration(req, res, 'catalog', (fReq: any, fRes: any) => handleCatalog(fReq, fRes, { resolveConfig }), { metas: [] }));

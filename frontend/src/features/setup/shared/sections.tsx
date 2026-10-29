@@ -204,14 +204,14 @@ export function KeyInput({ label, hint, value, onChange, verifyEndpoint, placeho
       {saved && empty && (
         fromImport ? (
           <small className="setup-hint is-warn">
-            Empty, so it will not be carried over — and creating this setup removes the old one.
+            Empty, so it will not be carried over - and creating this setup removes the old one.
             {onReveal ? ' Press the eye to fetch it, or paste it again.' : ' Paste it again to keep it.'}
           </small>
         ) : (
           <small className="setup-hint">
             {onReveal
               ? 'Saved on the server. Leave blank to keep it, or press the eye to show it.'
-              : 'Saved on the server — leave blank to keep it.'}
+              : 'Saved on the server - leave blank to keep it.'}
           </small>
         )
       )}

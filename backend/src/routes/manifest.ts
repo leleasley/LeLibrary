@@ -133,7 +133,7 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
     if (type === 'series' && config.catalogSeries === false && !selected) return;
     if (type === 'anime' && config.catalogAnime === false && !selected) return;
     // Auto-omit: the manifest handler proved via the local index that this
-    // library holds no anime, so don't advertise the row at all — Stremio
+    // library holds no anime, so don't advertise the row at all - Stremio
     // fetches every advertised catalog, and an anime fetch for an anime-free
     // library is pure waste (slow cold, empty warm). An explicitly enabled
     // anime row is always kept, so this never overrides a deliberate choice.
@@ -175,7 +175,7 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
   // franchises are built it gets one movie catalog PER franchise instead:
   // each reads like a folder that opens its films (served by the
   // `torbox-collection-{key}` handler, which stays for old links regardless).
-  // This deliberately re-expands the manifest on Stremio only — Nuvio keeps
+  // This deliberately re-expands the manifest on Stremio only - Nuvio keeps
   // the single compact row its folders point at. Cold (nothing built yet):
   // fall back to the single row so the section exists while the background
   // build runs. Hidden from Nuvio Home via `showInHome: false`; Stremio
@@ -257,7 +257,7 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
       const row: LooseConfig = {
         id: catalogId,
         type,
-        name: `Custom Streams — ${type === 'movie' ? 'Movies' : 'Series'}`,
+        name: `Custom Streams - ${type === 'movie' ? 'Movies' : 'Series'}`,
         extra: CAT_EXTRA,
       } as LooseConfig;
       if (homeManaged && integration === 'nuvio' && !selected) row.showInHome = false;

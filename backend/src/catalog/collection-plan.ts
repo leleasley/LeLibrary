@@ -109,7 +109,7 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
   const safeHomeRows = Array.isArray(homeRows) ? homeRows : [];
   // LeLibrary Collections is a native collection, not a Home row. It is always
   // at the very bottom of the collections list. Previously it was toggled via
-  // a pseudo Home row (catalogId torbox-collections) — that row is now removed
+  // a pseudo Home row (catalogId torbox-collections) - that row is now removed
   // from the Home UI and filtered here. For backward compatibility, an existing
   // stored home row with torbox-collections still controls the toggle, but when
   // absent the franchise is disabled. It is an opt-in Quick Pack, never an

@@ -2,7 +2,7 @@
 //
 // The Nuvio push adapter and compileCollectionPlan already speak this
 // document, and saved setups store it, so the shapes here must not drift.
-// `genre` stays on every source and `externalSourceId` stays optional — the
+// `genre` stays on every source and `externalSourceId` stays optional - the
 // plan compiler reads both.
 
 export type TileShape = 'LANDSCAPE' | 'PORTRAIT';
@@ -298,7 +298,7 @@ export const OWNED_MARKER_ID = 'native-franchise-collection';
 
 // Owned-franchise marker row: a native
 // collection row, fixed at the bottom of Nuvio Collections, never a Home
-// row there — keep it for Stremio only in the browser.
+// row there - keep it for Stremio only in the browser.
 export function ownedFranchiseMarker(order: number): HomeRowDoc {
   return {
     id: OWNED_MARKER_ID,
@@ -317,7 +317,7 @@ export function ownedFranchiseMarker(order: number): HomeRowDoc {
 // use the default torbox prefix, and re-resolve live to the connected
 // provider the moment a key is filled in. A stored row whose prefix ends up
 // not matching the install's active provider is ignored at manifest time,
-// so a guessed prefix can never break an install — it just stays dormant.
+// so a guessed prefix can never break an install - it just stays dormant.
 export function nativeLibraryRows(prefix: string | null, platform: string): BrowserSource[] {
   const resolved = prefix || 'torbox';
   const rows: BrowserSource[] = [
@@ -379,7 +379,7 @@ export function homeRowFromSource(source: BrowserSource, order: number): HomeRow
 }
 
 // Nuvio renders the franchise as a native collection at the bottom, never a
-// Home row — strip it there (the marker excepted). Stremio keeps it.
+// Home row - strip it there (the marker excepted). Stremio keeps it.
 export function normalizeHomeOrder(rows: HomeRowDoc[], platform: string): HomeRowDoc[] {
   const kept = platform === 'nuvio'
     ? rows.filter((row) => row._nativeFranchiseCollection === true || String(row.source?.catalogId || '') !== 'torbox-collections')

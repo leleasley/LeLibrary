@@ -381,7 +381,7 @@ async function writeNuvioCollections(token: string, profileIndex: number, collec
 
 // Apply the setup's selected badge pack to the target Nuvio profile. Nuvio
 // renders badges from the profile's own badge settings, so changing the
-// picker in LeLibrary must also rewrite that setting — otherwise the profile
+// picker in LeLibrary must also rewrite that setting - otherwise the profile
 // keeps showing whichever pack was imported before. Only the badge rules
 // value is replaced; every other profile setting passes through untouched.
 // Best-effort: badge failures never fail the collection push.
@@ -949,7 +949,7 @@ async function pushToNuvio(
 
 // Install one setup's manifest on the platform connection. A one-time
 // sign-in may be passed as the connection instead of the saved one; it is
-// deliberately never persisted — the saved envelope stays intact and the
+// deliberately never persisted - the saved envelope stays intact and the
 // credential disappears once the request has finished.
 async function installSetup(input: InstallSetupInput): Promise<InstallSetupResult> {
   const { uuid, installToken, connection, platform, document, options = {}, origin, port } = input;

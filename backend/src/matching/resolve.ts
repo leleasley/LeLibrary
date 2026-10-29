@@ -3,7 +3,7 @@
 // identity out. Every consumer (background matcher, catalog/meta/stream
 // request paths) uses this and treats the result read-only: nothing
 // downstream may substitute filename numbering, re-pick candidates, or
-// invent fallbacks. That is the whole point — the 2026-09-17 outage was five
+// invent fallbacks. That is the whole point - the 2026-09-17 outage was five
 // stacked layers each re-deciding the season slightly differently.
 //
 // Resolution algorithm (series, the movie path is a straight pick):

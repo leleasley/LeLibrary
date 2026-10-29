@@ -42,3 +42,22 @@ describe('poster preview', () => {
     expect(previewUrl(input('custom')).note).toMatch(/template/i);
   });
 });
+
+describe('Posters+ preview', () => {
+  const lib = {
+    validate: () => ({ ok: true as const, value: '', placeholders: [] }),
+    resolve: (template: string, media: Record<string, unknown>) => template.replace('{tmdb_id?}', String(media['tmdbId'])),
+    apply: (row: unknown) => row,
+    fromPostersPlus: (link: string) => (link.startsWith('https://')
+      ? { ok: true as const, value: 'https://pp.example/poster?tmdb_id={tmdb_id?}&access_key=k', placeholders: ['tmdb_id?'] }
+      : { ok: false as const, error: 'Paste the full Posters+ link (it starts with https://).' }),
+  };
+
+  it('asks for the link, then previews the style from it', () => {
+    expect(previewUrl(input('postersplus')).note).toBe('Paste your Posters+ link to see your style.');
+    const shown = previewUrl({ ...input('postersplus', { postersPlusUrl: 'https://pp.example/poster?x=1' }), posterTemplate: lib });
+    expect(shown.url).toBe(`https://pp.example/poster?tmdb_id=${sample.id}&access_key=k`);
+    const bad = previewUrl({ ...input('postersplus', { postersPlusUrl: 'nope' }), posterTemplate: lib });
+    expect(bad.error).toBe('Paste the full Posters+ link (it starts with https://).');
+  });
+});

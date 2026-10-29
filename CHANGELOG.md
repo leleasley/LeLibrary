@@ -28,6 +28,10 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 - Franchises fan out their own posters with the real title logo and the run of years. Genres, moods and decades use timeless stills, so they do not date.
 - Collections you already pushed switch to the new art on their own.
 
+### Posters
+
+- New poster service: Posters+ by ElfHosted. Pick a style in Posters+, press Copy config and paste the link into your setup. Your posters then use that style everywhere LeLibrary shows them: your library, collections, Discover rows and search. The link is kept sealed with your other keys.
+
 ### Fixes
 
 - Many catalogues pointed at the wrong studio, network, service or keyword and showed the wrong titles. They are corrected, broken collections and dead lists are replaced, and decade rows each have their own list.

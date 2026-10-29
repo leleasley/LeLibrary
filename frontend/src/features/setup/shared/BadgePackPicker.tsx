@@ -47,7 +47,7 @@ function cssColor(value: unknown, fallback = '#858283'): string {
 }
 
 // AARRGGBB black with a zero alpha byte: the pack explicitly asks for no
-// fill. Treated as absent so the group's category colour shows instead —
+// fill. Treated as absent so the group's category colour shows instead -
 // otherwise combo packs (BetterFormatter et al) preview as monochrome
 // because their colour lives on tier-gated badges our sample never matches.
 function transparentBlack(value: unknown): boolean {

@@ -61,7 +61,7 @@ const BADGES = [
 const byId = new Map(BADGES.map((row) => [row[0], row]));
 function escapeXml(value) { return String(value).replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&apos;' })[c]); }
 // Badge colors are stored Nuvio-style (AARRGGBB). SVG renderers read 8-digit
-// hex as RRGGBBAA instead, which would tint every badge wrong — strip the
+// hex as RRGGBBAA instead, which would tint every badge wrong - strip the
 // alpha prefix down to plain RGB for raster output.
 function svgColor(value) {
   const raw = String(value || '').trim();
@@ -89,7 +89,7 @@ function manifest(baseUrl) {
     filters: BADGES.map(([id, groupId, name, pattern, tagColor]) => ({
       // PNG: Nuvio's badge image loader has no SVG decoder, so SVG badges
       // decode to empty black chips. PNG renders everywhere. The ?v= query
-      // busts Nuvio's on-device image cache whenever the artwork changes —
+      // busts Nuvio's on-device image cache whenever the artwork changes -
       // bump ART_VERSION with any visual/label edit or apps keep the old art.
       id, groupId, name, pattern, imageURL: `${root}/api/nuvio-badges/lelibrary-premium/${id}.png?v=${ART_VERSION}`,
       // Nuvio draws borderColor as a separate chip around the image. The PNG

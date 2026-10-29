@@ -369,7 +369,7 @@ export function PublishPanel({
         </summary>
         <div className="install-option-body install-manual">
           <p className="setup-hint">
-            Setup id {uuid.slice(0, 8)}… — keep these private: anyone with the link can watch. Changing settings needs your password.
+            Setup id {uuid.slice(0, 8)}… - keep these private: anyone with the link can watch. Changing settings needs your password.
           </p>
           <div className="copy-row">
             <input readOnly value={manifest} aria-label="Manifest URL" onFocus={(event) => event.target.select()} />

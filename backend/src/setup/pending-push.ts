@@ -3,7 +3,7 @@
 //
 // The owned library folders are the one part of a push that needs a built
 // projection, and a big account takes minutes to build. A push that could not
-// include them used to end with "push again in a minute" — asking the person to
+// include them used to end with "push again in a minute" - asking the person to
 // do the server's work. Instead the push records itself here and a background
 // job waits for the projection, then replays the same install the person's push
 // ran (same code path, same saved connection, same recorded origin), so the

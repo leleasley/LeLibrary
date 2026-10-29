@@ -34,7 +34,7 @@ export function TierInstall({ password, confirmation, busy, error, onPassword, o
   const ready = password.length > 0 && match;
   const status = !password ? 'Choose a password to lock your setup'
     : mismatch ? 'Passwords do not match'
-    : match ? 'Passwords match — ready to create'
+    : match ? 'Passwords match - ready to create'
     : 'Confirm your password';
 
   return (

@@ -37,7 +37,7 @@ function buildMdblistSourceDefinitions({ list, label, mediaTypes } = {}) {
     engine: 'list',
     mediaType,
     params: { listId },
-    label: types.length > 1 ? `${baseLabel} — ${mediaType === 'movie' ? 'Movies' : 'Series'}` : baseLabel,
+    label: types.length > 1 ? `${baseLabel} - ${mediaType === 'movie' ? 'Movies' : 'Series'}` : baseLabel,
     provenance: { adapter: 'wizard-mdblist', originHash: '', importedLabel: baseLabel },
   }));
 }

@@ -194,7 +194,7 @@ function remapSplitSeason(matchedId, season) {
 // correct when the core kept its id: split-season remaps (Kitchen Nightmares
 // US S10 → revival entry 235884 S03) change the ENTRY, so building the meta
 // from the pre-split candidate bakes the wrong tmdbId/title/artwork into the
-// stored match while the season looks right — episodes then filter against an
+// stored match while the season looks right - episodes then filter against an
 // entry that never had them. Resolve the target's own object instead. Never
 // throws: falls back to an id-overridden copy of the candidate.
 async function canonicalSource(tmdbApiKey, resolved, lang) {

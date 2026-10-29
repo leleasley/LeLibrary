@@ -2,7 +2,7 @@
 //
 // The old flow bound state to a session cookie. There are no sessions here:
 // state is a random token held server-side in a short-lived pending map that
-// binds it to the setup UUID — or to nothing for pre-creation connects, where
+// binds it to the setup UUID - or to nothing for pre-creation connects, where
 // the callback hands the tokens to the opener instead of sealing them. The
 // callback consumes the state exactly once, exchanges the code (verbatim
 // provider calls), and renders a self-closing popup page that signals the

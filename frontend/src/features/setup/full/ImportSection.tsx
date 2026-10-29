@@ -38,8 +38,8 @@ export interface ImportedPayload {
 }
 
 // Move In's import entry: a launch button at the top of the flow that opens
-// the old-setup browser. Picking a setup imports everything at once — keys,
-// logins, settings, collections — straight into the draft, no password at
+// the old-setup browser. Picking a setup imports everything at once - keys,
+// logins, settings, collections - straight into the draft, no password at
 // any point before creation.
 export function ImportSection({ staged, platform, keepsCollections = true, onStage }: {
   staged: StagedImport | null;
@@ -215,7 +215,7 @@ export function ImportModal({ open, onClose, platform, onStage }: {  open: boole
           <div>
             <span className="setup-kicker">Coming from the old setup</span>
             <h3>Find your old setup</h3>
-            <p>Enter your old account email, pick the setup you recognise, and everything lands on this page — keys, logins, settings and collections.</p>
+            <p>Enter your old account email, pick the setup you recognise, and everything lands on this page - keys, logins, settings and collections.</p>
           </div>
           <button type="button" className="eye-btn" aria-label="Close" onClick={onClose}>✕</button>
         </div>

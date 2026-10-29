@@ -502,7 +502,7 @@ function mountImageRoutes(app: Express, deps: ImageRoutesDeps): void {
       let hit = await pictoriumCacheGet(cacheKey);
       if (!hit) {
         // Fast path: don't make a client wait the full render if it can be
-        // avoided — but DO wait briefly. Clients (Stremio especially) pin the
+        // avoided - but DO wait briefly. Clients (Stremio especially) pin the
         // first bytes per URL, so an instant redirect pins TMDB fallback art
         // and the finished render is never seen. The wait is bounded; on
         // timeout the TMDB poster is served exactly as before.
@@ -526,7 +526,7 @@ function mountImageRoutes(app: Express, deps: ImageRoutesDeps): void {
         // Background warm renders must be allowed to finish: Pictorium can
         // take 30s+ per poster when an upstream (e.g. MDBList) is failing,
         // and a client-sized timeout here aborts the fetch just before it
-        // completes — so nothing is ever cached and every view 302s forever.
+        // completes - so nothing is ever cached and every view 302s forever.
         // Interactive callers never reach this branch with a long wait (the
         // fast path above already answered them), so a generous timeout only
         // affects background work.

@@ -50,13 +50,8 @@ async function warmConfiguredLibraryCatalogs(config = {}, { limit = 3 } = {}) {
   const { getSourceDefinition } = require('./catalog-source-registry.ts');
   const { buildLibraryCatalog } = require('./libcatalog.ts');
   const providers = require('../providers/index.ts');
-  const enhance = {
-    erdbToken: config.erdbToken,
-    rpdbKey: config.rpdbKey,
-    fanartKey: config.fanartKey,
-    posterProvider: config.posterProvider,
-    customPosterTemplate: config.customPosterTemplate,
-  };
+  // The same poster settings the catalogue route uses (Posters+, Pictorium...).
+  const enhance = require('../runtime/cache-fingerprint.ts').posterEnhance(config);
   const eligible = ids.filter((id) => !!getSourceDefinition(id));
   let warmed = 0;
   let failed = 0;

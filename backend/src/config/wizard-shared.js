@@ -1,4 +1,4 @@
-// Wizard shared util — git-tracked, self-host safe
+// Wizard shared util - git-tracked, self-host safe
 // No dependency on src/accounts; browser gets it as UMD at /wizard-shared.js
 // and server can require() it. Mirrors token-map so configure.html stays untouched.
 (function (root, factory) {
@@ -45,7 +45,7 @@
     } catch { return null; }
   }
 
-  // poster fingerprint — must match app.ts:posterFp()
+  // poster fingerprint - must match app.ts:posterFp()
   function hashShort(s) {
     var h = 0; for (var i=0;i<s.length;i++) h = ((h<<5)-h+s.charCodeAt(i))|0;
     return (h>>>0).toString(36);
@@ -71,7 +71,7 @@
   function buildWizardConfig(form) {
     if (!form || typeof form !== 'object') return {};
     var cfg = {};
-    // primitive copy — caller passes the exact shape; we just trim/skip empties
+    // primitive copy - caller passes the exact shape; we just trim/skip empties
     for (var k in form) {
       if (!Object.prototype.hasOwnProperty.call(form, k)) continue;
       var v = form[k];

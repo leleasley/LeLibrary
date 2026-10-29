@@ -144,7 +144,7 @@ describe('pack picker', () => {
     const html = renderToStaticMarkup(<PackLibraryModal {...base} curated={[]} />);
     expect(html).toContain('LeLibrary Movie Collections');
     expect(html).toContain('Also adds a Home row for your franchises.');
-    expect(html).not.toContain('—');
+    expect(html).not.toContain(String.fromCodePoint(0x2014));
   });
 
   it('flags seasonal packs', () => {

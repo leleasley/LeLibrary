@@ -246,6 +246,9 @@ export interface SetupKeysDraft {
   rpdbKey?: string;
   omdbKey?: string;
   fanartKey?: string;
+  // The Posters+ link from its configurator ("Copy config"): carries the
+  // style and the instance's access key, so it is sealed like a key.
+  postersPlusUrl?: string;
   // Links to the user's own stream addons (sealed, never revealed).
   customAddon1?: string;
   customAddon2?: string;
@@ -277,14 +280,15 @@ export const PROVIDER_KEY_FIELDS: KeyField[] = [
 
 export const METADATA_KEY_FIELDS: KeyField[] = [
   { field: 'tmdbApiKey', label: 'TMDB API key', hint: 'Required for title search, metadata, posters and exact episode choices. Copy the 32-character v3 API key from your TMDB account settings.', logo: '/logos/TMDB.svg', required: true, placeholder: 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', docsUrl: 'https://www.themoviedb.org/settings/api' },
-  { field: 'tvdbApiKey', label: 'TVDB API key', hint: 'Optional. Free from your TVDB account. Improves series matching.', logo: '/tvdb.png', placeholder: 'Optional — TVDB sharpens series matching', docsUrl: 'https://thetvdb.com/dashboard/account/apikey' },
-  { field: 'omdbKey', label: 'OMDb key', hint: 'Optional. Extra metadata from the Open Movie Database.', placeholder: 'Optional — extra ratings metadata', docsUrl: 'https://www.omdbapi.com/apikey.aspx' },
+  { field: 'tvdbApiKey', label: 'TVDB API key', hint: 'Optional. Free from your TVDB account. Improves series matching.', logo: '/tvdb.png', placeholder: 'Optional - TVDB sharpens series matching', docsUrl: 'https://thetvdb.com/dashboard/account/apikey' },
+  { field: 'omdbKey', label: 'OMDb key', hint: 'Optional. Extra metadata from the Open Movie Database.', placeholder: 'Optional - extra ratings metadata', docsUrl: 'https://www.omdbapi.com/apikey.aspx' },
 ];
 
 export const ARTWORK_KEY_FIELDS: KeyField[] = [
   { field: 'erdbToken', label: 'ERDB token', hint: 'Ratings on posters from EasyRatingsDB.', docsUrl: 'https://easyratingsdb.com/configurator' },
   { field: 'rpdbKey', label: 'RPDB key', hint: 'Rating posters from Rating Poster DB.', docsUrl: 'https://ratingposterdb.com/' },
   { field: 'fanartKey', label: 'Fanart.tv key', hint: 'High-resolution alternative art.', docsUrl: 'https://www.fanart.tv/' },
+  { field: 'postersPlusUrl', label: 'Posters+ link', hint: 'Open Posters+, pick a style, press Copy config and paste the link here.', docsUrl: 'https://postersplus.elfhosted.com/' },
 ];
 
 // Key field -> POST /api/verify/* endpoint. The server checks the key live;
@@ -310,6 +314,7 @@ export const POSTER_PROVIDERS: { id: string; name: string; blurb: string }[] = [
   { id: 'rpdb', name: 'RPDB ratings', blurb: 'Rating posters. Needs an RPDB key below.' },
   { id: 'betterposter', name: 'BetterPosters', blurb: 'Community artwork from btttr.cc.' },
   { id: 'pictorium', name: 'Pictorium', blurb: 'Build your own posters: badges, ratings, backdrops. Free.' },
+  { id: 'postersplus', name: 'Posters+', blurb: 'Styled posters from Posters+ by ElfHosted. Paste your Posters+ link below.' },
   { id: 'fanart', name: 'Fanart.tv', blurb: 'High-resolution alternative art. Needs a Fanart.tv key below.' },
   { id: 'custom', name: 'Custom template', blurb: 'Your own poster URL template with {tmdbId} or {imdbId}.' },
 ];

@@ -314,7 +314,7 @@ function createConfigStore(options: ConfigStoreOptions = {}): ConfigStore {
     // structural config AND the sealed secrets, so one DELETE removes
     // everything the server stores for this UUID. Library index rows and
     // artwork caches are keyed by provider-hash, shared across installs and
-    // TTL-bound — they are nobody's personal data store and are left to age
+    // TTL-bound - they are nobody's personal data store and are left to age
     // out, never deleted per-UUID (that would nuke other installs).
     async remove(uuid) {
       if (!isUuid(uuid)) return false;

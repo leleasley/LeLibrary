@@ -25,7 +25,7 @@ describe('saved key reveal affordance', () => {
       saved: true,
     });
     expect(html).not.toContain('Show saved key');
-    expect(html).toContain('Saved on the server — leave blank to keep it.');
+    expect(html).toContain('Saved on the server - leave blank to keep it.');
   });
 
   it('is a plain visibility toggle once the field holds something', () => {

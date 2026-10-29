@@ -15,7 +15,7 @@ const { createConfigStore, normaliseTier } = require('./config-store.ts') as {
 };
 
 export interface MigrateInput {
-  // How the setup to import is identified — one of:
+  // How the setup to import is identified - one of:
   // - tokenId: the old saved token id from the user's own install link. It
   //   is the proof of ownership: whoever holds the install link owns it.
   // - email + idMasked: the account email plus the masked id shown in the

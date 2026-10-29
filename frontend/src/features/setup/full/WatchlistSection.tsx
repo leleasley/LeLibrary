@@ -111,7 +111,7 @@ export function WatchlistSection({ uuid, editToken, draft, onDraft }: {
           return;
         }
         onDraft?.({ ...(draft ?? {}), [tokens.provider]: conn });
-        toast(`${tokens.provider === 'simkl' ? 'Simkl' : 'Trakt'} connected — saved with your setup`);
+        toast(`${tokens.provider === 'simkl' ? 'Simkl' : 'Trakt'} connected - saved with your setup`);
       }
     }
     window.addEventListener('message', onMessage);
@@ -182,11 +182,11 @@ export function WatchlistSection({ uuid, editToken, draft, onDraft }: {
               </div>
               <p>
                 {uuid === null && !precreation
-                  ? 'Create this setup first — connects live on the review step.'
+                  ? 'Create this setup first - connects live on the review step.'
                   : unavailable
                     ? 'Not configured on this server'
                     : precreation && connected
-                      ? 'Connected — seals into the setup when you create it.'
+                      ? 'Connected - seals into the setup when you create it.'
                       : <span data-i18n-preserve>{item.blurb}</span>}
               </p>
             </div>

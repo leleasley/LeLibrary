@@ -82,6 +82,7 @@ const REVEALABLE_KEY_SERVICES = new Set([
   'erdbToken',
   'rpdbKey',
   'fanartKey',
+  'postersPlusUrl',
 ]);
 
 // Pure decision step for key reveal, exported for unit tests. Returns the

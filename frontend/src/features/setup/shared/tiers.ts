@@ -9,7 +9,7 @@ export interface TierDefinition {
   tagline: string;
   covers: string[];
   // Number of sections on the tier's page, password included. Verified against
-  // the section id arrays in setup-flow.test.ts — update both together.
+  // the section id arrays in setup-flow.test.ts - update both together.
   steps: number;
   recommended?: boolean;
 }

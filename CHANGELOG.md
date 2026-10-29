@@ -10,6 +10,7 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 - Profiles can be created, renamed, recoloured, copied and deleted. Deleting asks you to type the profile's exact name first.
 - LeLibrary takes a backup before every change it makes to Nuvio. You can restore a backup or undo the last change at any time.
 - Home rows now show their real catalogue names instead of internal ids.
+- No Nuvio or Stremio account yet? Create one right on the Destination step. It is created by Nuvio or Stremio itself (LeLibrary never sees your password), a new Nuvio account gets its first profile named after your setup, and your setup is pushed to it as normal.
 - Settle In now signs in to Nuvio or Stremio at the start, like Move In. Creating a Settle In or Move In setup fills in playback and Hide unreleased from your Nuvio profile, and the edit page shows what the profile has set right now.
 
 ### Collections

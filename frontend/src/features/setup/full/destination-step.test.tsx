@@ -70,3 +70,15 @@ describe('destination step with a saved connection', () => {
     expect(html).not.toContain('Already saved on this server');
   });
 });
+
+describe('sign in or create an account', () => {
+  it('offers both, signing in first', () => {
+    const html = renderToStaticMarkup(
+      <DestinationStep platform="nuvio" onPlatform={() => {}} connection={null} onConnection={() => {}} profileName="Living room" />,
+    );
+    expect(html).toContain('Have a Nuvio account?');
+    expect(html).toMatch(/aria-pressed="true"[^>]*>Sign in</);
+    expect(html).toContain('>Create one<');
+    expect(html).toContain('>Connect<');
+  });
+});

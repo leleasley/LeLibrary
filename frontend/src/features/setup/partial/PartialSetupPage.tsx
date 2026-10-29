@@ -369,6 +369,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
           deskBody={activeConn ? undefined : (
             <div id="settle-in-destination">
               <DestinationStep
+              profileName={name}
                 platform={platform}
                 onPlatform={setPlatform}
                 connection={connection}
@@ -461,6 +462,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
           <TierStep id="destination" index={1} title="Destination" hidden={wizard.step !== 0} lede="Where this setup gets installed. Sign in now and your Home rows can be pushed straight to your player at the end. Already have a v5 setup? Bring it across instead.">
             {!edit && <ImportSection staged={stagedImport} platform={platform} keepsCollections={false} onStage={stageImport} />}
             <DestinationStep
+              profileName={name}
               platform={platform} onPlatform={setPlatform}
               connection={connection} onConnection={setConnection}
               {...(edit ? { savedAccount: edit.savedAccount, onSavedProfile: edit.onSavedProfile } : {})}

@@ -185,3 +185,107 @@ export async function ensureFreshNuvio(connection: PlatformConnection): Promise<
   if (!nuvioTokenExpired(connection.nuvioToken)) return connection;
   return renewNuvioSession(connection);
 }
+
+// ── Creating an account ──────────────────────────────────────────────────
+// Runs browser-to-platform exactly like sign-in: the email and password go
+// only to Nuvio's or Stremio's own API, LeLibrary's server gets the session
+// afterwards and never the password. If the platform turns open sign-ups off
+// (or wants an email confirmed first), the person is sent to its own page.
+
+export const SIGNUP_LINKS = {
+  nuvio: { terms: 'https://nuvio.tv/terms', privacy: 'https://nuvio.tv/privacy-policy', page: 'https://nuvio.tv/account' },
+  stremio: { terms: 'https://www.stremio.com/tos', privacy: 'https://www.stremio.com/privacy', page: 'https://www.stremio.com/register' },
+} as const;
+
+export const MIN_PASSWORD = 8;
+
+/** Sign-up is not possible here right now: use the platform's own page. */
+export class SignupUnavailableError extends Error {
+  readonly platform: 'nuvio' | 'stremio';
+  constructor(platform: 'nuvio' | 'stremio', message: string) {
+    super(message);
+    this.platform = platform;
+  }
+}
+
+function checkNewAccount(email: string, password: string, agreed: boolean): void {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Enter a valid email address');
+  if (password.length < MIN_PASSWORD) throw new Error('Use a password of at least 8 characters');
+  if (!agreed) throw new Error('Tick the box to agree to the terms first');
+}
+
+const NEW_PROFILE_COLOR = '#1E88E5';
+
+// A brand-new Nuvio account has no profiles until an app creates one: make the
+// main profile, named after the setup, so the push has somewhere to land.
+async function ensureFirstNuvioProfile(token: string, name: string): Promise<NuvioProfileRef[]> {
+  let profiles = await fetchNuvioProfiles(token).catch(() => [] as NuvioProfileRef[]);
+  if (profiles.length) return profiles;
+  await nuvioRpc(token, '/rest/v1/rpc/sync_push_profiles', {
+    p_profiles: [{ profile_index: 1, name: name.trim().slice(0, 40) || 'Main', avatar_color_hex: NEW_PROFILE_COLOR, uses_primary_addons: false, uses_primary_plugins: false }],
+    p_client_max_profiles: 6,
+    p_origin_client_id: 'lelibrary-web-signup',
+  });
+  profiles = await fetchNuvioProfiles(token).catch(() => [] as NuvioProfileRef[]);
+  return profiles;
+}
+
+export async function signupNuvio(email: string, password: string, options: { agreed: boolean; profileName: string }): Promise<PlatformConnection> {
+  checkNewAccount(email, password, options.agreed);
+  const r = await fetch(`${NUVIO_API_BASE}/auth/v1/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: NUVIO_PUBLISHABLE_KEY },
+    body: JSON.stringify({ email, password }),
+    signal: AbortSignal.timeout(20000),
+  });
+  let data: Record<string, unknown> | null = null;
+  try { data = await r.json(); } catch { /* fall through */ }
+  if (!r.ok) {
+    const code = String(data?.['error_code'] || data?.['code'] || '');
+    const message = String(data?.['msg'] || data?.['message'] || data?.['error_description'] || '');
+    if (code === 'user_already_exists' || /already (registered|exists)/i.test(message)) {
+      throw new Error('That email already has a Nuvio account. Sign in instead.');
+    }
+    if (code === 'signup_disabled' || /signups? (not allowed|disabled)/i.test(message)) {
+      throw new SignupUnavailableError('nuvio', 'Nuvio is not taking new accounts here right now. Create one on Nuvio\'s site, then sign in.');
+    }
+    if (r.status === 429) throw new Error('Too many attempts: wait a minute and try again');
+    throw new Error(message || `Nuvio could not create the account (HTTP ${r.status})`);
+  }
+  // Auto-confirmed accounts come back signed in; anything else needs the
+  // person to confirm their email on Nuvio's side first.
+  const token = typeof data?.['access_token'] === 'string' ? data['access_token'] as string : '';
+  if (!token) {
+    throw new SignupUnavailableError('nuvio', 'Nuvio sent you an email to confirm the account. Confirm it, then sign in here.');
+  }
+  const profiles = await ensureFirstNuvioProfile(token, options.profileName);
+  return {
+    platform: 'nuvio',
+    nuvioToken: token,
+    nuvioRefresh: (data?.['refresh_token'] as string) || null,
+    nuvioUser: (data?.['user'] as unknown) ?? null,
+    nuvioProfiles: profiles,
+    nuvioSelectedProfile: profiles[0]?.profile_index ?? null,
+  };
+}
+
+export async function registerStremio(email: string, password: string, options: { agreed: boolean }): Promise<PlatformConnection> {
+  checkNewAccount(email, password, options.agreed);
+  let data: Record<string, unknown>;
+  try {
+    data = await stremioCall('register', {
+      type: 'Register',
+      email,
+      password,
+      gdpr_consent: { tos: true, privacy: true, marketing: false, from: 'web' },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (/already|exists|taken|registered/i.test(message)) throw new Error('That email already has a Stremio account. Sign in instead.');
+    throw error;
+  }
+  const result = (data['result'] || {}) as Record<string, unknown>;
+  const authKey = result['authKey'] || result['token'];
+  if (!authKey) throw new SignupUnavailableError('stremio', 'Stremio did not sign the new account in. Create it on Stremio\'s site, then sign in.');
+  return { platform: 'stremio', stremioAuth: String(authKey), stremioUser: result['user'] ?? null };
+}

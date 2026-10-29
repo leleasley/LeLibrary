@@ -722,6 +722,15 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
 .connection-form { display: grid; gap: 4px; }
 .connection-form .setup-primary { justify-self: start; margin-top: 6px; }
 .connection-note { margin-top: 8px; }
+/* Sign in to an account, or create one. */
+.connection-mode { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 8px; color: var(--muted); font-size: 0.86rem; }
+.connection-mode button { padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
+.connection-mode button.is-active { border-color: var(--amber); background: rgba(245, 158, 11, 0.12); color: var(--text); font-weight: 600; }
+.connection-mode button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.connection-agree { display: flex; align-items: flex-start; gap: 10px; margin-top: 8px; font-size: 0.86rem; line-height: 1.45; cursor: pointer; }
+.connection-agree input { margin-top: 3px; accent-color: var(--amber); flex: 0 0 auto; }
+.connection-links { display: block; margin-top: 2px; font-size: 0.8rem; }
+.connection-links a { color: var(--amber); }
 .destination-connection { display: grid; grid-template-columns: 42px minmax(0,1fr) auto; align-items: center; gap: 12px; }
 .destination-connection > img { width: 36px; height: 36px; object-fit: contain; }
 .destination-connection strong { display: block; margin: 4px 0 1px; font-size: 0.88rem; }

@@ -1,10 +1,15 @@
 import { apiErrorCopy } from '@/api/error-copy';
 import { useEffect, useState } from 'react';
 import { toast } from '@/features/setup/shared/Toast';
+import { setupCopy } from '@/features/setup/shared/setup-copy';
 import {
+  SIGNUP_LINKS,
+  SignupUnavailableError,
   loginNuvio,
   loginStremio,
   refreshNuvioConnection,
+  registerStremio,
+  signupNuvio,
   type NuvioProfileRef,
   type PlatformConnection,
 } from '@/features/setup/full/platform-login';
@@ -23,7 +28,7 @@ function connectionUser(connection: PlatformConnection): string {
 // straight after creation. Sign-in runs browser-to-platform; only the
 // session is sealed on the server when the setup is saved. Switching player
 // drops the other player's session, so a push never targets the wrong app.
-export function DestinationStep({ platform, onPlatform, connection, onConnection, savedAccount, onSavedProfile }: {
+export function DestinationStep({ platform, onPlatform, connection, onConnection, savedAccount, onSavedProfile, profileName = '' }: {
   platform: 'nuvio' | 'stremio';
   onPlatform: (next: 'nuvio' | 'stremio') => void;
   connection: PlatformConnection | null;
@@ -32,11 +37,17 @@ export function DestinationStep({ platform, onPlatform, connection, onConnection
   // nothing to sign in for, so say so instead of showing an empty login form.
   savedAccount?: { user: string | null; profiles: NuvioProfileRef[]; selected: number | null } | null;
   onSavedProfile?: (profileIndex: number) => void;
+  // Name for the first Nuvio profile when a new account is created here.
+  profileName?: string;
 }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Sign in to an existing account, or create one (browser-to-platform).
+  const [mode, setMode] = useState<'signin' | 'create'>('signin');
+  const [agreed, setAgreed] = useState(false);
+  const [unavailable, setUnavailable] = useState<string | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
   const [profilesBusy, setProfilesBusy] = useState(false);
   const [profilesError, setProfilesError] = useState<string | null>(null);
@@ -89,20 +100,38 @@ export function DestinationStep({ platform, onPlatform, connection, onConnection
     onConnection(null);
     setEmail('');
     setPassword('');
+    setAgreed(false);
+    setUnavailable(null);
+  }
+
+  function switchMode(next: 'signin' | 'create') {
+    setMode(next);
+    setUnavailable(null);
+    setPassword('');
   }
 
   async function connect() {
     if (busy) return;
     setBusy(true);
+    setUnavailable(null);
     try {
-      const result = platform === 'nuvio'
-        ? await loginNuvio(email.trim(), password)
-        : await loginStremio(email.trim(), password);
+      const creating = mode === 'create';
+      const result = creating
+        ? (platform === 'nuvio'
+          ? await signupNuvio(email.trim(), password, { agreed, profileName })
+          : await registerStremio(email.trim(), password, { agreed }))
+        : (platform === 'nuvio'
+          ? await loginNuvio(email.trim(), password)
+          : await loginStremio(email.trim(), password));
       onConnection(result);
       setPassword('');
-      toast('Connected');
+      toast(creating
+        ? setupCopy('Account created and connected. Use this email and password in the app.', 'Account created and connected. Use this email and password in the app.')
+        : 'Connected');
     } catch (error) {
-      toast(apiErrorCopy(error, 'Could not sign in'), 'error');
+      const message = apiErrorCopy(error, mode === 'create' ? 'Could not create the account' : 'Could not sign in');
+      if (error instanceof SignupUnavailableError) setUnavailable(setupCopy(message, message));
+      else toast(setupCopy(message, message), 'error');
     } finally {
       setBusy(false);
     }
@@ -166,6 +195,12 @@ export function DestinationStep({ platform, onPlatform, connection, onConnection
           </div>
         ) : !active ? (
           <div className="connection-form">
+            <div className="connection-mode" role="group" aria-label={platform === 'nuvio' ? 'Nuvio account' : 'Stremio account'}>
+              <span>{platform === 'nuvio' ? 'Have a Nuvio account?' : 'Have a Stremio account?'}</span>
+              <button type="button" className={mode === 'signin' ? 'is-active' : ''} aria-pressed={mode === 'signin'} onClick={() => switchMode('signin')}>Sign in</button>
+              <span aria-hidden="true">or</span>
+              <button type="button" className={mode === 'create' ? 'is-active' : ''} aria-pressed={mode === 'create'} onClick={() => switchMode('create')}>Create one</button>
+            </div>
             {saved && (
               <p className="setup-note">
                 Connecting here replaces the session already saved for this setup.
@@ -183,7 +218,8 @@ export function DestinationStep({ platform, onPlatform, connection, onConnection
               <span>Password</span>
               <span className="setup-provider-row">
                 <input
-                  type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password}
+                  type={showPassword ? 'text' : 'password'} autoComplete={mode === 'create' ? 'new-password' : 'current-password'} value={password}
+                  minLength={mode === 'create' ? 8 : undefined}
                   onChange={(event) => setPassword(event.target.value)}
                   onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void connect(); } }}
                 />
@@ -195,12 +231,39 @@ export function DestinationStep({ platform, onPlatform, connection, onConnection
                 </button>
               </span>
             </label>
-            <button type="button" className="setup-primary" disabled={busy} onClick={() => void connect()}>
-              {busy ? 'Connecting…' : 'Connect'}
+            {mode === 'create' && (
+              <>
+                <small className="setup-hint">At least 8 characters. You sign in to the app with this email and password.</small>
+                <label className="connection-agree">
+                  <input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} />
+                  <span>
+                    {platform === 'nuvio' ? 'I agree to Nuvio\'s Terms and Privacy Policy.' : 'I agree to Stremio\'s Terms and Privacy Policy.'}
+                    <span className="connection-links">
+                      <a href={SIGNUP_LINKS[platform].terms} target="_blank" rel="noopener noreferrer">Terms</a>
+                      <span aria-hidden="true"> · </span>
+                      <a href={SIGNUP_LINKS[platform].privacy} target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+                    </span>
+                  </span>
+                </label>
+              </>
+            )}
+            {unavailable && (
+              <p className="setup-error" role="alert">
+                {unavailable}{' '}
+                <a href={SIGNUP_LINKS[platform].page} target="_blank" rel="noopener noreferrer">
+                  {platform === 'nuvio' ? 'Open Nuvio' : 'Open Stremio'}
+                </a>
+              </p>
+            )}
+            <button type="button" className="setup-primary" disabled={busy || (mode === 'create' && !agreed)} onClick={() => void connect()}>
+              {mode === 'create'
+                ? (busy ? 'Creating account…' : 'Create account')
+                : (busy ? 'Connecting…' : 'Connect')}
             </button>
             <p className="setup-note connection-note">
-              Optional. Sign-in goes straight to {platform === 'nuvio' ? 'Nuvio' : 'Stremio'} —
-              only the session is sealed on this server when you save, never in your install URL.
+              {mode === 'create'
+                ? `Optional. The account is created by ${platform === 'nuvio' ? 'Nuvio' : 'Stremio'} itself, straight from this page: LeLibrary never sees or stores your password, only the session when you save.`
+                : `Optional. Sign-in goes straight to ${platform === 'nuvio' ? 'Nuvio' : 'Stremio'}: only the session is sealed on this server when you save, never in your install URL.`}
             </p>
           </div>
         ) : (

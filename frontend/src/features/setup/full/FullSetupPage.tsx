@@ -483,6 +483,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
           <TierStep id="destination" index={1} title="Destination" hidden={wizard.step !== 0} lede="Where this setup gets installed. Already have a v5 setup? Bring it across instead.">
             {!edit && <ImportSection staged={stagedImport} platform={platform} onStage={stageImport} />}
             <DestinationStep
+              profileName={name}
               platform={platform} onPlatform={setPlatform}
               connection={pushConn} onConnection={setPushConn}
               {...(edit ? { savedAccount: edit.savedAccount, onSavedProfile: edit.onSavedProfile } : {})}

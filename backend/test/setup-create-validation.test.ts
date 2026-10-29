@@ -64,4 +64,24 @@ test('accepts a setup with a TMDB key', async () => {
   }
 });
 
+test('a Destination-step login is sealed with the setup; a malformed one is dropped', async () => {
+  const app = express();
+  let stored = null;
+  mountSetupRoutes(app, { getStore: async () => ({ create: async (input) => { stored = input; return CREATED; } }) });
+  const server = app.listen(0);
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const nuvio = { platform: 'nuvio', nuvioToken: 'synthetic-access', nuvioRefresh: 'synthetic-refresh', nuvioSelectedProfile: 2 };
+    let res = await create(base, { tmdbApiKey: 'synthetic-tmdb', push: { nuvio, stremio: { stremioAuth: '' }, other: { x: 1 } } });
+    assert.equal(res.status, 201);
+    assert.deepEqual(stored.keys.push, { nuvio }, 'only the well-formed Nuvio session is kept');
+    res = await create(base, { tmdbApiKey: 'synthetic-tmdb', push: { nuvio: { nuvioToken: '' } } });
+    assert.equal(res.status, 201);
+    assert.equal(stored.keys.push, undefined, 'nothing usable, nothing stored');
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 export interface SetupCreateValidationTestModule {}

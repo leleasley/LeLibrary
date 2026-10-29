@@ -39,8 +39,11 @@ test('wizard-managed Nuvio manifest keeps folder-backed rows off Home', () => {
   const coll = rows(m).find((c) => c.id === 'torbox-collections');
   assert.ok(coll, 'expected torbox-collections');
   assert.equal(coll.showInHome, false, 'folder-backed collections row stays off Home');
-  const search = (coll.extra || []).find((e) => e.name === 'search');
-  assert.ok(search && search.isRequired === true, 'required search extra keeps it out of listings');
+  // Off mobile Home through a required genre (every folder sends one), and no
+  // search extra: its films are already in My Movies, so search showed them twice.
+  assert.equal((coll.extra || []).some((e) => e.name === 'search'), false, 'collections are not searched');
+  const genre = (coll.extra || []).find((e) => e.name === 'genre');
+  assert.ok(genre && genre.isRequired === true, 'required genre keeps it out of listings');
 });
 
 test('curated folder catalogue is emitted only when nuvioCollectionPacks is selected', () => {
@@ -62,10 +65,9 @@ test('a v5.5 Nuvio setup also keeps the flat franchise row off Home', () => {
   const coll = rows(m).find((c) => c.id === 'torbox-collections');
   assert.ok(coll, 'the folder backing row must still be declared for folders to resolve');
   assert.equal(coll.showInHome, false, 'but never offered to Home');
-  const search = (coll.extra || []).find((e) => e.name === 'search');
-  assert.ok(search && search.isRequired === true, 'required search extra keeps it out of listings');
+  assert.equal((coll.extra || []).some((e) => e.name === 'search'), false, 'collections are not searched');
   const genre = (coll.extra || []).find((e) => e.name === 'genre');
-  assert.ok(genre && Array.isArray(genre.options), 'franchise folders still filter by genre');
+  assert.ok(genre && Array.isArray(genre.options) && genre.isRequired === true, 'franchise folders filter by a required genre, which keeps it out of listings');
   // Stremio has no folders, so the visible row stays there.
   const stremio = getConfiguredManifest(BASE, setupConfig, { integration: 'stremio' });
   const stremioColl = rows(stremio).find((c) => c.id === 'torbox-collections');
@@ -85,8 +87,8 @@ test('search rows stay out of Home on every install type', () => {
 
 test('search scope advertises separate global and owned result rows in order', () => {
   const expected = {
-    combined: ['lelibrary-search-movies', 'lelibrary-search-series', 'lelibrary-search-my-movies', 'lelibrary-search-my-series', 'lelibrary-search-collections'],
-    library: ['lelibrary-search-my-movies', 'lelibrary-search-my-series', 'lelibrary-search-collections'],
+    combined: ['lelibrary-search-movies', 'lelibrary-search-series', 'lelibrary-search-my-movies', 'lelibrary-search-my-series'],
+    library: ['lelibrary-search-my-movies', 'lelibrary-search-my-series'],
     tmdb: ['lelibrary-search-movies', 'lelibrary-search-series'],
   };
   for (const [scope, ids] of Object.entries(expected)) {

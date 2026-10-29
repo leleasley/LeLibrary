@@ -207,7 +207,7 @@ test('collection plan compiles private imports into exact manifest routes with h
   const { normalizeImportedSourceDefinition } = require('../src/import-sources/definition.ts');
   const source = normalizeImportedSourceDefinition({
     provider: 'tmdb', engine: 'list', mediaType: 'movie', params: { listId: 987 },
-    label: 'New Action Movies', provenance: { adapter: 'xperience-v1', originHash: 'synthetic' },
+    label: 'New Action Movies', provenance: { adapter: 'legacy-import', originHash: 'synthetic' },
   });
   const plan = compileCollectionPlan({
     integration: 'nuvio', manifestId: 'community.lelibrary.dev', sources: [source],
@@ -233,11 +233,11 @@ test('collection plan rejects a private reference without an authorized context 
   assert.equal(plan.importedTypes.length, 0);
 });
 
-test('collection plan never pushes disabled unsupported Xperience folders', () => {
+test('collection plan never pushes disabled unsupported imported folders', () => {
   const plan = compileCollectionPlan({
     integration: 'nuvio',
-    collections: [{ _import: { adapter: 'xperience-v1' }, folders: [
-      { enabled: false, _import: { adapter: 'xperience-v1', unsupported: [{ reason: 'unsupported_family' }] }, catalogSources: [] },
+    collections: [{ _import: { adapter: 'legacy-import' }, folders: [
+      { enabled: false, _import: { adapter: 'legacy-import', unsupported: [{ reason: 'unsupported_family' }] }, catalogSources: [] },
       { enabled: true, catalogSources: [{ catalogId: 'lib-genre_action_movies', type: 'movie' }] },
     ] }],
   });
@@ -247,8 +247,8 @@ test('collection plan never pushes disabled unsupported Xperience folders', () =
 
   const onlyUnsupported = compileCollectionPlan({
     integration: 'nuvio',
-    collections: [{ _import: { adapter: 'xperience-v1' }, folders: [
-      { enabled: false, _import: { adapter: 'xperience-v1', unsupported: [{ reason: 'unsupported_family' }] }, catalogSources: [] },
+    collections: [{ _import: { adapter: 'legacy-import' }, folders: [
+      { enabled: false, _import: { adapter: 'legacy-import', unsupported: [{ reason: 'unsupported_family' }] }, catalogSources: [] },
     ] }],
   });
   assert.deepEqual(onlyUnsupported.collections, []);

@@ -1,7 +1,7 @@
 // @ts-nocheck
 // ── Extra catalog source families (hand-maintained) ──────────
 //
-// Deterministic source families that do not come from an Xperience export:
+// Deterministic source families that do not come from the imported export:
 // film directors, decades, original-language and origin-country rows. They are
 // merged into src/catalogdefs.js so the generated file stays the single source
 // of truth for callers, and scripts/gen-catalogdefs.js spreads these back in on

@@ -313,7 +313,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
     // An imported old setup is removed (and the old account with it once
     // nothing else is left to import) after creation succeeds, as on Move In.
     void creation.create(
-      { name, config: draft.config, keys: draft.keys },
+      { name, config: draft.config, keys: draft.keys, connection: connection?.platform === platform ? connection : null },
       stagedImport ? { purgeImport: { email: stagedImport.email, idMasked: stagedImport.idMasked } } : undefined,
     ).then((ok) => { if (ok) clearPartialDraft(); });
   }

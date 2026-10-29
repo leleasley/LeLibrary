@@ -362,7 +362,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
     // the old account is purged in the background.
     const draft = buildDraft();
     void creation.create(
-      { name, config: draft.config, keys: draft.keys },
+      { name, config: draft.config, keys: draft.keys, connection: pushConn?.platform === platform ? pushConn : null },
       stagedImport ? { purgeImport: { email: stagedImport.email, idMasked: stagedImport.idMasked } } : undefined,
     ).then((ok) => { if (ok) clearFullDraft(); });
   }

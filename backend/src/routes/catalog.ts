@@ -88,62 +88,6 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
     }
   }
 
-  // Poster precedence mirrors enhanceMeta/discovery: custom > pictorium >
-  // erdb > rpdb > betterposter > fanart. Async (fanart fetches); the caller
-  // awaits it like every other catalog branch.
-  async function searchCollectionFilms({ userKey, lang, query, libraryIdMode, config = {} }: any) {
-    const words = String(query || '').toLowerCase().split(/[^a-z0-9]+/).filter(word => word.length > 1);
-    if (!words.length) return [];
-    const enhance = posterEnhance(config);
-    const { erdbToken, rpdbKey, fanartKey, posterProvider, customPosterTemplate } = enhance as Record<string, any>;
-    const pictoriumOn = !!((enhance as Record<string, any>).pictorium && (enhance as Record<string, any>).pictorium.enabled);
-    const builder = require('../catalog/builder.ts');
-    const rows = [];
-    for (const collection of getCollections(userKey, lang)) {
-      for (const video of (collection.videos || [])) {
-        const title = String(video.title || '').toLowerCase();
-        if (!words.every(word => title.includes(word))) continue;
-        const tmdbId = video.tmdbId || Number(String(video.id || '').split(':').pop());
-        const row = {
-          id: libraryIdMode === 'tt' && video.imdbId ? video.imdbId : `torbox:movie:${tmdbId}`,
-          type: 'movie', name: video.title, tmdbId,
-          imdbId: video.imdbId || undefined,
-          poster: video.thumbnail ? video.thumbnail.replace('/w300', '/w500') : null,
-          releaseInfo: String(video.released || '').slice(0, 4) || undefined,
-          released: video.released || undefined,
-        };
-        rows.push(row);
-      }
-    }
-    const filtered = rows.filter(row => row.poster).slice(0, 50);
-    if (!filtered.length) return filtered;
-    if (posterProvider === 'custom') {
-      const posterTemplate = require('../media/poster-template.ts');
-      return filtered.map((row: any) => posterTemplate.apply(row, customPosterTemplate));
-    }
-    if (pictoriumOn || erdbToken || rpdbKey || fanartKey || posterProvider === 'betterposter') {
-      await Promise.all(filtered.map(async (row: any) => {
-        if (pictoriumOn && row.tmdbId) {
-          const url = builder.buildPictoriumPosterUrl(enhance, {
-            type: 'movie', id: row.tmdbId, title: row.name,
-            releaseDate: row.released, imdbId: row.imdbId, fallback: row.poster,
-          });
-          if (url) { row.poster = url; row.posterShape = 'poster'; }
-        } else if (erdbToken && row.imdbId) {
-          row.poster = builder.erdbProxyUrl(enhance, 'poster', row.imdbId, row.poster) || row.poster;
-        } else if (rpdbKey && row.imdbId) {
-          row.poster = builder.buildRpdbUrl(rpdbKey, 'imdb', 'poster-default', row.imdbId);
-        } else if (posterProvider === 'betterposter' && row.imdbId) {
-          row.poster = builder.buildBetterPosterUrl(row.imdbId, 'movie');
-          row.posterShape = 'poster';
-        } else if (fanartKey && row.tmdbId) {
-          const art = await builder.getFanartArt(fanartKey, row.tmdbId, 'movie').catch(() => null);
-          if (art && art.poster) row.poster = art.poster;
-        }
-      }));
-    }
-    return filtered;
-  }
 
   async function handleCatalog(req: any, res: any, deps: CatalogDeps): Promise<void> {
   const { resolveConfig } = deps;
@@ -211,11 +155,15 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       const extra = parseExtra(req.params.extra || '');
       const query = extra.search || '';
       const type = searchMatch[1] === 'movies' ? 'movie' : 'series';
-      const enhance = posterEnhance(config);
+      // Plain TMDB posters here, whatever the setup's poster style: search
+      // results are new titles every time, so a rendered style (Pictorium,
+      // Posters+...) had nothing warm and every poster waited on a fresh
+      // render. TMDB's own posters load at once. Library search (below) keeps
+      // the setup's style: those posters are rendered ahead of time.
       const metas = await timeSpan(req.perfTrace, 'search-catalog', () => searchCatalog({
         apiKey: tmdbApiKey, query, type, lang,
-        enhance,
-        enhanceFingerprint: posterFp(config),
+        enhance: {},
+        enhanceFingerprint: 'plain',
       }));
       res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
       return res.json(withCacheHints({ metas }, { cacheMaxAge: 300, staleRevalidate: 1800, staleError: 1800 }));
@@ -240,11 +188,11 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
       return res.json(withCacheHints({ metas }, { cacheMaxAge: 300, staleRevalidate: 1800, staleError: 1800 }));
     }
-    if (catalogId === 'lelibrary-search-collections' && req.params.type === 'movie') {
-      const extra = parseExtra(req.params.extra || '');
-      const metas = await searchCollectionFilms({ userKey: providers.getUserKey(config), lang, query: extra.search || '', libraryIdMode, config });
-      res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
-      return res.json(withCacheHints({ metas }, { cacheMaxAge: 300, staleRevalidate: 1800, staleError: 1800 }));
+    // Collection films are the same films as My Movies: search no longer
+    // lists them twice. Old manifests still ask, so answer with nothing.
+    if (catalogId === 'lelibrary-search-collections') {
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      return res.json(withCacheHints({ metas: [] }, { cacheMaxAge: 300 }));
     }
 
     const importedMatch = catalogId.match(/^lelibrary-import-(movie|series)(?:,(imp_[a-f0-9]{64}))?$/);

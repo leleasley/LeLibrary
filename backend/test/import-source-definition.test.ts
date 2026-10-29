@@ -13,7 +13,7 @@ test('imported source canonical JSON and full SHA-256 id are deterministic', () 
   const a = normalizeImportedSourceDefinition({
     provider: 'tmdb', engine: 'discover', mediaType: 'movie',
     params: { filters: { with_genres: '28', 'vote_count.gte': 100 }, sortBy: 'popularity.desc' },
-    label: 'Action one', provenance: { adapter: 'xperience-v1', originHash: 'one' },
+    label: 'Action one', provenance: { adapter: 'legacy-import', originHash: 'one' },
   });
   const b = normalizeImportedSourceDefinition({
     label: 'A completely different label', mediaType: 'movie', engine: 'discover', provider: 'tmdb',
@@ -33,7 +33,7 @@ test('unknown recipe and provenance fields are rejected', () => {
   }), error => error instanceof ImportedSourceValidationError && error.code === 'unsupported_field');
   assert.throws(() => normalizeImportedSourceDefinition({
     provider: 'tmdb', engine: 'list', mediaType: 'movie', params: { listId: 1 },
-    provenance: { adapter: 'xperience-v1', requestHeaders: { authorization: 'secret' } },
+    provenance: { adapter: 'legacy-import', requestHeaders: { authorization: 'secret' } },
   }), /unsupported field/);
 });
 

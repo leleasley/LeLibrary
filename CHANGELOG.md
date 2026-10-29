@@ -31,7 +31,7 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 ### Posters
 
-- New poster service: Posters+ by ElfHosted. Pick a style in Posters+, press Copy config and paste the link into your setup. Your posters then use that style everywhere LeLibrary shows them: your library, collections, Discover rows and search. The link is kept sealed with your other keys.
+- New poster service: Posters+ by ElfHosted. Pick a style in Posters+, press Copy config and paste the link into your setup. Your posters then use that style everywhere LeLibrary shows them: your library, collections, Discover rows and library search. The link is kept sealed with your other keys.
 
 ### Fixes
 
@@ -40,3 +40,6 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 - The poster preview in setup no longer redraws non-stop, and previews load faster.
 - The setup pages load faster, most noticeably on slow connections and VPNs: much smaller images, no outside font service, and fewer requests.
 - Folder artwork links in the collection editor are always full links.
+- Search is faster: movie and series results from TMDB load their posters straight away (plain TMDB posters), while your library results keep your poster style.
+- Search no longer lists your LeLibrary Movie Collection films a second time; they are already under My Movies.
+- The "your setup is live" screen no longer closes when you dismiss a password manager or browser prompt, and your Nuvio or Stremio sign-in is saved with the setup as soon as it is created, so it is never lost if you leave before pushing.

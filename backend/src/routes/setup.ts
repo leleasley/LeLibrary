@@ -187,6 +187,19 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
       res.status(400).json({ error: `Tier must be one of: ${TIERS.join(', ')}` });
       return;
     }
+    // A Nuvio/Stremio login made on the Destination step is sealed with the
+    // setup at creation, so it survives even if the person never presses
+    // push (the end screen can be closed). Only well-formed sessions are kept.
+    if (keyRecord['push'] !== undefined) {
+      const conns = require('../setup/connections.ts');
+      const sent = (keyRecord['push'] && typeof keyRecord['push'] === 'object' ? keyRecord['push'] : {}) as Record<string, unknown>;
+      const kept: Record<string, unknown> = {};
+      for (const platform of ['nuvio', 'stremio']) {
+        if (sent[platform] && !conns.validatePushConnection(platform, sent[platform])) kept[platform] = sent[platform];
+      }
+      if (Object.keys(kept).length) keyRecord['push'] = kept;
+      else delete keyRecord['push'];
+    }
     try {
       const { normaliseSetupConfigCollections } = require('../setup/collections.ts') as {
         normaliseSetupConfigCollections: <T>(config: T) => T;
@@ -195,7 +208,7 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
         tier: (tier as string) || DEFAULT_TIER,
         name,
         config: normaliseSetupConfigCollections((config && typeof config === 'object' ? config : {}) as Record<string, unknown>),
-        keys: (keys && typeof keys === 'object' ? keys : {}) as Record<string, unknown>,
+        keys: keyRecord,
         password: password ? String(password) : null,
       });
       // Start the library now, not at the first client request. The build takes

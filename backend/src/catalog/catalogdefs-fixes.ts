@@ -1,7 +1,7 @@
 // @ts-nocheck
 // ── Catalogue corrections (hand-maintained) ──────────────────
 //
-// The generated table (catalogdefs.ts) came from an Xperience export and
+// The generated table (catalogdefs.ts) came from an imported catalogue export and
 // carries a number of wrong TMDB ids, exact duplicates and series rows that use
 // movie-only genre ids. This overlay fixes what each catalogue POINTS AT while
 // keeping every catalogue id, name, type and group unchanged: saved setups and

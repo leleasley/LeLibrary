@@ -84,3 +84,15 @@ describe('creating a Stremio account', () => {
       .rejects.toThrow('That email already has a Stremio account. Sign in instead.');
   });
 });
+
+describe('the Destination login is saved with the setup', () => {
+  it('adds a usable session to the keys, and nothing otherwise', async () => {
+    const { withConnection } = await import('@/features/setup/shared/useCreateSetup');
+    const keys = { tmdbApiKey: 'k' };
+    expect(withConnection(keys, { platform: 'nuvio', nuvioToken: 't', nuvioSelectedProfile: 2 }))
+      .toEqual({ tmdbApiKey: 'k', push: { nuvio: { platform: 'nuvio', nuvioToken: 't', nuvioSelectedProfile: 2 } } });
+    expect(withConnection(keys, { platform: 'stremio', stremioAuth: 'a' })).toMatchObject({ push: { stremio: { stremioAuth: 'a' } } });
+    expect(withConnection(keys, { platform: 'nuvio', nuvioToken: null })).toBe(keys);
+    expect(withConnection(keys, null)).toBe(keys);
+  });
+});

@@ -224,9 +224,11 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
       type: 'movie',
       name: config.collectionsName || 'LeLibrary Collections',
       ...(managedNuvio ? { showInHome: false } : {}),
-      extra: managedNuvio
-        ? [{ name: 'genre', isRequired: false, options: genres }, { name: 'search', isRequired: true }, { name: 'skip' }]
-        : [{ name: 'genre', isRequired: false, options: genres }, { name: 'skip' }],
+      // No search extra: the collection's films are already in My Movies, so
+      // searching it only doubled every result. On Nuvio the hidden row still
+      // stays off mobile Home through its required genre (keepOffNuvioMobileHome),
+      // which every collection folder sends anyway.
+      extra: [{ name: 'genre', isRequired: false, options: genres }, { name: 'skip' }],
     });
   }
 
@@ -243,7 +245,6 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
       // labels the person chose for the matching Home rows, emojis included.
       if (config.catalogMovies !== false) catalogs.push({ id: 'lelibrary-search-my-movies', type: 'movie', name: catName('🎬 My Movies', catNameMovies), showInHome: false, extra: [{ name: 'search', isRequired: true }] });
       if (config.catalogSeries !== false) catalogs.push({ id: 'lelibrary-search-my-series', type: 'series', name: catName('📺 My Series', catNameSeries), showInHome: false, extra: [{ name: 'search', isRequired: true }] });
-      if (config.catalogFranchises !== false) catalogs.push({ id: 'lelibrary-search-collections', type: 'movie', name: config.collectionsName || 'LeLibrary Collections', showInHome: false, extra: [{ name: 'search', isRequired: true }] });
     }
   }
 

@@ -67,14 +67,9 @@ export function SetupCreatedModal({ open, uuid, installToken, name, password, pl
     onError: (message) => toast(message, 'error'),
   });
 
-  useEffect(() => {
-    if (!open) return;
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') close();
-    }
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, close]);
+  // No Escape and no click-outside close: this is where the links and the
+  // push live, and dismissing a password manager or browser prompt (Escape, a
+  // click beside it) used to close it by accident. The close button is the way out.
 
   if (!open) return null;
 
@@ -86,7 +81,6 @@ export function SetupCreatedModal({ open, uuid, installToken, name, password, pl
   return (
     <div
       className={`app-modal created-modal${leaving ? ' is-leaving' : ''}`} role="dialog" aria-modal="true" aria-label="Your setup is live"
-      onClick={(event) => { if (event.target === event.currentTarget) close(); }}
     >
       <div className="app-modal-box setup-created-dialog">
         <div className="app-modal-head">

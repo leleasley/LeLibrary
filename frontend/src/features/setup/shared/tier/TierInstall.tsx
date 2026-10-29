@@ -15,6 +15,11 @@ const STRENGTH_LABEL = ['', 'Too short', 'Okay', 'Good', 'Strong'] as const;
 
 // Step 4: lock the setup and create the install link. The password only ever
 // guards editing; the player never asks for it.
+// The setup password is not a site login: tell the common password managers
+// not to pop their fill and generate menus over it (they also stole focus and
+// Escape presses from the end screen).
+const QUIET_FIELD = { 'data-1p-ignore': 'true', 'data-lpignore': 'true', 'data-bwignore': 'true', 'data-form-type': 'other' } as const;
+
 export function TierInstall({ password, confirmation, busy, error, onPassword, onConfirmation, onSubmit, onReset, submitLabel = 'Create my manifest', children }: {
   password: string;
   confirmation: string;
@@ -44,7 +49,7 @@ export function TierInstall({ password, confirmation, busy, error, onPassword, o
           <span className="qs-pw-label">Password</span>
           <span className={`qs-pw-box${mismatch ? ' is-error' : match ? ' is-ok' : ''}`}>
             <input
-              type={show ? 'text' : 'password'} autoComplete="new-password"
+              type={show ? 'text' : 'password'} autoComplete="new-password" {...QUIET_FIELD}
               placeholder="At least 8 characters"
               value={password}
               onChange={(event) => onPassword(event.target.value)}
@@ -67,7 +72,7 @@ export function TierInstall({ password, confirmation, busy, error, onPassword, o
           <span className="qs-pw-label">Confirm password</span>
           <span className={`qs-pw-box${mismatch ? ' is-error' : match ? ' is-ok' : ''}`}>
             <input
-              type={show ? 'text' : 'password'} autoComplete="new-password"
+              type={show ? 'text' : 'password'} autoComplete="new-password" {...QUIET_FIELD}
               placeholder="Type it again"
               value={confirmation}
               onChange={(event) => onConfirmation(event.target.value)}

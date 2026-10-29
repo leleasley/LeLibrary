@@ -281,9 +281,9 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
         // native generated collection, never by a configurable folder.
         .filter((source) => source.catalogId && !(integration === 'nuvio' && source.catalogId === 'torbox-collections')),
     });
-    }).filter((folder) => folder && (!hideAnime || folder.catalogSources.length) && !(folder?._import?.adapter === 'xperience-v1' && folder.enabled === false)),
+    }).filter((folder) => folder && (!hideAnime || folder.catalogSources.length) && !(folder?._import && folder.enabled === false)),
   });
-  }).filter((collection) => collection && (collection.folders.length > 0 || collection?._import?.adapter !== 'xperience-v1'));
+  }).filter((collection) => collection && (collection.folders.length > 0 || !collection?._import));
 
   return {
     collections: normalizedCollections,

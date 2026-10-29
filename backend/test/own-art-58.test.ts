@@ -401,3 +401,32 @@ test('the daily art check keeps a franchise hero up to date with its films', asy
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('with LeLibrary\'s own art installed, the pack list still validates (covers, GIFs, Live links, heroes)', async () => {
+  // A fresh process: curated folders take their art when the module loads.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'll-art-validate-'));
+  const jpg = await solid(64, 36, 30);
+  const folders = {};
+  for (const [sid, kind] of [['discover-trending-movies', 'live'], ['hv-halloween', 'subject'], ['genre-horror', 'evergreen']]) {
+    fs.writeFileSync(path.join(dir, `${sid}-v2.jpg`), jpg);
+    fs.writeFileSync(path.join(dir, `${sid}-focus-v2.gif`), Buffer.from('GIF89a'));
+    folders[`folder-lelibrary-${sid}`] = { kind, version: 2, cover: `${sid}-v2.jpg`, gif: `${sid}-focus-v2.gif`, heroPosters: ['/a1.jpg', '/a2.jpg', '/a3.jpg', '/a4.jpg'] };
+  }
+  fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify({ version: 2, folders }));
+  const { execFileSync } = require('node:child_process');
+  try {
+    const out = execFileSync(process.execPath, ['-e', `
+      const c = require(${JSON.stringify(path.join(__dirname, '..', 'src', 'catalog', 'curated-collections.ts'))});
+      const v = c.validateCuratedCollections();
+      const f = c.curatedFolderById('folder-lelibrary-hv-halloween');
+      console.log(JSON.stringify({ ok: v.ok, errors: v.errors.slice(0, 3), cover: f.coverImageUrl, hero: f.heroBackdropUrl }));
+    `], { env: { ...process.env, COLLECTION_ART_DIR: dir, NODE_TEST_CONTEXT: '' }, encoding: 'utf8' });
+    const result = JSON.parse(out.trim().split('\n').pop());
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.ok, true);
+    assert.equal(result.cover, '/collection-art/hv-halloween-v2.jpg');
+    assert.equal(result.hero, '/art/hero/folder-lelibrary-hv-halloween.jpg');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

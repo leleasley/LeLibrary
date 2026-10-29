@@ -1162,7 +1162,7 @@ function validateCuratedCollections() {
             path.join(__dirname, '..', '..', '..', 'frontend', 'public', relative),
           ];
           if (!candidates.some((diskPath) => fs.existsSync(diskPath))) errors.push(`${pack.id}/${item.id}: missing local ${key}`);
-        } else if (value.startsWith('/collection-art/') || value.startsWith('/art/folder/')) {
+        } else if (value.startsWith('/collection-art/') || value.startsWith('/art/folder/') || value.startsWith('/art/hero/')) {
           // LeLibrary's own art: only ever set from own-art.ts, which checked the file.
           if (!require('./own-art.ts').ownArtEntry(item.id)) errors.push(`${pack.id}/${item.id}: ${key} names own art this install does not have`);
         } else if (!/^https:\/\//.test(value) && !value.startsWith('/art/generated/')) {

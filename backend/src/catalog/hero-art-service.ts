@@ -108,12 +108,12 @@ async function getHero(folderId: string, options: { force?: boolean } = {}): Pro
   return pending;
 }
 
+// Only folders with a saved poster list get a hero link, so the link can
+// always be drawn (Live folders swap in their current titles when they can;
+// a regional service with no titles here keeps no hero rather than a 404).
 function hasHero(folderId: string): boolean {
-  const own = require('./own-art.ts');
-  const entry = own.ownArtEntry(folderId);
-  if (!entry) return false;
-  return (Array.isArray(entry.heroPosters) && entry.heroPosters.length >= MIN_POSTERS)
-    || (entry.kind === 'live' && own.liveArtEnabled() && !!own.liveSpec(folderId));
+  const entry = require('./own-art.ts').ownArtEntry(folderId);
+  return !!entry && Array.isArray(entry.heroPosters) && entry.heroPosters.length >= MIN_POSTERS;
 }
 
 // Draw heroes in turn, slowly: Live ones hourly (their titles move), the rest

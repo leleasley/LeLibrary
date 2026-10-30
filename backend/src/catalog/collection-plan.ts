@@ -99,7 +99,46 @@ const HUB_FOLDER_ART: Record<string, { coverImageUrl: string; focusGifUrl: strin
     coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-shows-v3.jpg',
     focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-shows-focus-v3.gif',
   },
+  'folder-lelibrary-hub-4k': {
+    coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-4k-v3.jpg',
+    focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-4k-focus-v3.gif',
+  },
+  'folder-lelibrary-hub-hdr': {
+    coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-hdr-v3.jpg',
+    focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-hdr-focus-v3.gif',
+  },
 };
+
+// The Hub's 4K and HDR & Dolby Vision folders (My Movies + My Shows narrowed
+// to that quality, library/quality-filter.ts). Hubs saved before they existed
+// get them here, on the same provider prefix as their Movies folder, so an
+// old setup picks them up on its next push without being edited.
+const HUB_ID = 'collection-lelibrary-hub';
+const HUB_EXTRAS = [
+  { id: 'folder-lelibrary-hub-4k', title: '4K', variant: '4k' },
+  { id: 'folder-lelibrary-hub-hdr', title: 'HDR & Dolby Vision', variant: 'hdr' },
+];
+
+function withHubExtras(collection) {
+  if (!collection || collection.id !== HUB_ID || !Array.isArray(collection.folders)) return collection;
+  const movies = collection.folders.find((folder) => folder?.id === 'folder-lelibrary-hub-movies');
+  const sourceId = String(movies?.catalogSources?.[0]?.catalogId || '');
+  const prefix = (sourceId.match(/^([a-z]+)-movies$/) || [])[1];
+  if (!prefix) return collection;
+  const have = new Set(collection.folders.map((folder) => folder?.id));
+  const extras = HUB_EXTRAS.filter((extra) => !have.has(extra.id)).map((extra) => ({
+    id: extra.id,
+    title: extra.title,
+    tileShape: movies.tileShape || 'LANDSCAPE',
+    hideTitle: false,
+    focusGifEnabled: true,
+    catalogSources: [
+      { addonId: '', addonUrl: '', catalogId: `${prefix}-movies-${extra.variant}`, type: 'movie', genre: '' },
+      { addonId: '', addonUrl: '', catalogId: `${prefix}-series-${extra.variant}`, type: 'series', genre: '' },
+    ],
+  }));
+  return extras.length ? { ...collection, folders: [...collection.folders, ...extras] } : collection;
+}
 
 // `generatedArt` maps folder id -> cover parts (TMDB poster/backdrop/logo paths
 // from the folder's own catalogue, see generated-covers.ts collectGeneratedArt).
@@ -257,8 +296,9 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
   // folder collection into one misleading film row.
   })).filter((row) => row.source.catalogId && !(integration === 'nuvio' && row.source.catalogId === 'torbox-collections'));
 
-  const normalizedCollections = safeCollections.map((collection, ci) => {
-    if (hideAnime && isAnimeCollection(collection)) return null;
+  const normalizedCollections = safeCollections.map((original, ci) => {
+    if (hideAnime && isAnimeCollection(original)) return null;
+    const collection = withHubExtras(original);
     return ({
     ...collection,
     folders: (Array.isArray(collection?.folders) ? collection.folders : []).map((folder, fi) => {
@@ -310,6 +350,7 @@ export interface CollectionPlanApi {
   isAnimeSource: any;
   sourceCatalogId: any;
   companionGatewayLabel: any;
+  withHubExtras: any;
 }
 
-module.exports = { compileCollectionPlan, upgradeCuratedSourceId, isLeLibrarySource, isAnimeSource, sourceCatalogId, companionGatewayLabel } satisfies CollectionPlanApi;
+module.exports = { compileCollectionPlan, upgradeCuratedSourceId, isLeLibrarySource, isAnimeSource, sourceCatalogId, companionGatewayLabel, withHubExtras } satisfies CollectionPlanApi;

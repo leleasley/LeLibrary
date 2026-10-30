@@ -32,6 +32,8 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 ### Home rows
 
+- New 4K Movies, 4K Shows, HDR & Dolby Vision Movies and HDR & Dolby Vision Shows rows, built from your own library. Add them as Home rows in Settle In or Move In. They are the same titles as My Movies and My Shows (which still list everything), so watch progress is shared.
+- The LeLibrary hub collection on Nuvio gains 4K and HDR & Dolby Vision folders with their own artwork. Existing hubs get them on the next push.
 - The Home row picker is cleaned up: no more rows that quietly duplicated another one, the Latest and Top Rated versions of a genre or studio now say so instead of all reading "Action", and Trending and Popular are offered once.
 - Streaming services and charts that have nothing in your country are hidden, like in the pack picker.
 - A new Suggested shelf at the top: what is in cinemas, coming soon and airing today, the weekly charts, new Netflix and Disney+ arrivals and new anime.

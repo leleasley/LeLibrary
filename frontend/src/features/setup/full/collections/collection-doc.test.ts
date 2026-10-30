@@ -66,7 +66,9 @@ describe('collection document', () => {
   it('builds the Hub with fixed ids and absolute artwork', () => {
     const hub = hubCollection('torbox', 'https://example.test');
     expect(hub.id).toBe(HUB_COLLECTION_ID);
-    expect(hub.folders.map((folder) => folder.id)).toEqual([HUB_MOVIES_FOLDER_ID, HUB_SHOWS_FOLDER_ID]);
+    expect(hub.folders.map((folder) => folder.id)).toEqual([HUB_MOVIES_FOLDER_ID, HUB_SHOWS_FOLDER_ID, 'folder-lelibrary-hub-4k', 'folder-lelibrary-hub-hdr']);
+    expect(hub.folders[2]?.catalogSources.map((source) => source.catalogId)).toEqual(['torbox-movies-4k', 'torbox-series-4k']);
+    expect(hub.folders[3]?.catalogSources.map((source) => source.catalogId)).toEqual(['torbox-movies-hdr', 'torbox-series-hdr']);
     expect(hub.folders[0]?.catalogSources).toEqual([
       { addonId: '', addonUrl: '', catalogId: 'torbox-movies', type: 'movie', genre: '' },
     ]);
@@ -95,9 +97,9 @@ describe('home rows', () => {
   it('builds native and discovery browser rows', () => {
     expect(nativeLibraryRows(null, 'nuvio')).toEqual(nativeLibraryRows('torbox', 'nuvio'));
     const native = nativeLibraryRows('torbox', 'nuvio');
-    expect(native.map((row) => row.catalogId)).toEqual(['torbox-movies', 'torbox-series', 'torbox-anime']);
+    expect(native.map((row) => row.catalogId)).toEqual(['torbox-movies', 'torbox-series', 'torbox-anime', 'torbox-movies-4k', 'torbox-series-4k', 'torbox-movies-hdr', 'torbox-series-hdr']);
     const stremio = nativeLibraryRows('rd', 'stremio');
-    expect(stremio.map((row) => row.catalogId)).toEqual(['rd-movies', 'rd-series', 'rd-anime', 'torbox-collections']);
+    expect(stremio.map((row) => row.catalogId)).toEqual(['rd-movies', 'rd-series', 'rd-anime', 'rd-movies-4k', 'rd-series-4k', 'rd-movies-hdr', 'rd-series-hdr', 'torbox-collections']);
     expect(DISCOVERY_ROWS.map((row) => row.catalogId)).toEqual([
       'torbox-trending-movies', 'torbox-trending-series', 'torbox-popular-movies', 'torbox-popular-series',
     ]);

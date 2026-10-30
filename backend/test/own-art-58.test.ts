@@ -16,7 +16,7 @@ const art = require('../src/catalog/live-art.ts');
 const curated = require('../src/catalog/curated-collections.ts');
 const { absoluteLocalArtwork } = require('../src/catalog/collection-artwork.ts');
 
-const HUB = /^\/collection-assets\/collections\/(covers|gifs)\/lelibrary-hub-(movies|shows)(-focus)?-v3\.(jpg|gif)(\?v=\d+)?$/;
+const HUB = /^\/collection-assets\/collections\/(covers|gifs)\/lelibrary-hub-(movies|shows|4k|hdr)(-focus)?-v3\.(jpg|gif)(\?v=\d+)?$/;
 
 async function solid(width, height, hue, format = 'jpeg') {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="hsl(${hue},60%,45%)"/><circle cx="${width / 2}" cy="${height / 3}" r="${width / 4}" fill="hsl(${(hue + 180) % 360},60%,70%)"/></svg>`;

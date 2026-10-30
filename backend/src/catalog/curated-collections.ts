@@ -1234,7 +1234,7 @@ module.exports = { curatedFolderById, retiredArtworkTarget, buildCuratedCollecti
 // every old link (already pushed to Nuvio, or saved in a setup) is sent to the
 // art that replaced it. Only the Hub art in /collection-assets/ is ours and
 // stays.
-const HUB_ART = /^\/collection-assets\/collections\/(?:covers|gifs)\/lelibrary-hub-(?:movies|shows)(?:-focus)?-v3\.(?:jpg|gif)$/;
+const HUB_ART = /^\/collection-assets\/collections\/(?:covers|gifs)\/lelibrary-hub-(?:movies|shows|4k|hdr)(?:-focus)?-v3\.(?:jpg|gif)$/;
 const HUB_COVER_PATH = '/collection-assets/collections/covers/lelibrary-hub-movies-v3.jpg';
 const RETIRED_ART = new Map();
 const bareUrl = (value) => String(value || '').split('?')[0].split('#')[0];

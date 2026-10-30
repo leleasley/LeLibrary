@@ -65,6 +65,10 @@ export const HUB_MOVIES_COVER = '/collection-assets/collections/covers/lelibrary
 export const HUB_MOVIES_FOCUS = '/collection-assets/collections/gifs/lelibrary-hub-movies-focus-v3.gif';
 export const HUB_SHOWS_COVER = '/collection-assets/collections/covers/lelibrary-hub-shows-v3.jpg';
 export const HUB_SHOWS_FOCUS = '/collection-assets/collections/gifs/lelibrary-hub-shows-focus-v3.gif';
+export const HUB_4K_FOLDER_ID = 'folder-lelibrary-hub-4k';
+export const HUB_HDR_FOLDER_ID = 'folder-lelibrary-hub-hdr';
+export const HUB_4K_COVER = '/collection-assets/collections/covers/lelibrary-hub-4k-v3.jpg';
+export const HUB_HDR_COVER = '/collection-assets/collections/covers/lelibrary-hub-hdr-v3.jpg';
 
 export const FALLBACK_ART = '/LeLibrary.png?v=3';
 
@@ -214,7 +218,8 @@ export function absoluteUrl(origin: string, value: string): string {
   }
 }
 
-// The LeLibrary Hub: My Movies + My Shows in two folders.
+// The LeLibrary Hub: My Movies, My Shows, and the same library narrowed to
+// 4K and to HDR & Dolby Vision (each of those holds movies and shows).
 export function hubCollection(prefix: string, origin: string): CollectionDoc {
   const abs = (path: string) => absoluteUrl(origin, path);
   return {
@@ -250,6 +255,20 @@ export function hubCollection(prefix: string, origin: string): CollectionDoc {
         heroBackdropUrl: abs(HUB_SHOWS_COVER),
         catalogSources: [{ addonId: '', addonUrl: '', catalogId: `${prefix}-series`, type: 'series', genre: '' }],
       },
+      ...([[HUB_4K_FOLDER_ID, '4K', '4k', HUB_4K_COVER], [HUB_HDR_FOLDER_ID, 'HDR & Dolby Vision', 'hdr', HUB_HDR_COVER]] as const).map(([id, title, variant, cover]) => ({
+        id,
+        title,
+        tileShape: 'LANDSCAPE' as const,
+        hideTitle: false,
+        coverImageUrl: abs(cover),
+        focusGifEnabled: false,
+        focusGifUrl: '',
+        heroBackdropUrl: abs(cover),
+        catalogSources: [
+          { addonId: '', addonUrl: '', catalogId: `${prefix}-movies-${variant}`, type: 'movie' as const, genre: '' },
+          { addonId: '', addonUrl: '', catalogId: `${prefix}-series-${variant}`, type: 'series' as const, genre: '' },
+        ],
+      })),
     ],
   };
 }
@@ -329,6 +348,12 @@ export function nativeLibraryRows(prefix: string | null, platform: string): Brow
     { id: 'native-my-movies', catalogId: `${resolved}-movies`, name: 'My Movies', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: true },
     { id: 'native-my-shows', catalogId: `${resolved}-series`, name: 'My Shows', type: 'series', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: true },
     { id: 'native-my-anime', catalogId: `${resolved}-anime`, name: 'My Anime', type: 'series', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: true },
+    // The same library narrowed to one release quality (server:
+    // library/quality-filter.ts). Never on Home unless picked.
+    { id: 'native-4k-movies', catalogId: `${resolved}-movies-4k`, name: '4K Movies', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
+    { id: 'native-4k-shows', catalogId: `${resolved}-series-4k`, name: '4K Shows', type: 'series', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
+    { id: 'native-hdr-movies', catalogId: `${resolved}-movies-hdr`, name: 'HDR & Dolby Vision Movies', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
+    { id: 'native-hdr-shows', catalogId: `${resolved}-series-hdr`, name: 'HDR & Dolby Vision Shows', type: 'series', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
   ];
   if (platform === 'stremio') {
     rows.push({ id: 'native-lelibrary-collections', catalogId: 'torbox-collections', name: 'LeLibrary Collections', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, nativeCollection: true, defaultHome: false });

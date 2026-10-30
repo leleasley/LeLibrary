@@ -6,7 +6,8 @@ posters and official title and studio logos (served through TMDB), with
 openly licensed fonts (SIL Open Font License). No community or third-party
 artwork is used.
 
-- **Hub art** (this folder: `lelibrary-hub-movies-v3`, `lelibrary-hub-shows-v3`
+- **Hub art** (this folder: `lelibrary-hub-movies-v3`, `lelibrary-hub-shows-v3`,
+  `lelibrary-hub-4k-v3`, `lelibrary-hub-hdr-v3`
   and their focus GIFs): drawn in code by LeLibrary.
 - **Folder covers and focus GIFs**: hosted only, served from
   `/collection-art/` and, for live rows such as Trending, charts and streaming

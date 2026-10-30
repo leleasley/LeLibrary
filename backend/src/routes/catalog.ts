@@ -631,8 +631,13 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       if (!catalogProviderId || !active.includes(catalogProviderId)) return res.json({ metas: [] });
     }
 
+    // `{prefix}-movies-4k` / `-hdr`: My Movies / My Shows narrowed to one
+    // release quality (library/quality-filter.ts).
+    const libraryId = require('../library/quality-filter.ts').parseLibraryCatalogId(catalogId);
+    const variant = libraryId?.variant || null;
     let type;
-    if (catalogId.endsWith('-anime'))   type = 'anime';
+    if (libraryId) type = libraryId.kind === 'anime' ? 'anime' : libraryId.kind === 'movies' ? 'movie' : 'series';
+    else if (catalogId.endsWith('-anime'))   type = 'anime';
     else if (catalogId.endsWith('-movies')) type = 'movie';
     else type = 'series';
 
@@ -661,6 +666,7 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
           enhance: posterEnhance(config),
           provider: separate ? catalogProviderId : null,
           trace: req.perfTrace,
+          variant,
         }));
         const metas = out.metas || [];
         // Indexed mode never falls back to a request-time provider scan. On a
@@ -687,11 +693,11 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
     // in hide-anime used to serve each other's rows for the whole TTL.
     // So is a limited TorBox source selection (torboxSources).
     const sourcesKey = providers.torboxSourcesKey(config);
-    const cacheKey = cache.makeKey('cat', catKey, type, sortBy, search, skip.toString(), userKey, lang, posterFp(config), libraryIdMode, hideAnime ? 'noanime' : '', sourcesKey);
+    const cacheKey = cache.makeKey('cat', catKey, type, sortBy, search, skip.toString(), userKey, lang, posterFp(config), libraryIdMode, hideAnime ? 'noanime' : '', sourcesKey, variant || '');
     // Long-lived "last good" copy of this catalog page. The serve-stale branches
     // below used to re-read `cacheKey` itself: the exact key that just missed -
     // so the protection never fired. This snapshot is only written on success.
-    const catlastKey = cache.makeKey('catlast', catKey, type, sortBy, skip.toString(), userKey, lang, sourcesKey);
+    const catlastKey = cache.makeKey('catlast', catKey, type, sortBy, skip.toString(), userKey, lang, sourcesKey, variant || '');
     const cached   = await cache.get(cacheKey);
 
     // A previous upstream throttle used to cache zero rows for a whole hour.
@@ -708,14 +714,16 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
     try {
       // In separate mode fetch only this provider's downloads; in merge mode all.
       const all   = await timeSpan(req.perfTrace, spanName('provider-fetch', { op: 'downloads' }), () => providers.fetchDownloads(config, { only: separate ? [catalogProviderId] : null }));
-      const downloads = separate ? providers.downloadsFor(all, catalogProviderId) : all;
+      const scoped = separate ? providers.downloadsFor(all, catalogProviderId) : all;
+      const { matchesVariant } = require('../library/quality-filter.ts');
+      const downloads = variant ? scoped.filter((item: any) => matchesVariant(item, variant)) : scoped;
 
       // Compute the same projection-scoped hash as the background refresh.
       // This keeps a direct Nuvio request from undoing another profile's cache
       // comparison when both use the same provider account.
       const projectionFp = hashShort(JSON.stringify({
         sortBy, lang, rdCatalog, poster: posterFp(config), libraryIdMode: libraryIdMode || 'torbox', hideAnime: !!hideAnime,
-        torboxSources: sourcesKey,
+        torboxSources: sourcesKey, ...(variant ? { variant } : {}),
       }));
       const newHash = `${LIBRARY_PROJECTION_VERSION}:${hashDownloads(downloads)}:${posterFp(config)}:${libraryIdMode || 'torbox'}`;
       const hashKey = cache.makeKey('dlhash', 'v2', userKey, projectionFp);

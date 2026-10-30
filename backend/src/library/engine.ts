@@ -548,8 +548,8 @@ function warmCatalogPosters(config, metas) {
 // Coalesce identical concurrent catalog reads (a Nuvio burst on one page).
 const catalogInFlight = new Map();
 
-function catalogFingerprint({ userKey, type, sortBy, skip, libraryIdMode, provider, enhance, hideAnime = false }) {
-  const raw = JSON.stringify({ userKey, type, sortBy, skip, libraryIdMode, provider, enhance, ...(hideAnime ? { hideAnime: true } : {}) });
+function catalogFingerprint({ userKey, type, sortBy, skip, libraryIdMode, provider, enhance, hideAnime = false, variant = null }) {
+  const raw = JSON.stringify({ userKey, type, sortBy, skip, libraryIdMode, provider, enhance, ...(hideAnime ? { hideAnime: true } : {}), ...(variant ? { variant } : {}) });
   return require('crypto').createHash('sha1').update(raw).digest('hex');
 }
 
@@ -571,7 +571,7 @@ function noteProjectionChange(scopeId) {
   return rec.catalogFp;
 }
 
-async function buildCatalog({ token, config, type, sortBy = 'data_adicao', skip = 0, libraryIdMode, lang = 'en-US', enhance = {}, provider = null, trace = null }) {
+async function buildCatalog({ token, config, type, sortBy = 'data_adicao', skip = 0, libraryIdMode, lang = 'en-US', enhance = {}, provider = null, trace = null, variant = null }) {
   const userKey = providers.getUserKey(config);
   noteConfig(token, config);
   const rec = registry.get(userKey);
@@ -592,7 +592,7 @@ async function buildCatalog({ token, config, type, sortBy = 'data_adicao', skip 
   // Movies / My Series (Your Name., Totoro). Part of the cache key, so the
   // switch takes effect on the next request.
   const hideAnime = config?.hideAnime === true && type !== 'anime';
-  const fingerprint = catalogFingerprint({ userKey, type, sortBy, skip, libraryIdMode, provider, enhance, hideAnime });
+  const fingerprint = catalogFingerprint({ userKey, type, sortBy, skip, libraryIdMode, provider, enhance, hideAnime, variant });
   // Result cache keyed on the projection fingerprint, so a completed sync that
   // changed nothing keeps serving cached pages, and stale pages expire on
   // their own TTL. A content change (or identity-version bump) naturally
@@ -634,6 +634,13 @@ async function buildCatalog({ token, config, type, sortBy = 'data_adicao', skip 
       }
       // Before paging, so every page stays full and in order.
       if (hideAnime) rows = catalog.withoutTmdbAnime(rows);
+      // 4K / HDR rows: titles with at least one release of that quality. All
+      // releases of a kept title stay, so its page and streams match My Movies.
+      if (variant) {
+        const { matchesVariant } = require('./quality-filter.ts');
+        const keep = new Set(rows.filter((row) => matchesVariant(row, variant)).map((row) => String(row.tmdb_id || row.entity_key)));
+        rows = rows.filter((row) => keep.has(String(row.tmdb_id || row.entity_key)));
+      }
       const metas = await time('catalog:assemble', () => catalog.buildFromRows(rows, {
         userKey, sortBy, skip, limit: 50, type, libraryIdMode,
         tmdbApiKey: config.tmdbApiKey, lang, enhance, trace,

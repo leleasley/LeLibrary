@@ -69,6 +69,23 @@ function getLogoUrl(baseUrl: string): string {
   return `${baseUrl}/LeLibrary.png?v=2`;
 }
 
+// Library quality rows (`torbox-movies-4k` ...) that the setup's folders use.
+function qualityRefsFrom(collections: unknown): string[] {
+  const { parseLibraryCatalogId } = require('../library/quality-filter.ts');
+  const { withHubExtras } = require('../catalog/collection-plan.ts');
+  const out = new Set<string>();
+  for (const raw of Array.isArray(collections) ? collections : []) {
+    const collection = withHubExtras(raw);
+    for (const folder of Array.isArray(collection?.folders) ? collection.folders : []) {
+      for (const source of Array.isArray(folder?.catalogSources) ? folder.catalogSources : []) {
+        const id = String(source?.catalogId || '');
+        if (parseLibraryCatalogId(id)?.variant) out.add(id);
+      }
+    }
+  }
+  return [...out];
+}
+
 function getBaseManifest(baseUrl: any) {
   const manifest: BaseManifest = {
     id: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
@@ -89,7 +106,7 @@ function getBaseManifest(baseUrl: any) {
   return manifest;
 }
 
-function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watchlist = [], collectionRefs = [], homeRows = [], importedTypes = [], token = '', integration = 'nuvio', omitAnime = false }: LooseOptions = {}) {
+function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watchlist = [], collectionRefs = [], qualityRefs = [], homeRows = [], importedTypes = [], token = '', integration = 'nuvio', omitAnime = false }: LooseOptions = {}) {
   const { rdCatalog = 'merge', catNameMovies, catNameSeries, catNameAnime, hideAnime } = config;
   const active  = providers.activeProviders(config);
   const separate = rdCatalog === 'separate';
@@ -166,6 +183,32 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
       if (type === 'movies') pushLib(prefix, 'movies', catName('🎬 My Movies', catNameMovies) + tag);
       else if (type === 'series') pushLib(prefix, 'series', catName('📺 My Series', catNameSeries) + tag);
       else if (type === 'anime' && !hideAnime) pushLib(prefix, 'anime', catName('🍥 LeLibrary Anime', catNameAnime) + tag);
+    }
+  }
+
+  // ── Your 4K / HDR & Dolby Vision rows ──
+  // My Movies / My Shows narrowed to one release quality (same item ids).
+  // Declared only when picked as a Home row or used by a folder (the Hub's
+  // 4K and HDR folders), so nobody else's manifest grows.
+  const qualityWanted = new Set(Array.isArray(qualityRefs) ? qualityRefs : []);
+  function buildQualityRows(type: 'movies' | 'series') {
+    const groups = active.length > 1 && separate
+      ? active.map((id: any) => providers.PROVIDER_META[id].cat)
+      : active.length ? [active.length > 1 && active.includes('torbox') ? 'torbox' : providers.PROVIDER_META[active[0]].cat] : [];
+    const NAMES = {
+      movies: { '4k': '🎬 4K Movies', hdr: '🎬 HDR & Dolby Vision Movies' },
+      series: { '4k': '📺 4K Shows', hdr: '📺 HDR & Dolby Vision Shows' },
+    };
+    for (const prefix of groups) {
+      for (const variant of ['4k', 'hdr'] as const) {
+        const id = `${prefix}-${type}-${variant}`;
+        const picked = selectedHomeCatalogs.has(id);
+        if (!picked && !qualityWanted.has(id)) continue;
+        const tag = separate && groups.length > 1 ? ` [${providers.PROVIDER_META[providers.providerByCat(prefix)].short}]` : '';
+        const row: LooseConfig = { id, type: type === 'movies' ? 'movie' : 'series', name: NAMES[type][variant] + tag, extra: CAT_EXTRA };
+        if (integration === 'nuvio' && !picked) row.showInHome = false;
+        catalogs.push(row);
+      }
     }
   }
 
@@ -431,6 +474,7 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
       catalogs.push({ id: 'torbox-popular-series', type: 'series', name: DISCOVERY.popularSeries, extra: CAT_EXTRA });
     } else if (key === 'movies' || key === 'series' || key === 'anime') {
       buildLibrary(key);
+      if (key !== 'anime') buildQualityRows(key);
     } else if (key === 'customStreams') {
       buildCustomStreamRows();
     } else if (key === 'franchises') {
@@ -583,6 +627,7 @@ async function handleConfiguredManifest(req: Request, res: Response, deps: Manif
   // manifest can advertise their catalogs. Legacy tokens have no connections.
   let watchlist = [];
   let collectionRefs = [];
+  let qualityRefs: string[] = [];
   let homeRows = [];
   let importedTypes = [];
   const requestedIntegration = resolveIntegration(req, config);
@@ -648,6 +693,7 @@ async function handleConfiguredManifest(req: Request, res: Response, deps: Manif
     });
     homeRows = plan.homeRows;
     collectionRefs = plan.folderLibraryIds;
+    qualityRefs = qualityRefsFrom(collectionDocument.collections);
     importedTypes = plan.importedTypes;
   } catch (err: any) {
     console.warn('[watchlist] manifest resolve failed:', err.message);
@@ -670,7 +716,7 @@ async function handleConfiguredManifest(req: Request, res: Response, deps: Manif
     }
   } catch { /* keep the row on any doubt */ }
   markClientIntegrationStage(req, 'account-context');
-  const manifest = getConfiguredManifest(req.protocol + '://' + req.get('host'), config, { watchlist, collectionRefs, homeRows, importedTypes, token: req.params.token, integration: requestedIntegration, omitAnime });
+  const manifest = getConfiguredManifest(req.protocol + '://' + req.get('host'), config, { watchlist, collectionRefs, qualityRefs, homeRows, importedTypes, token: req.params.token, integration: requestedIntegration, omitAnime });
   markClientIntegrationStage(req, 'projection');
   res.json((req as any).clientIntegration ? (req as any).clientIntegration.manifest({ manifest, context: { token: req.params.token } }) : manifest);
 }

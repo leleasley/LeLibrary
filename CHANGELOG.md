@@ -27,6 +27,7 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 - A new pack picker: bundles first, search and filters, covers and folder counts, a look inside every pack where you can untick single folders, no duplicate folders, and a meter for how full your Nuvio Home will be.
 - Streaming services outside your region are hidden, seasonal packs show up in season, and Hide anime now applies in the picker.
 - Horror Fan is the one place for horror: sub-genres, the horror labels and Shudder, every decade, world horror and 37 franchises, including Child's Play, Hellraiser, Candyman, The Omen, Jaws, Pet Sematary, Paranormal Activity, Annabelle, Sinister, The Ring, The Grudge, The Purge, The Exorcist, Wrong Turn, Hostel, Terrifier, It, A Quiet Place, Resident Evil, Scary Movie, Jeepers Creepers, The Hills Have Eyes, Predator, Poltergeist and Smile.
+- New Anime This Season row and folder (in Anime Hub, the Anime Fan bundle and the Suggested Home rows): this season's shows ranked by AniList, and it moves to the next season on its own.
 - Packs built on MDBList charts stay locked until an MDBList key is saved under Optional list sources.
 - New packs now show up straight away instead of after a day.
 

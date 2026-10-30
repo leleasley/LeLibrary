@@ -277,11 +277,12 @@ function buildNewPacks({ folder }) {
     id: 'anime-hub', title: 'Anime Hub', icon: '🍥', kind: 'pack', filters: ['world', 'genres'],
     description: 'Popular, new and top-rated anime, the big genres, the studios behind them and where to stream.',
     sections: [
-      { id: 'discover', title: 'Anime', folders: ['ah-popular', 'ah-new', 'ah-best', 'ah-films'] },
+      { id: 'discover', title: 'Anime', folders: ['ah-season', 'ah-popular', 'ah-new', 'ah-best', 'ah-films'] },
       { id: 'genres', title: 'Anime Genres', folders: ['ah-isekai', 'ah-mecha', 'ah-shounen', 'ah-slice-of-life', 'ah-dark-fantasy'] },
       { id: 'studios', title: 'Anime Studios', folders: ['ah-mappa', 'ah-ufotable', 'ah-wit', 'ah-bones', 'ah-kyoani', 'ah-madhouse', 'ah-toei', 'ah-production-ig', 'ah-a1', 'ah-cloverworks'] },
     ],
     folders: [
+      folder('ah-season', 'Anime This Season', 'anime_season_series'),
       folder('ah-popular', 'Popular Anime', 'anime_popular_series'),
       folder('ah-new', 'New Anime', 'anime_new_series'),
       folder('ah-best', 'Highest Rated', 'anime_best_series'),
@@ -505,7 +506,7 @@ const PERSONA_BUNDLES = [
     id: 'persona-anime', title: 'Anime Fan', icon: '🍥', kind: 'bundle', filters: ['world'],
     description: 'Popular and new anime, the studios behind them, Japanese film and where to stream it.',
     sections: [
-      { id: 'anime', title: 'Anime', refs: ['ah-popular', 'ah-new', 'ah-best', 'ah-films', 'ch-trending-anime'] },
+      { id: 'anime', title: 'Anime', refs: ['ah-season', 'ah-popular', 'ah-new', 'ah-best', 'ah-films', 'ch-trending-anime'] },
       { id: 'genres', title: 'Anime Genres', refs: ['ah-isekai', 'ah-mecha', 'ah-shounen', 'ah-slice-of-life', 'ah-dark-fantasy'] },
       { id: 'studios', title: 'Anime Studios', refs: ['ah-mappa', 'ah-ufotable', 'ah-wit', 'ah-bones', 'ah-kyoani', 'ah-madhouse'] },
       { id: 'japan', title: 'Japanese Film & Streaming', refs: ['kf-ghibli', 'preset-world-cinema-japanese', 'sr-crunchyroll', 'sr-adn', 'sr-unext'] },

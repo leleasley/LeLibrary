@@ -500,6 +500,25 @@ async function buildCatalogRows(tmdbApiKey, def, lang = 'en-US', mdblistKey = ''
       return rows;
     }
 
+    case 'anilist_season': {
+      // The current anime season by AniList popularity (anilist-season.ts),
+      // mapped to IMDb / TMDB. A show the map knows only by its TMDB id gets
+      // its IMDb id from TMDB; one with neither is left out.
+      const season = await require('./anilist-season.ts').seasonRows();
+      const needImdb = season.filter((row) => !row.imdbId && row.tmdbId).map((row) => row.tmdbId);
+      const looked = needImdb.length ? await getImdbIds(tmdbApiKey, 'tv', needImdb) : new Map();
+      const rows = [];
+      const seen = new Set();
+      for (const item of season) {
+        const imdbId = normalizeImdbId(item.imdbId || looked.get(item.tmdbId));
+        if (!imdbId || seen.has(imdbId)) continue;
+        seen.add(imdbId);
+        rows.push({ id: imdbId, tmdbId: item.tmdbId || undefined, type: 'series', name: item.title || '', posterShape: 'poster', ...(item.year ? { year: String(item.year), releaseInfo: String(item.year) } : {}) });
+      }
+      await backfillPosters(tmdbApiKey, 'tv', rows);
+      return rows;
+    }
+
     case 'trakt':
       return []; // deferred (needs a Trakt app = VIP)
 
@@ -547,7 +566,10 @@ async function buildLibraryCatalog({ tmdbApiKey, catalogId, lang = 'en-US', user
   }
   const rotated = applyRotation(def);
   const effectiveDef = rotated.definition;
-  const rotationSlot = rotated.rotation?.slot || 'stable';
+  // A seasonal list moves to the next season on its own.
+  const rotationSlot = effectiveDef.handler === 'anilist_season'
+    ? require('./anilist-season.ts').currentSeason().key
+    : rotated.rotation?.slot || 'stable';
   // Source families supported by the normalized importer share the exact same
   // paginated engine with static lib-* rows. This is what makes signature
   // matching an effective-runtime match rather than a name/first-page match.

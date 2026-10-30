@@ -10,7 +10,7 @@ const { catalogs } = require('./catalogdefs.ts');
 const HANDLERS = new Set([
   'tmdb_source', 'tmdb_provider', 'tmdb_genre', 'tmdb_company',
   'tmdb_person', 'tmdb_keyword', 'tmdb_collection', 'tmdb_network',
-  'tmdb_discover', 'mdb_list', 'trakt',
+  'tmdb_discover', 'mdb_list', 'trakt', 'anilist_season',
 ]);
 
 // The Home picker's "Suggested" shelf: rows that suit most Homes and work
@@ -22,7 +22,7 @@ const FEATURED_IDS = new Set([
   'chart_imdb_top_shows_series', 'chart_metacritic_movies',
   'chart_bluray_movies', 'streaming_latest_netflix_movies',
   'streaming_latest_netflix_series', 'streaming_latest_disney_series',
-  'anime_new_series', 'chart_trending_anime_series', 'themed_mindfuck',
+  'anime_season_series', 'chart_trending_anime_series', 'themed_mindfuck',
 ])
 
 function cleanCategory(value) {

@@ -257,6 +257,8 @@ add('anime_popular_series', discover('Anime Series', 'series', ANIME, { ...JA_AN
 add('anime_films_movies', discover('Anime Films', 'movie', ANIME, { ...JA_ANIMATION, 'vote_count.gte': 50 }, '🍥'));
 add('anime_best_series', discover('Highest Rated Anime', 'series', ANIME, { ...JA_ANIMATION, sort_by: 'vote_average.desc', 'vote_count.gte': 300 }, '🍥'));
 add('anime_new_series', discover('New Anime', 'series', ANIME, { ...JA_ANIMATION, sort_by: 'first_air_date.desc', 'vote_count.gte': 10 }, '🍥'));
+// The current season by AniList popularity (anilist-season.ts), no key needed.
+add('anime_season_series', { name: 'Anime This Season', type: 'series', group: ANIME, handler: 'anilist_season', params: {}, icon: '🌸' });
 const ANIME_KEYWORDS = [
   ['anime_isekai_series', 'Isekai', 237451],
   ['anime_mecha_series', 'Mecha', 10046],

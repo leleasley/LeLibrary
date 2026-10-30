@@ -578,7 +578,11 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
             </StreamStylePicker>
           </TierStep>
           <TierStep id="home" index={6} title="Home" hidden={wizard.step !== 5} lede="The rows on your home screen.">
-            <HomeRowsSection rows={homeRows} onChange={setHomeRows} platform={platform} prefix={providerPrefix} />
+            <HomeRowsSection
+              rows={homeRows} onChange={setHomeRows} platform={platform} prefix={providerPrefix}
+              lang={meta.lang}
+              hasMdblistKey={Boolean((keys.mdblistKey ?? '').trim()) || Boolean(edit?.savedServices.includes('mdblistKey'))}
+            />
             <details className="advanced">
               <summary>Rename your library rows</summary>
               <div className="advanced-body"><LibraryRowsSection value={libraryRows} onChange={setLibraryRows} /></div>

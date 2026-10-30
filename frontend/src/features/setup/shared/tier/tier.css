@@ -756,6 +756,7 @@
 .hr-source-text strong, .hr-source-text small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hr-source-text strong { font-size: 0.84rem; font-weight: 500; }
 .hr-source-text small { margin-top: 2px; color: var(--muted); font-size: 0.68rem; }
+.hr-source-text small.hr-needs-key { color: var(--amber, #e5a50a); }
 .hr-type { display: inline-grid; place-items: center; padding: 3px 0; border-radius: 6px; font: 600 0.6rem var(--mono, monospace); letter-spacing: 0.06em; text-transform: uppercase; }
 .hr-type.is-movie { background: rgba(245, 158, 11, 0.12); color: #fbbf24; }
 .hr-type.is-series { background: rgba(96, 165, 250, 0.12); color: #93c5fd; }

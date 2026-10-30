@@ -111,7 +111,11 @@ export function SourcePickerModal({ open, selected, onApply, onClose }: {
         // Display only: the server derives the transport label from the id.
         title: source.title,
       }));
-    onApply(picked);
+    // Sources this list does not show (library and discovery rows, or an old
+    // id the list now offers under its current one) stay as they were.
+    const listed = new Set(sources.map((source) => source.key));
+    const kept = selected.filter((source) => !listed.has(sourceKey(source)) && chosen.has(sourceKey(source)));
+    onApply([...kept, ...picked]);
   }
 
   return (

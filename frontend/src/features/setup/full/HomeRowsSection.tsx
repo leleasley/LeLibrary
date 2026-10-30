@@ -11,11 +11,14 @@ import {
   type BrowserSource,
   type HomeRowDoc,
 } from '@/features/setup/shared/collection-doc';
-import { useCatalogSources } from '@/features/setup/full/collections/catalog-sources';
+import { homePickerSources, SUGGESTED_GROUP, useCatalogSources } from '@/features/setup/full/collections/catalog-sources';
+import { regionForLang } from '@/features/setup/full/collections/region';
+import { setupCopy } from '@/features/setup/shared/setup-copy';
 
 // Group rank for the Home catalogue browser: the shared rank first, except
 // actor shelves always sink to the bottom no matter what else is installed.
 export function browserGroupRank(category: string): number {
+  if (category === SUGGESTED_GROUP) return -5;
   if (/actor/i.test(String(category || ''))) return 99;
   return homeCategoryRank(category);
 }
@@ -31,6 +34,7 @@ function browserKey(source: BrowserSource): string {
 function groupIcon(group: string): string {
   const name = group.toLowerCase();
   if (name.includes('lelibrary')) return '📚';
+  if (name === 'suggested') return '✨';
   if (name.includes('watchlist')) return '🔖';
   if (/trend|hot/.test(name)) return '🔥';
   if (/popular|top|rated/.test(name)) return '⭐';
@@ -43,19 +47,35 @@ function groupIcon(group: string): string {
   if (/kid|family/.test(name)) return '🧸';
   if (/import/.test(name)) return '🔗';
   if (/season|holiday|christmas|halloween/.test(name)) return '🗓️';
+  if (/horror/.test(name)) return '🩸';
+  if (/new|latest/.test(name)) return '🆕';
+  if (/director/.test(name)) return '🎬';
+  if (/decade/.test(name)) return '📅';
+  if (/world|cinema|tv/.test(name)) return '🌍';
+  if (/theme|mood/.test(name)) return '🎨';
+  if (/history|war/.test(name)) return '🏛';
+  if (/sport|music/.test(name)) return '🏟️';
+  if (/based/.test(name)) return '📖';
+  if (/cinephile|arthouse/.test(name)) return '🎞';
+  if (/universe/.test(name)) return '🌌';
   return '▦';
 }
 
 // Home builder: catalogue browser on the left, ordered Home rows on the
 // right, plus the owned-franchise toggle and manifest import. The rename and
 // import modals live here with them.
-export function HomeRowsSection({ rows, onChange, platform, prefix }: {
+export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdblistKey = false }: {
   rows: HomeRowDoc[];
   onChange: (next: HomeRowDoc[]) => void;
   platform: 'nuvio' | 'stremio';
   prefix: string | null;
+  // The setup language decides the watch region (region.ts), as in the pack picker.
+  lang?: string;
+  hasMdblistKey?: boolean;
 }) {
-  const { sources: base, failed } = useCatalogSources(prefix, platform, true);
+  const { sources: all, failed } = useCatalogSources(prefix, platform, true);
+  const region = regionForLang(lang);
+  const base = useMemo(() => homePickerSources(all, region), [all, region]);
   const [query, setQuery] = useState('');
   const [imported, setImported] = useState<BrowserSource[]>([]);
   const [importOpen, setImportOpen] = useState(false);
@@ -259,7 +279,7 @@ export function HomeRowsSection({ rows, onChange, platform, prefix }: {
                 >
                   <span className="hr-group-icon" aria-hidden="true">{groupIcon(group)}</span>
                   <span className="hr-group-title">
-                    <h3 data-i18n-preserve>{group}</h3>
+                    {group === SUGGESTED_GROUP ? <h3>{setupCopy('Suggested', 'Suggested')}</h3> : <h3 data-i18n-preserve>{group}</h3>}
                     <small>{added > 0 && <b>{added} added · </b>}{items.length} rows</small>
                   </span>
                   <span className="source-group-chevron" aria-hidden="true">
@@ -279,7 +299,9 @@ export function HomeRowsSection({ rows, onChange, platform, prefix }: {
                         <span className={`hr-type is-${source.type === 'series' ? 'series' : 'movie'}`}>{source.type === 'series' ? 'Series' : 'Movies'}</span>
                         <span className="hr-source-text">
                           <strong data-i18n-preserve>{source.name}</strong>
-                          <small data-i18n-preserve>{source.addonId || 'LeLibrary'}</small>
+                          {source.needsMdblistKey && !hasMdblistKey
+                            ? <small className="hr-needs-key">{setupCopy('Needs an MDBList key', 'Needs an MDBList key')}</small>
+                            : <small data-i18n-preserve>{source.addonId || 'LeLibrary'}</small>}
                         </span>
                         <span className="add-row-mark" aria-hidden="true">
                           {active

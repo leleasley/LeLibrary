@@ -26,7 +26,7 @@
 
 const STREAMING = '🎬 Streaming';
 const SEASONAL = '🗓️ Seasonal';
-const HORROR = '🩸 Horror Vault';
+const HORROR = '🩸 Horror';
 const KIDS = '🧸 Kids & Family';
 const WORLD_TV = '🌏 World TV';
 const ANIME = '🍥 Anime';

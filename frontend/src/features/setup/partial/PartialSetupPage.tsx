@@ -541,6 +541,8 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
             <HomeRowsSection
               rows={homeRows} onChange={setHomeRows} platform={platform}
               prefix={hubPrefix(providerSelectionWithSaved(keys, edit?.savedServices ?? []))}
+              lang={meta.lang}
+              hasMdblistKey={Boolean((keys.mdblistKey ?? '').trim()) || Boolean(edit?.savedServices.includes('mdblistKey'))}
             />
             <details className="advanced">
               <summary>Rename your library rows</summary>

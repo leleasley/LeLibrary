@@ -30,6 +30,13 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 - Packs built on MDBList charts stay locked until an MDBList key is saved under Optional list sources.
 - New packs now show up straight away instead of after a day.
 
+### Home rows
+
+- The Home row picker is cleaned up: no more rows that quietly duplicated another one, the Latest and Top Rated versions of a genre or studio now say so instead of all reading "Action", and Trending and Popular are offered once.
+- Streaming services and charts that have nothing in your country are hidden, like in the pack picker.
+- A new Suggested shelf at the top: what is in cinemas, coming soon and airing today, the weekly charts, new Netflix and Disney+ arrivals and new anime.
+- Rows that need an MDBList key say so.
+
 ### Posters
 
 - New poster service: Posters+ by ElfHosted. Pick a style in Posters+, press Copy config and paste the link into your setup. Your posters then use that style everywhere LeLibrary shows them: your library, collections, Discover rows and library search. The link is kept sealed with your other keys.

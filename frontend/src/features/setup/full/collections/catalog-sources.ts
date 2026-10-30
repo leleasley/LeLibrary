@@ -29,6 +29,28 @@ interface RegistryEntry {
   group?: string;
   icon?: string;
   available?: boolean;
+  regions?: string[];
+  requirements?: string[];
+  featured?: boolean;
+}
+
+// Registry rows the Home picker leaves out: the same Trending and Popular
+// rows the discovery rows above already offer.
+const HOME_DUPLICATES = new Set([
+  'lib-trending_movies', 'lib-trending_series', 'lib-tmdb_popular_movies', 'lib-tmdb_popular_series',
+]);
+
+export const SUGGESTED_GROUP = 'Suggested';
+
+// The Home picker's list: rows for this region only, no duplicates of the
+// discovery rows, and the featured rows again on a Suggested shelf (same
+// key, so ticking either one ticks both).
+export function homePickerSources(sources: BrowserSource[], region: string): BrowserSource[] {
+  const usable = sources.filter((source) => !HOME_DUPLICATES.has(source.catalogId)
+    && (!source.regions || source.regions.includes(region)));
+  const suggested = usable.filter((source) => source.featured)
+    .map((source) => ({ ...source, id: `suggested-${source.id}`, category: SUGGESTED_GROUP }));
+  return [...suggested, ...usable];
 }
 
 // Shared catalogue browser list: native library rows, discovery rows,
@@ -69,6 +91,9 @@ export function useCatalogSources(prefix: string | null, platform: string, withW
             type: source.type === 'series' ? 'series' : 'movie',
             category: String(source.category || source.group || 'Other'),
             addonId: '',
+            ...(Array.isArray(source.regions) && source.regions.length ? { regions: source.regions.map(String) } : {}),
+            ...(Array.isArray(source.requirements) && source.requirements.includes('mdblistKey') ? { needsMdblistKey: true } : {}),
+            ...(source.featured === true ? { featured: true } : {}),
           });
         }
         setRegistry(normalized);

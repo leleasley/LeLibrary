@@ -1428,6 +1428,7 @@
     "Try another search or a different filter.": "Prueba otra búsqueda u otro filtro.",
     "Untick any folder you do not want before adding. Folders you already have are never added twice.": "Desmarca las carpetas que no quieras antes de añadir. Las carpetas que ya tienes nunca se añaden dos veces.",
     "Add your MDBList key in Optional list sources to use this": "Añade tu clave de MDBList en Fuentes de listas opcionales para usar esto",
+    "Suggested": "Sugerencias",
     "Needs an MDBList key": "Necesita una clave de MDBList",
     "In season now": "De temporada ahora",
     "In season from {{date}}": "De temporada desde el {{date}}",

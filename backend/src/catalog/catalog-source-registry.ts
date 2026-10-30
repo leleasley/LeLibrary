@@ -13,16 +13,17 @@ const HANDLERS = new Set([
   'tmdb_discover', 'mdb_list', 'trakt',
 ]);
 
+// The Home picker's "Suggested" shelf: rows that suit most Homes and work
+// with just the TMDB key (or no key at all). Order is the shelf order.
 const FEATURED_IDS = new Set([
-  'now_playing_movies', 'upcoming_movies', 'trending_movies',
-  'trending_series', 'tmdb_popular_movies', 'tmdb_popular_series',
-  'trending_imdb_top100_movies', 'genre_action_movies',
-  'genre_comedy_movies', 'genre_horror_movies', 'genre_scifi_movies',
-  'collection_marvel_universe_mdb', 'streaming_netflix_movies',
-  'trakt_trending_movies', 'trakt_trending_series',
-  'trakt_popular_movies', 'trakt_popular_series',
-  'trakt_anticipated_movies', 'trakt_anticipated_series',
-]);
+  'now_playing_movies', 'upcoming_movies', 'airing_today_series',
+  'new_latest_releases_movies', 'chart_watched_week_movies',
+  'chart_moviemeter_movies', 'trending_imdb_top100_movies',
+  'chart_imdb_top_shows_series', 'chart_metacritic_movies',
+  'chart_bluray_movies', 'streaming_latest_netflix_movies',
+  'streaming_latest_netflix_series', 'streaming_latest_disney_series',
+  'anime_new_series', 'chart_trending_anime_series', 'themed_mindfuck',
+])
 
 function cleanCategory(value) {
   return String(value || 'Other').replace(/^[^\w]+\s*/u, '').trim() || 'Other';
@@ -41,7 +42,28 @@ function requirements(definition) {
   return definition?.handler === 'mdb_list' && definition.params?.listId ? ['mdblistKey'] : [];
 }
 
+// Rows whose plain name is shared with a sibling get a clearer one.
+const NAME_OVERRIDES = {
+  collection_mcu: 'Marvel Cinematic Universe',
+  themed_horror_classics_movies: 'Horror Classics',
+  themed_modern_horror_movies: 'Modern Horror',
+  studio_dc_animation_movies: 'DC Animation',
+  studio_dc_animation_series: 'DC Animation',
+  studio_marvel_animation_movies: 'Marvel Animation',
+  studio_marvel_animation_series: 'Marvel Animation',
+};
+
+// Kept working for saved setups, never offered in the pickers: private
+// numeric MDBList lists that all read "Horror", and an MDBList copy of
+// TMDB's Airing Today row.
+const PICKER_HIDDEN = new Set([
+  'mdblist_list_106567_movies', 'mdblist_list_120687_movies',
+  'mdblist_list_28062_movies', 'mdblist_list_4853_movies',
+  'new_latest_airing_shows_series',
+]);
+
 function displayName(source) {
+  if (NAME_OVERRIDES[source?.id]) return NAME_OVERRIDES[source.id];
   // MDBList-backed streaming rows carry their precise public list label (for
   // example “Latest Netflix Movies” and “Top 10 Netflix Movies in Canada”).
   // Provider rows otherwise share a short provider name, so add the media type
@@ -53,7 +75,25 @@ function displayName(source) {
   if (cleanCategory(source?.group) === 'Streaming' && name) {
     return `${name} ${source.type === 'series' ? 'Shows' : 'Movies'}`;
   }
+  // "Action", "Action" and "Action" were the popular, newest and best-rated
+  // rows of one genre or studio.
+  const id = String(source?.id || '');
+  if (name && /_latest_(?:movies|series)$/.test(id)) return `Latest ${name}`;
+  if (name && /_toprated_(?:movies|series)$/.test(id)) return `Top Rated ${name}`;
   return name;
+}
+
+// Countries a row has titles in, when it is regional: the streaming
+// services table (keyed by the movie row) and the MDBList charts that are
+// one country's top 10. No entry = everywhere.
+function sourceRegions(source) {
+  const { REGIONS, GLOBAL } = require('./curated-regions-58.ts');
+  const movieId = String(source.id).replace(/_series$/, '_movies');
+  if (GLOBAL.has(movieId)) return null;
+  const listed = REGIONS[source.id] || REGIONS[movieId];
+  if (Array.isArray(listed)) return listed;
+  if (/ in Canada$/i.test(String(source.params?.listName || ''))) return ['CA'];
+  return null;
 }
 
 function getSourceDefinition(id) {
@@ -94,6 +134,18 @@ function listSources({ includeUnavailable = false } = {}) {
     .sort((a, b) => Number(b.featured) - Number(a.featured) || a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
 }
 
+// What the Home row and folder pickers offer: one row per real source.
+// Aliases and the hidden rows still serve saved setups, they are just not
+// offered again.
+function listPickerSources() {
+  return listSources()
+    .filter((source) => !source.aliasOf && !PICKER_HIDDEN.has(source.id))
+    .map((source) => {
+      const regions = sourceRegions(getSourceDefinition(source.id));
+      return regions ? { ...source, regions } : source;
+    });
+}
+
 function validateSourceDefinitions() {
   const errors = [];
   for (const [id, definition] of Object.entries(catalogs)) {
@@ -110,7 +162,8 @@ export interface CatalogSourceRegistryApi {
   getSourceDefinition: any;
   canonicalSourceId: any;
   listSources: any;
+  listPickerSources: any;
   validateSourceDefinitions: any;
 }
 
-module.exports = { getSourceDefinition, canonicalSourceId, listSources, validateSourceDefinitions } satisfies CatalogSourceRegistryApi;
+module.exports = { getSourceDefinition, canonicalSourceId, listSources, listPickerSources, validateSourceDefinitions } satisfies CatalogSourceRegistryApi;

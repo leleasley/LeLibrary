@@ -373,10 +373,10 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
   router.get('/api/catalog-library', (req, res) => {
     try {
       if (!catalogLibraryPayload) {
-        const { listSources, validateSourceDefinitions } = require('../catalog/catalog-source-registry.ts');
+        const { listPickerSources, validateSourceDefinitions } = require('../catalog/catalog-source-registry.ts');
         const validation = validateSourceDefinitions();
         if (!validation.ok) return res.status(500).json({ error: 'Invalid catalogue source registry', details: validation.errors });
-        catalogLibraryPayload = JSON.stringify({ catalogs: listSources(), total: validation.total });
+        catalogLibraryPayload = JSON.stringify({ catalogs: listPickerSources(), total: validation.total });
       }
       res.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
       res.type('application/json').send(catalogLibraryPayload);

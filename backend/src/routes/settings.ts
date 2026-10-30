@@ -110,10 +110,10 @@ app.get('/api/config/:token', rateLimit({ windowMs: 60000, max: 60 }), async (re
 // params (ids/keys) are exposed: just the display metadata.
 app.get('/api/catalog-library', async (req, res) => {
   try {
-    const { listSources, validateSourceDefinitions } = require('../catalog/catalog-source-registry.ts');
+    const { listPickerSources, validateSourceDefinitions } = require('../catalog/catalog-source-registry.ts');
     const validation = validateSourceDefinitions();
     if (!validation.ok) throw new Error(`Invalid catalog source registry: ${validation.errors.join('; ')}`);
-    res.json({ catalogs: listSources(), total: validation.total });
+    res.json({ catalogs: listPickerSources(), total: validation.total });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

@@ -1428,6 +1428,7 @@
     "Try another search or a different filter.": "Try another search or a different filter.",
     "Untick any folder you do not want before adding. Folders you already have are never added twice.": "Untick any folder you do not want before adding. Folders you already have are never added twice.",
     "Add your MDBList key in Optional list sources to use this": "Add your MDBList key in Optional list sources to use this",
+    "Suggested": "Suggested",
     "Needs an MDBList key": "Needs an MDBList key",
     "In season now": "In season now",
     "In season from {{date}}": "In season from {{date}}",

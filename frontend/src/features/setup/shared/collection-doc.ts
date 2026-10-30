@@ -292,6 +292,11 @@ export interface BrowserSource {
   nativeLibrary?: boolean;
   nativeCollection?: boolean;
   defaultHome?: boolean;
+  // Registry rows only: countries with titles (absent = everywhere), a key
+  // the row needs beyond TMDB, and whether it belongs on the Suggested shelf.
+  regions?: string[];
+  needsMdblistKey?: boolean;
+  featured?: boolean;
 }
 
 export const OWNED_MARKER_ID = 'native-franchise-collection';

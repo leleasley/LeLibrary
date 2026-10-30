@@ -20,7 +20,7 @@ const { parseCoverRequest } = require('../src/catalog/generated-covers.ts');
 const { isRotationEligible } = require('../src/catalog/catalog-rotation.ts');
 const { regionForLang } = require('../src/catalog/region.ts');
 
-const NEW_PACK_IDS = ['streaming-region', 'seasonal', 'horror-vault', 'kids-family', 'world-tv', 'anime-hub',
+const NEW_PACK_IDS = ['streaming-region', 'seasonal', 'kids-family', 'world-tv', 'anime-hub',
   'shared-universes', 'cinephile', 'moods', 'based-on', 'history-war', 'sports-music', 'charts'];
 const BUNDLE_IDS = PERSONA_BUNDLES.map((bundle) => bundle.id);
 const packs = listCuratedCollections({});
@@ -98,6 +98,14 @@ test('persona bundles only reference folders defined by other packs', () => {
   for (const pack of packs) {
     if (pack.kind === 'bundle') continue;
     for (const folder of pack.folders) defined.set(folder.id, folder);
+  }
+  // Horror Fan's folders are defined by the unlisted Horror Vault.
+  const { curatedFolderById } = require('../src/catalog/curated-collections.ts');
+  for (const definition of PERSONA_BUNDLES) {
+    for (const section of definition.sections) for (const ref of section.refs) {
+      const id = `folder-lelibrary-${ref}`;
+      if (!defined.has(id) && curatedFolderById(id)) defined.set(id, curatedFolderById(id));
+    }
   }
   for (const definition of PERSONA_BUNDLES) {
     const bundle = byId.get(definition.id);
@@ -294,8 +302,30 @@ test('curated folders without hand-made art carry a short generated cover, in th
   const generated = Object.values(index).filter((f) => String(f.coverImageUrl).startsWith('/art/generated/'));
   assert.ok(generated.length > 250);
   for (const folder of generated) assert.match(folder.coverImageUrl, /^\/art\/generated\/(poster|wide)\/[a-f0-9]{24}\.jpg$/);
-  const pushed = curated.buildCuratedCollections(['horror-vault']).flat().flatMap((c) => c.folders || []);
+  const pushed = curated.buildCuratedCollections(['persona-horror']).flat().flatMap((c) => c.folders || []);
   assert.ok(pushed.length > 0);
   const byId = new Map(Object.values(index).map((f) => [f.id, f.coverImageUrl]));
   for (const folder of pushed) if (byId.has(folder.id)) assert.equal(folder.coverImageUrl, byId.get(folder.id), folder.id);
+});
+
+test('Horror Vault is folded into Horror Fan: not listed, old selections keep every folder', () => {
+  const curated = require('../src/catalog/curated-collections.ts');
+  assert.equal(byId.has('horror-vault'), false);
+  const fan = byId.get('persona-horror');
+  const vault = curated.curatedFolderById('folder-lelibrary-hv-terrifier');
+  assert.ok(vault, 'vault folders still resolve');
+  const fanIds = new Set(fan.folders.map((f) => f.id));
+  for (const id of ['hv-slasher', 'hv-blumhouse', 'hv-terrifier', 'hv-smile', 'hv-1970s', 'hv-french', 'hv-halloween', 'sr-shudder']) {
+    assert.ok(fanIds.has(`folder-lelibrary-${id}`), `${id} in Horror Fan`);
+  }
+  // Every franchise survives the de-duplication (Halloween once lost to the seasonal folder).
+  const { PERSONA_BUNDLES: defs } = require('../src/catalog/curated-packs-58.ts');
+  const franchises = defs.find((b) => b.id === 'persona-horror').sections.find((x) => x.id === 'franchises').refs;
+  assert.equal(fan.sections.find((x) => x.id === 'franchises').folders.length, franchises.length);
+  assert.deepEqual(curated.currentPackIds(['horror-vault', 'persona-horror', 'charts']), ['persona-horror', 'charts']);
+  const old = curated.buildCuratedCollections(['horror-vault'], { 'horror-vault:studios': { title: 'My labels' } });
+  const now = curated.buildCuratedCollections(['persona-horror']);
+  assert.deepEqual(old.map((c) => c.id), now.map((c) => c.id));
+  assert.equal(old.find((c) => c.id.endsWith('-labels')).title, 'My labels');
+  assert.deepEqual(curated.curatedSourceIds(['horror-vault']), curated.curatedSourceIds(['persona-horror']));
 });

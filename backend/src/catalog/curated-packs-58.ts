@@ -115,7 +115,10 @@ function buildNewPacks({ folder }) {
   };
 
   const HORROR_VAULT = {
-    id: 'horror-vault', title: 'Horror Vault', icon: '🩸', kind: 'pack', filters: ['genres'],
+    // Not listed since 2026-10-30: Horror Fan carries every one of these
+    // folders. Kept as the place the folders are defined (bundles only
+    // reference folders), and old selections move to Horror Fan.
+    id: 'horror-vault', title: 'Horror Vault', icon: '🩸', kind: 'pack', filters: ['genres'], hidden: true,
     description: 'A deep dive for horror fans: sub-genres, horror labels, slasher sagas, every decade and scares from around the world.',
     sections: [
       { id: 'subgenres', title: 'Horror Sub-genres', folders: ['hv-slasher', 'hv-supernatural', 'hv-found-footage', 'hv-folk', 'hv-body', 'hv-cosmic', 'hv-creature', 'hv-zombies', 'hv-vampires', 'hv-werewolves', 'hv-haunted', 'hv-psychological', 'hv-giallo', 'hv-home-invasion', 'hv-witches'] },
@@ -509,13 +512,14 @@ const PERSONA_BUNDLES = [
     ],
   },
   {
-    id: 'persona-horror', title: 'Horror Fan', icon: '🎃', kind: 'bundle', filters: ['genres', 'seasonal'],
-    description: 'The best of the Horror Vault plus Halloween, ready for every night of the year.',
+    id: 'persona-horror', title: 'Horror Fan', icon: '🎃', kind: 'bundle', filters: ['genres', 'franchises', 'seasonal'],
+    description: 'Everything horror in one place: sub-genres, the horror labels and Shudder, 37 franchises, every decade and scares from around the world.',
     sections: [
-      { id: 'subgenres', title: 'Horror Sub-genres', refs: ['hv-slasher', 'hv-supernatural', 'hv-found-footage', 'hv-folk', 'hv-creature', 'hv-zombies', 'hv-psychological'] },
-      { id: 'franchises', title: 'Horror Franchises', refs: ['hv-halloween', 'hv-scream', 'hv-saw', 'hv-conjuring', 'hv-insidious', 'hv-evil-dead', 'hv-friday-13th', 'hv-elm-street'] },
-      { id: 'labels', title: 'Horror Labels', refs: ['hv-blumhouse', 'hv-a24', 'hv-hammer', 'sr-shudder'] },
-      { id: 'season', title: 'Halloween', refs: ['season-halloween', 'hv-1980s', 'hv-japanese', 'hv-korean'] },
+      { id: 'subgenres', title: 'Horror Sub-genres', refs: ['hv-slasher', 'hv-supernatural', 'hv-found-footage', 'hv-folk', 'hv-body', 'hv-cosmic', 'hv-creature', 'hv-zombies', 'hv-vampires', 'hv-werewolves', 'hv-haunted', 'hv-psychological', 'hv-giallo', 'hv-home-invasion', 'hv-witches'] },
+      { id: 'labels', title: 'Horror Labels', refs: ['hv-blumhouse', 'hv-a24', 'hv-hammer', 'hv-atomic-monster', 'hv-ghost-house', 'hv-platinum-dunes', 'sr-shudder'] },
+      { id: 'franchises', title: 'Horror Franchises', refs: ['hv-halloween', 'hv-scream', 'hv-saw', 'hv-conjuring', 'hv-elm-street', 'hv-evil-dead', 'hv-friday-13th', 'hv-texas-chainsaw', 'hv-28-days', 'hv-insidious', 'hv-final-destination', 'hv-alien', 'hv-childs-play', 'hv-hellraiser', 'hv-candyman', 'hv-omen', 'hv-jaws', 'hv-pet-sematary', 'hv-paranormal-activity', 'hv-annabelle', 'hv-sinister', 'hv-ring', 'hv-grudge', 'hv-purge', 'hv-exorcist', 'hv-wrong-turn', 'hv-hostel', 'hv-terrifier', 'hv-it', 'hv-quiet-place', 'hv-resident-evil', 'hv-scary-movie', 'hv-jeepers-creepers', 'hv-hills-have-eyes', 'hv-predator', 'hv-poltergeist', 'hv-smile'] },
+      { id: 'decades', title: 'Horror by Decade', refs: ['hv-1970s', 'hv-1980s', 'hv-1990s', 'hv-2000s', 'hv-2010s', 'hv-2020s'] },
+      { id: 'world', title: 'World Horror', refs: ['hv-japanese', 'hv-korean', 'hv-spanish', 'hv-italian', 'hv-french'] },
     ],
   },
   {

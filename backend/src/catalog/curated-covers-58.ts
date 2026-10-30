@@ -51,7 +51,6 @@ const PACK_COVERS = {
   "lelibrary-special": ["/rmaNMA1seHqpjtnYKzyynFAr1g8.jpg","/6VY1ZKgpsc8CfGsQcCGiYEgHdH0.jpg","/9cqNxx0GxF0bflZmeSMuL5tnGzr.jpg","/gO8Fo47KV1opiutRDdBS5jclTQB.jpg"],
   "streaming-region": ["/iISM36voS1E8gX9BM0DVK0kgi3E.jpg","/iOb2fjXLbpJgyQXe46n1WtGCnaa.jpg","/oQffRNjK8e19rF7xVYEN8ew0j7b.jpg","/aHhHRz6nOpwkqJs5ASeRGAdK2dt.jpg"],
   "seasonal": ["/ogwQOLbCfncjvBhFb5l0OmQH8KC.jpg","/f5f3TEVst1nHHyqgn7Z3tlwnBIH.jpg","/oQffRNjK8e19rF7xVYEN8ew0j7b.jpg","/saHP97rTPS5eLmrLQEcANmKrsFl.jpg"],
-  "horror-vault": ["/1BdZbNvl1SfrrX8J9X5tQzN6Ivu.jpg","/4tTrW9dXCByS5wt2pXVWb58zNjz.jpg","/rhGx6E3qRNMgj3i5su2oukNHwIQ.jpg","/cpf7vsRZ0MYRQcnLWteD5jK9ymT.jpg"],
   "kids-family": ["/uXDfjJbdP4ijW5hWSBrPrlKpxab.jpg","/oQffRNjK8e19rF7xVYEN8ew0j7b.jpg","/fRBfkzSrcyrnUfVgpEtTurEEiac.jpg","/myd1K3gefdNAWFsGNRDdMeiK9Qg.jpg"],
   "world-tv": ["/sPdS6oUdXfBNGKROE5RY5s5laqx.jpg","/2DIBDFHiKQawz4WPsYekl9DHwyA.jpg","/3jlaQYWWZgmLQMIsQ7uZid99Mlo.jpg","/4aZ2P5crezp0Kl4E4VUJQRO362T.jpg"],
   "anime-hub": ["/9ZN1P32SHviL3SV51qLivxycvcx.jpg","/AojgldgsOlzZV8ahyOzaiAjJWvV.jpg","/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg","/gLKOYIMyKlUHW0SVdskhgf9C0yy.jpg"],

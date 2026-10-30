@@ -332,6 +332,16 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
       const { upgradeCollectionArtwork } = require('../catalog/collection-artwork.ts');
       view.config = { ...view.config, collections: upgradeCollectionArtwork(view.config['collections'], origin) };
     }
+    // A pack folded into another (Horror Vault -> Horror Fan): the editor
+    // shows the pack that now holds those folders.
+    if (Array.isArray(view.config['nuvioCollectionPacks'])) {
+      const { currentPackIds, currentPackOverrides } = require('../catalog/curated-collections.ts');
+      view.config = {
+        ...view.config,
+        nuvioCollectionPacks: currentPackIds(view.config['nuvioCollectionPacks']),
+        ...(view.config['nuvioCollectionOverrides'] ? { nuvioCollectionOverrides: currentPackOverrides(view.config['nuvioCollectionOverrides']) } : {}),
+      };
+    }
     res.json(view);
   });
 

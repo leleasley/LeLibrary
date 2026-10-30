@@ -969,7 +969,7 @@ function folderNeedsMdblistKey(pack, item) {
 }
 
 function listCuratedCollections(options = {}) {
-  return CURATED_COLLECTIONS.map((pack) => {
+  return CURATED_COLLECTIONS.filter((pack) => !pack.hidden).map((pack) => {
     const visible = pack.folders.map((item) => options.hideAnime === true ? withoutAnimeSources(item) : item).filter(Boolean);
     const sections = (pack.sections || []).map((section) => ({
       id: section.id,
@@ -1093,8 +1093,33 @@ function curatedCollectionsPayload(options = {}) {
   return { collections: out, folderIndex, aliases };
 }
 
+// Packs folded into another. A saved selection of the old pack (and its
+// section overrides) moves to the new one, so a setup keeps its folders.
+const RETIRED_PACKS = { 'horror-vault': { to: 'persona-horror', sections: { studios: 'labels' } } };
+
+function currentPackIds(packIds) {
+  if (!Array.isArray(packIds)) return [];
+  return [...new Set(packIds.map((id) => RETIRED_PACKS[id]?.to || id))];
+}
+
+function currentPackOverrides(overrides) {
+  if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) return overrides;
+  const out = { ...overrides };
+  for (const [old, { to, sections }] of Object.entries(RETIRED_PACKS)) {
+    for (const key of Object.keys(overrides)) {
+      if (key !== old && !key.startsWith(`${old}:`)) continue;
+      const section = key.slice(old.length + 1);
+      const next = section ? `${to}:${sections[section] || section}` : to;
+      if (!(next in out)) out[next] = overrides[key];
+      delete out[key];
+    }
+  }
+  return out;
+}
+
 function buildCuratedCollections(packIds = [], overrides = {}, options = {}) {
-  const wanted = new Set(Array.isArray(packIds) ? packIds : []);
+  const wanted = new Set(currentPackIds(packIds));
+  overrides = currentPackOverrides(overrides) || {};
   // LeLibrary Special already contains these four sections. Keeping an older
   // standalone selection as well would push the same folders twice and make
   // Nuvio do needless parallel catalogue work, which is particularly rough
@@ -1133,7 +1158,7 @@ function buildCuratedCollections(packIds = [], overrides = {}, options = {}) {
 }
 
 function curatedSourceIds(packIds = []) {
-  const ids = buildCuratedCollections(packIds)
+  const ids = buildCuratedCollections(currentPackIds(packIds))
     .flatMap((collection) => collection.folders)
     .flatMap((item) => item.catalogSources.map((source) => source.catalogId.slice(4)));
   return [...new Set(ids)];
@@ -1189,6 +1214,8 @@ export interface CuratedCollectionsApi {
   retiredArtworkTarget: any;
   buildCuratedCollections: any;
   curatedSourceIds: any;
+  currentPackIds: any;
+  currentPackOverrides: any;
   curatedSourceDisplayName: any;
   curatedFolderLabel: any;
   resolveCuratedSourceLabel: any;
@@ -1198,7 +1225,7 @@ export interface CuratedCollectionsApi {
   PACK_FILTERS: string[];
 }
 
-module.exports = { curatedFolderById, retiredArtworkTarget, buildCuratedCollections, curatedSourceIds, curatedSourceDisplayName, curatedFolderLabel, resolveCuratedSourceLabel, listCuratedCollections, curatedCollectionsPayload, validateCuratedCollections, PACK_FILTERS } satisfies CuratedCollectionsApi;
+module.exports = { curatedFolderById, retiredArtworkTarget, buildCuratedCollections, curatedSourceIds, currentPackIds, currentPackOverrides, curatedSourceDisplayName, curatedFolderLabel, resolveCuratedSourceLabel, listCuratedCollections, curatedCollectionsPayload, validateCuratedCollections, PACK_FILTERS } satisfies CuratedCollectionsApi;
 
 // ── LeLibrary's own art (5.8) ─────────────────────────────────────────
 // Every folder uses LeLibrary's own cover and focus GIF (own-art.ts) when this

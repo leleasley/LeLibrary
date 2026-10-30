@@ -12,6 +12,18 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 - Every folder also gets its own hero backdrop, the picture behind a folder's contents when you open it: a tilted wall of the folder's own posters. Live rows show their current titles, franchises add a new film's poster by themselves, and genres and moods use timeless titles.
 - Collections you already pushed switch to the new covers on their own. Push once more to get the new hero backdrops.
 
+### Your library
+
+- New 4K Movies, 4K Shows, HDR & Dolby Vision Movies and HDR & Dolby Vision Shows rows, built from your own library. Add them as Home rows in Settle In or Move In.
+- They hold the same titles as My Movies and My Shows, which still list everything, so watch progress is shared and nothing moves.
+- The LeLibrary hub on Nuvio gains 4K and HDR & Dolby Vision folders with their own artwork. Existing hubs get them on the next push.
+
+### Anime
+
+- New Anime This Season row and folder: this season's shows ranked by AniList, and it moves to the next season on its own. No extra key needed.
+- New Anime Hub pack (this season, popular, new, top rated, films, genres such as isekai and mecha, and the big studios) and an Anime Fan bundle.
+- Hide anime also hides anime folders in the pack picker.
+
 ### Manage Nuvio from your setup
 
 - The edit page has a new Nuvio view. Sign in once and manage each profile from LeLibrary: turn addons on or off, reorder, rename, remove or add them, and see your Home rows, collections and playback settings.
@@ -23,21 +35,18 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 ### Collections
 
-- 18 new packs and bundles: Streaming by Region, Seasonal and Holidays, Kids and Family, World TV and Dramas, Anime Hub, Shared Universes, Cinephile and Arthouse, Moods and Vibes, Based On, History and War, Sports Music and Performance, Charts and What's Hot, plus Starter, Cinephile, Family, Anime Fan, Horror Fan and Binge TV bundles.
+- 16 new packs and bundles: Streaming by Region, Seasonal and Holidays, Kids and Family, World TV and Dramas, Shared Universes, Cinephile and Arthouse, Moods and Vibes, Based On, History and War, Sports Music and Performance, Charts and What's Hot, plus Starter, Cinephile, Family, Horror Fan and Binge TV bundles.
 - A new pack picker: bundles first, search and filters, covers and folder counts, a look inside every pack where you can untick single folders, no duplicate folders, and a meter for how full your Nuvio Home will be.
-- Streaming services outside your region are hidden, seasonal packs show up in season, and Hide anime now applies in the picker.
+- Streaming services outside your region are hidden, and seasonal packs show up in season.
 - Horror Fan is the one place for horror: sub-genres, the horror labels and Shudder, every decade, world horror and 37 franchises, including Child's Play, Hellraiser, Candyman, The Omen, Jaws, Pet Sematary, Paranormal Activity, Annabelle, Sinister, The Ring, The Grudge, The Purge, The Exorcist, Wrong Turn, Hostel, Terrifier, It, A Quiet Place, Resident Evil, Scary Movie, Jeepers Creepers, The Hills Have Eyes, Predator, Poltergeist and Smile.
-- New Anime This Season row and folder (in Anime Hub, the Anime Fan bundle and the Suggested Home rows): this season's shows ranked by AniList, and it moves to the next season on its own.
 - Packs built on MDBList charts stay locked until an MDBList key is saved under Optional list sources.
 - New packs now show up straight away instead of after a day.
 
 ### Home rows
 
-- New 4K Movies, 4K Shows, HDR & Dolby Vision Movies and HDR & Dolby Vision Shows rows, built from your own library. Add them as Home rows in Settle In or Move In. They are the same titles as My Movies and My Shows (which still list everything), so watch progress is shared.
-- The LeLibrary hub collection on Nuvio gains 4K and HDR & Dolby Vision folders with their own artwork. Existing hubs get them on the next push.
 - The Home row picker is cleaned up: no more rows that quietly duplicated another one, the Latest and Top Rated versions of a genre or studio now say so instead of all reading "Action", and Trending and Popular are offered once.
 - Streaming services and charts that have nothing in your country are hidden, like in the pack picker.
-- A new Suggested shelf at the top: what is in cinemas, coming soon and airing today, the weekly charts, new Netflix and Disney+ arrivals and new anime.
+- A new Suggested shelf at the top: what is in cinemas, coming soon and airing today, the weekly charts, new Netflix and Disney+ arrivals and Anime This Season.
 - Rows that need an MDBList key say so.
 
 ### Posters

@@ -238,7 +238,10 @@ export function QuickSetupPage({ edit }: { edit?: EditMode } = {}) {
 
   return (
     <section className="setup setup-wide qs">
-      <TierProgress steps={steps} unsaved={dirty} />
+      <TierProgress
+        steps={steps} unsaved={dirty}
+        save={edit && !edit.locked ? { onSave: edit.onSave, onSaveAndPush: edit.onSaveAndPush, pushTarget: edit.pushTarget, busy: edit.saving || edit.pushing } : null}
+      />
       <PosterWall />
       {edit ? (
         <TierHero

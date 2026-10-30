@@ -12,10 +12,20 @@ export interface ProgressStep {
 //   CSS variable from a rAF loop so scrolling never re-renders React.
 // - wizard mode (Settle In, Move In, one step at a time): the fill glides to
 //   the active step and every label jumps straight to its step.
-export function TierProgress({ steps, unsaved, wizard }: {
+// Edit mode: Save (and Save and push, when a player is connected) sit next to
+// the unsaved notice, so a change on any step can be saved from that step.
+export interface ProgressSave {
+  onSave: () => void;
+  onSaveAndPush: (() => void) | null;
+  pushTarget: string;
+  busy: boolean;
+}
+
+export function TierProgress({ steps, unsaved, wizard, save }: {
   steps: ProgressStep[];
   unsaved: boolean;
   wizard?: { active: number; onStep: (index: number) => void };
+  save?: ProgressSave | null;
 }) {
   const railRef = useRef<HTMLDivElement>(null);
   const [scrollActive, setScrollActive] = useState(0);
@@ -93,7 +103,22 @@ export function TierProgress({ steps, unsaved, wizard }: {
         </div>
         {/* The floating banner collided with the dock and the preview, so the
             same notice lives in the rail: always visible, never on top. */}
-        {unsaved && <span className="qs-unsaved" role="status">Unsaved changes</span>}
+        {unsaved && (
+          <span className="qs-unsaved-group">
+            <span className="qs-unsaved" role="status">Unsaved changes</span>
+            {save && (
+              <>
+                <button type="button" className="qs-unsaved-save" disabled={save.busy} onClick={save.onSave}>Save</button>
+                {save.onSaveAndPush && (
+                  <button type="button" className="qs-unsaved-save is-push" disabled={save.busy} onClick={save.onSaveAndPush}>
+                    <span className="qs-save-long">{`Save and push to ${save.pushTarget}`}</span>
+                    <span className="qs-save-short">Save and push</span>
+                  </button>
+                )}
+              </>
+            )}
+          </span>
+        )}
       </div>
     </nav>
   );

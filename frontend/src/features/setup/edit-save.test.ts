@@ -127,7 +127,8 @@ describe('edit save body', () => {
     });
     expect(body).toEqual({
       config: { streamPreset: 'cinema', nuvioBadgePack: 'nard-full' },
-      clearConfig: ['streamNameTemplate', 'streamDescTemplate'],
+      // A built-in pack clears any old custom badge link.
+      clearConfig: ['streamNameTemplate', 'streamDescTemplate', 'nuvioBadgeUrl'],
     });
   });
 
@@ -196,7 +197,9 @@ describe('edit save body', () => {
       posters: { ...EMPTY_POSTERS, provider: 'betterposter' },
       providerServices: ['torboxApiKey'],
     });
-    expect(body).toEqual({ config: { posterProvider: 'betterposter' } });
+    // The other poster fields are cleared: the store merges, so a value left
+    // out would otherwise stay from the previous provider.
+    expect(body).toEqual({ config: { posterProvider: 'betterposter' }, clearConfig: ['pictoriumUrl', 'pictoriumOptions', 'customPosterTemplate'] });
   });
 
   it('combines keys, name and config in one body', () => {
@@ -211,6 +214,7 @@ describe('edit save body', () => {
       keys: { tmdbApiKey: 'tmdb-new' },
       name: 'Den',
       config: { posterProvider: 'betterposter' },
+      clearConfig: ['pictoriumUrl', 'pictoriumOptions', 'customPosterTemplate'],
     });
   });
 

@@ -580,6 +580,8 @@
     "{{count}} plain token setups were skipped: only setups built with the old Collections Wizard can be imported.": "{{count}} plain token setups were skipped: only setups built with the old Collections Wizard can be imported.",
     "Delete everything": "Delete everything",
     "Deleting…": "Deleting…",
+    "Save and push": "Save and push",
+    "Save and push to Stremio": "Save and push to Stremio",
     "Save and push to Nuvio": "Save and push to Nuvio",
     "Session expired: unlock again": "Session expired: unlock again",
     "That does not look like a setup id or setup link.": "That does not look like a setup id or setup link.",

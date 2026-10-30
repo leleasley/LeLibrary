@@ -65,6 +65,11 @@ export interface EditMode {
   onSnapshot: (snapshot: TierSnapshot) => void;
   onSave: () => void;
   saving: boolean;
+  // Save, then push to the connected player; null when no player is
+  // connected. `pushTarget` is its name for the button.
+  onSaveAndPush: (() => void) | null;
+  pushTarget: string;
+  pushing: boolean;
   // Restore every field to what the server holds.
   onClearEdits: () => void;
   // The saved player account for the Destination step and publish desk.

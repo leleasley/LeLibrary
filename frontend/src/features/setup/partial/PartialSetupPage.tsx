@@ -449,6 +449,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
         steps={PARTIAL_SECTIONS.map((section) => ({ id: section.id, label: section.title }))}
         unsaved={dirty}
         wizard={{ active: wizard.step, onStep: wizard.go }}
+        save={edit && !edit.locked ? { onSave: edit.onSave, onSaveAndPush: edit.onSaveAndPush, pushTarget: edit.pushTarget, busy: edit.saving || edit.pushing } : null}
       />
       {wizard.step === 0 && <PosterWall />}
       <TierHero

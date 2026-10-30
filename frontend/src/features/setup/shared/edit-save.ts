@@ -94,12 +94,24 @@ export function buildEditSaveBody(input: EditSaveInput): Record<string, unknown>
     config.provider = providerSelectionFromServices([...services]);
   }
 
+  // The server merges an edit into what it holds, so a field that is back at
+  // its default (and therefore left out by pruneConfig) must be cleared
+  // explicitly, or the old value stays: switching posters back to TMDB
+  // default, the badge pack back to the default or two providers back to
+  // one combined row used to save nothing.
+  const setOrClear = (fields: string[], values: Record<string, unknown>) => {
+    for (const field of fields) {
+      if (field in values) config[field] = values[field];
+      else clearConfig.push(field);
+    }
+  };
+
   if (input.destinationTouched) {
     config.wizardPlatform = input.platform;
-    if (input.rdCatalog !== 'merge') config.rdCatalog = input.rdCatalog;
+    setOrClear(['rdCatalog'], input.rdCatalog !== 'merge' ? { rdCatalog: input.rdCatalog } : {});
   }
   if (input.postersTouched) {
-    Object.assign(config, pruneConfig({
+    setOrClear(['posterProvider', 'pictoriumUrl', 'pictoriumOptions', 'customPosterTemplate'], pruneConfig({
       posterProvider: input.posters.provider,
       pictoriumUrl: input.posters.pictoriumUrl,
       pictoriumOptions: input.posters.pictoriumOptions,
@@ -123,7 +135,7 @@ export function buildEditSaveBody(input: EditSaveInput): Record<string, unknown>
     }
   }
   if (input.badgeTouched) {
-    Object.assign(config, pruneConfig({
+    setOrClear(['nuvioBadgePack', 'nuvioBadgeUrl'], pruneConfig({
       nuvioBadgePack: input.badgePack.pack,
       nuvioBadgeUrl: input.badgePack.url,
     }));

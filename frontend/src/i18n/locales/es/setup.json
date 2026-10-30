@@ -580,6 +580,8 @@
     "{{count}} plain token setups were skipped: only setups built with the old Collections Wizard can be imported.": "Se omitieron {{count}} configuraciones de token simple: solo se pueden importar las configuraciones creadas con el antiguo asistente de colecciones.",
     "Delete everything": "Eliminar todo",
     "Deleting…": "Eliminando…",
+    "Save and push": "Guardar y enviar",
+    "Save and push to Stremio": "Guardar y enviar a Stremio",
     "Save and push to Nuvio": "Guardar y enviar a Nuvio",
     "Session expired: unlock again": "La sesión caducó: vuelve a desbloquear la configuración",
     "That does not look like a setup id or setup link.": "Eso no parece un ID ni un enlace de configuración.",

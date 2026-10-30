@@ -610,6 +610,9 @@ export function SetupEditPage() {
     },
     onSave: () => void saveAll(),
     saving,
+    onSaveAndPush: pushAvailable ? () => void saveAndPush() : null,
+    pushTarget: platformName,
+    pushing: pushing !== null,
     onClearEdits: clearEdits,
     savedAccount,
     onSavedProfile: (profileIndex) => {

@@ -55,6 +55,8 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 ### Fixes
 
+- Editing a setup: Save (and Save and push to Nuvio or Stremio) now sit next to "Unsaved changes" on every step, so a change on any step can be saved right there. Before, Settle In and Move In only offered Save on the last step.
+- Editing a setup: switching posters back to TMDB default, the badge pack back to the default, or several providers back to one combined row now saves. Before, the old choice stayed.
 - The Guide now explains how to scrobble to Trakt: turn on Use Main Meta and connect Trakt in Nuvio or Stremio. LeLibrary itself still does not show Trakt watchlists.
 - Many catalogues pointed at the wrong studio, network, service or keyword and showed the wrong titles. They are corrected, broken collections and dead lists are replaced, and decade rows each have their own list.
 - Streaming service rows use the region of your setup language (English is the UK).

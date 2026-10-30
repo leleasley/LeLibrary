@@ -32,6 +32,8 @@ const CREDIT_GROUPS: { key: string; icon: string; items: Credit[] }[] = [
       { name: 'TheTVDB', href: 'https://thetvdb.com/' },
       { name: 'OMDb API', href: 'https://www.omdbapi.com/' },
       { name: 'MDBList', href: 'https://mdblist.com/' },
+      { name: 'AniList', href: 'https://anilist.co/' },
+      { name: 'anime-lists by Fribb', href: 'https://github.com/Fribb/anime-lists' },
     ],
   },
   {

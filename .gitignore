@@ -43,21 +43,21 @@ website/sitemap.xml
 # (it lists production URLs), so self-hosted checkouts never publish it.
 frontend/public/sitemap.xml
 
-# Private addon identity (id, description, Stremio registry signature) — production-only
+# Private addon identity (id, description, Stremio registry signature) - production-only
 # Self-hosters get a generic self-hosted manifest instead.
 # Path moved from src/registry.js to backend/src/registry.ts in the v5.5 restructure:
 # keep both so an old-layout checkout stays safe.
 src/registry.js
 backend/src/registry.ts
 
-# Private V5 accounts area — OAuth, sessions, DB, encrypted keys, My Library.
+# Private V5 accounts area - OAuth, sessions, DB, encrypted keys, My Library.
 # Removed from v5.5 (see Docs/v5.5/removed-accounts/), but keep the rule in case
 # the Full tier reintroduces it. backend/src/platform/hosted.ts is public (a
 # capability gate that reads env), so it is deliberately NOT ignored.
 src/accounts/
 backend/src/accounts/
 
-# Account-private tests — require src/accounts or ignored scripts/
+# Account-private tests - require src/accounts or ignored scripts/
 # and would fail on self-hosted checkouts where those are absent.
 test/accounts-security.test.js
 test/source-import-route.test.js

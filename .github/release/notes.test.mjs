@@ -74,7 +74,7 @@ test('fails when the section is missing or not the newest', () => {
 });
 
 test('enforces ASCII, no dashes and group headings', () => {
-  const problems = lintSection({ version: '9.9.9', body: '- A — B\n- café' });
+  const problems = lintSection({ version: '9.9.9', body: `- A ${String.fromCodePoint(0x2014)} B\n- café` });
   assert.equal(problems.length, 3);
 });
 

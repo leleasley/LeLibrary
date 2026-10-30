@@ -56,7 +56,7 @@ export function lintSection(section) {
   if (section.body && !/^### /m.test(section.body)) problems.push('no "### " group headings');
   section.body.split('\n').forEach((line, index) => {
     const where = `line ${index + 1} of [${section.version}]`;
-    if (/[–—]/.test(line)) problems.push(`${where}: em/en dash, use a plain hyphen or rewrite`);
+    if (/[\u2013\u2014]/.test(line)) problems.push(`${where}: em/en dash, use a plain hyphen or rewrite`);
     else if (/[^\x00-\x7F]/.test(line)) problems.push(`${where}: non-ASCII character ${JSON.stringify(line.match(/[^\x00-\x7F]/)[0])}`);
   });
   return problems;

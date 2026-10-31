@@ -97,6 +97,9 @@ const FIXES = {
   // Checked against TMDB 2026-10-31: these ids had drifted to other series.
   collection_alien: { handler: 'tmdb_collection', params: { collectionId: '8091|135416|1434946' } }, // Alien + Prometheus + Romulus (1742094 is "Alien Sharks")
   collection_sherlock_holmes: { handler: 'tmdb_collection', params: { collectionId: 102322 } },     // Guy Ritchie films (522048 is the Matt Frewer TV films)
+  // 5.9: every era, in release order (operator call 2026-10-31).
+  collection_batman: { handler: 'tmdb_collection', params: { collectionId: '120794|263|948485' } },     // Burton/Schumacher + The Dark Knight + The Batman
+  collection_spider_man: { handler: 'tmdb_collection', params: { collectionId: '556|125574|531241' } }, // Raimi + The Amazing Spider-Man + MCU
   genre_bollywood_series: discover('tv', { with_original_language: 'hi', sort_by: 'popularity.desc' }),
   genre_bollywood_latest_series: latestTv({ with_original_language: 'hi' }),
   genre_bollywood_toprated_series: topTv({ with_original_language: 'hi' }),

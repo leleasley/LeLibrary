@@ -186,6 +186,7 @@ const DIRECTOR_PACK_FOLDERS = [
   ['taika_waititi', 'Taika Waititi'], ['jordan_peele', 'Jordan Peele'], ['robert_eggers', 'Robert Eggers'],
   ['ari_aster', 'Ari Aster'], ['greta_gerwig', 'Greta Gerwig'], ['sofia_coppola', 'Sofia Coppola'],
   ['spike_lee', 'Spike Lee'], ['guillermo_del_toro', 'Guillermo del Toro'], ['edgar_wright', 'Edgar Wright'],
+  ['m_night_shyamalan', 'M. Night Shyamalan'],
 ].map(([key, title]) => folder(`preset-directors-${key}`, title, `director_${key}_movies`));
 
 const DECADE_PACK_FOLDERS = ['2020s', '2010s', '2000s', '1990s', '1980s', '1970s', '1960s', '1950s'].map((label) => {
@@ -294,6 +295,17 @@ const CURATED_COLLECTIONS = mergeCompatibleMediaSources([
       folder('theme-hidden-gems', 'Hidden Gems', 'themed_hidden_gems_tmdb_movies', artwork('moods', 'turn-off-your-brain', 'png', true)),
       folder('theme-superhero', 'Superhero', 'themed_superhero', artwork('genres', 'superheroes', 'png', true)),
       folder('theme-true-crime', 'True Crime', 'themed_serial_killer', artwork('genres', 'true-crime', 'png', true)),
+      folder("theme-sharks", "Sharks", "themed_shark_movies"),
+      folder("theme-dinosaurs", "Dinosaurs", "themed_dinosaur_movies"),
+      folder("theme-alien-invasion", "Alien Invasion", "themed_alien_invasion_movies"),
+      folder("theme-robots", "Robots & AI", "themed_robot_movies"),
+      folder("theme-disaster", "Disasters", "themed_disaster_movies"),
+      folder("theme-survival", "Survival", "themed_survival_movies"),
+      folder("theme-pirates", "Pirates", "themed_pirate_movies"),
+      folder("theme-fairy-tales", "Fairy Tales", "themed_fairy_tale_movies"),
+      folder("theme-monsters", "Monsters & Kaiju", "themed_monster_movies"),
+      folder("theme-psych-thrillers", "Psychological Thrillers", "themed_psychological_thriller_movies"),
+      folder("theme-courtroom", "Courtroom Dramas", "themed_courtroom_movies"),
     ],
   },
   {
@@ -310,6 +322,15 @@ const CURATED_COLLECTIONS = mergeCompatibleMediaSources([
       folder('actor-leonardo-dicaprio', 'Leonardo DiCaprio', 'actor_dicaprio_movies', actorArtwork('Leonardo_DiCaprio', 'Background')),
       folder('actor-margot-robbie', 'Margot Robbie', 'actor_robbie_movies', actorArtwork('Margot_Robbie')),
       folder('actor-pedro-pascal', 'Pedro Pascal', 'actor_pascal_movies', actorArtwork('Pedro_Pascal')),
+      folder("actor-arnold-schwarzenegger", "Arnold Schwarzenegger", "actor_arnold_schwarzenegger_movies"),
+      folder("actor-sylvester-stallone", "Sylvester Stallone", "actor_sylvester_stallone_movies"),
+      folder("actor-bruce-willis", "Bruce Willis", "actor_bruce_willis_movies"),
+      folder("actor-denzel-washington", "Denzel Washington", "actor_denzel_movies"),
+      folder("actor-tom-cruise", "Tom Cruise", "actor_cruise_movies"),
+      folder("actor-adam-sandler", "Adam Sandler", "actor_sandler_movies"),
+      folder("actor-jim-carrey", "Jim Carrey", "actor_carrey_movies"),
+      folder("actor-eddie-murphy", "Eddie Murphy", "actor_eddie_murphy_movies"),
+      folder("actor-rowan-atkinson", "Rowan Atkinson", "actor_rowan_atkinson_movies"),
     ],
   },
   {
@@ -646,6 +667,10 @@ function resolveSections(pack) {
 
 for (const pack of mergeCompatibleMediaSources(buildNewPacks({ folder }))) CURATED_COLLECTIONS.push(resolveSections(pack));
 
+// 5.9: the hidden library that defines the new film collection folders.
+const { buildLibrary59, PACKS_59 } = require('./curated-packs-59.ts');
+CURATED_COLLECTIONS.push(buildLibrary59({ folder }));
+
 // A persona bundle only references folders defined by other packs. The
 // copies keep the original folder id, so the picker sees "already added"
 // across packs and bundles alike.
@@ -678,6 +703,8 @@ function buildBundle(definition, packs) {
 }
 
 const BASE_PACKS = CURATED_COLLECTIONS.slice();
+// 5.9 packs reference folders like bundles do (sagas shared across packs).
+for (const pack of PACKS_59) CURATED_COLLECTIONS.push(buildBundle(pack, BASE_PACKS));
 for (const bundle of PERSONA_BUNDLES) CURATED_COLLECTIONS.push(buildBundle(bundle, BASE_PACKS));
 Object.freeze(CURATED_COLLECTIONS);
 

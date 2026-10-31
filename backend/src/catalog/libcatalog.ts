@@ -409,8 +409,18 @@ async function buildCatalogRows(tmdbApiKey, def, lang = 'en-US', mdblistKey = ''
       return await tmdbItemsToRows(tmdbApiKey, apiType, await discover(tmdbApiKey, apiType, { sort: p.sort, tmdb: { with_companies: p.companyId, ...(p.rotation || {}) } }, lang), stremioType);
 
     case 'tmdb_person': {
-      const tmdbParam = p.director ? { with_crew: p.personId } : { with_cast: p.personId };
-      return await tmdbItemsToRows(tmdbApiKey, 'movie', await discover(tmdbApiKey, 'movie', { tmdb: tmdbParam }, lang), 'movie');
+      // A director row is the films they directed. Discover's with_crew
+      // matches any crew job (writer, producer, assistant director: Sergio
+      // Leone was second-unit on Ben-Hur), so read their credits instead.
+      if (p.director) {
+        const res = await axios.get(`https://api.themoviedb.org/3/person/${p.personId}/movie_credits`, { params: { api_key: tmdbApiKey, language: lang }, timeout: 15000 });
+        const seen = new Set();
+        const directed = ((res.data && res.data.crew) || [])
+          .filter((c) => c && c.job === 'Director' && !seen.has(c.id) && seen.add(c.id))
+          .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+        return await tmdbItemsToRows(tmdbApiKey, 'movie', directed, 'movie');
+      }
+      return await tmdbItemsToRows(tmdbApiKey, 'movie', await discover(tmdbApiKey, 'movie', { tmdb: { with_cast: p.personId } }, lang), 'movie');
     }
 
     case 'tmdb_discover': {
@@ -432,8 +442,9 @@ async function buildCatalogRows(tmdbApiKey, def, lang = 'en-US', mdblistKey = ''
     case 'tmdb_collection': {
       if (!p.collectionId) return [];
       // "1709|173710": several collections (an original series and its reboot)
-      // shown as one row in release order.
-      const ids = String(p.collectionId).split('|').map((id) => id.trim()).filter((id) => /^\d+$/.test(id)).slice(0, 4);
+      // shown as one row in release order. Up to eight (the Pokemon films are
+      // spread over six TMDB collections).
+      const ids = String(p.collectionId).split('|').map((id) => id.trim()).filter((id) => /^\d+$/.test(id)).slice(0, 8);
       const results = await Promise.all(ids.map((id) => axios.get(`https://api.themoviedb.org/3/collection/${id}`, { params: { api_key: tmdbApiKey, language: lang }, timeout: 15000 })));
       const parts = results.flatMap((res) => (res.data && res.data.parts) || []);
       if (ids.length > 1) parts.sort((a, b) => String(a.release_date || '9999').localeCompare(String(b.release_date || '9999')));
@@ -577,7 +588,10 @@ async function buildLibraryCatalog({ tmdbApiKey, catalogId, lang = 'en-US', user
   // Rotating rows deliberately use the native dispatcher below: its effective
   // definition carries the daily TMDB filters, whereas the normalized static
   // recipe is intentionally stable for importer signature matching.
-  if (!rotated.rotation && staticEntry && ['discover', 'list', 'collection'].includes(staticEntry.definition.engine)) {
+  // Director rows keep their importer signature but are served natively
+  // (directing credits only, see buildCatalogRows).
+  const nativeOnly = effectiveDef.handler === 'tmdb_person' && effectiveDef.params?.director === true;
+  if (!rotated.rotation && !nativeOnly && staticEntry && ['discover', 'list', 'collection'].includes(staticEntry.definition.engine)) {
     return buildNormalizedImportedCatalog({
       definition: staticEntry.definition, tmdbApiKey, lang, skip, search,
       enhance, posterFp, pageSize: 50, hideAnime,

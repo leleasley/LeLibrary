@@ -5093,4 +5093,10 @@ for (const id of Object.keys(packs.catalogs)) {
   if (generated.catalogs[id] || extra.catalogs[id]) throw new Error(`pack catalogue id ${id} collides with an existing catalogue`);
 }
 
-module.exports = { catalogs: applyCatalogFixes({ ...generated.catalogs, ...extra.catalogs, ...packs.catalogs }) };
+// 5.9 catalogues (catalogdefs-59.ts): new ids only, same rule.
+const packs59 = require('./catalogdefs-59.ts');
+for (const id of Object.keys(packs59.catalogs)) {
+  if (generated.catalogs[id] || extra.catalogs[id] || packs.catalogs[id]) throw new Error(`5.9 catalogue id ${id} collides with an existing catalogue`);
+}
+
+module.exports = { catalogs: applyCatalogFixes({ ...generated.catalogs, ...extra.catalogs, ...packs.catalogs, ...packs59.catalogs }) };

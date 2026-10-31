@@ -83,9 +83,11 @@ test('no pack or bundle lists a catalogue source twice', () => {
 });
 
 test('folder ids are unique across the packs that define folders', () => {
+  // Bundles and the 5.9 packs reference folders by id instead of defining them.
+  const byReference = new Set(require('../src/catalog/curated-packs-59.ts').PACKS_59.map((pack) => pack.id));
   const owners = new Map();
   for (const pack of packs) {
-    if (pack.kind === 'bundle') continue;
+    if (pack.kind === 'bundle' || byReference.has(pack.id)) continue;
     for (const folder of pack.folders) {
       assert.ok(!owners.has(folder.id), `${folder.id} defined by ${owners.get(folder.id)} and ${pack.id}`);
       owners.set(folder.id, pack.id);

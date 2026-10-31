@@ -9,6 +9,17 @@
 // paths; refresh them by re-running the verification and re-picking.
 
 const PACK_COVERS = {
+  // 5.9 packs (first poster of their first folders).
+  "comic-heroes": ["/6WBeq4fCfn7AN0o21W9qNcRF2l9.jpg", "/tVFRpFw3xTedgPGqxW0AOI8Qhh0.jpg", "/prSfAi1xGrhLQNxVSUFh61xQ4Qy.jpg", "/r7vmZjiyZw9rpJMQJdXpjgiCOk9.jpg"],
+  "action-franchises": ["/aP8swke3gmowbkfZ6lmNidu0y9p.jpg", "/r6q9wZK5a2K51KFj4LWVID6Ja1r.jpg", "/uQBbjrLVsUibWxNDGA4Czzo8lwz.jpg", "/8eeK3OB5PeSRQD7BpZcGZKkehG.jpg"],
+  "scifi-sagas": ["/bRBeSHfGHwkEpImlhxPmOcUsaeg.jpg", "/3AnlxZ5CZnhKKzjgFyY6EHxmOyl.jpg", "/uLOmOF5IzWoyrgIF5MfUnh5pa1X.jpg", "/p0BPQGSPoSa8Ml0DAf2mB2kCU0R.jpg"],
+  "fantasy-sagas": ["/iREd0rNCjYdf5Ar0vfaW32yrkm.jpg", "/brzpTyZ5bnM7s53C1KSk1TmrMO6.jpg", "/3Gkb6jm6962ADUPaCBqzz9CTbn9.jpg", "/bdHG5Mo83VPobeZZdlSz0Y7HQHB.jpg"],
+  "disney-vault": ["/ym7Kst6a4uodryxqbGOxmewF235.jpg", "/5m9njnidjR0syG2gpVPVgcEMB2X.jpg", "/wV9e2y4myJ4KMFsyFfWYcUOawyK.jpg", "/4nssBcQUBadCTBjrAkX46mVEKts.jpg"],
+  "comedy-franchises": ["/5P68by2Thn8wHAziyWGEw2O7hco.jpg", "/vtxuPWkdllLNLVyGjKYa267ntuH.jpg", "/5vO7R4xYlDipTp8gzfRbWegO8eb.jpg", "/59fXm6N2x7QSbvt6BaBxTNBXGL8.jpg"],
+  "crime-thrillers": ["/3bhkrj58Vtu7enYsRolD1fZdja1.jpg", "/qJ2tW6WMUDux911r6m7haRef0WH.jpg", "/scl2JDHzYoIEs5xyYy5ITCfyY0G.jpg", "/lz8vNyXeidqqOdJW9ZjnDAMb5Vr.jpg"],
+  "martial-arts": ["/fyrh2ULEcmLpGTVLPQqFW45hqr5.jpg", "/cHKo3m8N1fwvEy2ZEr0xGmmMODV.jpg", "/9bUIrDKnesNbBL1nAl1nt7gtocE.jpg", "/cf43J2SH8tECZVl9N5n0Q6Ckche.jpg"],
+  "westerns": ["/bX2xnavhMYjWDoZp1VM6VnU1xwe.jpg", "/e5ToxOyJwuZD4VOfI0qEn5uIjeJ.jpg", "/1rkSeuO2cGcT3CQ47ZxLRHMcGZ8.jpg", "/7kMjla98srGHlFzAEmoGRcr6GN1.jpg"],
+  "tv-toys-to-film": ["/qbojLbbpSaNSerWa2moIrt0C8hy.jpg", "/kbJfBJh5vEf5356Jlm6P37H48hD.jpg", "/tcwar1rL0neoLvnklL7DzYw7sN8.jpg", "/hInHHG8oiKLLXPtO87aUZ9txX4q.jpg"],
   "discover": ["/rmaNMA1seHqpjtnYKzyynFAr1g8.jpg","/6VY1ZKgpsc8CfGsQcCGiYEgHdH0.jpg","/9cqNxx0GxF0bflZmeSMuL5tnGzr.jpg","/gO8Fo47KV1opiutRDdBS5jclTQB.jpg"],
   "streaming": ["/iISM36voS1E8gX9BM0DVK0kgi3E.jpg","/iOb2fjXLbpJgyQXe46n1WtGCnaa.jpg","/oQffRNjK8e19rF7xVYEN8ew0j7b.jpg","/yQvGrMoipbRoddT0ZR8tPoR7NfX.jpg"],
   "franchises": ["/bjiS5ipwxb9JFy3XRRN4OAilSeX.jpg","/8GFtkImmK0K1VaUChR0n9O61CFU.jpg","/fai0rspsNeJCS69wHNjOdWxcI7P.jpg","/wuMc08IPKEatf9rnMNXvIDxqP4W.jpg"],

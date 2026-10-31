@@ -84,7 +84,7 @@ test('curated Nuvio packs only reference valid LeLibrary sources', () => {
   }
   assert.ok(validation.folders >= 170);
   const directors = buildCuratedCollections(['preset-directors']);
-  assert.equal(directors[0].folders.length, 30);
+  assert.equal(directors[0].folders.length, 31);
   assert.ok(directors[0].folders.every((folder) => folder.catalogSources[0].catalogId.startsWith('lib-director_')));
   const decades = buildCuratedCollections(['preset-decades']);
   assert.deepEqual(

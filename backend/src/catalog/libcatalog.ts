@@ -590,11 +590,15 @@ async function buildLibraryCatalog({ tmdbApiKey, catalogId, lang = 'en-US', user
   // lib7 invalidates rows cached before the 2026-10-28 catalogue fixes (wrong
   // TMDB ids, region from language). Keys include lang, so each derived watch
   // region is cached separately.
-  const libCacheKey = cache.makeKey('cat', 'lib7-base', sourceId, rotationSlot, lang, credFp);
+  // The definition's own fingerprint is part of the key, so a corrected
+  // catalogue (a wrong TMDB id fixed) serves its new rows at once instead of
+  // the old ones for up to a day.
+  const defFp = hashShort(JSON.stringify([effectiveDef.handler, effectiveDef.params]));
+  const libCacheKey = cache.makeKey('cat', 'lib7-base', sourceId, rotationSlot, lang, credFp, defFp);
   let rows;
   try {
     rows = await cachedRows({ store: cache, key: libCacheKey,
-      staleKey: cache.makeKey('cat', 'lib7-base-lkg', sourceId, lang, credFp), ttl: TTL_LIB,
+      staleKey: cache.makeKey('cat', 'lib7-base-lkg', sourceId, lang, credFp, defFp), ttl: TTL_LIB,
       allowStale: !credFp,
       load: async () => {
         const rows = await buildCatalogRows(tmdbApiKey, effectiveDef, lang, mdblistKey);

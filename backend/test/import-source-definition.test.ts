@@ -40,14 +40,14 @@ test('unknown recipe and provenance fields are rejected', () => {
 test('static source matching uses exact effective recipes, never titles', () => {
   const exact = normalizeImportedSourceDefinition({
     provider: 'tmdb', engine: 'collection', mediaType: 'movie',
-    params: { collectionId: 1742094 }, label: 'Not called Alien',
+    params: { collectionId: 119 }, label: 'Not called The Lord of the Rings',
   });
   const different = normalizeImportedSourceDefinition({
     provider: 'tmdb', engine: 'collection', mediaType: 'movie',
-    params: { collectionId: 573693 }, label: 'Alien',
+    params: { collectionId: 573693 }, label: 'The Lord of the Rings',
   });
-  assert.equal(exactStaticMatch(exact).catalogId, 'lib-collection_alien');
-  assert.notEqual(exactStaticMatch(different).catalogId, 'lib-collection_alien');
+  assert.equal(exactStaticMatch(exact).catalogId, 'lib-collection_lord_of_the_rings');
+  assert.notEqual(exactStaticMatch(different).catalogId, 'lib-collection_lord_of_the_rings');
 });
 
 test('TMDB network signatures include the runtime sort semantics', () => {

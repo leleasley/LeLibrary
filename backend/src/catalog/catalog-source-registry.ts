@@ -44,7 +44,6 @@ function requirements(definition) {
 
 // Rows whose plain name is shared with a sibling get a clearer one.
 const NAME_OVERRIDES = {
-  collection_mcu: 'Marvel Cinematic Universe',
   themed_horror_classics_movies: 'Horror Classics',
   themed_modern_horror_movies: 'Modern Horror',
   studio_dc_animation_movies: 'DC Animation',

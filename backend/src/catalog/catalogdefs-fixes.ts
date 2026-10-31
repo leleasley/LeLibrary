@@ -94,6 +94,9 @@ const FIXES = {
   // public MDBList lists that no longer exist (404).
   collection_lord_of_the_rings: { handler: 'tmdb_collection', params: { collectionId: 119 } },   // was 1173608 ("The Making of...")
   collection_planet_of_apes: { handler: 'tmdb_collection', params: { collectionId: '1709|173710' } }, // original + reboot (1719317 was a 404)
+  // Checked against TMDB 2026-10-31: these ids had drifted to other series.
+  collection_alien: { handler: 'tmdb_collection', params: { collectionId: '8091|135416|1434946' } }, // Alien + Prometheus + Romulus (1742094 is "Alien Sharks")
+  collection_sherlock_holmes: { handler: 'tmdb_collection', params: { collectionId: 102322 } },     // Guy Ritchie films (522048 is the Matt Frewer TV films)
   genre_bollywood_series: discover('tv', { with_original_language: 'hi', sort_by: 'popularity.desc' }),
   genre_bollywood_latest_series: latestTv({ with_original_language: 'hi' }),
   genre_bollywood_toprated_series: topTv({ with_original_language: 'hi' }),
@@ -208,6 +211,8 @@ const ALIASES = {
   collection_universe_jurassic: 'collection_jurassic_park',
   collection_universe_indiana_jones: 'collection_indiana_jones',
   collection_universe_xmen: 'collection_xmen',
+  // 627234 is the "Marvel Rising" cartoons: the MCU is the Marvel Studios row.
+  collection_mcu: 'studio_marvel_movies',
   streaming_top100_movies: 'trakt_trending_movies',
   streaming_top100_series: 'trakt_trending_series',
   kb_peacock_top50_series: 'trakt_anticipated_series',

@@ -11,6 +11,9 @@ Dockerfile.ghcr.dockerignore
 # Local notes, fixtures and generated test output never belong in an image.
 Docs
 tmp-fixture
+# Art and video tooling (renders, frames, recordings: ~2 GB). The server never
+# reads it; its scripts docker cp themselves into /tmp when they need the app.
+promo
 coverage
 .nyc_output
 test-results

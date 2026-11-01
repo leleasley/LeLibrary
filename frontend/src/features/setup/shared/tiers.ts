@@ -35,7 +35,7 @@ export const TIERS: TierDefinition[] = [
       'Choose and order your Home rows',
       'Tune library playback, artwork and filters',
     ],
-    steps: 8,
+    steps: 4,
     recommended: true,
   },
   {
@@ -47,7 +47,7 @@ export const TIERS: TierDefinition[] = [
       'Organize your library into collections',
       'Choose collection artwork and push to Nuvio',
     ],
-    steps: 8,
+    steps: 5,
   },
 ];
 

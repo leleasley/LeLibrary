@@ -39,14 +39,9 @@ describe('tier sections', () => {
     expect([...QUICK_SECTION_IDS]).toEqual([
       'providers', 'artwork', 'stream-look', 'password',
     ]);
-    expect([...PARTIAL_SECTION_IDS]).toEqual([
-      'destination', 'providers', 'metadata', 'streams', 'artwork', 'stream-look',
-      'home-rows', 'password',
-    ]);
-    expect([...FULL_SECTION_IDS]).toEqual([
-      'destination', 'providers', 'metadata', 'streams', 'artwork',
-      'home', 'collections', 'review',
-    ]);
+    // 5.9: Settle In and Move In are a few pages, with one accordion Setup page.
+    expect([...PARTIAL_SECTION_IDS]).toEqual(['connect', 'setup', 'home-rows', 'password']);
+    expect([...FULL_SECTION_IDS]).toEqual(['connect', 'setup', 'home', 'collections', 'review']);
   });
 
   it('never reorders the sections tiers share', () => {

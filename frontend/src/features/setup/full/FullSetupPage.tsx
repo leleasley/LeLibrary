@@ -68,14 +68,11 @@ import {
 // Stages 2-6 fill in the destination connection, provider skins, collections
 // studio, home-row builder, badge packs and review. The rail stays fixed.
 export const FULL_SECTIONS = [
-  { id: 'destination', title: 'Destination', icon: '📍' },
-  { id: 'providers', title: 'Library keys', icon: '🔌' },
-  { id: 'metadata', title: 'Metadata', icon: '🎬' },
-  { id: 'streams', title: 'Playback', icon: '🎚️' },
-  { id: 'artwork', title: 'Artwork', icon: '🖼️' },
+  { id: 'connect', title: 'Connect', icon: '📍' },
+  { id: 'setup', title: 'Setup', icon: '⚙️' },
   { id: 'home', title: 'Home', icon: '🏠' },
   { id: 'collections', title: 'Collections', icon: '🗂️' },
-  { id: 'review', title: 'Review', icon: '🔒' },
+  { id: 'review', title: 'Protect', icon: '🔒' },
 ] as const;
 
 export const FULL_SECTION_IDS = FULL_SECTIONS.map((section) => section.id);
@@ -476,12 +473,12 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
       <TierHero
         eyebrow={edit ? 'MOVE IN · EDITING' : 'MOVE IN'} title="Make your library" accent="yours"
         lede={edit ? 'Your saved settings and keys are filled in below. Change anything, then save.' : 'Organize your library, choose what appears on Home and build collections. MDBList and extra stream sources are optional. Finish with one install link.'}
-        facts={edit ? ['Saved keys stay hidden', 'Nothing changes until you save', 'Same install link'] : ['Eight guided steps', 'Collections and folders', 'Push straight to Nuvio or Stremio']}
+        facts={edit ? ['Saved keys stay hidden', 'Nothing changes until you save', 'Same install link'] : ['Five short pages', 'Collections and folders', 'Push straight to Nuvio or Stremio']}
         compact={wizard.step > 0}
       />
       <div className="qs-grid">
         <div className="qs-flow">
-          <TierStep id="destination" index={1} title="Destination" hidden={wizard.step !== 0} lede="Where this setup gets installed. Already have a v5 setup? Bring it across instead.">
+          <TierStep id="connect" index={1} title="Connect" hidden={wizard.step !== 0} lede="Where this setup gets installed. Already have a v5 setup? Bring it across instead.">
             {!edit && <ImportSection staged={stagedImport} platform={platform} onStage={stageImport} />}
             <DestinationStep
               profileName={name}
@@ -497,99 +494,93 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
               />
             </label>
           </TierStep>
-          <TierStep id="providers" index={2} title="Library providers" hidden={wizard.step !== 1} lede="Connect the debrid account or accounts that hold your library. Verify each key as you paste it.">
-            {missingImportedServices.length > 0 && (
-              <p className="setup-error" role="alert">
-                From your imported setup but empty here: {missingImportedServices.join(', ')}.
-                {' '}These will not be carried over, and creating this setup removes the old one.
-                {' '}Press the eye to fetch each one, or paste it again.
-              </p>
-            )}
-            {edit ? (
-              <ProviderKeys
-                values={keys} onChange={setKeys}
-                savedServices={edit.savedServices} revealSaved={revealEdit} onRemove={edit.onRemoveKey}
-              />
-            ) : (
-              <ProviderKeys
-                values={keys} onChange={setKeys}
-                savedServices={stagedImport?.services} savedScope="import"
-                {...(revealSavedKey ? { revealSaved: revealSavedKey } : {})}
-              />
-            )}
-            <div className="qs-catalogs"><RdCatalogSelect value={rdCatalog} onChange={setRdCatalog} /></div>
-          </TierStep>
-          <TierStep id="metadata" index={3} title="Metadata" hidden={wizard.step !== 2} lede="Keys that power posters, matching and search.">
-            {edit
-              ? <TierMetadata values={keys} onChange={setKeys} savedServices={edit.savedServices} revealSaved={revealEdit} />
-              : <TierMetadata values={keys} onChange={setKeys} savedServices={stagedImport?.services} savedScope="import" revealSaved={revealSavedKey} />}
-            <div className="qs-accordions">
-              <Accordion title="Display, search & notices" desc="Language, order, main metadata, anime, search scope and stream notices." icon="🎬">
-                <MetadataExtras draft={meta} onChange={setMeta} />
-              </Accordion>
-              <Accordion title="Optional list sources" desc="Only add an MDBList key if you want its lists or collection sources. It is not needed for your library." icon="📋">
+          <TierStep id="setup" index={2} title="Setup" hidden={wizard.step !== 1} lede="Everything about your library in one place. Open a section to change it; each one shows where it stands.">
+            <div className="qs-accordions qs-setup-page">
+              <Accordion title="Integrations" icon="🔌" defaultOpen={!edit && connected.length === 0}
+                summary={[connected.length ? connected.join(' + ') : 'No library yet', hasTmdb || edit?.savedServices.includes('tmdbApiKey') || stagedImport?.services?.includes('tmdbApiKey') ? 'TMDB key added' : 'TMDB key needed']}>
+                {missingImportedServices.length > 0 && (
+                  <p className="setup-error" role="alert">
+                    From your imported setup but empty here: {missingImportedServices.join(', ')}.
+                    {' '}These will not be carried over, and creating this setup removes the old one.
+                    {' '}Press the eye to fetch each one, or paste it again.
+                  </p>
+                )}
+                <h3 className="qs-sub"><strong>Library providers</strong><span>Debrid</span></h3>
+                {edit ? (
+                  <ProviderKeys
+                    values={keys} onChange={setKeys}
+                    savedServices={edit.savedServices} revealSaved={revealEdit} onRemove={edit.onRemoveKey}
+                  />
+                ) : (
+                  <ProviderKeys
+                    values={keys} onChange={setKeys}
+                    savedServices={stagedImport?.services} savedScope="import"
+                    {...(revealSavedKey ? { revealSaved: revealSavedKey } : {})}
+                  />
+                )}
+                <div className="qs-catalogs"><RdCatalogSelect value={rdCatalog} onChange={setRdCatalog} /></div>
+                {edit
+                  ? <TierMetadata values={keys} onChange={setKeys} savedServices={edit.savedServices} revealSaved={revealEdit} />
+                  : <TierMetadata values={keys} onChange={setKeys} savedServices={stagedImport?.services} savedScope="import" revealSaved={revealSavedKey} />}
+                <h3 className="qs-sub"><strong>MDBList</strong><span>Optional</span></h3>
                 {edit
                   ? <ListKey value={keys.mdblistKey ?? ''} onChange={(value) => setKeys({ ...keys, mdblistKey: value })} savedServices={edit.savedServices} revealSaved={revealEdit} />
                   : <ListKey value={keys.mdblistKey ?? ''} onChange={(value) => setKeys({ ...keys, mdblistKey: value })} savedServices={stagedImport?.services} savedScope="import" revealSaved={revealSavedKey} />}
-              </Accordion>
-              <Accordion title="Watchlists" desc={WATCHLIST_ACCORDION_DESC} icon="🔖">
+                <p className="setup-hint qs-note">Want what you watch on MDBList? In Nuvio open Settings, then MDBList, then Connect, and approve the code on mdblist.com. Nuvio then scrobbles for you. The key here only powers lists and ratings in LeLibrary.</p>
+                <h3 className="qs-sub"><strong>Watchlists</strong><span>Optional</span></h3>
                 {edit
                   ? <MetadataWatchlists uuid={edit.uuid} editToken={edit.editToken} />
                   : <MetadataWatchlists uuid={null} editToken={null} draft={watchlist} onDraft={setWatchlist} />}
               </Accordion>
-            </div>
-          </TierStep>
-          <TierStep id="streams" index={4} title="Playback" hidden={wizard.step !== 3} lede="Tune the files returned from your connected library. Other sources are optional.">
-            <div className="qs-accordions">
-              <Accordion title="Library playback filters" desc="Choose which of your library files appear and how they are ordered." icon="🎚️" defaultOpen>
+              <Accordion title="Streams" icon="🎚️"
+                summary={[filtersActive ? 'Custom filters' : 'All streams', addons.length + customAddons.length > 0 ? 'Extra sources on' : 'Library only']}>
+                <h3 className="qs-sub"><strong>Library playback filters</strong><span>Resolutions, qualities and files</span></h3>
                 <FilterSets draft={filterSets} onChange={setFilterSets} />
-              </Accordion>
-              <Accordion title="Optional stream add-ons" desc="Add external stream providers after your own library, if you use them." icon="🌐">
+                <h3 className="qs-sub"><strong>Optional stream add-ons</strong><span>Sources beyond your library</span></h3>
                 <StreamAddonsSection
                   selected={addons} onChange={setAddons}
                   custom={customAddons} onAddCustom={customAddonActions.add} onRemoveCustom={customAddonActions.remove}
                 />
-              </Accordion>
-              <Accordion title="Optional custom links" desc="Add direct media links for a title or episode, if you need them." icon="🔗">
+                <h3 className="qs-sub"><strong>Optional custom links</strong><span>A direct link for one title</span></h3>
                 <CustomStreamsSection rows={customStreams} onChange={setCustomStreams} tmdbKey={keys.tmdbApiKey ?? ''} />
               </Accordion>
-              {platform === 'nuvio' && (
-                <>
-                  <Accordion title="Nuvio playback" desc="Set Nuvio's auto stream selection and next-episode behaviour from here." icon="▶️">
+              <Accordion title="Posters" icon="🖼️" summary={[artworkLabel]}>
+                <PostersSection draft={posters} keys={keys} onDraft={setPosters} onKeys={setKeys} hidePreview savedServices={edit ? edit.savedServices : stagedImport?.services} />
+              </Accordion>
+              <Accordion title="Formatting" icon="🎨" summary={[presetLabel, BADGE_PACKS.find((entry) => entry.id === badgePack)?.name ?? badgePack]}>
+                <h3 className="qs-sub"><strong>Badge packs</strong><span>Nuvio</span></h3>
+                <BadgePackStrip
+                  pack={badgePack} customUrl={customBadgeUrl}
+                  onChange={({ pack, url }) => { setBadgePack(pack); if (pack === 'custom') setCustomBadgeUrl(url); }}
+                />
+                <h3 className="qs-sub"><strong>Stream display style</strong><span>Stremio and Nuvio</span></h3>
+                <StreamStylePicker draft={formatting} onPick={pickPreset}>
+                  <FormattingSection draft={formatting} onChange={setFormatting} templatesOnly />
+                </StreamStylePicker>
+              </Accordion>
+              <Accordion title="Preferences" icon="🧭" desc="Language, order, search, anime, notices, row names and Nuvio playback.">
+                <MetadataExtras draft={meta} onChange={setMeta} />
+                <h3 className="qs-sub"><strong>Library row names</strong><span>My Movies, My Shows, My Anime</span></h3>
+                <LibraryRowsSection value={libraryRows} onChange={setLibraryRows} />
+                {platform === 'nuvio' && (
+                  <>
+                    <h3 className="qs-sub"><strong>Nuvio playback</strong><span>Auto stream selection and next episode</span></h3>
                     <NuvioPlaybackSection value={nuvioPlayback} onChange={setNuvioPlayback} current={edit?.nuvioCurrent} />
-                  </Accordion>
-                  <Accordion title="Nuvio library" desc="Choose what Nuvio does with titles that have not been released yet." icon="🗓️">
+                    <h3 className="qs-sub"><strong>Nuvio library</strong><span>Unreleased titles</span></h3>
                     <NuvioUnreleasedSection value={nuvioHideUnreleased} onChange={setNuvioHideUnreleased} current={edit?.nuvioCurrent} />
-                  </Accordion>
-                </>
-              )}
+                  </>
+                )}
+              </Accordion>
             </div>
           </TierStep>
-          <TierStep id="artwork" index={5} title="Artwork" hidden={wizard.step !== 4} lede="Pick a look and watch it render before you save anything.">
-            <h3 className="qs-sub"><strong>Poster provider</strong><span>The live preview sits beside you</span></h3>
-            <PostersSection draft={posters} keys={keys} onDraft={setPosters} onKeys={setKeys} hidePreview savedServices={edit ? edit.savedServices : stagedImport?.services} />
-            <h3 className="qs-sub"><strong>Badge packs</strong><span>Nuvio</span></h3>
-            <BadgePackStrip
-              pack={badgePack} customUrl={customBadgeUrl}
-              onChange={({ pack, url }) => { setBadgePack(pack); if (pack === 'custom') setCustomBadgeUrl(url); }}
-            />
-            <h3 className="qs-sub"><strong>Stream display style</strong><span>Stremio and Nuvio</span></h3>
-            <StreamStylePicker draft={formatting} onPick={pickPreset}>
-              <FormattingSection draft={formatting} onChange={setFormatting} templatesOnly />
-            </StreamStylePicker>
-          </TierStep>
-          <TierStep id="home" index={6} title="Home" hidden={wizard.step !== 5} lede="The rows on your home screen.">
+          <TierStep id="home" index={3} title="Home" hidden={wizard.step !== 2} lede="The rows on your home screen.">
             <HomeRowsSection
               rows={homeRows} onChange={setHomeRows} platform={platform} prefix={providerPrefix}
               lang={meta.lang}
               hasMdblistKey={Boolean((keys.mdblistKey ?? '').trim()) || Boolean(edit?.savedServices.includes('mdblistKey'))}
             />
-            <details className="advanced">
-              <summary>Rename your library rows</summary>
-              <div className="advanced-body"><LibraryRowsSection value={libraryRows} onChange={setLibraryRows} /></div>
-            </details>
           </TierStep>
-          <TierStep id="collections" index={7} title="Collections" hidden={wizard.step !== 6} lede="Folders with artwork, Quick Packs and the Nuvio public browser.">
+          <TierStep id="collections" index={4} title="Collections" hidden={wizard.step !== 3} lede="Folders with artwork, Quick Packs and the Nuvio public browser.">
             <CollectionStudio
               collections={collections} onChange={setCollections} providerPrefix={providerPrefix}
               platform={platform} packs={packs} onPacks={setPacks}
@@ -602,11 +593,11 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
             />
           </TierStep>
           {edit ? (
-            <TierStep id="review" index={8} title="Save and publish" hidden={wizard.step !== 7} lede="Nothing changes until you save. Your install link stays the same.">
+            <TierStep id="review" index={5} title="Save and publish" hidden={wizard.step !== 4} lede="Nothing changes until you save. Your install link stays the same.">
               {edit.renderFinish({})}
             </TierStep>
           ) : (
-          <TierStep id="review" index={8} title="Review" hidden={wizard.step !== 7} lede="This password only guards changes. Watching never asks for it.">
+          <TierStep id="review" index={5} title="Protect your setup" hidden={wizard.step !== 4} lede="This password only guards changes. Watching never asks for it.">
             <ReviewStep
               password={creation.password} confirmation={creation.confirmation}
               busy={creation.busy} error={creation.error} backTo="/configure"

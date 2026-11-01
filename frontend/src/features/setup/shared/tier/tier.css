@@ -323,6 +323,9 @@
 
 /* Accordions: quieter frame, amber when open */
 .qs-accordions { display: grid; gap: 10px; margin-top: 18px; }
+.cg-accordion-summary span + span::before { content: ' · '; }
+.qs-setup-page .qs-accordions { margin-top: 0; }
+.qs-setup-page .cg-accordion-body > * + h3.qs-sub { margin-top: 22px; }
 .qs-meta + .qs-accordions { margin-top: 26px; }
 .qs .cg-accordion { margin: 0; border-radius: 16px; border-color: var(--qs-line); background: var(--qs-raised); transition: border-color 0.25s; }
 .qs .cg-accordion:hover { border-color: var(--qs-line-2); }

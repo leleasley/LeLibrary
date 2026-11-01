@@ -76,14 +76,10 @@ import type { StagedImport } from '@/features/setup/full/full-draft';
 // controls and artwork. External sources and list providers remain optional.
 // There is deliberately no Collections studio; collections are built in Move In.
 export const PARTIAL_SECTIONS = [
-  { id: 'destination', title: 'Destination', icon: '📍' },
-  { id: 'providers', title: 'Providers', icon: '🔌' },
-  { id: 'metadata', title: 'Metadata', icon: '🎬' },
-  { id: 'streams', title: 'Playback', icon: '🎚️' },
-  { id: 'artwork', title: 'Posters', icon: '🖼️' },
-  { id: 'stream-look', title: 'Formatting', icon: '🎨' },
+  { id: 'connect', title: 'Connect', icon: '📍' },
+  { id: 'setup', title: 'Setup', icon: '⚙️' },
   { id: 'home-rows', title: 'Home rows', icon: '🏠' },
-  { id: 'password', title: 'Protect your setup', icon: '🔒' },
+  { id: 'password', title: 'Protect', icon: '🔒' },
 ] as const;
 
 export const PARTIAL_SECTION_IDS = PARTIAL_SECTIONS.map((section) => section.id);
@@ -455,12 +451,12 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
       <TierHero
         eyebrow={edit ? 'SETTLE IN · EDITING' : 'SETTLE IN · RECOMMENDED'} title="Make your library" accent="feel like home"
         lede={edit ? 'Your saved settings and keys are filled in below. Change anything, then save.' : 'Start with your debrid library, then choose its Home rows, artwork and playback settings. Extra stream sources and MDBList are optional. Collections are in Move In.'}
-        facts={edit ? ['Saved keys stay hidden', 'Nothing changes until you save', 'Same install link'] : ['Eight guided steps', 'Home rows and filters', 'Keys sealed on the server']}
+        facts={edit ? ['Saved keys stay hidden', 'Nothing changes until you save', 'Same install link'] : ['Four short pages', 'Home rows and filters', 'Keys sealed on the server']}
         compact={wizard.step > 0}
       />
       <div className="qs-grid">
         <div className="qs-flow">
-          <TierStep id="destination" index={1} title="Destination" hidden={wizard.step !== 0} lede="Where this setup gets installed. Sign in now and your Home rows can be pushed straight to your player at the end. Already have a v5 setup? Bring it across instead.">
+          <TierStep id="connect" index={1} title="Connect" hidden={wizard.step !== 0} lede="Where this setup gets installed. Sign in now and your Home rows can be pushed straight to your player at the end. Already have a v5 setup? Bring it across instead.">
             {!edit && <ImportSection staged={stagedImport} platform={platform} keepsCollections={false} onStage={stageImport} />}
             <DestinationStep
               profileName={name}
@@ -468,94 +464,6 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
               connection={connection} onConnection={setConnection}
               {...(edit ? { savedAccount: edit.savedAccount, onSavedProfile: edit.onSavedProfile } : {})}
             />
-          </TierStep>
-          <TierStep id="providers" index={2} title="Library providers" hidden={wizard.step !== 1} lede="Connect the debrid account or accounts that hold your library.">
-            <ProviderKeys
-              values={keys} onChange={setKeys}
-              {...(edit ? { savedServices: edit.savedServices, revealSaved: revealEdit, onRemove: edit.onRemoveKey } : {})}
-            />
-          </TierStep>
-          <TierStep id="metadata" index={3} title="Metadata" hidden={wizard.step !== 2} lede="Keys that power posters, matching and search.">
-            <TierMetadata
-              values={keys} onChange={setKeys}
-              {...(edit ? { savedServices: edit.savedServices, revealSaved: revealEdit } : {})}
-            />
-            <div className="qs-accordions">
-              <Accordion title="Display, search & notices" desc="Language, order, main metadata, anime, search scope and stream notices." icon="🎬">
-                <MetadataExtras draft={meta} onChange={setMeta} />
-              </Accordion>
-              <Accordion title="Optional list sources" desc="Only needed if you use MDBList lists or external watchlists." icon="📋">
-                <ListKey
-                  value={keys.mdblistKey ?? ''} onChange={(value) => setKeys({ ...keys, mdblistKey: value })}
-                  {...(edit ? { savedServices: edit.savedServices, revealSaved: revealEdit } : {})}
-                />
-              </Accordion>
-              <Accordion title="Watchlists" desc={WATCHLIST_ACCORDION_DESC} icon="🔖">
-                {edit
-                  ? <MetadataWatchlists uuid={edit.uuid} editToken={edit.editToken} />
-                  : <MetadataWatchlists uuid={null} editToken={null} draft={watchlist} onDraft={setWatchlist} />}
-              </Accordion>
-            </div>
-          </TierStep>
-          <TierStep id="streams" index={4} title="Playback" hidden={wizard.step !== 3} lede="Your library comes first. Set playback filters here; extra sources are optional.">
-            <div className="qs-accordions">
-              <Accordion title="Library playback filters" desc="Choose the resolutions, qualities and file details you want to see." icon="🎛️" defaultOpen>
-                <FilterSets draft={filterSets} onChange={setFilterSets} />
-                <FilterMediaSets draft={mediaSets} onChange={setMediaSets} />
-              </Accordion>
-              <Accordion title="Optional stream add-ons" desc="Only use these if you want sources beyond your saved library." icon="🌐">
-                <StreamAddonsSection
-                  selected={addons} onChange={setAddons}
-                  custom={customAddons} onAddCustom={customAddonActions.add} onRemoveCustom={customAddonActions.remove}
-                />
-              </Accordion>
-              <Accordion title="Optional custom links" desc="Add a direct link for a title or episode if you need one." icon="🔗">
-                <CustomStreamsSection rows={customStreams} onChange={setCustomStreams} tmdbKey={keys.tmdbApiKey ?? ''} />
-              </Accordion>
-              {platform === 'nuvio' && (
-                <>
-                  <Accordion title="Nuvio playback" desc="Set Nuvio's auto stream selection and next-episode behaviour from here." icon="▶️">
-                    <NuvioPlaybackSection value={nuvioPlayback} onChange={setNuvioPlayback} current={edit?.nuvioCurrent} />
-                  </Accordion>
-                  <Accordion title="Nuvio library" desc="Choose what Nuvio does with titles that have not been released yet." icon="🗓️">
-                    <NuvioUnreleasedSection value={nuvioHideUnreleased} onChange={setNuvioHideUnreleased} current={edit?.nuvioCurrent} />
-                  </Accordion>
-                </>
-              )}
-            </div>
-          </TierStep>
-          <TierStep id="artwork" index={5} title="Posters" hidden={wizard.step !== 4} lede="Pick a look and watch it render before you save anything.">
-            <PostersSection draft={posters} keys={keys} onDraft={setPosters} onKeys={setKeys} hidePreview savedServices={edit?.savedServices} />
-          </TierStep>
-          <TierStep id="stream-look" index={6} title="Formatting" hidden={wizard.step !== 5} lede="Choose how your library files appear in the player.">
-            <h3 className="qs-sub"><strong>Badge packs</strong><span>Nuvio</span></h3>
-            <BadgePackStrip
-              pack={badgePack} customUrl={customBadgeUrl}
-              onChange={({ pack, url }) => { setBadgePack(pack); if (pack === 'custom') setCustomBadgeUrl(url); }}
-            />
-            <h3 className="qs-sub"><strong>Stream display style</strong><span>Stremio and Nuvio</span></h3>
-            <StreamStylePicker draft={formatting} onPick={pickPreset}>
-              <FormattingSection draft={formatting} onChange={setFormatting} templatesOnly />
-            </StreamStylePicker>
-          </TierStep>
-          <TierStep id="home-rows" index={7} title="Home rows" hidden={wizard.step !== 6} lede="Choose the library and discovery rows on your home screen.">
-            <HomeRowsSection
-              rows={homeRows} onChange={setHomeRows} platform={platform}
-              prefix={hubPrefix(providerSelectionWithSaved(keys, edit?.savedServices ?? []))}
-              lang={meta.lang}
-              hasMdblistKey={Boolean((keys.mdblistKey ?? '').trim()) || Boolean(edit?.savedServices.includes('mdblistKey'))}
-            />
-            <details className="advanced">
-              <summary>Rename your library rows</summary>
-              <div className="advanced-body"><LibraryRowsSection value={libraryRows} onChange={setLibraryRows} /></div>
-            </details>
-          </TierStep>
-          {edit ? (
-            <TierStep id="password" index={8} title="Save and publish" hidden={wizard.step !== 7} lede="Nothing changes until you save. Your install link stays the same.">
-              {edit.renderFinish({ name: { value: name, onChange: setName } })}
-            </TierStep>
-          ) : (
-          <TierStep id="password" index={8} title="Protect your setup" hidden={wizard.step !== 7} lede="Name it if you like, lock it with a password. Watching never asks for either.">
             <label className="setup-field qs-name">
               <span>Setup name <small className="setup-hint" style={{ display: 'inline' }}>· optional</small></span>
               <input
@@ -563,6 +471,87 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
                 value={name} onChange={(event) => setName(event.target.value)}
               />
             </label>
+          </TierStep>
+          <TierStep id="setup" index={2} title="Setup" hidden={wizard.step !== 1} lede="Everything about your library in one place. Open a section to change it; each one shows where it stands.">
+            <div className="qs-accordions qs-setup-page">
+              <Accordion title="Integrations" icon="🔌" defaultOpen={!edit && connected.length === 0}
+                summary={[connected.length ? connected.join(' + ') : 'No library yet', hasTmdb || edit?.savedServices.includes('tmdbApiKey') ? 'TMDB key added' : 'TMDB key needed']}>
+                <h3 className="qs-sub"><strong>Library providers</strong><span>Debrid</span></h3>
+                <ProviderKeys
+                  values={keys} onChange={setKeys}
+                  {...(edit ? { savedServices: edit.savedServices, revealSaved: revealEdit, onRemove: edit.onRemoveKey } : {})}
+                />
+                <TierMetadata
+                  values={keys} onChange={setKeys}
+                  {...(edit ? { savedServices: edit.savedServices, revealSaved: revealEdit } : {})}
+                />
+                <h3 className="qs-sub"><strong>MDBList</strong><span>Optional</span></h3>
+                <ListKey
+                  value={keys.mdblistKey ?? ''} onChange={(value) => setKeys({ ...keys, mdblistKey: value })}
+                  {...(edit ? { savedServices: edit.savedServices, revealSaved: revealEdit } : {})}
+                />
+                <p className="setup-hint qs-note">Want what you watch on MDBList? In Nuvio open Settings, then MDBList, then Connect, and approve the code on mdblist.com. Nuvio then scrobbles for you. The key here only powers lists and ratings in LeLibrary.</p>
+                <h3 className="qs-sub"><strong>Watchlists</strong><span>Optional</span></h3>
+                {edit
+                  ? <MetadataWatchlists uuid={edit.uuid} editToken={edit.editToken} />
+                  : <MetadataWatchlists uuid={null} editToken={null} draft={watchlist} onDraft={setWatchlist} />}
+              </Accordion>
+              <Accordion title="Streams" icon="🎚️"
+                summary={[filtersActive ? 'Custom filters' : 'All streams', addons.length + customAddons.length > 0 ? 'Extra sources on' : 'Library only']}>
+                <h3 className="qs-sub"><strong>Library playback filters</strong><span>Resolutions, qualities and files</span></h3>
+                <FilterSets draft={filterSets} onChange={setFilterSets} />
+                <FilterMediaSets draft={mediaSets} onChange={setMediaSets} />
+                <h3 className="qs-sub"><strong>Optional stream add-ons</strong><span>Sources beyond your library</span></h3>
+                <StreamAddonsSection
+                  selected={addons} onChange={setAddons}
+                  custom={customAddons} onAddCustom={customAddonActions.add} onRemoveCustom={customAddonActions.remove}
+                />
+                <h3 className="qs-sub"><strong>Optional custom links</strong><span>A direct link for one title</span></h3>
+                <CustomStreamsSection rows={customStreams} onChange={setCustomStreams} tmdbKey={keys.tmdbApiKey ?? ''} />
+              </Accordion>
+              <Accordion title="Posters" icon="🖼️" summary={[artworkLabel]}>
+                <PostersSection draft={posters} keys={keys} onDraft={setPosters} onKeys={setKeys} hidePreview savedServices={edit?.savedServices} />
+              </Accordion>
+              <Accordion title="Formatting" icon="🎨" summary={[presetLabel, BADGE_PACKS.find((entry) => entry.id === badgePack)?.name ?? badgePack]}>
+                <h3 className="qs-sub"><strong>Badge packs</strong><span>Nuvio</span></h3>
+                <BadgePackStrip
+                  pack={badgePack} customUrl={customBadgeUrl}
+                  onChange={({ pack, url }) => { setBadgePack(pack); if (pack === 'custom') setCustomBadgeUrl(url); }}
+                />
+                <h3 className="qs-sub"><strong>Stream display style</strong><span>Stremio and Nuvio</span></h3>
+                <StreamStylePicker draft={formatting} onPick={pickPreset}>
+                  <FormattingSection draft={formatting} onChange={setFormatting} templatesOnly />
+                </StreamStylePicker>
+              </Accordion>
+              <Accordion title="Preferences" icon="🧭" desc="Language, order, search, anime, notices, row names and Nuvio playback.">
+                <MetadataExtras draft={meta} onChange={setMeta} />
+                <h3 className="qs-sub"><strong>Library row names</strong><span>My Movies, My Shows, My Anime</span></h3>
+                <LibraryRowsSection value={libraryRows} onChange={setLibraryRows} />
+                {platform === 'nuvio' && (
+                  <>
+                    <h3 className="qs-sub"><strong>Nuvio playback</strong><span>Auto stream selection and next episode</span></h3>
+                    <NuvioPlaybackSection value={nuvioPlayback} onChange={setNuvioPlayback} current={edit?.nuvioCurrent} />
+                    <h3 className="qs-sub"><strong>Nuvio library</strong><span>Unreleased titles</span></h3>
+                    <NuvioUnreleasedSection value={nuvioHideUnreleased} onChange={setNuvioHideUnreleased} current={edit?.nuvioCurrent} />
+                  </>
+                )}
+              </Accordion>
+            </div>
+          </TierStep>
+          <TierStep id="home-rows" index={3} title="Home rows" hidden={wizard.step !== 2} lede="Choose the library and discovery rows on your home screen.">
+            <HomeRowsSection
+              rows={homeRows} onChange={setHomeRows} platform={platform}
+              prefix={hubPrefix(providerSelectionWithSaved(keys, edit?.savedServices ?? []))}
+              lang={meta.lang}
+              hasMdblistKey={Boolean((keys.mdblistKey ?? '').trim()) || Boolean(edit?.savedServices.includes('mdblistKey'))}
+            />
+          </TierStep>
+          {edit ? (
+            <TierStep id="password" index={4} title="Save and publish" hidden={wizard.step !== 3} lede="Nothing changes until you save. Your install link stays the same.">
+              {edit.renderFinish({})}
+            </TierStep>
+          ) : (
+          <TierStep id="password" index={4} title="Protect your setup" hidden={wizard.step !== 3} lede="Lock it with a password. It only protects editing; watching never asks for it.">
             <TierInstall
               password={creation.password} confirmation={creation.confirmation}
               busy={creation.busy} error={creation.error}

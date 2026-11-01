@@ -14,7 +14,7 @@ import {
   type PlatformConnection,
 } from '@/features/setup/full/platform-login';
 
-function connectionUser(connection: PlatformConnection): string {
+export function connectionUser(connection: PlatformConnection): string {
   const user = (connection.platform === 'nuvio' ? connection.nuvioUser : connection.stremioUser) as Record<string, unknown> | null;
   if (user && typeof user === 'object') {
     for (const key of ['email', 'username', 'name']) {

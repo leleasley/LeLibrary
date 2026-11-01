@@ -451,8 +451,9 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
     if (!(await authorizeEdit(req, uuid, store, opened))) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
     const rotated = await store.rotateSecret(uuid);
-    // The old install URL is dead: no edit session should outlive it.
-    sessions.revokeUuid(uuid);
+    // The old install URL is dead: every other edit session goes with it.
+    // The caller keeps theirs, so the page they are on stays unlocked.
+    sessions.revokeUuid(uuid, bearerToken(req));
     res.json({ ok: true, installToken: rotated?.installToken, manifestPath: `/${rotated?.installToken}/manifest.json` });
   });
 

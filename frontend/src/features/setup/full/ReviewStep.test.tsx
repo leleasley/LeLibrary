@@ -20,9 +20,11 @@ function render(created: { uuid: string; installToken: string } | null) {
 }
 
 describe('Move In after creating', () => {
-  it('the finished page waits behind the "your setup is live" modal and links to the edit page', () => {
+  it('goes straight to the Ready page (no modal) and links to the edit page', () => {
     const html = render({ uuid: '00000000-0000-4000-8000-000000000001', installToken: 'u.s' });
-    expect(html).toContain('created-done is-waiting');
+    expect(html).toContain('class="review-step created-done"');
+    expect(html).not.toContain('created-modal');
+    expect(html).toContain('Finish');
     expect(html).toContain('href="/00000000-0000-4000-8000-000000000001"');
     expect(html).toContain('Open your setup');
     // The finished page only pushes: nothing is left unsaved by then.

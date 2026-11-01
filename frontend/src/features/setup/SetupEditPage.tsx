@@ -22,6 +22,7 @@ import { fetchLibrarySummary } from '@/features/setup/library/library-api';
 import { forgetDeletedSetup } from '@/features/setup/shared/saved-setups';
 import { ErrorState } from '@/features/site/ErrorPage';
 import { PublishPanel, publishActionFor } from '@/features/setup/shared/PublishPanel';
+import { RegenerateLink, type RegenerateLinkProps } from '@/features/setup/shared/RegenerateLink';
 import {
   editSaveBody, emptySnapshot, snapshotFromSaved,
   type EditMode, type TierId, type TierSnapshot,
@@ -499,6 +500,13 @@ export function SetupEditPage() {
   const manifest = installToken ? installUrl(window.location.origin, installToken) : null;
   const platformName = platform === 'nuvio' ? 'Nuvio' : 'Stremio';
   const pushAvailable = Boolean(current?.connection) || Boolean(savedAccount);
+  // Revoke and regenerate (Settings and the bottom of Manual setup): same
+  // setup, same edit address, new install link swapped in place.
+  const regenerate: Omit<RegenerateLinkProps, 'uuid'> = {
+    editToken: getEditToken(),
+    onRotated: setInstallToken,
+    repush: pushAvailable && !dirty ? { label: `Push to ${platformName} again`, onClick: () => void saveAndPush() } : null,
+  };
 
   // Fetched at click time so a backup always matches what is saved now.
   async function downloadSettings() {
@@ -568,6 +576,7 @@ export function SetupEditPage() {
             <input readOnly value={manifest} onFocus={(event) => event.target.select()} />
             <button type="button" className="setup-secondary" onClick={() => copyLink(manifest)}>{copied ? 'Copied ✓' : 'Copy'}</button>
           </span>
+          <RegenerateLink uuid={uuid} {...regenerate} />
         </div>
       )}
       <div className="edit-settings-block">
@@ -674,6 +683,7 @@ export function SetupEditPage() {
                   : `Sign in above (optional) and this pushes straight to ${platformName}.`,
               })}
               secondaryAction={{ label: 'Clear my edits', disabled: !dirty, onClick: clearEdits }}
+              regenerate={regenerate}
               replaceOthers={pushAvailable ? { value: replaceOthers, onChange: setReplaceOthers } : null}
               profilePicker={platform === 'nuvio' && savedAccount?.profiles?.length ? {
                 profiles: savedAccount.profiles,

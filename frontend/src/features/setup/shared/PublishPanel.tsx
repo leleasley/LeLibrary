@@ -3,6 +3,7 @@ import { ReplaceCollectionsToggle } from '@/features/setup/shared/ReplaceCollect
 import { toast } from '@/features/setup/shared/Toast';
 import { clearSetupCache } from '@/features/setup/resolver/api';
 import { installUrl } from '@/features/setup/resolver/validation';
+import { RegenerateLink, type RegenerateLinkProps } from '@/features/setup/shared/RegenerateLink';
 
 // The end of a setup. Move In, Settle In and the edit flow all land on one
 // surface: a ready header, the publish desk,
@@ -141,6 +142,9 @@ export function PublishPanel({
   replaceOthers,
   secondaryAction,
   actionsExtra,
+  account,
+  regenerate,
+  footer,
   children,
 }: {
   installToken: string;
@@ -164,6 +168,13 @@ export function PublishPanel({
   replaceOthers?: { value: boolean; onChange: (next: boolean) => void } | null;
   secondaryAction?: PublishSecondaryAction | null;
   actionsExtra?: ReactNode;
+  // Who a push lands on ("Pushing to x · Not you?"). `onChange` opens the
+  // sign-in again.
+  account?: { user: string; onChange?: (() => void) | undefined } | null;
+  // Revoke and regenerate at the bottom of Manual setup (needs an edit token).
+  regenerate?: Omit<RegenerateLinkProps, 'uuid'> | null;
+  // Back / Finish under the panel.
+  footer?: ReactNode;
   children?: ReactNode;
 }) {
   const [copied, setCopied] = useState<string | null>(null);
@@ -253,6 +264,14 @@ export function PublishPanel({
             {connected && <span className="verify-badge ok">Connected</span>}
           </span>
         </div>
+        {account && (
+          <p className="publish-account">
+            <span>Pushing to <strong data-i18n-preserve>{account.user}</strong></span>
+            {account.onChange && (
+              <button type="button" className="link-btn" onClick={account.onChange}>Not you?</button>
+            )}
+          </p>
+        )}
         {profilePicker && profilePicker.profiles.length > 0 && (
           <label className="setup-field action-inline-field">
             <span>Profile</span>
@@ -298,7 +317,7 @@ export function PublishPanel({
         {action?.hint && <p className="publish-hint">{action.hint}</p>}
       </section>
 
-      <details className="install-option" open>
+      <details className="install-option" open={platform === 'stremio'}>
         <summary>
           <span className="install-option-icon"><img src="/stremio.svg" alt="" /></span>
           <span><strong>Add to Stremio</strong><small>Open the install link or copy it for later.</small></span>
@@ -314,85 +333,95 @@ export function PublishPanel({
         </div>
       </details>
 
-      {hasCollections && (
-        <details className="install-option">
-          <summary>
-            <span className="install-option-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="6" cy="12" r="2.4" /><circle cx="17" cy="6" r="2.4" /><circle cx="17" cy="18" r="2.4" /><path d="M8.2 10.9 14.9 7.2M8.2 13.1l6.7 3.7" /></svg></span>
-            <span><strong>Share this setup</strong><small>Hand this profile to another account.</small></span>
-            <span className="install-option-arrow" aria-hidden="true">›</span>
-          </summary>
-          <div className="install-option-body">
-            <p className="setup-hint">
-              Anyone with the link or file can import your collections and Home rows using their own keys.
-              Companion addons only restore on your own account.
-            </p>
-            <div className="button-row">
-              <button type="button" className="setup-secondary" onClick={() => void copy(collections, 'share', 'Share link copied')}>
-                {copied === 'share' ? 'Copied ✓' : 'Copy share link'}
-              </button>
-              <button type="button" className="setup-secondary" onClick={() => void downloadProfile()}>Download profile JSON</button>
-            </div>
-            {shareMsg && <p className="setup-hint" role="status">{shareMsg}</p>}
-          </div>
-        </details>
-      )}
-
-      <section className="client-integrations" aria-label="More client integrations">
-        <div className="client-integration-heading">
-          <div><strong>More client integrations</strong><small>Choose an app to copy its compatible manifest.</small></div>
-        </div>
-        <div className="client-integration-list">
-          {clients.map((client) => (
-            <button
-              key={client.id} type="button" className="client-integration-row"
-              aria-label={`Copy ${client.label} manifest`} onClick={() => void copy(client.manifest, `client-${client.id}`, `${client.label} manifest copied`)}
-            >
-              <span className="client-integration-icon" aria-hidden="true"><img src={CLIENT_LOGOS[client.id]} alt="" /></span>
-              <span className="client-integration-copy">
-                <span className="client-integration-title">
-                  <strong data-i18n-preserve>{client.label}</strong>
-                  <span className="client-status testing">Testing</span>
-                </span>
-                <small>{clientCopy(client.id)[1]}</small>
-              </span>
-              <b aria-hidden="true">{copied === `client-${client.id}` ? '✓' : '›'}</b>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <details className="install-option">
+      <details className="publish-more">
         <summary>
-          <span className="install-option-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h3M11 17h9" /><circle cx="16" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></svg></span>
-          <span><strong>Manual setup</strong><small>Manifest URL, collections file, and cache controls.</small></span>
+          <span><strong>More players</strong><small>{hasCollections ? 'Other apps, manual setup and sharing.' : 'Other apps and manual setup.'}</small></span>
           <span className="install-option-arrow" aria-hidden="true">›</span>
         </summary>
-        <div className="install-option-body install-manual">
-          <p className="setup-hint">
-            Setup id {uuid.slice(0, 8)}… - keep these private: anyone with the link can watch. Changing settings needs your password.
-          </p>
-          <div className="copy-row">
-            <input readOnly value={manifest} aria-label="Manifest URL" onFocus={(event) => event.target.select()} />
-            <button type="button" className="created-copy-btn" onClick={() => void copy(manifest, 'manual-manifest')}>
-              {copied === 'manual-manifest' ? 'Copied ✓' : 'Copy'}
-            </button>
-          </div>
+        <div className="publish-more-body">
           {hasCollections && (
-            <div className="copy-row">
-              <input readOnly value={collections} aria-label="Collections JSON URL" onFocus={(event) => event.target.select()} />
-              <button type="button" className="created-copy-btn" onClick={() => void copy(collections, 'manual-collections')}>
-                {copied === 'manual-collections' ? 'Copied ✓' : 'Copy'}
-              </button>
-            </div>
+            <details className="install-option">
+              <summary>
+                <span className="install-option-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="6" cy="12" r="2.4" /><circle cx="17" cy="6" r="2.4" /><circle cx="17" cy="18" r="2.4" /><path d="M8.2 10.9 14.9 7.2M8.2 13.1l6.7 3.7" /></svg></span>
+                <span><strong>Share this setup</strong><small>Hand this profile to another account.</small></span>
+                <span className="install-option-arrow" aria-hidden="true">›</span>
+              </summary>
+              <div className="install-option-body">
+                <p className="setup-hint">
+                  Anyone with the link or file can import your collections and Home rows using their own keys.
+                  Companion addons only restore on your own account.
+                </p>
+                <div className="button-row">
+                  <button type="button" className="setup-secondary" onClick={() => void copy(collections, 'share', 'Share link copied')}>
+                    {copied === 'share' ? 'Copied ✓' : 'Copy share link'}
+                  </button>
+                  <button type="button" className="setup-secondary" onClick={() => void downloadProfile()}>Download profile JSON</button>
+                </div>
+                {shareMsg && <p className="setup-hint" role="status">{shareMsg}</p>}
+              </div>
+            </details>
           )}
-          <div className="cache-row">
-            <button type="button" className="btn-danger" onClick={() => void clearCache()}>Clear cached data</button>
-            {cacheMsg && <span className="setup-note">{cacheMsg}</span>}
-          </div>
+
+          <section className="client-integrations" aria-label="More client integrations">
+            <div className="client-integration-heading">
+              <div><strong>More client integrations</strong><small>Choose an app to copy its compatible manifest.</small></div>
+            </div>
+            <div className="client-integration-list">
+              {clients.map((client) => (
+                <button
+                  key={client.id} type="button" className="client-integration-row"
+                  aria-label={`Copy ${client.label} manifest`} onClick={() => void copy(client.manifest, `client-${client.id}`, `${client.label} manifest copied`)}
+                >
+                  <span className="client-integration-icon" aria-hidden="true"><img src={CLIENT_LOGOS[client.id]} alt="" /></span>
+                  <span className="client-integration-copy">
+                    <span className="client-integration-title">
+                      <strong data-i18n-preserve>{client.label}</strong>
+                      <span className="client-status testing">Testing</span>
+                    </span>
+                    <small>{clientCopy(client.id)[1]}</small>
+                  </span>
+                  <b aria-hidden="true">{copied === `client-${client.id}` ? '✓' : '›'}</b>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <details className="install-option">
+            <summary>
+              <span className="install-option-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h3M11 17h9" /><circle cx="16" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></svg></span>
+              <span><strong>Manual setup</strong><small>Manifest URL, collections file, and cache controls.</small></span>
+              <span className="install-option-arrow" aria-hidden="true">›</span>
+            </summary>
+            <div className="install-option-body install-manual">
+              <p className="setup-hint">
+                Setup id {uuid.slice(0, 8)}… - keep these private: anyone with the link can watch. Changing settings needs your password.
+              </p>
+              <div className="copy-row">
+                <input readOnly value={manifest} aria-label="Manifest URL" onFocus={(event) => event.target.select()} />
+                <button type="button" className="created-copy-btn" onClick={() => void copy(manifest, 'manual-manifest')}>
+                  {copied === 'manual-manifest' ? 'Copied ✓' : 'Copy'}
+                </button>
+              </div>
+              {hasCollections && (
+                <div className="copy-row">
+                  <input readOnly value={collections} aria-label="Collections JSON URL" onFocus={(event) => event.target.select()} />
+                  <button type="button" className="created-copy-btn" onClick={() => void copy(collections, 'manual-collections')}>
+                    {copied === 'manual-collections' ? 'Copied ✓' : 'Copy'}
+                  </button>
+                </div>
+              )}
+              <div className="cache-row">
+                <button type="button" className="btn-danger" onClick={() => void clearCache()}>Clear cached data</button>
+                {cacheMsg && <span className="setup-note">{cacheMsg}</span>}
+              </div>
+              {regenerate && <RegenerateLink uuid={uuid} {...regenerate} />}
+            </div>
+          </details>
         </div>
       </details>
 
       {children}
+      {footer && <div className="publish-footer">{footer}</div>}
     </div>
   );
 }

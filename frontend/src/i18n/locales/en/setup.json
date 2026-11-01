@@ -1704,6 +1704,27 @@
     "Paste your Posters+ link.": "Paste your Posters+ link.",
     "Paste the full Posters+ link (it starts with https://).": "Paste the full Posters+ link (it starts with https://).",
     "Posters+ links must use HTTPS.": "Posters+ links must use HTTPS.",
-    "That is not a Posters+ poster link. In Posters+, press Copy config and paste that link.": "That is not a Posters+ poster link. In Posters+, press Copy config and paste that link."
+    "That is not a Posters+ poster link. In Posters+, press Copy config and paste that link.": "That is not a Posters+ poster link. In Posters+, press Copy config and paste that link.",
+    "Any device using this setup will stop straight away and will need the new link. Your settings, keys, password and edit address stay exactly as they are.": "Any device using this setup will stop straight away and will need the new link. Your settings, keys, password and edit address stay exactly as they are.",
+    "Creating your setup…": "Creating your setup…",
+    "Finish": "Finish",
+    "Make a new install link?": "Make a new install link?",
+    "More players": "More players",
+    "Not you?": "Not you?",
+    "Other apps and manual setup.": "Other apps and manual setup.",
+    "Other apps, manual setup and sharing.": "Other apps, manual setup and sharing.",
+    "Pushing to": "Pushing to",
+    "Regenerate link": "Regenerate link",
+    "Regenerating…": "Regenerating…",
+    "Revoke and regenerate": "Revoke and regenerate",
+    "Saving your settings and sealing your keys.": "Saving your settings and sealing your keys.",
+    "Saving {{value}} and sealing your keys.": "Saving {{value}} and sealing your keys.",
+    "Shared the link by mistake? Make a new one. The old one stops working straight away.": "Shared the link by mistake? Make a new one. The old one stops working straight away.",
+    "The old link no longer works. Add the new one wherever you watch, or push again and your player picks it up.": "The old link no longer works. Add the new one wherever you watch, or push again and your player picks it up.",
+    "The old link no longer works. Add the new one wherever you watch.": "The old link no longer works. Add the new one wherever you watch.",
+    "Your new link is ready": "Your new link is ready",
+    "New install link ready": "New install link ready",
+    "Could not make a new link": "Could not make a new link",
+    "Sign in above to push your Home rows and collections. Your install link below works either way.": "Sign in above to push your Home rows and collections. Your install link below works either way."
   }
 }

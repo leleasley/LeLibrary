@@ -1704,6 +1704,27 @@
     "Paste your Posters+ link.": "Pega tu enlace de Posters+.",
     "Paste the full Posters+ link (it starts with https://).": "Pega el enlace completo de Posters+ (empieza por https://).",
     "Posters+ links must use HTTPS.": "Los enlaces de Posters+ deben usar HTTPS.",
-    "That is not a Posters+ poster link. In Posters+, press Copy config and paste that link.": "Ese no es un enlace de pósters de Posters+. En Posters+, pulsa Copy config y pega ese enlace."
+    "That is not a Posters+ poster link. In Posters+, press Copy config and paste that link.": "Ese no es un enlace de pósters de Posters+. En Posters+, pulsa Copy config y pega ese enlace.",
+    "Any device using this setup will stop straight away and will need the new link. Your settings, keys, password and edit address stay exactly as they are.": "Cualquier dispositivo que use esta configuración dejará de funcionar al instante y necesitará el enlace nuevo. Tus ajustes, claves, contraseña y dirección de edición no cambian.",
+    "Creating your setup…": "Creando tu configuración…",
+    "Finish": "Terminar",
+    "Make a new install link?": "¿Crear un enlace de instalación nuevo?",
+    "More players": "Más reproductores",
+    "Not you?": "¿No eres tú?",
+    "Other apps and manual setup.": "Otras apps y configuración manual.",
+    "Other apps, manual setup and sharing.": "Otras apps, configuración manual y compartir.",
+    "Pushing to": "Enviando a",
+    "Regenerate link": "Regenerar enlace",
+    "Regenerating…": "Regenerando…",
+    "Revoke and regenerate": "Revocar y regenerar",
+    "Saving your settings and sealing your keys.": "Guardando tus ajustes y protegiendo tus claves.",
+    "Saving {{value}} and sealing your keys.": "Guardando {{value}} y protegiendo tus claves.",
+    "Shared the link by mistake? Make a new one. The old one stops working straight away.": "¿Compartiste el enlace por error? Crea uno nuevo. El anterior deja de funcionar al instante.",
+    "The old link no longer works. Add the new one wherever you watch, or push again and your player picks it up.": "El enlace anterior ya no funciona. Añade el nuevo donde veas contenido, o vuelve a enviarlo y tu reproductor lo recogerá.",
+    "The old link no longer works. Add the new one wherever you watch.": "El enlace anterior ya no funciona. Añade el nuevo donde veas contenido.",
+    "Your new link is ready": "Tu enlace nuevo está listo",
+    "New install link ready": "Enlace de instalación nuevo listo",
+    "Could not make a new link": "No se pudo crear un enlace nuevo",
+    "Sign in above to push your Home rows and collections. Your install link below works either way.": "Inicia sesión arriba para enviar tus filas de inicio y colecciones. Tu enlace de instalación de abajo funciona igualmente."
   }
 }

@@ -28,7 +28,14 @@ export function createKeyError(keys: Record<string, unknown>): 'provider' | 'tmd
 // With a staged import, creation also purges the old account in the
 // background (collections, keys, logins, email), so a later import finds
 // nothing: strictly best-effort after success, it can never fail the setup.
-export function useCreateSetup(tier: string, options: { navigateToSetup?: boolean } = {}) {
+// The "Creating your setup..." loader stays up at least this long, then fades
+// (CREATING_FADE_MS) before the Ready page fades in: a fast server should not
+// flash the loader for a frame.
+export const CREATING_MIN_MS = 1100;
+export const CREATING_FADE_MS = 280;
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export function useCreateSetup(tier: string, options: { navigateToSetup?: boolean; loader?: boolean } = {}) {
   const navigateToSetup = options.navigateToSetup !== false;
   const navigate = useNavigate();
   const [password, setPassword] = useState('');
@@ -36,6 +43,8 @@ export function useCreateSetup(tier: string, options: { navigateToSetup?: boolea
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ uuid: string; installToken: string } | null>(null);
+  // Loader phase while a setup is being created (only with `loader`).
+  const [creating, setCreating] = useState<'creating' | 'leaving' | null>(null);
 
   async function create(
     input: { name?: string; config: Record<string, unknown>; keys: Record<string, unknown>; connection?: PlatformConnection | null },
@@ -54,6 +63,8 @@ export function useCreateSetup(tier: string, options: { navigateToSetup?: boolea
     }
     setBusy(true);
     setError(null);
+    const startedAt = Date.now();
+    if (options.loader) setCreating('creating');
     try {
       const trimmedName = input.name?.trim();
       const created = await createSetup({
@@ -63,7 +74,13 @@ export function useCreateSetup(tier: string, options: { navigateToSetup?: boolea
         config: input.config,
         keys: withConnection(input.keys, input.connection),
       });
+      if (options.loader) {
+        await wait(Math.max(0, CREATING_MIN_MS - (Date.now() - startedAt)));
+        setCreating('leaving');
+        await wait(CREATING_FADE_MS);
+      }
       finish(created.uuid, created.installToken, trimmedName ?? null);
+      setCreating(null);
       if (after?.purgeImport) {
         try {
           const purge = await purgeOldAccount(after.purgeImport);
@@ -76,6 +93,7 @@ export function useCreateSetup(tier: string, options: { navigateToSetup?: boolea
       }
       return true;
     } catch (caught) {
+      setCreating(null);
       setError(caught instanceof Error ? caught.message : 'Could not create your setup');
       return false;
     } finally {
@@ -96,5 +114,10 @@ export function useCreateSetup(tier: string, options: { navigateToSetup?: boolea
     }
   }
 
-  return { password, confirmation, error, busy, result, setPassword, setConfirmation, create };
+  // Revoke and regenerate swaps the install link in place; the UUID stays.
+  function replaceInstallToken(installToken: string) {
+    setResult((current) => (current ? { ...current, installToken } : current));
+  }
+
+  return { password, confirmation, error, busy, result, creating, setPassword, setConfirmation, create, replaceInstallToken };
 }

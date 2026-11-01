@@ -26,6 +26,7 @@ import { hubPrefix, normalizeHomeOrder, ownedFranchiseMarker, type CollectionDoc
 import { CollectionStudio } from '@/features/setup/full/collections/CollectionStudio';
 import { DestinationStep } from '@/features/setup/full/DestinationStep';
 import { ReviewStep } from '@/features/setup/full/ReviewStep';
+import { CreatingSetup } from '@/features/setup/shared/CreatingSetup';
 import { ensureFreshNuvio, nuvioTokenExpired, type PlatformConnection } from '@/features/setup/full/platform-login';
 import {
   EMPTY_FORMATTING,
@@ -243,7 +244,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
   const wizard = useWizardStep(FULL_SECTIONS.length);
   // Stay on the page after creation: the review step turns into the push
   // desk (seal + push + watchlists) once the UUID + password exist.
-  const creation = useCreateSetup('full', { navigateToSetup: false });
+  const creation = useCreateSetup('full', { navigateToSetup: false, loader: true });
   const pickPreset = usePresetPicker(formatting, setFormatting);
 
   useEffect(() => {
@@ -439,6 +440,13 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
   // Once created, the steps make way for the finished page (like Settle In):
   // edits made on a created setup's wizard were never saved, so a push sent
   // the setup as it was at creation. Changes go through the edit page now.
+  if (!edit && creation.creating) {
+    return (
+      <section className="setup">
+        <CreatingSetup leaving={creation.creating === 'leaving'} name={name} />
+      </section>
+    );
+  }
   if (!edit && creation.result) {
     return (
       <section className="setup">
@@ -447,8 +455,9 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
           busy={creation.busy} error={creation.error} backTo="/configure"
           onPassword={creation.setPassword} onConfirmation={creation.setConfirmation}
           onSubmit={submit} created={creation.result}
+          onRotated={creation.replaceInstallToken}
           name={name}
-          platform={platform} pushConn={pushConn}
+          platform={platform} onPlatform={setPlatform} pushConn={pushConn} onPushConn={setPushConn}
           counts={{
             homeRows: homeRows.filter((row) => row.enabled !== false).length,
             collections: collections.length,

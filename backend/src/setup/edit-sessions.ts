@@ -14,7 +14,9 @@ export interface EditSession {
 export interface EditSessionStore {
   issue(uuid: string): EditSession;
   verify(token: unknown): { uuid: string } | null;
-  revokeUuid(uuid: string): void;
+  // `keep` spares one token: rotating the install secret signs out every
+  // other editor but not the one who asked.
+  revokeUuid(uuid: string, keep?: string | null): void;
   size(): number;
 }
 
@@ -66,10 +68,10 @@ function createEditSessionStore(options: EditSessionOptions = {}): EditSessionSt
       return { uuid: session.uuid };
     },
 
-    revokeUuid(uuid) {
+    revokeUuid(uuid, keep = null) {
       const id = String(uuid).toLowerCase();
       for (const [token, session] of sessions) {
-        if (session.uuid === id) sessions.delete(token);
+        if (session.uuid === id && token !== keep) sessions.delete(token);
       }
     },
 

@@ -4,6 +4,19 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 ## [5.9.0]
 
+### A tidier setup
+
+- Settle In is now four short pages (Connect, Setup, Home rows, Protect) and Move In five (Connect, Setup, Home, Collections, Protect). Your player login always comes first.
+- The Setup page folds everything into sections (Integrations, Streams, Posters, Formatting, Preferences), each with a one-line summary of what you picked, so you only open what you want to change.
+- Playback filters are redesigned: pick a preset (Everything, Best quality, Save space, Smallest files), tap resolutions on or off and drag them into order, and keep the finer options in their own folds.
+- Home rows start empty: press Add rows to open a full browser (full screen on phones) and pick what goes on your Home.
+- MDBList users get a short note on turning on now-watching scrobbling inside Nuvio.
+
+### Finishing a setup
+
+- No more pop-up at the end. Creating a setup shows a short loading screen, then a Ready page with your push to Nuvio (showing which account it goes to, with a "Not you?" link), Add to Stremio, and a More players fold for other apps, manual setup and sharing.
+- New: Revoke and regenerate. If you shared your install link by mistake, make a new one from Manual setup or the Settings page of your setup. The old link stops working straight away; your settings, keys, password and edit address stay the same, and you can push again so your player picks up the new link.
+
 ### More film collections
 
 - Ten new packs: Heroes & Villains, Action Franchises, Sci-Fi Sagas, Fantasy Sagas, Disney Vault, Comedy Franchises, Crime & Thriller, Martial Arts, Westerns and Classic Franchises (films from TV shows, cartoons and toys). Together with the existing ones that is about 200 new collection folders, from Venom and Die Hard to Paddington, Police Academy and The Muppets.

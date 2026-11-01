@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { toast } from '@/features/setup/shared/Toast';
 import { TierInstall } from '@/features/setup/shared/tier/TierInstall';
 import { PublishPanel, type PublishCounts } from '@/features/setup/shared/PublishPanel';
-import { SetupCreatedModal } from '@/features/setup/shared/SetupCreatedModal';
+import { DestinationStep, connectionUser } from '@/features/setup/full/DestinationStep';
 import { usePlatformPush } from '@/features/setup/shared/usePlatformPush';
 import { saveSetup } from '@/features/setup/resolver/api';
 import { WatchlistSection } from '@/features/setup/full/WatchlistSection';
@@ -11,11 +11,11 @@ import { NuvioPublicModal } from '@/features/setup/full/NuvioPublicModal';
 import type { CollectionDoc } from '@/features/setup/shared/collection-doc';
 import type { PlatformConnection } from '@/features/setup/full/platform-login';
 
-// Review: password gate + creation, then the shared publish panel (the same
-// surface Move In's edit flow and Settle In end on). The setup is created first
+// Review: password gate + creation, then the Ready page (the shared publish
+// panel Move In's edit flow and Settle In end on). The setup is created first
 // because sealing and pushing need a row; the edit token comes from an
 // immediate unlock with the just-typed password, which never touches storage.
-export function ReviewStep({ password, confirmation, busy, error, backTo, onPassword, onConfirmation, onSubmit, created, name, platform, pushConn, counts, collections, onImportCollections, submitLabel }: {
+export function ReviewStep({ password, confirmation, busy, error, backTo, onPassword, onConfirmation, onSubmit, created, onRotated, name, platform, onPlatform, pushConn, onPushConn, counts, collections, onImportCollections, submitLabel }: {
   password: string;
   confirmation: string;
   busy: boolean;
@@ -25,18 +25,22 @@ export function ReviewStep({ password, confirmation, busy, error, backTo, onPass
   onConfirmation: (value: string) => void;
   onSubmit: () => void;
   created: { uuid: string; installToken: string } | null;
+  // Revoke and regenerate: the new install token for the same setup.
+  onRotated?: ((installToken: string) => void) | undefined;
   name: string;
   platform: 'nuvio' | 'stremio';
+  onPlatform?: ((next: 'nuvio' | 'stremio') => void) | undefined;
   pushConn: PlatformConnection | null;
+  // "Not you?" on the Ready page signs in again right there.
+  onPushConn?: ((next: PlatformConnection | null) => void) | undefined;
   counts?: PublishCounts | undefined;
   collections: CollectionDoc[];
   onImportCollections: (cols: CollectionDoc[]) => void;
   submitLabel?: string | undefined;
 }) {
   const [publicOpen, setPublicOpen] = useState(false);
-  // The post-creation modal is the "you are done" moment; it opens once the row
-  // exists and can be dismissed back to this page.
-  const [createdOpen, setCreatedOpen] = useState(true);
+  // "Not you?": the sign-in form replaces the account line until a login lands.
+  const [switching, setSwitching] = useState(false);
 
   const platformName = platform === 'nuvio' ? 'Nuvio' : 'Stremio';
   const push = usePlatformPush({
@@ -82,13 +86,18 @@ export function ReviewStep({ password, confirmation, busy, error, backTo, onPass
     }
   }
 
-  // The finished page waits behind the "your setup is live" modal and fades
-  // in once it closes, so the two never offer the same push side by side.
-  // The modal sits beside the waiting page, never inside it: the waiting page
-  // is visibility:hidden, which hid the modal too and left an empty screen.
+  // The Ready page fades in after the "Creating your setup..." loader.
+  const signIn = (switching || !activeConn) && onPushConn ? (
+    <DestinationStep
+      profileName={name}
+      platform={platform}
+      onPlatform={onPlatform ?? (() => {})}
+      connection={switching ? null : pushConn}
+      onConnection={(next) => { onPushConn(next); if (next) setSwitching(false); }}
+    />
+  ) : undefined;
   return (
-    <>
-    <div className={`review-step created-done${createdOpen ? ' is-waiting' : ''}`}>
+    <div className="review-step created-done">
       {push.unlockError && <p className="setup-error">{push.unlockError}</p>}
       <PublishPanel
         installToken={created.installToken}
@@ -99,14 +108,28 @@ export function ReviewStep({ password, confirmation, busy, error, backTo, onPass
         counts={counts}
         hasCollections
         connected={Boolean(activeConn)}
+        deskTitle={activeConn && !switching ? `Push to ${platformName}` : 'Choose where you watch'}
+        deskBody={signIn}
+        account={activeConn && !switching ? { user: connectionUser(activeConn), ...(onPushConn ? { onChange: () => setSwitching(true) } : {}) } : null}
+        regenerate={onRotated ? {
+          editToken: push.editToken,
+          onRotated,
+          repush: activeConn ? { label: `Push to ${platformName} again`, onClick: () => void push.push() } : null,
+        } : null}
+        footer={(
+          <>
+            <Link className="setup-secondary" to={`/${created.uuid}`}>Open your setup</Link>
+            <Link className="setup-primary" to="/">Finish</Link>
+          </>
+        )}
         action={{
           // Everything was saved at creation; this only pushes.
           label: push.busy ?? (push.pushed ? `Push to ${platformName} again` : `Push to ${platformName}`),
           busy: push.busy !== null,
-          disabled: !activeConn || !push.editToken,
+          disabled: !activeConn || switching || !push.editToken,
           onClick: () => void push.push(),
           ...(!activeConn
-            ? { hint: `Open your setup and sign in to ${platformName} on the Destination step to push. Your install link below works either way.` }
+            ? { hint: 'Sign in above to push your Home rows and collections. Your install link below works either way.' }
             : push.libraryPending
               ? { hint: 'Pushed. Your library folders are still being prepared and will appear on their own - nothing else to do.' }
               : push.pushed ? { hint: 'Pushed. Your saved setup can be pushed again any time.' } : {}),
@@ -115,7 +138,6 @@ export function ReviewStep({ password, confirmation, busy, error, backTo, onPass
           profiles, value: push.profileId, onChange: (value) => push.setProfileId(value),
         } : null}
         replaceOthers={activeConn ? { value: push.replaceOthers, onChange: push.setReplaceOthers } : null}
-        actionsExtra={<Link className="setup-secondary" to={`/${created.uuid}`}>Open your setup</Link>}
       >
         <div className="review-section-head"><h3>Watchlists</h3><p>Sync your personal lists into library rows.</p></div>
         <WatchlistSection uuid={created.uuid} editToken={push.editToken} />
@@ -135,17 +157,5 @@ export function ReviewStep({ password, confirmation, busy, error, backTo, onPass
         )}
       </PublishPanel>
     </div>
-
-      <SetupCreatedModal
-        open={createdOpen}
-        uuid={created.uuid}
-        installToken={created.installToken}
-        name={name.trim() || null}
-        password={password}
-        platform={platform}
-        pushConn={pushConn}
-        onClose={() => setCreatedOpen(false)}
-      />
-    </>
   );
 }

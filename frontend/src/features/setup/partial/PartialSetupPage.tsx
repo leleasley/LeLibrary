@@ -3,7 +3,7 @@ import { useNuvioCreatePrefill } from '@/features/setup/nuvio/prefill';
 import { Link } from 'react-router-dom';
 import { Accordion } from '@/features/setup/shared/Accordion';
 import { useRestoreToast } from '@/features/setup/shared/Toast';
-import { SetupCreatedModal } from '@/features/setup/shared/SetupCreatedModal';
+import { CreatingSetup } from '@/features/setup/shared/CreatingSetup';
 import { PublishPanel } from '@/features/setup/shared/PublishPanel';
 import { ConfirmModal } from '@/features/setup/shared/Modal';
 import { useWizardStep } from '@/features/setup/shared/WizardStepper';
@@ -65,7 +65,7 @@ import {
   nuvioHideUnreleasedForConfig,
   type NuvioHideUnreleased,
 } from '@/features/setup/shared/nuvio-library';
-import { DestinationStep } from '@/features/setup/full/DestinationStep';
+import { DestinationStep, connectionUser } from '@/features/setup/full/DestinationStep';
 import { ImportSection, type ImportedPayload } from '@/features/setup/full/ImportSection';
 import { usePlatformPush } from '@/features/setup/shared/usePlatformPush';
 import { toast } from '@/features/setup/shared/Toast';
@@ -180,7 +180,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
   const wizard = useWizardStep(PARTIAL_SECTIONS.length);
   // Stay on the page after creation so the publish panel can offer the install
   // link, destination sign-in and optional Home-row push.
-  const creation = useCreateSetup('partial', { navigateToSetup: false });
+  const creation = useCreateSetup('partial', { navigateToSetup: false, loader: true });
   // The push at the end of the flow: seal the login made here, then install.
   const platformName = platform === 'nuvio' ? 'Nuvio' : 'Stremio';
   const push = usePlatformPush({
@@ -191,9 +191,6 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
     onPushed: () => toast(`Pushed to ${platformName}`),
     onError: (message) => toast(message, 'error'),
   });
-  // The post-creation modal is the "you are done" moment; dismissed back to the
-  // success panel underneath.
-  const [createdOpen, setCreatedOpen] = useState(true);
   const pickPreset = usePresetPicker(formatting, setFormatting);
 
   useEffect(() => {
@@ -342,18 +339,26 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
     if (payload.pushConn) setConnection(payload.pushConn);
   }
 
-  /* The end of a Settle In setup: the shared publish panel. The player login
+  if (creation.creating) {
+    return (
+      <section className="setup">
+        <CreatingSetup leaving={creation.creating === 'leaving'} name={name} />
+      </section>
+    );
+  }
+  /* The end of a Settle In setup: the Ready page (shared publish panel). The player login
      is step 1 now; the desk only offers it again when that step was skipped,
      since without it a Settle In setup could never push its Home order. */
   if (creation.result) {
     const platformName = platform === 'nuvio' ? 'Nuvio' : 'Stremio';
     const activeConn = connection && connection.platform === platform ? connection : null;
+    const created = creation.result;
     return (
       <section className="setup">
-        <div className={`created-done${createdOpen ? ' is-waiting' : ''}`}>
+        <div className="created-done">
         <PublishPanel
-          installToken={creation.result.installToken}
-          uuid={creation.result.uuid}
+          installToken={created.installToken}
+          uuid={created.uuid}
           tierLabel="Settle In"
           name={name}
           platform={platform}
@@ -361,7 +366,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
             homeRows: homeRows.filter((row) => row.enabled !== false).length,
             lang: meta.lang,
           }}
-          deskTitle={activeConn ? `Publish to ${platformName}` : 'Choose where you watch'}
+          deskTitle={activeConn ? `Push to ${platformName}` : 'Choose where you watch'}
           deskBody={activeConn ? undefined : (
             <div id="settle-in-destination">
               <DestinationStep
@@ -373,6 +378,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
               />
             </div>
           )}
+          account={activeConn ? { user: connectionUser(activeConn), onChange: () => setConnection(null) } : null}
           action={{
             // Everything was saved at creation; this only pushes.
             label: push.busy ?? (push.pushed ? `Push to ${platformName} again` : `Push to ${platformName}`),
@@ -386,23 +392,19 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
                 : push.pushed ? { hint: 'Pushed. Your saved setup can be pushed again any time.' } : {}),
           }}
           replaceOthers={activeConn ? { value: push.replaceOthers, onChange: push.setReplaceOthers } : null}
-          actionsExtra={<Link className="setup-secondary" to={`/${creation.result.uuid}`}>Open your setup</Link>}
+          regenerate={{
+            editToken: push.editToken,
+            onRotated: creation.replaceInstallToken,
+            repush: activeConn ? { label: `Push to ${platformName} again`, onClick: () => void push.push() } : null,
+          }}
+          footer={(
+            <>
+              <Link className="setup-secondary" to={`/${created.uuid}`}>Open your setup</Link>
+              <Link className="setup-primary" to="/">Finish</Link>
+            </>
+          )}
         />
         </div>
-        <SetupCreatedModal
-          open={createdOpen}
-          uuid={creation.result.uuid}
-          installToken={creation.result.installToken}
-          name={name.trim() || null}
-          password={creation.password}
-          platform={platform}
-          pushConn={connection}
-          onConnectPrompt={() => {
-            setCreatedOpen(false);
-            document.getElementById('settle-in-destination')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }}
-          onClose={() => setCreatedOpen(false)}
-        />
       </section>
     );
   }

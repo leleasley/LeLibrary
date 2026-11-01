@@ -76,6 +76,16 @@ export function deleteSetup(uuid: string, editToken: string): Promise<{ ok: bool
   );
 }
 
+// New install secret, same setup: the UUID, password, keys and settings stay;
+// every device on the old install link stops until it gets the new one.
+export function rotateSetupSecret(uuid: string, editToken: string): Promise<{ ok: boolean; installToken: string }> {
+  return apiClient.post<{ ok: boolean; installToken: string }>(
+    `/api/setup/${encodeURIComponent(uuid)}/secret`,
+    {},
+    bearer(editToken),
+  );
+}
+
 // Saved structural config for an unlocked editor: pre-fills the pickers so
 // an edit starts where the setup left off. Secrets are never included.
 export function fetchSetupConfig(uuid: string, editToken: string): Promise<{ config: Record<string, unknown> }> {

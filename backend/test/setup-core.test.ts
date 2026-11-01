@@ -179,3 +179,12 @@ test('bearerToken reads only the Authorization header', () => {
 });
 
 export interface SetupCoreTestTestModule {};
+
+test('revokeUuid can spare the caller (install secret rotation)', () => {
+  const store = createEditSessionStore();
+  const mine = store.issue('uuid-r');
+  const other = store.issue('uuid-r');
+  store.revokeUuid('uuid-r', mine.token);
+  assert.equal(store.verify(mine.token).uuid, 'uuid-r');
+  assert.equal(store.verify(other.token), null);
+});

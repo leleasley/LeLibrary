@@ -1458,24 +1458,7 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
 .badge-open-preview { margin-left: auto; max-width: 55%; overflow: hidden; }
 .app-modal-box.app-modal-wide { max-width: 660px; }
 
-/* ── Post-creation "your setup is live" modal ─────────────────────────────
-   Shown once the row exists (Move In + Settle In): the two links to copy and
-   the optional push, with the saved-on-the-server reassurance. */
-.setup-created-dialog {
-  width: min(560px, calc(100vw - 44px));
-  max-width: none !important;
-  display: flex; flex-direction: column;
-  padding: 0 !important;
-}
-.setup-created-dialog .app-modal-head { margin: 0; padding: 20px 22px 14px; border-bottom: 1px solid var(--border); }
-.setup-created-dialog .app-modal-head h3 { margin: 4px 0 0; }
-.setup-created-dialog .app-modal-head p { margin: 6px 0 0; }
-.setup-created-dialog .app-modal-actions { margin: 0; padding: 14px 22px; border-top: 1px solid var(--border); }
-.setup-created-body { display: grid; gap: 14px; padding: 16px 22px; }
-
-.created-copy { display: grid; gap: 6px; }
-.created-copy-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.created-copy-head span { color: var(--muted); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+/* Small copy button beside a read-only link (Manual setup). */
 .created-copy-btn {
   padding: 5px 12px; border: 1px solid var(--border); border-radius: 7px;
   background: rgba(255, 255, 255, 0.03); color: var(--text);
@@ -1483,32 +1466,6 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
   transition: border-color 0.15s, color 0.15s;
 }
 .created-copy-btn:hover { border-color: var(--amber); color: var(--amber); }
-.created-copy input {
-  width: 100%; box-sizing: border-box;
-  padding: 10px 12px;
-  border: 1px solid var(--border); border-radius: 9px;
-  background: var(--bg); color: var(--muted);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 0.72rem;
-}
-.created-copy input:focus { outline: none; border-color: var(--amber); color: var(--text); }
-
-.created-push {
-  display: grid; gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid rgba(245, 158, 11, 0.32); border-radius: 12px;
-  background: linear-gradient(180deg, rgba(245, 158, 11, 0.06), rgba(255, 255, 255, 0) 120px), rgba(255, 255, 255, 0.012);
-}
-.created-push-head { display: flex; align-items: center; gap: 11px; }
-.created-push-head img { width: 30px; height: 30px; flex: none; object-fit: contain; }
-.created-push-head strong { display: block; font-size: 0.88rem; }
-.created-push-head small { display: block; margin-top: 2px; color: var(--muted); font-size: 0.72rem; line-height: 1.45; }
-.created-push .setup-primary { width: 100%; justify-content: center; }
-.created-note { margin: 0; color: var(--muted); font-size: 0.74rem; line-height: 1.55; }
-.created-note code {
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 0.7rem; color: var(--text); overflow-wrap: anywhere;
-}
 .pack-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-height: 52vh; overflow-y: auto; margin-bottom: 16px; padding-right: 2px; }
 .pack-card { position: relative; border: 1px solid var(--border); border-radius: 12px; padding: 12px 12px 10px; background: rgba(255, 255, 255, 0.015); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .pack-card:hover { border-color: rgba(245, 158, 11, 0.4); }
@@ -1975,16 +1932,45 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
   .imp-side.is-row > * { flex: 1; }
 }
 
-/* After creating: the "your setup is live" modal fades out, then the finished
-   page fades in behind it (they never offer the same push side by side). */
-.created-modal { transition: opacity 0.22s ease; }
-.created-modal.is-leaving { opacity: 0; }
-.created-modal .app-modal-box { transition: translate 0.22s ease, scale 0.22s ease; }
-.created-modal.is-leaving .app-modal-box { translate: 0 10px; scale: 0.98; }
-.created-done { transition: opacity 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), translate 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.created-done.is-waiting { opacity: 0; translate: 0 12px; visibility: hidden; transition: none; }
+/* After creating: "Creating your setup..." fades out, then the Ready page
+   fades in. No modal: the Ready page is the one place for push and links. */
+.creating-setup { display: grid; place-items: center; align-content: center; gap: 14px; min-height: 46vh; text-align: center; animation: setup-fade-in 0.3s ease both; }
+.creating-setup.is-leaving { opacity: 0; translate: 0 -8px; transition: opacity 0.28s ease, translate 0.28s ease; }
+.creating-setup h2 { margin: 0; font-size: 1.15rem; }
+.creating-setup p { margin: 0; color: var(--muted); font-size: 0.78rem; }
+.creating-spinner { width: 44px; height: 44px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, 0.08); border-top-color: var(--amber); animation: creating-spin 0.9s linear infinite; }
+@keyframes creating-spin { to { rotate: 360deg; } }
+@keyframes setup-fade-in { from { opacity: 0; translate: 0 12px; } to { opacity: 1; translate: 0 0; } }
+.created-done { animation: setup-fade-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 @media (prefers-reduced-motion: reduce) {
-  .created-modal, .created-modal .app-modal-box, .created-done { transition: none; }
+  .creating-setup, .created-done { animation: none; }
+  .creating-spinner { animation-duration: 2.4s; }
+}
+
+/* Ready page pieces. */
+.link-btn { padding: 0; border: 0; background: none; color: var(--amber); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.link-btn:hover { color: #fbbf24; }
+.publish-account { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin: 0; color: var(--muted); font-size: 0.76rem; }
+.publish-account span + .link-btn::before { content: '\00b7'; display: inline-block; margin-right: 8px; color: var(--muted); text-decoration: none; }
+.publish-account strong { color: var(--text); }
+.publish-more { border: 1px dashed var(--border); border-radius: 12px; }
+.publish-more > summary { display: flex; align-items: center; gap: 12px; padding: 14px 18px; cursor: pointer; list-style: none; }
+.publish-more > summary::-webkit-details-marker { display: none; }
+.publish-more > summary > span:first-child { flex: 1; min-width: 0; }
+.publish-more > summary strong, .publish-more > summary small { display: block; }
+.publish-more > summary strong { font-size: 0.88rem; }
+.publish-more > summary small { margin-top: 2px; color: var(--muted); font-size: 0.7rem; }
+.publish-more[open] > summary .install-option-arrow { transform: rotate(90deg); color: var(--amber); }
+.publish-more-body { display: grid; gap: 12px; padding: 0 14px 14px; }
+.regen-link { display: flex; align-items: center; gap: 14px; margin-top: 10px; padding-top: 14px; border-top: 1px solid var(--border); }
+.regen-link > div { flex: 1; min-width: 0; }
+.regen-link strong, .regen-link small { display: block; }
+.regen-link strong { font-size: 0.82rem; }
+.regen-link small { margin-top: 2px; color: var(--muted); font-size: 0.7rem; line-height: 1.45; }
+.regen-modal p { line-height: 1.5; }
+.publish-footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 6px; }
+@media (max-width: 520px) {
+  .regen-link { flex-direction: column; align-items: stretch; }
 }
 
 /* One-off push choice: remove the Nuvio profile's other collections. */

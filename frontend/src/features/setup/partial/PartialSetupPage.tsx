@@ -479,7 +479,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
           </TierStep>
           <TierStep id="setup" index={2} title="Setup" hidden={wizard.step !== 1} lede="Everything about your library in one place. Open a section to change it; each one shows where it stands.">
             <div className="qs-accordions qs-setup-page">
-              <Accordion title="Integrations" icon="🔌" defaultOpen={!edit && connected.length === 0}
+              <Accordion title="Integrations" icon="🔌"
                 summary={[connected.length ? connected.join(' + ') : 'No library yet', hasTmdb || edit?.savedServices.includes('tmdbApiKey') ? 'TMDB key added' : 'TMDB key needed']}>
                 <h3 className="qs-sub"><strong>Library providers</strong><span>Debrid</span></h3>
                 <ProviderKeys

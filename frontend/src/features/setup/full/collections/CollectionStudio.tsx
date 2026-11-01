@@ -25,7 +25,7 @@ import { NuvioPublicModal } from '@/features/setup/full/NuvioPublicModal';
 // Collections studio: the list of Nuvio collections, the Quick Pack launch
 // block and its library, the public Nuvio directory browser, plus the
 // LeLibrary Hub system toggle.
-export function CollectionStudio({ collections, onChange, providerPrefix, platform, packs, onPacks, ownedOn, onToggleOwned, nuvioToken, savedSetup, lang, hasMdblistKey = false, hideAnime = false }: {
+export function CollectionStudio({ collections, onChange, providerPrefix, platform, packs, onPacks, ownedOn, onToggleOwned, nuvioToken, savedSetup, lang, hasMdblistKey = false, hideAnime = false, defaultOpenId = null }: {
   collections: CollectionDoc[];
   onChange: (next: CollectionDoc[]) => void;
   providerPrefix: string | null;
@@ -46,9 +46,11 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
   hideAnime?: boolean;
   // An MDBList key is typed in or already saved ("Optional list sources").
   hasMdblistKey?: boolean;
+  // Every collection starts closed; tests open one to inspect its tiles.
+  defaultOpenId?: string | null;
 }) {
   const canBrowse = Boolean(nuvioToken) || Boolean(savedSetup);
-  const [openId, setOpenId] = useState<string | null>(collections[0]?.id ?? null);
+  const [openId, setOpenId] = useState<string | null>(defaultOpenId);
   // A new folder lives only in the editor (`draft`) until Save, so Cancel leaves
   // the collection untouched.
   const [editor, setEditor] = useState<{ ci: number; fi: number; draft?: CollectionDoc['folders'][number] } | null>(null);
@@ -79,8 +81,6 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
       return;
     }
     onChange(orderCollections([...collections, ...fresh]));
-    const first = fresh[0];
-    if (first) setOpenId(first.id);
   }
 
   // Adding materialises only the chosen, new folders as editable copies. The
@@ -93,7 +93,6 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
       return;
     }
     onChange(orderCollections(next.collections));
-    if (next.openedId) setOpenId(next.openedId);
   }
 
   function removePack(packId: string) {

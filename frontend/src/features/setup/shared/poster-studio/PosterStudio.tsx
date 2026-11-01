@@ -29,7 +29,7 @@ export function PosterStudio({ lib, initial, previewUrl, onSave, onClose }: {
   const defaults = lib.DEFAULTS as Options;
   const [options, setOptions] = useState<Options>(() => lib.sanitize(initial) as Options);
   const [sample, setSample] = useState<(typeof SAMPLES)[number]>(SAMPLES[0]);
-  const [openIds, setOpenIds] = useState<Set<string>>(() => new Set(['badges']));
+  const [openIds, setOpenIds] = useState<Set<string>>(() => new Set());
   const box = useRef<HTMLDivElement>(null);
 
   const sections = useMemo(() => buildSections({

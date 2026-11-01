@@ -65,8 +65,13 @@ describe('collections studio folder sources', () => {
     }],
   }];
 
-  it('never shows an internal routing id on a folder tile', () => {
+  it('starts with every collection closed', () => {
     const html = renderStudio({ collections: legacyCollection, packs: [], providerPrefix: null, ownedOn: false });
+    expect(html).not.toContain('Now Playing Movies');
+  });
+
+  it('never shows an internal routing id on a folder tile', () => {
+    const html = renderStudio({ collections: legacyCollection, packs: [], providerPrefix: null, ownedOn: false, defaultOpenId: legacyCollection[0]!.id });
     expect(html).not.toContain('lelibrary-curated-movie');
     expect(html).toContain('Trending Movies');
     expect(html).toContain('Now Playing Movies');

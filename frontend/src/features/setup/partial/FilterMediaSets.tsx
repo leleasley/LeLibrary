@@ -67,21 +67,21 @@ export function FilterMediaSets({ draft, onChange, onToast }: {
 
   return (
     <>
-      <details className="stream-config-section" open>
+      <details className="stream-config-section">
         <summary>
           <span><strong>Codecs</strong><small>Included video codecs</small></span>
           <span className="stream-config-summary-note">{mediaSummary(draft.codecs, ALL_CODECS.length)}</span>
         </summary>
         <div className="stream-config-body">{chips(ALL_CODECS, draft.codecs, (value) => toggle('codecs', value))}</div>
       </details>
-      <details className="stream-config-section" open>
+      <details className="stream-config-section">
         <summary>
           <span><strong>HDR</strong><small>Included HDR tags</small></span>
           <span className="stream-config-summary-note">{mediaSummary(draft.hdr, ALL_HDR.length)}</span>
         </summary>
         <div className="stream-config-body">{chips(ALL_HDR, draft.hdr, (value) => toggle('hdr', value))}</div>
       </details>
-      <details className="stream-config-section" open>
+      <details className="stream-config-section">
         <summary>
           <span><strong>Audio</strong><small>Included audio formats</small></span>
           <span className="stream-config-summary-note">{mediaSummary(draft.audio, ALL_AUDIO.length)}</span>

@@ -317,7 +317,7 @@ export function PublishPanel({
         {action?.hint && <p className="publish-hint">{action.hint}</p>}
       </section>
 
-      <details className="install-option" open={platform === 'stremio'}>
+      <details className="install-option">
         <summary>
           <span className="install-option-icon"><img src="/stremio.svg" alt="" /></span>
           <span><strong>Add to Stremio</strong><small>Open the install link or copy it for later.</small></span>

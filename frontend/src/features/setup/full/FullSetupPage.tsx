@@ -508,7 +508,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
           </TierStep>
           <TierStep id="setup" index={2} title="Setup" hidden={wizard.step !== 1} lede="Everything about your library in one place. Open a section to change it; each one shows where it stands.">
             <div className="qs-accordions qs-setup-page">
-              <Accordion title="Integrations" icon="🔌" defaultOpen={!edit && connected.length === 0}
+              <Accordion title="Integrations" icon="🔌"
                 summary={[connected.length ? connected.join(' + ') : 'No library yet', hasTmdb || edit?.savedServices.includes('tmdbApiKey') || stagedImport?.services?.includes('tmdbApiKey') ? 'TMDB key added' : 'TMDB key needed']}>
                 {missingImportedServices.length > 0 && (
                   <p className="setup-error" role="alert">

@@ -1998,3 +1998,39 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
 /* Edit page: what the Nuvio profile has now, above the setup's own choice. */
 .nuvio-current-note { margin: 0 0 12px; padding: 9px 12px; border: 1px solid rgba(52, 211, 153, 0.25); border-radius: 10px; background: rgba(52, 211, 153, 0.06); color: var(--muted); font-size: 0.8rem; line-height: 1.45; }
 .nuvio-current-note strong { color: var(--text); font-weight: 600; }
+
+/* 5.9 playback filters: presets, one chip row for resolutions, folds. */
+.pf { display: grid; gap: 16px; }
+.pf-presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.pf-preset, .pf-custom { display: grid; gap: 2px; text-align: left; padding: 11px 13px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,.02); color: var(--text); font: inherit; cursor: pointer; }
+.pf-preset strong, .pf-custom strong { font-size: 0.84rem; }
+.pf-preset small, .pf-custom small { font-size: 0.7rem; color: var(--muted); }
+.pf-preset:hover { border-color: rgba(245,158,11,.5); }
+.pf-preset.is-on { border-color: var(--amber); background: rgba(245,158,11,.1); box-shadow: inset 0 0 0 1px rgba(245,158,11,.35); }
+.pf-custom { cursor: default; border-style: dashed; border-color: rgba(245,158,11,.5); }
+.pf-block { display: grid; gap: 10px; }
+.pf-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.pf-head strong { display: block; font-size: 0.86rem; }
+.pf-head small { display: block; font-size: 0.72rem; color: var(--muted); }
+.pf-res { display: flex; flex-wrap: wrap; gap: 7px; }
+.pf-res-chip { display: inline-flex; align-items: stretch; border: 1px solid var(--border); border-radius: 9px; background: rgba(255,255,255,.02); overflow: hidden; }
+.pf-res-chip.is-on { border-color: rgba(245,158,11,.5); background: rgba(245,158,11,.12); cursor: grab; }
+.pf-res-chip.is-drag { opacity: .45; }
+.pf-res-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 0.78rem; cursor: pointer; }
+.pf-res-chip.is-on .pf-res-toggle { color: var(--text); }
+.pf-res-toggle em { font-style: normal; font-size: 0.64rem; font-weight: 700; color: #120c02; background: var(--amber); border-radius: 999px; min-width: 16px; height: 16px; display: inline-grid; place-items: center; }
+.pf-res-move { border: 0; border-left: 1px solid rgba(245,158,11,.3); background: none; color: var(--amber); padding: 0 9px; font-size: 1rem; cursor: pointer; }
+.pf-inline { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 10px; align-items: end; }
+.pf-inline .setup-field { margin: 0; }
+.pf-cached { margin: 0; }
+.pf-fold { border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,.015); }
+.pf-fold > summary { list-style: none; cursor: pointer; display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; }
+.pf-fold > summary::-webkit-details-marker { display: none; }
+.pf-fold > summary strong { font-size: 0.84rem; }
+.pf-fold > summary small { font-size: 0.72rem; color: var(--muted); }
+.pf-fold-body { display: grid; gap: 12px; padding: 0 14px 14px; }
+@media (max-width: 640px) {
+  .pf-presets { grid-template-columns: 1fr 1fr; }
+  .pf-inline { grid-template-columns: 1fr 1fr; }
+  .pf-cached { grid-column: 1 / -1; }
+}

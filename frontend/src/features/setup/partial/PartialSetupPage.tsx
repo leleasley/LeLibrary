@@ -15,7 +15,7 @@ import { TierDock, TierPreviewPanel } from '@/features/setup/shared/tier/TierPre
 import { PosterWall, TierHero, TierStep, TierWizardNav } from '@/features/setup/shared/tier/TierChrome';
 import '@/features/setup/shared/tier/tier.css';
 import { badgeForSnapshot, snapshotToPartialDraft, useEditSnapshot, type EditMode } from '@/features/setup/shared/edit-mode';
-import { EMPTY_FILTER_SETS, FilterSets, type FilterSetsDraft } from '@/features/setup/full/FilterSets';
+import { EMPTY_FILTER_SETS, FilterSets, filterSummaryParts, type FilterSetsDraft } from '@/features/setup/full/FilterSets';
 import { EMPTY_MEDIA_SETS, FilterMediaSets, type MediaSetsDraft } from '@/features/setup/partial/FilterMediaSets';
 import { DEFAULT_BADGE_PACK, BADGE_PACKS } from '@/features/setup/shared/BadgePackPicker';
 import {
@@ -497,10 +497,9 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
                   : <MetadataWatchlists uuid={null} editToken={null} draft={watchlist} onDraft={setWatchlist} />}
               </Accordion>
               <Accordion title="Streams" icon="🎚️"
-                summary={[filtersActive ? 'Custom filters' : 'All streams', addons.length + customAddons.length > 0 ? 'Extra sources on' : 'Library only']}>
+                summary={[...filterSummaryParts(filterSets).slice(0, 2), addons.length + customAddons.length > 0 ? 'Extra sources on' : 'Library only']}>
                 <h3 className="qs-sub"><strong>Library playback filters</strong><span>Resolutions, qualities and files</span></h3>
-                <FilterSets draft={filterSets} onChange={setFilterSets} />
-                <FilterMediaSets draft={mediaSets} onChange={setMediaSets} />
+                <FilterSets draft={filterSets} onChange={setFilterSets} advanced={<FilterMediaSets draft={mediaSets} onChange={setMediaSets} />} />
                 <h3 className="qs-sub"><strong>Optional stream add-ons</strong><span>Sources beyond your library</span></h3>
                 <StreamAddonsSection
                   selected={addons} onChange={setAddons}

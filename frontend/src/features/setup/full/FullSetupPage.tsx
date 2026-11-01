@@ -11,7 +11,7 @@ import { PosterWall, TierHero, TierStep, TierWizardNav } from '@/features/setup/
 import '@/features/setup/shared/tier/tier.css';
 import { badgeForSnapshot, snapshotToFullDraft, useEditSnapshot, type EditMode } from '@/features/setup/shared/edit-mode';
 import { EMPTY_METADATA_EXTRAS, MetadataExtras, type MetadataExtrasDraft } from '@/features/setup/full/MetadataExtras';
-import { EMPTY_FILTER_SETS, FilterSets, type FilterSetsDraft } from '@/features/setup/full/FilterSets';
+import { EMPTY_FILTER_SETS, FilterSets, filterSummaryParts, type FilterSetsDraft } from '@/features/setup/full/FilterSets';
 import { StreamAddonsSection } from '@/features/setup/full/StreamAddonsSection';
 import { CustomStreamsSection } from '@/features/setup/full/CustomStreamsSection';
 import { MetadataWatchlists, WATCHLIST_ACCORDION_DESC } from '@/features/setup/full/MetadataExtras';
@@ -533,7 +533,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
                   : <MetadataWatchlists uuid={null} editToken={null} draft={watchlist} onDraft={setWatchlist} />}
               </Accordion>
               <Accordion title="Streams" icon="🎚️"
-                summary={[filtersActive ? 'Custom filters' : 'All streams', addons.length + customAddons.length > 0 ? 'Extra sources on' : 'Library only']}>
+                summary={[...filterSummaryParts(filterSets).slice(0, 2), addons.length + customAddons.length > 0 ? 'Extra sources on' : 'Library only']}>
                 <h3 className="qs-sub"><strong>Library playback filters</strong><span>Resolutions, qualities and files</span></h3>
                 <FilterSets draft={filterSets} onChange={setFilterSets} />
                 <h3 className="qs-sub"><strong>Optional stream add-ons</strong><span>Sources beyond your library</span></h3>

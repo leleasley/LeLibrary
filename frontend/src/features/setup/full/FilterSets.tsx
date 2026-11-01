@@ -1,3 +1,4 @@
+import { useState, type ReactNode } from 'react';
 import { toast } from '@/features/setup/shared/Toast';
 
 // Stream filters: include/exclude sets plus preferred resolution order, file
@@ -53,10 +54,46 @@ function summary(selected: string[], total: number): string {
   return selected.length === 0 ? 'All included' : `${selected.length} of ${total} included`;
 }
 
-export function FilterSets({ draft, onChange }: {
+// Presets cover what most people want; anything else shows as "Custom".
+// Each one only sets resolutions, their order, quality tags and sizes; the
+// cached-only switch and the advanced codec/HDR/audio sets stay as they are.
+export interface FilterPreset { id: string; name: string; hint: string; values: Pick<FilterSetsDraft, 'resolutions' | 'resolutionOrder' | 'qualities' | 'sources' | 'minSizeGb' | 'maxSizeGb'> }
+const NO_CAM = ['BluRay REMUX', 'BluRay', 'WEB-DL', 'WEBRip', 'HDRip', 'DVDRip', 'HDTV'];
+export const FILTER_PRESETS: FilterPreset[] = [
+  { id: 'everything', name: 'Everything', hint: 'Every file, best first', values: { resolutions: [], resolutionOrder: [...ALL_RES], qualities: [], sources: [], minSizeGb: '', maxSizeGb: '' } },
+  { id: 'best', name: 'Best quality', hint: '4K and 1080p, no cam copies', values: { resolutions: ['4K', '2K', '1080p'], resolutionOrder: [...ALL_RES], qualities: ['BluRay REMUX', 'BluRay', 'WEB-DL', 'WEBRip'], sources: [], minSizeGb: '', maxSizeGb: '' } },
+  { id: 'balanced', name: 'Save space', hint: '1080p first, up to 15 GB', values: { resolutions: ['1080p', '720p'], resolutionOrder: ['1080p', '720p', '4K', '2K', '480p', '360p', '240p'], qualities: NO_CAM, sources: [], minSizeGb: '', maxSizeGb: '15' } },
+  { id: 'small', name: 'Smallest files', hint: '720p first, up to 4 GB', values: { resolutions: ['1080p', '720p', '480p'], resolutionOrder: ['720p', '1080p', '480p', '4K', '2K', '360p', '240p'], qualities: NO_CAM, sources: [], minSizeGb: '', maxSizeGb: '4' } },
+];
+
+export function presetOf(draft: FilterSetsDraft): string {
+  const same = (a: string[], b: string[]) => a.length === b.length && a.every((value, index) => value === b[index]);
+  const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((value) => b.includes(value));
+  const match = FILTER_PRESETS.find(({ values }) => sameSet(draft.resolutions, values.resolutions)
+    && same(draft.resolutionOrder, values.resolutionOrder) && sameSet(draft.qualities, values.qualities)
+    && sameSet(draft.sources, values.sources) && draft.minSizeGb.trim() === values.minSizeGb && draft.maxSizeGb.trim() === values.maxSizeGb);
+  return match ? match.id : 'custom';
+}
+
+// One line that says what the filters do, for the folded sections.
+export function filterSummaryParts(draft: FilterSetsDraft): string[] {
+  const included = draft.resolutionOrder.filter((value) => isIncluded(draft.resolutions, value));
+  const parts = [draft.resolutions.length === 0 ? 'Any resolution' : included.join(', ')];
+  parts.push(draft.qualities.length === 0 && draft.sources.length === 0 ? 'Any quality' : `${draft.qualities.length || ALL_QUAL.length} of ${ALL_QUAL.length} qualities`);
+  const min = draft.minSizeGb.trim(); const max = draft.maxSizeGb.trim();
+  parts.push(min || max ? `${min || '0'}-${max || '∞'} GB` : 'Any size');
+  if (draft.cachedOnly) parts.push('Cached only');
+  return parts;
+}
+
+export function FilterSets({ draft, onChange, advanced }: {
   draft: FilterSetsDraft;
   onChange: (next: FilterSetsDraft) => void;
+  // Settle In's codec / HDR / audio sets, shown in the Advanced fold.
+  advanced?: ReactNode;
 }) {
+  const [dragging, setDragging] = useState<string | null>(null);
+
   function toggleFilter(kind: FilterKind, value: string) {
     const values = kindValues(kind);
     const selected = new Set(kindSelected(draft, kind));
@@ -75,6 +112,8 @@ export function FilterSets({ draft, onChange }: {
     onChange(withSelected(draft, kind, []));
   }
 
+  // Moves a resolution one place in the preference order (skipping
+  // excluded ones, which keep their slot).
   function moveResolution(value: string, direction: -1 | 1) {
     const order = draft.resolutionOrder.slice();
     const index = order.indexOf(value);
@@ -89,13 +128,15 @@ export function FilterSets({ draft, onChange }: {
     onChange({ ...draft, resolutionOrder: order });
   }
 
-  function dropResolution(from: number, to: number) {
-    if (from === to || from < 0 || to < 0) return;
-    const order = draft.resolutionOrder.slice();
-    const [moved] = order.splice(from, 1);
-    if (moved === undefined) return;
-    order.splice(to, 0, moved);
+  function dropResolution(value: string, onto: string) {
+    if (value === onto) return;
+    const order = draft.resolutionOrder.filter((item) => item !== value);
+    order.splice(order.indexOf(onto), 0, value);
     onChange({ ...draft, resolutionOrder: order });
+  }
+
+  function applyPreset(preset: FilterPreset) {
+    onChange({ ...draft, ...preset.values, resolutions: [...preset.values.resolutions], resolutionOrder: [...preset.values.resolutionOrder], qualities: [...preset.values.qualities], sources: [...preset.values.sources] });
   }
 
   function chips(kind: FilterKind, values: string[], selected: string[]) {
@@ -117,95 +158,92 @@ export function FilterSets({ draft, onChange }: {
     );
   }
 
-  const includedOrder = draft.resolutionOrder.filter((value) => isIncluded(draft.resolutions, value));
+  const included = draft.resolutionOrder.filter((value) => isIncluded(draft.resolutions, value));
+  const active = presetOf(draft);
+  const qualityParts = [summary(draft.qualities, ALL_QUAL.length), summary(draft.sources, ALL_SRC.length)];
 
   return (
-    <>
-      <details className="stream-config-section" open>
-        <summary>
-          <span><strong>Resolution</strong><small>Include, exclude and set preference order</small></span>
-          <span className="stream-config-summary-note">{summary(draft.resolutions, ALL_RES.length)}</span>
-        </summary>
-        <div className="stream-config-body">
-          <div className="stream-filter-heading">
-            <div><h3>Included resolutions</h3><p>Untick resolutions you never want returned.</p></div>
-            <button type="button" className="filter-clear" onClick={() => clearFilter('resolution')}>Include all</button>
-          </div>
-          {chips('resolution', ALL_RES, draft.resolutions)}
-          <div className="resolution-order-head">
-            <div><strong>Preferred resolution order</strong><small>Drag to reorder. Streams nearer the start are preferred.</small></div>
-          </div>
-          <div className="resolution-order">
-            {includedOrder.map((value, index) => (
-              <article
-                key={value} className="resolution-order-item" draggable
-                onDragStart={(event) => { event.dataTransfer.setData('text/plain', String(index)); }}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  dropResolution(Number(event.dataTransfer.getData('text/plain')), index);
-                }}
+    <div className="pf">
+      <div className="pf-presets" role="radiogroup" aria-label="Filter presets">
+        {FILTER_PRESETS.map((preset) => (
+          <button
+            key={preset.id} type="button" role="radio" aria-checked={active === preset.id}
+            className={`pf-preset${active === preset.id ? ' is-on' : ''}`} onClick={() => applyPreset(preset)}
+          >
+            <strong>{preset.name}</strong><small>{preset.hint}</small>
+          </button>
+        ))}
+        {active === 'custom' && <span className="pf-custom" role="status"><strong>Custom</strong><small>Your own mix</small></span>}
+      </div>
+
+      <div className="pf-block">
+        <div className="pf-head">
+          <div><strong>Resolutions</strong><small>Tap to include or skip. Drag, or use the arrow, to set which comes first.</small></div>
+          {draft.resolutions.length > 0 && <button type="button" className="filter-clear" onClick={() => clearFilter('resolution')}>Include all</button>}
+        </div>
+        <div className="pf-res" role="list">
+          {draft.resolutionOrder.map((value) => {
+            const on = isIncluded(draft.resolutions, value);
+            const rank = included.indexOf(value);
+            return (
+              <span
+                key={value} role="listitem"
+                className={`pf-res-chip${on ? ' is-on' : ''}${dragging === value ? ' is-drag' : ''}`}
+                draggable={on}
+                onDragStart={(event) => { setDragging(value); event.dataTransfer.setData('text/plain', value); }}
+                onDragEnd={() => setDragging(null)}
+                onDragOver={(event) => { if (on) event.preventDefault(); }}
+                onDrop={(event) => { event.preventDefault(); setDragging(null); dropResolution(event.dataTransfer.getData('text/plain'), value); }}
               >
-                <span className="resolution-drag" aria-hidden="true">⋮⋮</span>
-                <strong>{value}</strong>
-                <span>#{index + 1}</span>
-                <span className="resolution-order-buttons">
-                  <button type="button" className="eye-btn" aria-label={`Move ${value} earlier`} disabled={index === 0} onClick={() => moveResolution(value, -1)}>↑</button>
-                  <button type="button" className="eye-btn" aria-label={`Move ${value} later`} disabled={index === includedOrder.length - 1} onClick={() => moveResolution(value, 1)}>↓</button>
-                </span>
-              </article>
-            ))}
-          </div>
+                <button type="button" className="pf-res-toggle" aria-pressed={on} onClick={() => toggleFilter('resolution', value)}>
+                  {on && <em aria-hidden="true">{rank + 1}</em>}{value}
+                </button>
+                {on && rank > 0 && (
+                  <button type="button" className="pf-res-move" aria-label={`Move ${value} earlier`} onClick={() => moveResolution(value, -1)}>‹</button>
+                )}
+              </span>
+            );
+          })}
         </div>
-      </details>
-      <details className="stream-config-section" open>
-        <summary>
-          <span><strong>Quality &amp; source</strong><small>BluRay, WEB-DL, HDTV, CAM and more</small></span>
-        </summary>
-        <div className="stream-config-body quality-source-body">
-          <section>
-            <div className="stream-filter-heading">
-              <div><h3>Included quality tags</h3><p>Only the selected release qualities are returned.</p></div>
-              <button type="button" className="filter-clear" onClick={() => clearFilter('quality')}>Include all</button>
-            </div>
-            {chips('quality', ALL_QUAL, draft.qualities)}
-          </section>
-          <section>
-            <div className="stream-filter-heading">
-              <div><h3>Included sources</h3><p>Filter streams by their original source.</p></div>
-              <button type="button" className="filter-clear" onClick={() => clearFilter('source')}>Include all</button>
-            </div>
-            {chips('source', ALL_SRC, draft.sources)}
-          </section>
-        </div>
-      </details>
-      <section className="stream-config-block">
-        <div className="section-heading"><div><h3>File size limits</h3><p>Skip files outside your preferred range.</p></div></div>
-        <div className="setup-row">
-          <label className="setup-field">
-            <span>Minimum size (GB)</span>
-            <input
-              type="number" min={0} step={0.5} placeholder="0"
-              value={draft.minSizeGb} onChange={(event) => onChange({ ...draft, minSizeGb: event.target.value })}
-            />
-          </label>
-          <label className="setup-field">
-            <span>Maximum size (GB)</span>
-            <input
-              type="number" min={0} step={0.5} placeholder="No limit"
-              value={draft.maxSizeGb} onChange={(event) => onChange({ ...draft, maxSizeGb: event.target.value })}
-            />
-          </label>
-        </div>
-      </section>
-      <section className="stream-config-block behavior-settings">
-        <div className="section-heading"><div><h3>Playback behaviour</h3><p>Control availability and playback filtering.</p></div></div>
-        <label className="switch-row">
-          <span><strong>Cached streams only</strong><small>Only return files ready to play instantly.</small></span>
+      </div>
+
+      <div className="pf-inline">
+        <label className="setup-field pf-size">
+          <span>Min size (GB)</span>
+          <input type="number" min={0} step={0.5} placeholder="0" value={draft.minSizeGb} onChange={(event) => onChange({ ...draft, minSizeGb: event.target.value })} />
+        </label>
+        <label className="setup-field pf-size">
+          <span>Max size (GB)</span>
+          <input type="number" min={0} step={0.5} placeholder="No limit" value={draft.maxSizeGb} onChange={(event) => onChange({ ...draft, maxSizeGb: event.target.value })} />
+        </label>
+        <label className="switch-row pf-cached">
+          <span><strong>Cached only</strong><small>Ready to play instantly</small></span>
           <input type="checkbox" checked={draft.cachedOnly} onChange={(event) => onChange({ ...draft, cachedOnly: event.target.checked })} />
           <i aria-hidden="true" />
         </label>
-      </section>
-    </>
+      </div>
+
+      <details className="pf-fold">
+        <summary><strong>Quality &amp; source</strong><small className="cg-accordion-summary">{qualityParts.map((part, index) => <span key={index}>{part}</span>)}</small></summary>
+        <div className="pf-fold-body">
+          <div className="pf-head">
+            <div><strong>Quality tags</strong><small>Only these release qualities are returned.</small></div>
+            <button type="button" className="filter-clear" onClick={() => clearFilter('quality')}>Include all</button>
+          </div>
+          {chips('quality', ALL_QUAL, draft.qualities)}
+          <div className="pf-head">
+            <div><strong>Sources</strong><small>Filter streams by their original source.</small></div>
+            <button type="button" className="filter-clear" onClick={() => clearFilter('source')}>Include all</button>
+          </div>
+          {chips('source', ALL_SRC, draft.sources)}
+        </div>
+      </details>
+      {advanced && (
+        <details className="pf-fold">
+          <summary><strong>Advanced</strong><small>Codecs, HDR and audio</small></summary>
+          <div className="pf-fold-body">{advanced}</div>
+        </details>
+      )}
+    </div>
   );
 }

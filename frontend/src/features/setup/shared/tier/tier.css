@@ -926,3 +926,25 @@
 
 /* The Nuvio view shares the Library view's width and back-button placement. */
 .edit-view-nuvio { overflow-x: clip; }
+
+/* 5.9 Home rows: Your Home is the page, the catalogue browser is a sheet. */
+.hr.hr-v2 { grid-template-columns: minmax(0, 1fr); }
+.hr.hr-v2 .selected-home { position: static; max-height: none; overflow: visible; }
+.hr-order-actions { display: inline-flex; align-items: center; gap: 10px; }
+.hr-add { display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; font-size: 0.82rem; white-space: nowrap; }
+.hr-empty .hr-add { margin-top: 12px; justify-self: center; }
+.app-modal.hr-sheet { z-index: 95; padding: 24px; }
+.hr-sheet-box { display: flex; flex-direction: column; align-items: stretch; width: min(980px, 100%); height: min(88vh, 940px); grid-template-columns: none; }
+.hr-sheet-box .home-browser { display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 0; box-shadow: 0 32px 80px rgba(0, 0, 0, 0.55); }
+.hr-sheet-box .home-source-list { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; display: flex; flex-direction: column; gap: 8px; }
+.hr-sheet-box .home-source-list > * { flex: none; }
+.hr-sheet-box details.source-group[open] .source-group-items { max-height: none; overflow: visible; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.hr-sheet-actions { display: inline-flex; align-items: center; gap: 8px; }
+.hr-sheet-done { padding: 8px 16px; font-size: 0.84rem; }
+@media (max-width: 640px) {
+  .app-modal.hr-sheet { padding: 0; place-items: stretch; }
+  .hr-sheet-box { width: 100%; height: 100dvh; }
+  .hr-sheet-box .home-browser { border-radius: 0; border: 0; padding: 14px 12px; }
+  .hr-sheet-box details.source-group[open] .source-group-items { grid-template-columns: 1fr; }
+  .hr-order-actions .hr-add { padding: 8px 11px; }
+}

@@ -1,5 +1,6 @@
 import { apiErrorCopy } from '@/api/error-copy';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { apiClient } from '@/api/client';
 import { toast } from '@/features/setup/shared/Toast';
 import {
@@ -83,6 +84,16 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
   const [importing, setImporting] = useState(false);
   const [renameIndex, setRenameIndex] = useState<number | null>(null);
   const [renameTitle, setRenameTitle] = useState('');
+  // 5.9: the catalogue browser lives in a sheet opened from Your Home.
+  const [addOpen, setAddOpen] = useState(false);
+  useEffect(() => {
+    if (!addOpen) return undefined;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !importOpen) setAddOpen(false); };
+    document.addEventListener('keydown', onKey);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = overflow; };
+  }, [addOpen, importOpen]);
 
   const browser = useMemo(() => [...base, ...imported], [base, imported]);
   const chosen = useMemo(
@@ -246,79 +257,7 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
   }
 
   return (
-    <div className="home-builder hr">
-      <section className="home-browser hr-browser" aria-label="Catalogue library">
-        <header className="hr-head">
-          <div>
-            <span className="hr-kicker">Catalogue library</span>
-            <strong>Add rows to your Home</strong>
-          </div>
-          <button type="button" className="hr-import" onClick={() => setImportOpen(true)}>
-            <span aria-hidden="true">＋</span> Import
-          </button>
-        </header>
-        <label className="hr-search">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
-          <input
-            type="search" placeholder="Search the catalog library…" aria-label="Search catalogues"
-            value={query} onChange={(event) => setQuery(event.target.value)}
-          />
-          <span className="hr-search-count">{filtered.length} available</span>
-        </label>
-        {failed && <p className="setup-error">Could not load available catalogues</p>}
-        <div className="home-source-list">
-          {orderedGroups.map(([group, items], groupIndex) => {
-            const added = items.filter((source) => chosen.has(browserKey(source))).length;
-            const open = groupOpen(group, groupIndex);
-            return (
-              <details className="source-group hr-group" key={group} open={open}>
-                <summary
-                  className="source-group-head"
-                  onClick={(event) => { event.preventDefault(); toggleGroup(group); }}
-                  aria-expanded={open}
-                >
-                  <span className="hr-group-icon" aria-hidden="true">{groupIcon(group)}</span>
-                  <span className="hr-group-title">
-                    {group === SUGGESTED_GROUP ? <h3>{setupCopy('Suggested', 'Suggested')}</h3> : <h3 data-i18n-preserve>{group}</h3>}
-                    <small>{added > 0 && <b>{added} added · </b>}{items.length} rows</small>
-                  </span>
-                  <span className="source-group-chevron" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
-                  </span>
-                </summary>
-                <div className="source-group-items">
-                  {items.map((source) => {
-                    const key = browserKey(source);
-                    const active = chosen.has(key);
-                    return (
-                      <button
-                        key={key} type="button"
-                        className={`home-source-card${active ? ' selected' : ''}`}
-                        aria-pressed={active} onClick={() => toggleByKey(key)}
-                      >
-                        <span className={`hr-type is-${source.type === 'series' ? 'series' : 'movie'}`}>{source.type === 'series' ? 'Series' : 'Movies'}</span>
-                        <span className="hr-source-text">
-                          <strong data-i18n-preserve>{source.name}</strong>
-                          {source.needsMdblistKey && !hasMdblistKey
-                            ? <small className="hr-needs-key">{setupCopy('Needs an MDBList key', 'Needs an MDBList key')}</small>
-                            : <small data-i18n-preserve>{source.addonId || 'LeLibrary'}</small>}
-                        </span>
-                        <span className="add-row-mark" aria-hidden="true">
-                          {active
-                            ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5 10 17.5 19 7" /></svg>
-                            : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </details>
-            );
-          })}
-          {filtered.length === 0 && <div className="selected-empty">No catalogues match your search.</div>}
-        </div>
-      </section>
-
+    <div className="home-builder hr hr-v2">
       <section className="selected-home hr-order" aria-label="Home screen order">
         <header className="hr-head">
           <div>
@@ -326,7 +265,10 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
             <strong>Home screen order</strong>
             <small>Top of this list appears first in Nuvio / Stremio.</small>
           </div>
-          <span className="hr-count">{displayRows.length}</span>
+          <span className="hr-order-actions">
+            <span className="hr-count">{displayRows.length}</span>
+            <button type="button" className="setup-primary hr-add" onClick={() => setAddOpen(true)}><span aria-hidden="true">＋</span> Add rows</button>
+          </span>
         </header>
         <label className="switch-row hr-owned">
           <span><strong>LeLibrary Movie Collections</strong><small>Your owned films, automatically grouped into franchise folders.</small></span>
@@ -337,7 +279,8 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
           <div className="hr-empty">
             <span className="hr-empty-art" aria-hidden="true"><i /><i /><i /></span>
             <strong>Your Home is empty</strong>
-            <small>Select catalogues on the left to build your Home.</small>
+            <small>Add your library, trending charts, streaming services and more.</small>
+            <button type="button" className="setup-primary hr-add" onClick={() => setAddOpen(true)}><span aria-hidden="true">＋</span> Add rows</button>
           </div>
         )}
         <ol className="hr-rows">
@@ -369,6 +312,88 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
           ))}
         </ol>
       </section>
+      {addOpen && typeof document !== 'undefined' && createPortal(
+        <div className="app-modal hr-sheet" role="dialog" aria-modal="true" aria-label="Add rows to your Home" onClick={(event) => { if (event.target === event.currentTarget) setAddOpen(false); }}>
+          <div className="hr hr-sheet-box">
+            <section className="home-browser hr-browser" aria-label="Catalogue library">
+              <header className="hr-head hr-sheet-head">
+                <div>
+                  <span className="hr-kicker">Catalogue library</span>
+                  <strong>Add rows to your Home</strong>
+                  <small>{displayRows.length === 1 ? '1 row on your Home' : `${displayRows.length} rows on your Home`}</small>
+                </div>
+                <span className="hr-sheet-actions">
+                  <button type="button" className="hr-import" onClick={() => setImportOpen(true)}>
+                    <span aria-hidden="true">＋</span> Import
+                  </button>
+                  <button type="button" className="setup-primary hr-sheet-done" onClick={() => setAddOpen(false)}>Done</button>
+                </span>
+              </header>
+              <label className="hr-search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
+                <input
+                  type="search" placeholder="Search the catalog library…" aria-label="Search catalogues"
+                  value={query} onChange={(event) => setQuery(event.target.value)}
+                />
+                <span className="hr-search-count">{filtered.length} available</span>
+              </label>
+              {failed && <p className="setup-error">Could not load available catalogues</p>}
+              <div className="home-source-list">
+                {orderedGroups.map(([group, items], groupIndex) => {
+                  const added = items.filter((source) => chosen.has(browserKey(source))).length;
+                  const open = groupOpen(group, groupIndex);
+                  return (
+                    <details className="source-group hr-group" key={group} open={open}>
+                      <summary
+                        className="source-group-head"
+                        onClick={(event) => { event.preventDefault(); toggleGroup(group); }}
+                        aria-expanded={open}
+                      >
+                        <span className="hr-group-icon" aria-hidden="true">{groupIcon(group)}</span>
+                        <span className="hr-group-title">
+                          {group === SUGGESTED_GROUP ? <h3>{setupCopy('Suggested', 'Suggested')}</h3> : <h3 data-i18n-preserve>{group}</h3>}
+                          <small>{added > 0 && <b>{added} added · </b>}{items.length} rows</small>
+                        </span>
+                        <span className="source-group-chevron" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                        </span>
+                      </summary>
+                      <div className="source-group-items">
+                        {items.map((source) => {
+                          const key = browserKey(source);
+                          const active = chosen.has(key);
+                          return (
+                            <button
+                              key={key} type="button"
+                              className={`home-source-card${active ? ' selected' : ''}`}
+                              aria-pressed={active} onClick={() => toggleByKey(key)}
+                            >
+                              <span className={`hr-type is-${source.type === 'series' ? 'series' : 'movie'}`}>{source.type === 'series' ? 'Series' : 'Movies'}</span>
+                              <span className="hr-source-text">
+                                <strong data-i18n-preserve>{source.name}</strong>
+                                {source.needsMdblistKey && !hasMdblistKey
+                                  ? <small className="hr-needs-key">{setupCopy('Needs an MDBList key', 'Needs an MDBList key')}</small>
+                                  : <small data-i18n-preserve>{source.addonId || 'LeLibrary'}</small>}
+                              </span>
+                              <span className="add-row-mark" aria-hidden="true">
+                                {active
+                                  ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5 10 17.5 19 7" /></svg>
+                                  : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </details>
+                  );
+                })}
+                {filtered.length === 0 && <div className="selected-empty">No catalogues match your search.</div>}
+              </div>
+            </section>
+          </div>
+        </div>,
+        document.body,
+      )}
 
       {renameIndex !== null && (
         <div className="app-modal" role="dialog" aria-modal="true" aria-label="Name this row" onClick={(event) => { if (event.target === event.currentTarget) setRenameIndex(null); }}>

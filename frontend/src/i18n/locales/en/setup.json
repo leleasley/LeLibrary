@@ -1,5 +1,9 @@
 {
   "copy": {
+    "{{value}} rows on your Home": "{{value}} rows on your Home",
+    "1 row on your Home": "1 row on your Home",
+    "Add rows": "Add rows",
+    "Add your library, trending charts, streaming services and more.": "Add your library, trending charts, streaming services and more.",
     "Advanced": "Advanced",
     "Cached only": "Cached only",
     "Codecs, HDR and audio": "Codecs, HDR and audio",

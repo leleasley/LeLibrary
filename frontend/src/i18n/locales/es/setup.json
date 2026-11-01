@@ -1,5 +1,9 @@
 {
   "copy": {
+    "{{value}} rows on your Home": "{{value}} filas en tu inicio",
+    "1 row on your Home": "1 fila en tu inicio",
+    "Add rows": "Añadir filas",
+    "Add your library, trending charts, streaming services and more.": "Añade tu biblioteca, listas de tendencias, servicios de streaming y más.",
     "Advanced": "Avanzado",
     "Cached only": "Solo en caché",
     "Codecs, HDR and audio": "Códecs, HDR y audio",

@@ -193,7 +193,9 @@
 .is-selected > .qs-check, .is-selected .qs-check { border-color: transparent; background: var(--amber); color: #1a1203; }
 
 /* ── Badge packs ── */
-.qs-packs { display: grid; gap: 12px; }
+/* minmax(0, 1fr): the chip row scrolls on phones; a plain grid column grew
+   to its full width and pushed the page sideways. */
+.qs-packs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .qs-pack-live { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--qs-line); background: var(--qs-raised); }
 .qs-pack-live-copy { display: grid; gap: 3px; min-width: 0; }
 .qs-pack-live-copy strong { font-size: 0.9rem; }
@@ -322,7 +324,9 @@
 .qs-catalogs { margin-top: 18px; max-width: 420px; }
 
 /* Accordions: quieter frame, amber when open */
-.qs-accordions { display: grid; gap: 10px; margin-top: 18px; }
+/* One column that never grows past the page: a wide child (the badge chip
+   row) used to stretch every section on a phone. */
+.qs-accordions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 18px; }
 .cg-accordion-summary span + span::before { content: ' · '; }
 .qs-setup-page .qs-accordions { margin-top: 0; }
 .qs-setup-page .cg-accordion-body > * + h3.qs-sub { margin-top: 22px; }
@@ -444,7 +448,15 @@
   .qs-save-short { display: inline; }
   .qs-step-head h2 { font-size: 1.18rem; }
   .qs .provider-grid { grid-template-columns: 1fr; }
-  .qs-meta-optional, .qs-pw-grid, .qs-facts, .qs-stream-list { grid-template-columns: 1fr; }
+  .qs-meta-optional, .qs-pw-grid, .qs-facts { grid-template-columns: 1fr; }
+  /* Stream styles swipe sideways on phones (the next card peeks in) instead
+     of stacking five tall cards. */
+  .qs-stream-list { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 78%; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; margin: 0 -16px; padding: 2px 16px 10px; scroll-padding-inline: 16px; scrollbar-width: none; }
+  .qs-stream-list::-webkit-scrollbar { display: none; }
+  .qs-stream { scroll-snap-align: start; }
+  .qs-stream:hover { transform: none; }
+  .qs-pack-foot { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .qs-pack-foot .setup-note-pill { margin: 0; padding: 0; border: 0; background: none; color: var(--muted); font-size: 0.72rem; text-align: left; }
   .qs-chips { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 0 16px 4px; scrollbar-width: none; }
   .qs-chips::-webkit-scrollbar { display: none; }
   .qs-key { grid-template-columns: 1fr; }

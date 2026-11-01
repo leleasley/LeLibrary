@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { EMPTY_METADATA_EXTRAS } from '@/features/setup/full/MetadataExtras';
 import { applySavedConfig } from '@/features/setup/shared/saved-config';
 
 // The edit page pre-fills pickers from saved structural config. Unknown or
@@ -130,7 +131,7 @@ describe('saved config mapping', () => {
     expect(drafts.rdCatalog).toBe('separate');
     expect(drafts.meta).toEqual({
       lang: 'fr-FR', sortBy: 'ano', mainMetadata: true, hideAnime: true, torboxSources: ['usenet'],
-      searchScope: 'library', notices: false, noticeTypes: ['none'],
+      searchScope: 'library', searchOptions: EMPTY_METADATA_EXTRAS.searchOptions, notices: false, noticeTypes: ['none'],
     });
   });
 });

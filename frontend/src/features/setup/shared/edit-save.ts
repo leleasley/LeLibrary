@@ -6,6 +6,7 @@ import {
   type SetupKeysDraft,
   type CustomStreamRow,
 } from '@/features/setup/shared/config-contract';
+import { searchOptionsForConfig } from '@/features/setup/shared/search-options';
 import type { FormattingDraft } from '@/features/setup/shared/FormattingSection';
 import type { PostersDraft } from '@/features/setup/shared/PostersSection';
 import type { MetadataExtrasDraft } from '@/features/setup/full/MetadataExtras';
@@ -150,6 +151,10 @@ export function buildEditSaveBody(input: EditSaveInput): Record<string, unknown>
     if (torboxSources.length > 0) config.torboxSources = torboxSources;
     else clearConfig.push('torboxSources');
     config.searchScope = input.meta.searchScope;
+    // Every search option at its default: clear it rather than store {}.
+    const searchOptions = searchOptionsForConfig(input.meta.searchOptions);
+    if (searchOptions) config.searchOptions = searchOptions;
+    else clearConfig.push('searchOptions');
     config.streamNotices = input.meta.notices ? 'on' : 'off';
     config.streamNoticeTypes = [...input.meta.noticeTypes];
   }

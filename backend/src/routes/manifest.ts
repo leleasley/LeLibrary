@@ -23,7 +23,7 @@ const { buildCollectionsCatalog, cacheCollections, getCollectionMeta, getCollect
 const { normaliseNuvioArtwork, absoluteLocalArtwork } = require('../catalog/collection-artwork.ts');
 const { compileCollectionPlan } = require('../catalog/collection-plan.ts');
 const { buildLibraryCollection, collectionCatalogMetas } = require('../catalog/nuvio-library-collections.ts');
-const { searchCatalog } = require('../media/search.ts');
+const { searchCatalog, normalizeSearchOptions } = require('../media/search.ts');
 const { decodeConfig } = require('../config/token.ts');
 const { validateCustomStreamsConfig, hasCustomStreams, hasMappedCustomStreams, customStreamsFingerprint, customStreamCatalogEntries } = require('../media/custom-streams.ts');
 const { getClientIntegration, listClientIntegrations } = require('../client-integrations/index.ts');
@@ -277,17 +277,35 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
 
   function buildSearchRows() {
     const scope = ['combined', 'library', 'tmdb'].includes(config.searchScope) ? config.searchScope : 'combined';
+    const options = normalizeSearchOptions(config.searchOptions);
+    // "Include LeLibrary in search" off: no search rows at all.
+    if (!options.enabled) return;
+    const names = options.names;
+    const searchRow = (id: string, type: string, name: string) => catalogs.push({ id, type, name, showInHome: false, extra: [{ name: 'search', isRequired: true }] });
     // Search groups stay separate. Public rows always return canonical IMDb
     // results; owned rows keep their normal library identity and cache path.
     if (scope !== 'library') {
-      catalogs.push({ id: 'lelibrary-search-movies', type: 'movie', name: 'LeLibrary · Movies', showInHome: false, extra: [{ name: 'search', isRequired: true }] });
-      catalogs.push({ id: 'lelibrary-search-series', type: 'series', name: 'LeLibrary · Series', showInHome: false, extra: [{ name: 'search', isRequired: true }] });
+      searchRow('lelibrary-search-movies', 'movie', names.movies || 'LeLibrary · Movies');
+      searchRow('lelibrary-search-series', 'series', names.series || 'LeLibrary · Series');
+      // Anime in its own row (and out of Series). Hide anime wins: no row.
+      if (options.animeRow && config.hideAnime !== true) searchRow('lelibrary-search-anime', 'series', names.anime || 'LeLibrary · Anime');
+      if (options.similar) {
+        searchRow('lelibrary-search-similar-movies', 'movie', `${names.similar || 'Similar titles'} · Movies`);
+        searchRow('lelibrary-search-similar-series', 'series', `${names.similar || 'Similar titles'} · Series`);
+      }
+      if (options.people) {
+        searchRow('lelibrary-search-people-movies', 'movie', `${names.people || 'People'} · Movies`);
+        searchRow('lelibrary-search-people-series', 'series', `${names.people || 'People'} · Series`);
+      }
     }
     if (scope !== 'tmdb' && active.length) {
       // These are separate Search sections, so their labels must mirror the
       // labels the person chose for the matching Home rows, emojis included.
-      if (config.catalogMovies !== false) catalogs.push({ id: 'lelibrary-search-my-movies', type: 'movie', name: catName('🎬 My Movies', catNameMovies), showInHome: false, extra: [{ name: 'search', isRequired: true }] });
-      if (config.catalogSeries !== false) catalogs.push({ id: 'lelibrary-search-my-series', type: 'series', name: catName('📺 My Series', catNameSeries), showInHome: false, extra: [{ name: 'search', isRequired: true }] });
+      if (config.catalogMovies !== false) searchRow('lelibrary-search-my-movies', 'movie', catName('🎬 My Movies', catNameMovies));
+      if (config.catalogSeries !== false) searchRow('lelibrary-search-my-series', 'series', catName('📺 My Series', catNameSeries));
+      // Opt-in since 5.9: the films of your LeLibrary Collections also sit in
+      // My Movies, so this row repeats them; some people still want it.
+      if (options.collections && config.catalogFranchises !== false) searchRow('lelibrary-search-collections', 'movie', config.collectionsName || 'LeLibrary Collections');
     }
   }
 

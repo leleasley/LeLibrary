@@ -12,6 +12,13 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 - Home rows start empty: press Add rows to open a full browser (full screen on phones) and pick what goes on your Home.
 - MDBList users get a short note on turning on now-watching scrobbling inside Nuvio.
 
+### Search options
+
+- Settle In and Move In get a Search section: choose what to search (TMDB, your library or both), order results by best match, popularity, newest or rating, and hide little-known titles (a title you type in full always shows).
+- New optional search rows: Anime in its own row (and out of Series), Similar titles (search a title, get what people who liked it also watched) and People (search an actor, get their films and shows). All plain TMDB search, no AI.
+- Search your collections is back as an option, off by default: a row for the films in your LeLibrary Collections.
+- Rename any LeLibrary search row, or turn LeLibrary off in search entirely.
+
 ### Finishing a setup
 
 - No more pop-up at the end. Creating a setup shows a short loading screen, then a Ready page with your push to Nuvio (showing which account it goes to, with a "Not you?" link), Add to Stremio, and a More players fold for other apps, manual setup and sharing.

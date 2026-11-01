@@ -1,4 +1,5 @@
 import { applySavedConfig } from '@/features/setup/shared/saved-config';
+import { cleanSearchOptions } from '@/features/setup/shared/search-options';
 import type { FormattingDraft } from '@/features/setup/shared/FormattingSection';
 import type { PostersDraft } from '@/features/setup/shared/PostersSection';
 import type { MetadataExtrasDraft } from '@/features/setup/full/MetadataExtras';
@@ -54,6 +55,7 @@ export function mergeImportPreview(input: { config: Record<string, unknown>; sou
   if (Array.isArray(cfg.torboxSources)) meta.torboxSources = cleanTorboxSources(cfg.torboxSources);
   const searchScope = str(cfg.searchScope);
   if (searchScope) meta.searchScope = searchScope;
+  if (cfg.searchOptions && typeof cfg.searchOptions === 'object') meta.searchOptions = cleanSearchOptions(cfg.searchOptions);
   if (cfg.streamNotices === 'off') meta.notices = false;
   const noticeTypes = stringArray(cfg.streamNoticeTypes);
   if (noticeTypes) meta.noticeTypes = noticeTypes;

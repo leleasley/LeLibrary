@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { searchOptionsForConfig, searchSummaryParts } from '@/features/setup/shared/search-options';
+import { SearchOptionsSection } from '@/features/setup/shared/SearchOptionsSection';
 import { useNuvioCreatePrefill } from '@/features/setup/nuvio/prefill';
 import { Accordion } from '@/features/setup/shared/Accordion';
 import { ConfirmModal } from '@/features/setup/shared/Modal';
@@ -335,6 +337,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
         hideAnime: meta.hideAnime,
         torboxSources: meta.torboxSources,
         searchScope: meta.searchScope,
+        searchOptions: searchOptionsForConfig(meta.searchOptions) ?? undefined,
         streamNotices: meta.notices ? 'on' : 'off',
         streamNoticeTypes: meta.noticeTypes,
         filterResolutions: filterSets.resolutions,
@@ -553,6 +556,13 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
                 <h3 className="qs-sub"><strong>Optional custom links</strong><span>A direct link for one title</span></h3>
                 <CustomStreamsSection rows={customStreams} onChange={setCustomStreams} tmdbKey={keys.tmdbApiKey ?? ''} />
               </Accordion>
+              <Accordion title="Search" icon="🔎" summary={searchSummaryParts(meta.searchScope, meta.searchOptions)}>
+                <SearchOptionsSection
+                  scope={meta.searchScope} onScope={(searchScope) => setMeta({ ...meta, searchScope })}
+                  value={meta.searchOptions} onChange={(searchOptions) => setMeta({ ...meta, searchOptions })}
+                  hideAnime={meta.hideAnime}
+                />
+              </Accordion>
               <Accordion title="Posters" icon="🖼️" summary={[artworkLabel]}>
                 <PostersSection draft={posters} keys={keys} onDraft={setPosters} onKeys={setKeys} hidePreview savedServices={edit ? edit.savedServices : stagedImport?.services} />
               </Accordion>
@@ -567,7 +577,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
                   <FormattingSection draft={formatting} onChange={setFormatting} templatesOnly />
                 </StreamStylePicker>
               </Accordion>
-              <Accordion title="Preferences" icon="🧭" desc="Language, order, search, anime, notices, row names and Nuvio playback.">
+              <Accordion title="Preferences" icon="🧭" desc="Language, order, anime, notices, row names and Nuvio playback.">
                 <MetadataExtras draft={meta} onChange={setMeta} />
                 <h3 className="qs-sub"><strong>Library row names</strong><span>My Movies, My Shows, My Anime</span></h3>
                 <LibraryRowsSection value={libraryRows} onChange={setLibraryRows} />

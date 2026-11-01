@@ -23,7 +23,11 @@ const VALUES: Partial<Record<Field, unknown[]>> = {
   ],
   formatting: [{ preset: 'custom', nameTemplate: '{stream.resolution}', descTemplate: '{stream.size}' }],
   badgePack: [{ pack: 'custom', url: 'https://badges.example.com/pack.json' }, { pack: 'nard-full', url: '' }],
-  meta: [{ lang: 'es-ES', sortBy: 'titulo', mainMetadata: true, hideAnime: true, torboxSources: ['torrent'], searchScope: 'library', notices: false, noticeTypes: ['none'] }],
+  meta: [
+    { lang: 'es-ES', sortBy: 'titulo', mainMetadata: true, hideAnime: true, torboxSources: ['torrent'], searchScope: 'library', searchOptions: { enabled: true, animeRow: false, similar: false, people: false, collections: false, order: 'relevance', hideObscure: false, names: {} }, notices: false, noticeTypes: ['none'] },
+    { lang: 'en-US', sortBy: 'data_adicao', mainMetadata: false, hideAnime: false, torboxSources: ['torrent', 'usenet', 'webdl'], searchScope: 'combined', searchOptions: { enabled: true, animeRow: true, similar: true, people: true, collections: true, order: 'rating', hideObscure: true, names: { movies: 'Films', people: 'Cast' } }, notices: true, noticeTypes: ['none', 'rateLimit', 'digitalRelease'] },
+    { lang: 'en-US', sortBy: 'data_adicao', mainMetadata: false, hideAnime: false, torboxSources: ['torrent', 'usenet', 'webdl'], searchScope: 'combined', searchOptions: { enabled: false, animeRow: false, similar: false, people: false, collections: false, order: 'relevance', hideObscure: false, names: {} }, notices: true, noticeTypes: ['none', 'rateLimit', 'digitalRelease'] },
+  ],
   filterSets: [{ resolutions: ['4K', '1080p'], resolutionOrder: ['1080p', '4K', '2K', '720p', '480p', '360p', '240p'], qualities: ['BluRay'], sources: [], minSizeGb: '1', maxSizeGb: '20', cachedOnly: true }],
   mediaSets: [{ codecs: ['HEVC'], hdr: ['Dolby Vision', 'HDR10'], audio: ['Atmos'] }],
   homeRows: [nativeLibraryRows('torbox', 'nuvio').slice(0, 2).map((source, index) => homeRowFromSource(source, index))],

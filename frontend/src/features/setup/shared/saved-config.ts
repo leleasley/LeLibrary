@@ -6,6 +6,7 @@ import {
   type CustomStreamRow,
   type StreamPresetId,
 } from '@/features/setup/shared/config-contract';
+import { cleanSearchOptions } from '@/features/setup/shared/search-options';
 import { BADGE_PACKS, DEFAULT_BADGE_PACK } from '@/features/setup/shared/BadgePackPicker';
 import {
   DEFAULT_NOTICE_TYPES,
@@ -149,6 +150,7 @@ export function applySavedConfig(saved: unknown): SavedDrafts {
       hideAnime: config.hideAnime === true,
       torboxSources: cleanTorboxSources(config.torboxSources),
       searchScope: searchScope || EMPTY_METADATA_EXTRAS.searchScope,
+      searchOptions: cleanSearchOptions(config.searchOptions),
       notices: config.streamNotices !== 'off',
       noticeTypes: noticeTypes.length > 0 ? noticeTypes : [...DEFAULT_NOTICE_TYPES],
     },

@@ -1,9 +1,67 @@
 // @ts-nocheck
 const cache = require('../runtime/cache.ts');
-const { searchCandidates, searchPersonCredits, discoverByGenre, findByImdbId, getImdbId, getImdbIds, titleScore } = require('./tmdb.ts');
+const { searchCandidates, searchPersonCredits, discoverByGenre, getRecommendations, findByImdbId, getImdbId, getImdbIds, titleScore } = require('./tmdb.ts');
 
 const LIMIT = 20;
 const CACHE_TTL = 1800;
+
+// Search options a setup can choose (config.searchOptions). Everything off or
+// at its default keeps search exactly as it was before 5.9.
+const SEARCH_ORDERS = ['relevance', 'popular', 'newest', 'rating'];
+const SEARCH_ROW_NAMES = ['movies', 'series', 'anime', 'similar', 'people'];
+// Below this many TMDB votes a title counts as little-known. An exact title
+// match is always kept: someone typing the full name wants that title.
+const OBSCURE_VOTES = 30;
+
+function normalizeSearchOptions(raw) {
+  const value = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const names = {};
+  const rawNames = value.names && typeof value.names === 'object' ? value.names : {};
+  for (const key of SEARCH_ROW_NAMES) {
+    const name = typeof rawNames[key] === 'string' ? rawNames[key].trim().slice(0, 60) : '';
+    if (name) names[key] = name;
+  }
+  return {
+    enabled: value.enabled !== false,
+    animeRow: value.animeRow === true,
+    similar: value.similar === true,
+    people: value.people === true,
+    collections: value.collections === true,
+    order: SEARCH_ORDERS.includes(value.order) ? value.order : 'relevance',
+    hideObscure: value.hideObscure === true,
+    names,
+  };
+}
+
+// Rows the user picked how to see: drop little-known titles, then order.
+// "relevance" keeps the ranking the search already made.
+function applySearchOptions(rows, { order = 'relevance', hideObscure = false } = {}) {
+  let out = hideObscure
+    ? rows.filter((row) => (Number(row._votes) || 0) >= OBSCURE_VOTES || (Number(row._score) || 0) >= 1_000_000)
+    : rows.slice();
+  const byYear = (row) => String(row.released || row.year || '');
+  if (order === 'popular') out.sort((a, b) => (b._pop || 0) - (a._pop || 0));
+  else if (order === 'newest') out.sort((a, b) => byYear(b).localeCompare(byYear(a)));
+  else if (order === 'rating') {
+    // A 10/10 from three votes is not a top-rated film: rated titles with
+    // enough votes first, by rating, then the rest by rating.
+    const rated = (row) => (Number(row._votes) || 0) >= OBSCURE_VOTES;
+    out.sort((a, b) => Number(rated(b)) - Number(rated(a)) || (b._rating || 0) - (a._rating || 0));
+  }
+  return out;
+}
+
+// "tom hanks" names Tom Hanks; "batman" does not name an actor called
+// Batman Smith. Every query word must be one of the person's name words (the
+// last may be a prefix while typing).
+function nameMatchesQuery(name, query) {
+  const words = normalize(name).split(' ').filter(Boolean);
+  const tokens = normalize(query).split(' ').filter(Boolean);
+  if (!tokens.length || !words.length) return false;
+  return tokens.every((token, index) => (index === tokens.length - 1
+    ? words.some((word) => word.startsWith(token))
+    : words.includes(token)));
+}
 
 function normalize(value) {
   return String(value || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
@@ -124,6 +182,8 @@ function buildRow(item, type) {
     _score: 0,
     _pop: Number(item.popularity) || 0,
     _votes: Number(item.vote_count) || 0,
+    _rating: Number(item.vote_average) || 0,
+    _anime: item.isJapaneseAnimation === true,
   };
   return row;
 }
@@ -144,7 +204,7 @@ function cleanRows(rows) {
       seen.add(r.id);
       return true;
     })
-    .map(({ _score, _pop, _votes, ...result }) => result);
+    .map(({ _score, _pop, _votes, _rating, _anime, ...result }) => result);
 }
 
 async function resolveRows(apiKey, items, type, apiType, lang, q, scored) {
@@ -189,9 +249,19 @@ async function enhanceSearchRows(rows, enhance = {}) {
 // by every duplicate, instead of a retry storm that all fail together.
 const inFlightSearches = new Map();
 
+// What a search returns besides the plain title rows: anime split out (or
+// only anime), titles like the best match, or the work of a person.
+const VARIANTS = ['', 'no-anime', 'anime', 'similar', 'people'];
+
+function optionsFingerprint(opts) {
+  const variant = VARIANTS.includes(opts && opts.variant) ? opts.variant : '';
+  const order = SEARCH_ORDERS.includes(opts && opts.order) ? opts.order : 'relevance';
+  return `${variant || 'all'}|${order}|${opts && opts.hideObscure ? 1 : 0}|${opts && opts.mergePeople === false ? 0 : 1}`;
+}
+
 async function searchCatalog(opts) {
   const raw = String((opts && opts.query) || '').trim().toLowerCase().slice(0, 120);
-  const key = `${(opts && opts.type) || ''}:${(opts && opts.lang) || ''}:${(opts && opts.limit) || ''}:${(opts && opts.enhanceFingerprint) || ''}:${raw}`;
+  const key = `${(opts && opts.type) || ''}:${(opts && opts.lang) || ''}:${(opts && opts.limit) || ''}:${(opts && opts.enhanceFingerprint) || ''}:${optionsFingerprint(opts)}:${raw}`;
   const existing = inFlightSearches.get(key);
   if (existing) return existing;
   const pending = searchCatalogInner(opts).finally(() => inFlightSearches.delete(key));
@@ -199,7 +269,8 @@ async function searchCatalog(opts) {
   return pending;
 }
 
-async function searchCatalogInner({ apiKey, query, type, lang = 'en-US', limit = LIMIT, enhance = {}, enhanceFingerprint = '' }) {
+async function searchCatalogInner({ apiKey, query, type, lang = 'en-US', limit = LIMIT, enhance = {}, enhanceFingerprint = '', variant = '', order = 'relevance', hideObscure = false, mergePeople = true }) {
+  if (!VARIANTS.includes(variant)) variant = '';
   const raw = String(query || '').trim().slice(0, 120);
   if (raw.length < 2 || !apiKey) return [];
   const apiType = type === 'series' ? 'tv' : 'movie';
@@ -211,7 +282,14 @@ async function searchCatalogInner({ apiKey, query, type, lang = 'en-US', limit =
   // v5 invalidates cached rankings from before year-aware title ranking and
   // closest-prefix scoring. It continues preserving non-Latin queries,
   // separating result limits and isolating poster/rating fingerprints.
-  const keyParts = (variant) => cache.makeKey('search5', apiType, lang, enhanceFingerprint, limit, variant, q);
+  const optFp = optionsFingerprint({ variant, order, hideObscure, mergePeople });
+  const keyParts = (part) => cache.makeKey('search5', apiType, lang, enhanceFingerprint, limit, optFp, part, q);
+  const shape = (rows) => {
+    let out = rows;
+    if (variant === 'anime') out = out.filter((row) => row._anime);
+    else if (variant === 'no-anime') out = out.filter((row) => !row._anime);
+    return applySearchOptions(out, { order, hideObscure });
+  };
   const cached = (key) => cache.get(key).then(hit => (Array.isArray(hit) ? hit : null));
   const store = (key, rows) => cache.set(key, cleanRows(rows).slice(0, limit), CACHE_TTL);
   const finalize = (key, rows) => {
@@ -219,7 +297,52 @@ async function searchCatalogInner({ apiKey, query, type, lang = 'en-US', limit =
     store(key, rows).catch(() => {});
     return clean;
   };
-  const finish = async (key, rows) => finalize(key, await enhanceSearchRows(rows, enhance));
+  const finish = async (key, rows) => finalize(key, await enhanceSearchRows(shape(rows), enhance));
+
+  // People row: the films or shows of the person the query names, and only
+  // when it really names them (see nameMatchesQuery).
+  if (variant === 'people') {
+    if (/^tt\d{4,}$/.test(raw) || GENRES[q]) return [];
+    const key = keyParts('p');
+    const hit = await cached(key);
+    if (hit) return hit;
+    try {
+      const person = await searchPersonCredits(apiKey, raw, type, lang);
+      if (!person || !person.results.length || !nameMatchesQuery(person.name || '', raw)) return finish(key, []);
+      const rows = await resolveRows(apiKey, person.results, type, apiType, lang, q, false);
+      console.log(`[Search] ${type} people "${raw}" -> ${rows.length} results`);
+      return finish(key, rows);
+    } catch (err) { console.error(`[Search] ${type} people failed:`, err.message); return []; }
+  }
+
+  // Similar titles: TMDB recommendations for the one title the query clearly
+  // names (an IMDb id, or an exact / prefix title match). A vague query gives
+  // no row rather than a guess.
+  if (variant === 'similar') {
+    if (GENRES[q]) return [];
+    const key = keyParts('s');
+    const hit = await cached(key);
+    if (hit) return hit;
+    try {
+      let base = null;
+      if (/^tt\d{4,}$/.test(raw)) base = await findByImdbId(apiKey, raw);
+      else {
+        const { text, year } = extractYear(raw);
+        const candidates = await searchCandidates(apiKey, text, metaType, year || undefined, lang, limit);
+        let best = 0;
+        for (const item of candidates) {
+          const score = resultScore(raw, item);
+          if (score > best) { best = score; base = item; }
+        }
+        if (best < 800_000) base = null;
+      }
+      if (!base || !base.id) return finish(key, []);
+      const recs = (await getRecommendations(apiKey, base.id, type, lang)).filter((item) => item.id !== base.id);
+      const rows = await resolveRows(apiKey, recs, type, apiType, lang, q, false);
+      console.log(`[Search] ${type} similar "${raw}" -> ${rows.length} results`);
+      return finish(key, rows);
+    } catch (err) { console.error(`[Search] ${type} similar failed:`, err.message); return []; }
+  }
 
   // Direct IMDb-id queries ("tt1375666") resolve through the Find API.
   const ttMatch = raw.match(/^tt\d{4,}$/);
@@ -279,7 +402,7 @@ async function searchCatalogInner({ apiKey, query, type, lang = 'en-US', limit =
     // Person-driven rows are merged BELOW title matches (they carry _score 0), so
     // a genuine title search ("harry potter") can never be hijacked by a person
     // sharing the name: title rows always outrank and dedupe wins.
-    if (bestTitleScore(text, candidates) < 100 && q.split(' ').length >= 2) {
+    if (mergePeople && variant !== 'anime' && bestTitleScore(text, candidates) < 100 && q.split(' ').length >= 2) {
       try {
         const person = await searchPersonCredits(apiKey, text, type, lang);
         if (person && person.results.length > 0) {
@@ -308,10 +431,14 @@ async function searchCatalogInner({ apiKey, query, type, lang = 'en-US', limit =
 
 export interface SearchApi {
   searchCatalog: any;
+  normalizeSearchOptions: any;
+  applySearchOptions: any;
+  nameMatchesQuery: any;
+  SEARCH_ORDERS: string[];
   normalize: any;
   resultScore: any;
   extractYear: any;
   GENRES: any;
 }
 
-module.exports = { searchCatalog, normalize, resultScore, extractYear, GENRES } satisfies SearchApi;
+module.exports = { searchCatalog, normalizeSearchOptions, applySearchOptions, nameMatchesQuery, SEARCH_ORDERS, normalize, resultScore, extractYear, GENRES } satisfies SearchApi;

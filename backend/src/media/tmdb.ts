@@ -448,25 +448,29 @@ async function searchCandidatesUncached(apiKey, query, type, year, lang, limit, 
 async function searchPersonCredits(apiKey, query, type, lang = 'en-US') {
   const auth = tmdbAuth(apiKey);
   const apiType = type === 'series' ? 'tv' : 'movie';
-  const personKey = `person:${lang}:${String(query).toLowerCase()}`;
-  let personId = await durableSearchGet(personKey, personKey);
-  if (personId === undefined) {
-    personId = null;
+  // v2 keeps the name with the id: the People search row only shows someone
+  // whose name the query actually spells.
+  const personKey = `person2:${lang}:${String(query).toLowerCase()}`;
+  let person = await durableSearchGet(personKey, personKey);
+  if (person === undefined) {
+    person = null;
     try {
       const res = await axios.get(`${TMDB_BASE}/search/person`, {
         headers: auth.headers,
         params: { ...auth.params, query, language: lang, page: 1 },
         timeout: 8000,
       });
-      const person = (res.data?.results || []).find(p => p.known_for_department === 'Acting');
-      personId = person ? person.id : null;
-    } catch { personId = null; }
-    durableSearchSet(personKey, personKey, personId, 86400);
+      const found = (res.data?.results || []).find(p => p.known_for_department === 'Acting');
+      person = found ? { id: found.id, name: String(found.name || '') } : null;
+    } catch { person = null; }
+    durableSearchSet(personKey, personKey, person, 86400);
   }
+  const personId = person && person.id ? person.id : null;
   if (!personId) return null;
+  const name = person.name || '';
   const creditsKey = `personcred:${apiType}:${personId}:${lang}`;
   const cached = await durableSearchGet(creditsKey, creditsKey);
-  if (cached !== undefined) return { personId, results: cached };
+  if (cached !== undefined) return { personId, name, results: cached };
   try {
     const res = await axios.get(`${TMDB_BASE}/person/${personId}/${apiType}_credits`, {
       headers: auth.headers,
@@ -478,7 +482,7 @@ async function searchPersonCredits(apiKey, query, type, lang = 'en-US') {
     const deduped = cast.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; })
       .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
     durableSearchSet(creditsKey, creditsKey, deduped, 86400);
-    return { personId, results: deduped };
+    return { personId, name, results: deduped };
   } catch { return null; }
 }
 
@@ -497,6 +501,31 @@ async function discoverByGenre(apiKey, genreId, type, lang = 'en-US') {
       timeout: 8000,
     });
     const results = res.data?.results || [];
+    durableSearchSet(cacheKey, cacheKey, results, 21600);
+    return results;
+  } catch { tmdbCache.set(cacheKey, [], 600); return []; }
+}
+
+// "Similar titles" search row: TMDB's recommendations for one title (people
+// who liked X also liked...), which tracks taste better than /similar's
+// genre-and-keyword match. Shared by every user, cached like other searches.
+async function getRecommendations(apiKey, tmdbId, type, lang = 'en-US') {
+  const apiType = type === 'series' ? 'tv' : 'movie';
+  const id = Number(tmdbId);
+  if (!Number.isInteger(id) || id <= 0) return [];
+  const cacheKey = `recs:${apiType}:${id}:${lang}`;
+  const cached = await durableSearchGet(cacheKey, cacheKey);
+  if (cached !== undefined) return cached;
+  try {
+    const auth = tmdbAuth(apiKey);
+    const res = await axios.get(`${TMDB_BASE}/${apiType}/${id}/recommendations`, {
+      headers: auth.headers,
+      params: { ...auth.params, language: lang, page: 1 },
+      timeout: 8000,
+    });
+    const results = (res.data?.results || []).map((r) => ({
+      ...r, isJapaneseAnimation: r.original_language === 'ja' && (r.genre_ids || []).includes(16),
+    }));
     durableSearchSet(cacheKey, cacheKey, results, 21600);
     return results;
   } catch { tmdbCache.set(cacheKey, [], 600); return []; }
@@ -1153,6 +1182,7 @@ export interface TmdbApi {
   searchCandidates: any;
   searchPersonCredits: any;
   discoverByGenre: any;
+  getRecommendations: any;
   findByImdbId: any;
   getMetadata: any;
   imdbToTmdb: any;
@@ -1174,4 +1204,4 @@ export interface TmdbApi {
   isTmdbAnimeItem: any;
 }
 
-module.exports = { withMatchRequestCounter, searchMetadata, searchCandidates, searchPersonCredits, discoverByGenre, findByImdbId, getMetadata, imdbToTmdb, imdbToTmdbCached, findEpisodeByAirDate, getSeasonEpisodeCounts, getSeriesSeasons, getSeasonEpisodes, seriesSeasonsFromVideos, seasonEpisodesFromVideos, titleScore, pickBestResult, clearCaches, getTrending, getPopular, getImdbId, getImdbIds, getMovieReleaseInfo, isTmdbAnimeItem } satisfies TmdbApi;
+module.exports = { withMatchRequestCounter, searchMetadata, searchCandidates, searchPersonCredits, discoverByGenre, getRecommendations, findByImdbId, getMetadata, imdbToTmdb, imdbToTmdbCached, findEpisodeByAirDate, getSeasonEpisodeCounts, getSeriesSeasons, getSeasonEpisodes, seriesSeasonsFromVideos, seasonEpisodesFromVideos, titleScore, pickBestResult, clearCaches, getTrending, getPopular, getImdbId, getImdbIds, getMovieReleaseInfo, isTmdbAnimeItem } satisfies TmdbApi;

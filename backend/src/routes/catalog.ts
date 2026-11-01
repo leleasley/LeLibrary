@@ -15,7 +15,7 @@ const express = require('express');
 const libraryEngine = require('../library/engine.ts');
 const { buildLibraryCollection, collectionCatalogMetas } = require('../catalog/nuvio-library-collections.ts');
 const { rateLimit } = require('../middleware/rate-limit.ts');
-const { searchCatalog } = require('../media/search.ts');
+const { searchCatalog, normalizeSearchOptions } = require('../media/search.ts');
 const { validateCustomStreamsConfig, hasCustomStreams, hasMappedCustomStreams, customStreamsFingerprint, customStreamCatalogEntries } = require('../media/custom-streams.ts');
 const fs      = require('fs');
 const path    = require('path');
@@ -59,6 +59,67 @@ export interface CatalogApi {
   mountCatalogRoutes: (app: Express, deps: CatalogDeps) => void;
   // Used by the client-integration facade, which projects these handlers.
   handleCatalog: (req: any, res: any, deps: CatalogDeps) => Promise<void>;
+}
+
+
+// "Search your collections" (opt-in): films in the setup's LeLibrary
+// Collections whose title holds every query word. Poster precedence mirrors
+// enhanceMeta/discovery: custom > pictorium > erdb > rpdb > betterposter >
+// fanart (restored from 5.5, removed in 5.8 when the row was always on).
+async function searchCollectionFilms({ userKey, lang, query, libraryIdMode, config = {} }: any) {
+  const words = String(query || '').toLowerCase().split(/[^a-z0-9]+/).filter(word => word.length > 1);
+  if (!words.length) return [];
+  const enhance = posterEnhance(config) as Record<string, any>;
+  const { erdbToken, rpdbKey, fanartKey, posterProvider, customPosterTemplate } = enhance;
+  const pictoriumOn = !!(enhance.pictorium && enhance.pictorium.enabled);
+  const builder = require('../catalog/builder.ts');
+  const rows: any[] = [];
+  const seen = new Set();
+  for (const collection of getCollections(userKey, lang)) {
+    for (const video of (collection.videos || [])) {
+      const title = String(video.title || '').toLowerCase();
+      if (!words.every(word => title.includes(word))) continue;
+      const tmdbId = video.tmdbId || Number(String(video.id || '').split(':').pop());
+      const id = libraryIdMode === 'tt' && video.imdbId ? video.imdbId : `torbox:movie:${tmdbId}`;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      rows.push({
+        id, type: 'movie', name: video.title, tmdbId,
+        imdbId: video.imdbId || undefined,
+        poster: video.thumbnail ? video.thumbnail.replace('/w300', '/w500') : null,
+        releaseInfo: String(video.released || '').slice(0, 4) || undefined,
+        released: video.released || undefined,
+      });
+    }
+  }
+  const filtered = rows.filter(row => row.poster).slice(0, 50);
+  if (!filtered.length) return filtered;
+  if (posterProvider === 'custom') {
+    const posterTemplate = require('../media/poster-template.ts');
+    return filtered.map((row: any) => posterTemplate.apply(row, customPosterTemplate));
+  }
+  if (pictoriumOn || erdbToken || rpdbKey || fanartKey || posterProvider === 'betterposter') {
+    await Promise.all(filtered.map(async (row: any) => {
+      if (pictoriumOn && row.tmdbId) {
+        const url = builder.buildPictoriumPosterUrl(enhance, {
+          type: 'movie', id: row.tmdbId, title: row.name,
+          releaseDate: row.released, imdbId: row.imdbId, fallback: row.poster,
+        });
+        if (url) { row.poster = url; row.posterShape = 'poster'; }
+      } else if (erdbToken && row.imdbId) {
+        row.poster = builder.erdbProxyUrl(enhance, 'poster', row.imdbId, row.poster) || row.poster;
+      } else if (rpdbKey && row.imdbId) {
+        row.poster = builder.buildRpdbUrl(rpdbKey, 'imdb', 'poster-default', row.imdbId);
+      } else if (posterProvider === 'betterposter' && row.imdbId) {
+        row.poster = builder.buildBetterPosterUrl(row.imdbId, 'movie');
+        row.posterShape = 'poster';
+      } else if (fanartKey && row.tmdbId) {
+        const art = await builder.getFanartArt(fanartKey, row.tmdbId, 'movie').catch(() => null);
+        if (art && art.poster) row.poster = art.poster;
+      }
+    }));
+  }
+  return filtered;
 }
 
 async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lang, enhance, userKey }: any) {
@@ -149,12 +210,20 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       return res.json({ metas });
     }
 
-    const searchMatch = catalogId.match(/^lelibrary-search-(movies|series)$/);
+    const searchMatch = catalogId.match(/^lelibrary-search-(movies|series|anime|similar-movies|similar-series|people-movies|people-series)$/);
     const ownedSearchMatch = catalogId.match(/^lelibrary-search-my-(movies|series)$/);
     if (searchMatch) {
       const extra = parseExtra(req.params.extra || '');
       const query = extra.search || '';
-      const type = searchMatch[1] === 'movies' ? 'movie' : 'series';
+      const row = searchMatch[1];
+      const type = /movies$/.test(row) ? 'movie' : 'series';
+      const options = normalizeSearchOptions(config.searchOptions);
+      // The anime row takes anime out of Series; Series keeps it otherwise.
+      const animeSplit = options.animeRow && config.hideAnime !== true;
+      const variant = row === 'anime' ? 'anime'
+        : row.startsWith('similar-') ? 'similar'
+          : row.startsWith('people-') ? 'people'
+            : row === 'series' && animeSplit ? 'no-anime' : '';
       // Plain TMDB posters here, whatever the setup's poster style: search
       // results are new titles every time, so a rendered style (Pictorium,
       // Posters+...) had nothing warm and every poster waited on a fresh
@@ -164,6 +233,11 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
         apiKey: tmdbApiKey, query, type, lang,
         enhance: {},
         enhanceFingerprint: 'plain',
+        variant,
+        order: options.order,
+        hideObscure: options.hideObscure,
+        // With a People row, a name search no longer pads the title rows.
+        mergePeople: !options.people,
       }));
       res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
       return res.json(withCacheHints({ metas }, { cacheMaxAge: 300, staleRevalidate: 1800, staleError: 1800 }));
@@ -188,11 +262,18 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
       return res.json(withCacheHints({ metas }, { cacheMaxAge: 300, staleRevalidate: 1800, staleError: 1800 }));
     }
-    // Collection films are the same films as My Movies: search no longer
-    // lists them twice. Old manifests still ask, so answer with nothing.
+    // Collection films are the same films as My Movies, so this row is
+    // opt-in (Search options: "Search your collections"). Old manifests that
+    // still list it get nothing unless the setup turned it on.
     if (catalogId === 'lelibrary-search-collections') {
-      res.setHeader('Cache-Control', 'public, max-age=300');
-      return res.json(withCacheHints({ metas: [] }, { cacheMaxAge: 300 }));
+      if (!normalizeSearchOptions(config.searchOptions).collections || req.params.type !== 'movie') {
+        res.setHeader('Cache-Control', 'public, max-age=300');
+        return res.json(withCacheHints({ metas: [] }, { cacheMaxAge: 300 }));
+      }
+      const extra = parseExtra(req.params.extra || '');
+      const metas = await searchCollectionFilms({ userKey: providers.getUserKey(config), lang, query: extra.search || '', libraryIdMode, config });
+      res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
+      return res.json(withCacheHints({ metas }, { cacheMaxAge: 300, staleRevalidate: 1800, staleError: 1800 }));
     }
 
     const importedMatch = catalogId.match(/^lelibrary-import-(movie|series)(?:,(imp_[a-f0-9]{64}))?$/);

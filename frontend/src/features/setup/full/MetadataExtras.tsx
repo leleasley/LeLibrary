@@ -1,6 +1,7 @@
 import { WatchlistSection, WATCHLIST_ACCORDION_DESC } from '@/features/setup/full/WatchlistSection';
 import type { WatchlistDraftMap } from '@/features/setup/resolver/api';
 import { TORBOX_SOURCE_IDS, cleanTorboxSources } from '@/features/setup/shared/config-contract';
+import { DEFAULT_SEARCH_OPTIONS, type SearchOptionsDraft } from '@/features/setup/shared/search-options';
 
 // The watchlist accordion copy lives with the section so Settle In and Move In
 // cannot drift. Re-exported here because both pages already import the section
@@ -17,6 +18,8 @@ export interface MetadataExtrasDraft {
   hideAnime: boolean;
   torboxSources: string[];
   searchScope: string;
+  // Settle In / Move In Search accordion (config.searchOptions).
+  searchOptions: SearchOptionsDraft;
   notices: boolean;
   noticeTypes: string[];
 }
@@ -30,6 +33,7 @@ export const EMPTY_METADATA_EXTRAS: MetadataExtrasDraft = {
   hideAnime: false,
   torboxSources: [...TORBOX_SOURCE_IDS],
   searchScope: 'combined',
+  searchOptions: { ...DEFAULT_SEARCH_OPTIONS, names: {} },
   notices: true,
   noticeTypes: [...DEFAULT_NOTICE_TYPES],
 };
@@ -260,13 +264,6 @@ export function MetadataExtras({ draft, onChange }: {
         onNotices={(notices) => onChange({ ...draft, notices })}
         onToggleType={toggleNoticeType}
       />
-      <label className="setup-field">
-        <span>Search</span>
-        <select value={draft.searchScope} onChange={(event) => onChange({ ...draft, searchScope: event.target.value })}>
-          {SEARCH_SCOPES.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
-        </select>
-        <small className="setup-hint">Choose which separate search sections appear. The combined option keeps global Movies and Series separate from My Movies, My Shows and Collections.</small>
-      </label>
     </>
   );
 }

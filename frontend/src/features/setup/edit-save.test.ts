@@ -266,8 +266,9 @@ describe('edit save body', () => {
         streamNotices: 'off',
         streamNoticeTypes: ['none'],
       },
-      // Every TorBox source on is the default: any stored limit is cleared.
-      clearConfig: ['torboxSources'],
+      // Every TorBox source on and every search option at its default: any
+      // stored value is cleared.
+      clearConfig: ['torboxSources', 'searchOptions'],
     });
   });
 
@@ -278,7 +279,17 @@ describe('edit save body', () => {
       meta: { ...EMPTY_METADATA_EXTRAS, torboxSources: ['usenet'] },
     });
     expect(body?.config).toMatchObject({ torboxSources: ['usenet'] });
-    expect(body?.clearConfig).toBeUndefined();
+    expect(body?.clearConfig).toEqual(['searchOptions']);
+  });
+
+  it('saves search options only when they differ from the defaults', () => {
+    const body = buildEditSaveBody({
+      ...BASE_EDIT_SAVE,
+      metaTouched: true,
+      meta: { ...EMPTY_METADATA_EXTRAS, searchOptions: { ...EMPTY_METADATA_EXTRAS.searchOptions, collections: true } },
+    });
+    expect(body?.config).toMatchObject({ searchOptions: { collections: true } });
+    expect(body?.clearConfig ?? []).not.toContain('searchOptions');
   });
 
   it('sends filter and media sets, including the codec/HDR/audio sets creation writes', () => {

@@ -81,7 +81,7 @@ test('the native franchise collection keeps its fixed title', () => {
   );
 });
 
-test('collection sync forces the franchise to the very bottom', () => {
+test('collection sync keeps other collections in place and adds the franchise after them', () => {
   const generated = buildLibraryCollection(ownedFranchises, 'community.lelibrary.dev', { pinCollections: false });
   const existing = [
     { id: 'collection-a', title: 'Collection A', folders: [{ id: 'a' }] },
@@ -97,18 +97,18 @@ test('collection sync forces the franchise to the very bottom', () => {
   assert.deepEqual(mergeCollectionsInPlace(merged, [generated]), merged);
 });
 
-test('the Hub sits immediately above Movie Collections when both are enabled', () => {
+test('Movie Collections keeps the slot the setup gives it, never a stale pinToTop', () => {
   const franchise = buildLibraryCollection(ownedFranchises, 'community.lelibrary.dev');
   const hub = { id: 'collection-lelibrary-hub', title: 'LeLibrary', pinToTop: true };
   const regular = { id: 'collection-lelibrary-discover', title: 'Discover' };
   assert.deepEqual(
-    mergeCollectionsInPlace([{ id: 'collection-external', title: 'External' }], [regular, hub, franchise])
+    mergeCollectionsInPlace([{ id: 'collection-external', title: 'External' }], [{ ...franchise, pinToTop: true }, regular, hub])
       .map((collection) => [collection.id, collection.pinToTop]),
     [
       ['collection-external', undefined],
+      [LIBRARY_COLLECTION_ID, false],
       ['collection-lelibrary-discover', undefined],
       ['collection-lelibrary-hub', false],
-      [LIBRARY_COLLECTION_ID, false],
     ]
   );
 });
@@ -276,6 +276,17 @@ test('the shared wizard plan keeps Movie Collections opt-in, honours its hidden 
   });
   assert.equal(disabledPlan.nativeFranchiseCollection.enabled, false);
   assert.deepEqual(disabledPlan.homeRows, []);
+});
+
+test('Movie Collections carries its Collections page slot (absent on older setups)', () => {
+  const plan = (row) => compileCollectionPlan({
+    manifestId: 'community.lelibrary.dev',
+    integration: 'nuvio',
+    homeRows: [{ _nativeFranchiseCollection: true, enabled: true, order: 0, source: { catalogId: 'torbox-collections', type: 'movie' }, ...row }],
+  }).nativeFranchiseCollection.slot;
+  assert.equal(plan({ collectionSlot: 2 }), 2);
+  assert.equal(plan({}), null);
+  assert.equal(plan({ collectionSlot: null }), null);
 });
 
 test('the shared wizard plan remaps legacy LeLibrary source IDs to the installed manifest', () => {

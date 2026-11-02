@@ -65,7 +65,7 @@ function groupIcon(group: string): string {
 // Home builder: catalogue browser on the left, ordered Home rows on the
 // right, plus the owned-franchise toggle and manifest import. The rename and
 // import modals live here with them.
-export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdblistKey = false }: {
+export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdblistKey = false, ownedInCollections = false }: {
   rows: HomeRowDoc[];
   onChange: (next: HomeRowDoc[]) => void;
   platform: 'nuvio' | 'stremio';
@@ -73,6 +73,9 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
   // The setup language decides the watch region (region.ts), as in the pack picker.
   lang?: string;
   hasMdblistKey?: boolean;
+  // Move In: Movie Collections lives on the Collections page (Nuvio), so its
+  // switch is not repeated here.
+  ownedInCollections?: boolean;
 }) {
   const { sources: all, failed } = useCatalogSources(prefix, platform, true);
   const region = regionForLang(lang);
@@ -100,32 +103,35 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
     () => new Set(rows.filter((row) => row.enabled !== false).map((row) => sourceKey(row.source))),
     [rows],
   );
-  // Nuvio strips franchise rows from state on every change (normalize), so
-  // the display filter below only guards rows that predate it.
+  // On Nuvio Movie Collections is a collection, not a Home row: its marker
+  // (and any stray franchise row) is kept out of the list and every list edit
+  // works on the shown rows only.
   const displayRows = platform === 'nuvio'
-    ? rows.filter((row) => row._nativeFranchiseCollection === true || String(row.source?.catalogId || '') !== 'torbox-collections')
+    ? rows.filter((row) => row._nativeFranchiseCollection !== true && String(row.source?.catalogId || '') !== 'torbox-collections')
     : rows;
+  const keptRows = rows.filter((row) => !displayRows.includes(row));
   const ownedOn = rows.some((row) => row._nativeFranchiseCollection === true);
+  const showOwnedSwitch = !(ownedInCollections && platform === 'nuvio');
 
   function commit(next: HomeRowDoc[]) {
-    onChange(normalizeHomeOrder(next, platform));
+    onChange(normalizeHomeOrder([...next, ...keptRows], platform));
   }
 
   function toggleByKey(key: string) {
     const source = browser.find((item) => browserKey(item) === key);
     if (!source) return;
-    const at = rows.findIndex((row) => sourceKey(row.source) === key);
+    const at = displayRows.findIndex((row) => sourceKey(row.source) === key);
     if (at >= 0) {
-      commit(rows.filter((_, index) => index !== at));
+      commit(displayRows.filter((_, index) => index !== at));
     } else {
-      commit([...rows, homeRowFromSource(source, rows.length)]);
+      commit([...displayRows, homeRowFromSource(source, displayRows.length)]);
     }
   }
 
   function move(index: number, delta: -1 | 1) {
     const target = index + delta;
-    if (target < 0 || target >= rows.length) return;
-    const next = rows.slice();
+    if (target < 0 || target >= displayRows.length) return;
+    const next = displayRows.slice();
     const [moved] = next.splice(index, 1);
     if (!moved) return;
     next.splice(target, 0, moved);
@@ -133,8 +139,8 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
   }
 
   function drop(from: number, to: number) {
-    if (from === to || from < 0 || to < 0 || from >= rows.length || to >= rows.length) return;
-    const next = rows.slice();
+    if (from === to || from < 0 || to < 0 || from >= displayRows.length || to >= displayRows.length) return;
+    const next = displayRows.slice();
     const [moved] = next.splice(from, 1);
     if (!moved) return;
     next.splice(to, 0, moved);
@@ -142,11 +148,11 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
   }
 
   function remove(index: number) {
-    commit(rows.filter((_, at) => at !== index));
+    commit(displayRows.filter((_, at) => at !== index));
   }
 
   function openRename(index: number) {
-    const row = rows[index];
+    const row = displayRows[index];
     if (!row) return;
     setRenameIndex(index);
     setRenameTitle(row.title || '');
@@ -154,13 +160,13 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
 
   function saveRename() {
     if (renameIndex === null) return;
-    const row = rows[renameIndex];
+    const row = displayRows[renameIndex];
     const title = renameTitle.trim().slice(0, 80);
     if (!row || !title) {
       toast('Give this row a name', 'error');
       return;
     }
-    const next = rows.slice();
+    const next = displayRows.slice();
     next[renameIndex] = { ...row, title, customTitle: true };
     commit(next);
     setRenameIndex(null);
@@ -173,9 +179,9 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
         toast('Connect a debrid provider to build owned movie collections', 'error');
         return;
       }
-      if (!ownedOn) commit([...rows, ownedFranchiseMarker(rows.length)]);
+      if (!ownedOn) onChange(normalizeHomeOrder([...rows, ownedFranchiseMarker(rows.length)], platform));
     } else {
-      commit(rows.filter((row) => row._nativeFranchiseCollection !== true));
+      onChange(normalizeHomeOrder(rows.filter((row) => row._nativeFranchiseCollection !== true), platform));
     }
   }
 
@@ -215,7 +221,7 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
         .filter((source) => !knownRows.has(browserKey(source)))
         .map((source, offset) => homeRowFromSource(source, rows.length + offset));
       setImported((prev) => [...prev, ...freshSources]);
-      commit([...rows, ...freshRows]);
+      commit([...displayRows, ...freshRows]);
       setImportUrl('');
       setImportOpen(false);
       toast(`${found.length} rows imported`);
@@ -270,11 +276,15 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
             <button type="button" className="setup-primary hr-add" onClick={() => setAddOpen(true)}><span aria-hidden="true">＋</span> Add rows</button>
           </span>
         </header>
-        <label className="switch-row hr-owned">
-          <span><strong>LeLibrary Movie Collections</strong><small>Your owned films, automatically grouped into franchise folders.</small></span>
-          <input type="checkbox" checked={ownedOn} onChange={(event) => toggleOwned(event.target.checked)} />
-          <i aria-hidden="true" />
-        </label>
+        {showOwnedSwitch && (
+          <label className="switch-row hr-owned">
+            <span><strong>LeLibrary Movie Collections</strong><small>{platform === 'nuvio'
+              ? 'Your owned films, automatically grouped into franchise folders. On Nuvio it shows above your Home rows.'
+              : 'Your owned films, automatically grouped into franchise folders.'}</small></span>
+            <input type="checkbox" checked={ownedOn} onChange={(event) => toggleOwned(event.target.checked)} />
+            <i aria-hidden="true" />
+          </label>
+        )}
         {displayRows.length === 0 && (
           <div className="hr-empty">
             <span className="hr-empty-art" aria-hidden="true"><i /><i /><i /></span>

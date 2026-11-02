@@ -78,8 +78,7 @@ function buildLibraryCollection(metas, addonId, config = {}) {
 }
 
 // sync_push_collections replaces the complete document. Preserve unrelated
-// collections byte-for-byte. When both native LeLibrary entries are enabled,
-// keep them together at the bottom: Hub first, then Movie Collections.
+// collections byte-for-byte; LeLibrary's follow them in the setup's order.
 function mergeCollectionsInPlace(existing, generated, { removeMissing = () => false } = {}) {
   const requested = (generated || []).filter(Boolean);
   const managed = new Set(requested.map((item) => String(item.id)));
@@ -91,15 +90,14 @@ function mergeCollectionsInPlace(existing, generated, { removeMissing = () => fa
     }
     out.push(item);
   }
-  // The setup's own order (its Collections page), Hub included; Home order
-  // itself comes from the Home items (setup/home-layout.ts). Movie Collections
-  // has no place on that page, so it stays last in this list. Neither the Hub
-  // nor Movie Collections may float to the top through a stale pinToTop.
-  const franchise = requested.find((item) => String(item?.id) === LIBRARY_COLLECTION_ID);
-  const ordered = requested
-    .filter((item) => String(item?.id) !== LIBRARY_COLLECTION_ID)
-    .map((item) => (String(item?.id) === LELIBRARY_HUB_ID ? { ...item, pinToTop: false } : item));
-  return [...out, ...ordered, ...(franchise ? [{ ...franchise, pinToTop: false }] : [])];
+  // The setup's own order (its Collections page), Hub and Movie Collections
+  // included; Home order itself comes from the Home items
+  // (setup/home-layout.ts). Neither the Hub nor Movie Collections may float to
+  // the top through a stale pinToTop.
+  const ordered = requested.map((item) => (String(item?.id) === LELIBRARY_HUB_ID || String(item?.id) === LIBRARY_COLLECTION_ID
+    ? { ...item, pinToTop: false }
+    : item));
+  return [...out, ...ordered];
 }
 
 export interface NuvioLibraryCollectionsApi {

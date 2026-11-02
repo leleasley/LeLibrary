@@ -326,6 +326,9 @@ export interface HomeRowDoc {
   order: number;
   customTitle: boolean;
   _nativeFranchiseCollection?: boolean;
+  // Movie Collections marker only: its place among the Collections page's
+  // collections (Nuvio Home puts collections first). Absent = first.
+  collectionSlot?: number;
 }
 
 // One entry in the catalogue browser. Registry rows arrive with the full
@@ -349,14 +352,17 @@ export interface BrowserSource {
 }
 
 export const OWNED_MARKER_ID = 'native-franchise-collection';
+export const OWNED_DEFAULT_TITLE = 'LeLibrary Movie Collections';
 
-// Owned-franchise marker row: a native
-// collection row, fixed at the bottom of Nuvio Collections, never a Home
-// row there - keep it for Stremio only in the browser.
-export function ownedFranchiseMarker(order: number): HomeRowDoc {
+// Owned-franchise marker row: switches LeLibrary Movie Collections on and
+// holds its name. On Nuvio it is a collection, not a Home row: Move In places
+// it on the Collections page (`collectionSlot`), and the Home rows list never
+// shows it. Stremio keeps it as a row.
+export function ownedFranchiseMarker(order: number, collectionSlot?: number): HomeRowDoc {
   return {
+    ...(collectionSlot === undefined ? {} : { collectionSlot }),
     id: OWNED_MARKER_ID,
-    title: 'LeLibrary Movie Collections',
+    title: OWNED_DEFAULT_TITLE,
     source: { kind: 'catalog', id: 'torbox-collections', catalogId: 'torbox-collections', type: 'movie', addonId: '', addonUrl: '' },
     enabled: true,
     limit: 20,
@@ -577,13 +583,58 @@ export function homeRowFromSource(source: BrowserSource, order: number): HomeRow
   };
 }
 
-// Nuvio renders the franchise as a native collection at the bottom, never a
-// Home row - strip it there (the marker excepted). Stremio keeps it.
+// Nuvio renders the franchise as a native collection, never a Home row: strip
+// stray franchise rows there and keep the marker last, so the rows the Home
+// list shows have the same indexes as the stored rows. Stremio keeps it as is.
 export function normalizeHomeOrder(rows: HomeRowDoc[], platform: string): HomeRowDoc[] {
   const kept = platform === 'nuvio'
     ? rows.filter((row) => row._nativeFranchiseCollection === true || String(row.source?.catalogId || '') !== 'torbox-collections')
     : rows.slice();
-  return kept.map((row, index) => ({ ...row, order: index }));
+  const ordered = platform === 'nuvio'
+    ? [...kept.filter((row) => row._nativeFranchiseCollection !== true), ...kept.filter((row) => row._nativeFranchiseCollection === true)]
+    : kept;
+  return ordered.map((row, index) => ({ ...row, order: index }));
+}
+
+// The Collections page list with Movie Collections at its slot (Move In on
+// Nuvio). `collection` entries carry their index in `collections`.
+export type CollectionEntry = { kind: 'collection'; index: number } | { kind: 'owned' };
+
+export function ownedSlot(slot: number | undefined, count: number): number {
+  return Number.isFinite(slot) ? Math.max(0, Math.min(count, Math.floor(Number(slot)))) : 0;
+}
+
+export function collectionEntries(count: number, slot: number | null): CollectionEntry[] {
+  const out: CollectionEntry[] = Array.from({ length: count }, (_, index) => ({ kind: 'collection' as const, index }));
+  if (slot !== null) out.splice(ownedSlot(slot, count), 0, { kind: 'owned' });
+  return out;
+}
+
+// Move one entry of that list up or down; Movie Collections and the
+// collections swap places like any two cards.
+export function moveCollectionEntry<T>(collections: T[], slot: number | null, at: number, delta: -1 | 1): { collections: T[]; slot: number | null } {
+  const entries = collectionEntries(collections.length, slot);
+  const target = at + delta;
+  if (at < 0 || target < 0 || at >= entries.length || target >= entries.length) return { collections, slot };
+  const next = entries.slice();
+  const [moved] = next.splice(at, 1);
+  if (!moved) return { collections, slot };
+  next.splice(target, 0, moved);
+  const ordered: T[] = [];
+  let nextSlot: number | null = null;
+  for (const entry of next) {
+    if (entry.kind === 'owned') nextSlot = ordered.length;
+    else ordered.push(collections[entry.index] as T);
+  }
+  return { collections: ordered, slot: nextSlot };
+}
+
+// Removing a collection above Movie Collections keeps it between the same
+// neighbours.
+export function slotAfterRemoving(slot: number | null, removedIndex: number, count: number): number | null {
+  if (slot === null) return null;
+  const current = ownedSlot(slot, count);
+  return removedIndex < current ? current - 1 : current;
 }
 
 // Browser group rank: LeLibrary first, then Trending, Popular, then the rest.

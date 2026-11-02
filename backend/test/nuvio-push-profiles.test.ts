@@ -8,6 +8,7 @@ const calls = [];
 let profileRows = [{ profile_index: 1, name: 'Mum', uses_primary_addons: false }, { profile_index: 2, name: 'Dad', uses_primary_addons: false }];
 let settingsBlob = null;
 let manifestCatalogs = [];
+let homeBlob = null;
 let profileCollections = [{ id: 'collection-lelibrary-mums-setup', folders: [] }];
 const reply = (data) => Promise.resolve({ status: 200, data });
 function fakeAxios(config) {
@@ -26,6 +27,7 @@ fakeAxios.post = (url, body) => {
   }
   if (url.endsWith('/rpc/get_sync_owner')) return reply(['owner-1']);
   if (url.endsWith('/rpc/sync_pull_profile_settings_blob')) return reply(settingsBlob ? [{ settings_json: settingsBlob }] : []);
+  if (url.endsWith('/rpc/sync_pull_home_catalog_settings')) return reply(homeBlob ? [{ settings_json: homeBlob }] : []);
   if (url.endsWith('/rpc/sync_pull_collections')) {
     return reply([{ collections_json: profileCollections }]);
   }
@@ -55,12 +57,12 @@ test('pushing to one Nuvio profile writes nothing to the others', async () => {
   }
 });
 
-async function pushDad(options) {
+async function pushDad(options, document = { collections: [], homeRows: [], sources: [] }) {
   calls.length = 0;
   const result = await push.installSetup({
     uuid: '00000000-0000-4000-8000-000000000003', installToken: '00000000-0000-4000-8000-000000000003.secret',
     connection: { nuvioToken: 'token', nuvioSelectedProfile: 2 }, platform: 'nuvio', profileId: 2, internal: true,
-    origin: 'https://lelibrary.example', port: 1, document: { collections: [], homeRows: [], sources: [] }, options,
+    origin: 'https://lelibrary.example', port: 1, document, options,
   });
   assert.equal(result.ok, true, JSON.stringify(result));
   return calls;
@@ -118,4 +120,31 @@ test('Home rows carry the key Nuvio mobile matches on (manifestId:type:catalogId
   assert.equal(row.key, 'community.lelibrary.test:movie:torbox-movies');
   assert.equal(row.addon_id, 'community.lelibrary.test');
   manifestCatalogs = [];
+});
+
+test('collections lead Nuvio Home, above every Home row', async () => {
+  manifestCatalogs = [{ type: 'movie', id: 'torbox-movies', name: 'My Movies' }];
+  // On the profile now: another addon's row first, our row, the user's own
+  // collection last.
+  homeBlob = { items: [
+    { addon_id: 'other.addon', type: 'movie', catalog_id: 'top', key: 'other.addon:movie:top', enabled: true, order: 0 },
+    { addon_id: 'community.lelibrary.test', type: 'movie', catalog_id: 'torbox-movies', enabled: true, order: 1 },
+    { is_collection: true, collection_id: 'my-own', key: 'collection_my-own', enabled: true, order: 2 },
+  ] };
+  const folder = (id) => ({ id, title: id, catalogSources: [{ addonId: 'community.lelibrary.test', type: 'movie', catalogId: 'torbox-movies' }] });
+  const document = {
+    collections: [
+      { id: 'collection-lelibrary-b', title: 'B', folders: [folder('fb')] },
+      { id: 'collection-lelibrary-a', title: 'A', folders: [folder('fa')] },
+    ],
+    homeRows: [{ id: 'r1', title: 'My Movies', enabled: true, order: 0, source: { catalogId: 'torbox-movies', type: 'movie' } }],
+    sources: [],
+  };
+  const [home] = written(await pushDad({}, document), 'sync_push_home_catalog_settings');
+  const keys = home.p_settings_json.items.slice().sort((x, y) => x.order - y.order)
+    .map((i) => (i.is_collection ? `collection_${i.collection_id}` : `${i.addon_id}:${i.catalog_id}`));
+  assert.deepEqual(keys.slice(0, 3), ['collection_collection-lelibrary-b', 'collection_collection-lelibrary-a', 'collection_my-own']);
+  assert.ok(keys.indexOf('other.addon:top') > 2 && keys.indexOf('community.lelibrary.test:torbox-movies') > 2, keys.join(' | '));
+  manifestCatalogs = [];
+  homeBlob = null;
 });

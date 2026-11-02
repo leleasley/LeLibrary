@@ -150,3 +150,44 @@ export function applyCollectionField(collection: CollectionDoc, field: 'tileShap
   }
   return { ...collection, viewMode: normalizeViewMode(value) };
 }
+
+// LeLibrary Movie Collections on the Collections page (Nuvio). Its franchise
+// folders are built from the films the library owns at push time, so there is
+// nothing to edit inside it: it moves, takes a name and goes.
+export function MovieCollectionsCard({ title, disableUp, disableDown, onTitle, onMove, onRemove }: {
+  // '' = Nuvio's own name for it.
+  title: string;
+  disableUp: boolean;
+  disableDown: boolean;
+  onTitle: (title: string) => void;
+  onMove: (delta: -1 | 1) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <article className="collection-card collection-card-collapsed collection-card-system collection-card-owned">
+      <div className="collection-hero">
+        <img className="collection-hero-image" src="/collection-assets/collections/covers/lelibrary-hub-movies-v3.jpg" alt="" onError={(event) => { event.currentTarget.hidden = true; }} />
+        <div className="collection-hero-content collection-hero-visible">
+          <div className="collection-hero-copy">
+            <input
+              className="collection-title-input" aria-label="Collection title"
+              value={title} placeholder="LeLibrary Collections"
+              onChange={(event) => onTitle(event.target.value.slice(0, 80))}
+            />
+            <div className="collection-summary">
+              <span className="collection-system-label">Built from your library · </span>
+              Franchise folders made from the films you own. You can move, rename or remove it, but not edit its folders.
+            </div>
+          </div>
+          <div className="collection-hero-actions">
+            <span className="collection-order-controls">
+              <button type="button" className="eye-btn" aria-label="Move collection up" disabled={disableUp} onClick={() => onMove(-1)}>↑</button>
+              <button type="button" className="eye-btn" aria-label="Move collection down" disabled={disableDown} onClick={() => onMove(1)}>↓</button>
+            </span>
+            <button type="button" className="btn-danger" onClick={onRemove}>Remove</button>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}

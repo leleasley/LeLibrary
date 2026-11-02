@@ -383,6 +383,11 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
     nativeFranchiseCollection: nativeFranchiseRow && {
       enabled: nativeFranchiseRow.row?.enabled !== false,
       order: nativeFranchiseRow.order,
+      // Its place among the Collections page's collections (Nuvio Home puts
+      // collections first). Absent (older setups) = first.
+      slot: Number.isFinite(Number(nativeFranchiseRow.row?.collectionSlot)) && nativeFranchiseRow.row?.collectionSlot !== null
+        ? Math.max(0, Math.floor(Number(nativeFranchiseRow.row.collectionSlot)))
+        : null,
       // Renaming its Home row renames the collection: both Nuvio apps show a
       // collection's own title, never a Home custom title.
       title: nativeFranchiseRow.row?.customTitle === true && String(nativeFranchiseRow.row?.title || '').trim()

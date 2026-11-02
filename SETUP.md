@@ -57,7 +57,11 @@ Every setup ends with one thing: an install link. Keep it.
     TorBox sources, stream notices, library row names and Nuvio playback.
 - **Home rows** (Move In: **Home**): starts empty. Press **Add rows** to pick
   what goes on your Home screen (full screen on a phone), then drag to order.
-- **Collections** (Move In only): Quick Packs and your own folders.
+- **Collections** (Move In only): Quick Packs and your own folders. On Nuvio
+  your collections always sit above your Home rows, in the order of this page.
+  **LeLibrary Movie Collections** (franchise folders built from the films you
+  own) is a card here too: move it, rename it or remove it. Its folders are
+  made for you, so they cannot be edited.
 - **Protect**: your password, then **Create my setup**.
 
 ### When it is created

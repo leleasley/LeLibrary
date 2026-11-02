@@ -24,7 +24,7 @@ import { HomeRowsSection } from '@/features/setup/full/HomeRowsSection';
 import { useCustomAddonActions, type CustomAddonRef } from '@/features/setup/shared/custom-addons';
 import { LibraryRowsSection } from '@/features/setup/shared/LibraryRowsSection';
 import { EMPTY_LIBRARY_ROWS, withLibraryRowNames, type LibraryRowsDraft } from '@/features/setup/shared/library-rows';
-import { hubPrefix, normalizeHomeOrder, ownedFranchiseMarker, type CollectionDoc, type HomeRowDoc } from '@/features/setup/shared/collection-doc';
+import { hubPrefix, normalizeHomeOrder, ownedFranchiseMarker, OWNED_DEFAULT_TITLE, type CollectionDoc, type HomeRowDoc } from '@/features/setup/shared/collection-doc';
 import { CollectionStudio } from '@/features/setup/full/collections/CollectionStudio';
 import { DestinationStep } from '@/features/setup/full/DestinationStep';
 import { ReviewStep } from '@/features/setup/full/ReviewStep';
@@ -390,7 +390,8 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
     (service) => !String((keys as Record<string, string | undefined>)[service] ?? '').trim(),
   );
   const providerPrefix = hubPrefix(providerSelectionWithSaved(keys, edit?.savedServices ?? []));
-  const ownedFranchiseOn = homeRows.some((row) => row._nativeFranchiseCollection === true);
+  const ownedMarker = homeRows.find((row) => row._nativeFranchiseCollection === true) ?? null;
+  const ownedFranchiseOn = ownedMarker !== null;
 
   function toggleOwnedFranchise(on: boolean) {
     if (on) {
@@ -399,11 +400,32 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
         return;
       }
       if (!ownedFranchiseOn) {
-        setHomeRows(normalizeHomeOrder([...homeRows, ownedFranchiseMarker(homeRows.length)], platform));
+        // A new Movie Collections card goes after the collections already there.
+        setHomeRows(normalizeHomeOrder([...homeRows, ownedFranchiseMarker(homeRows.length, collections.length)], platform));
       }
     } else {
       setHomeRows(normalizeHomeOrder(homeRows.filter((row) => row._nativeFranchiseCollection !== true), platform));
     }
+  }
+
+  // Movie Collections on the Collections page (Nuvio): its slot and name live
+  // on the marker row.
+  function updateOwnedFranchise(patch: { slot?: number | null; title?: string }) {
+    setHomeRows((rows) => rows.map((row) => {
+      if (row._nativeFranchiseCollection !== true) return row;
+      const next: HomeRowDoc = { ...row };
+      if (patch.slot !== undefined) {
+        if (patch.slot === null) delete next.collectionSlot;
+        else next.collectionSlot = patch.slot;
+      }
+      if (patch.title !== undefined) {
+        // Empty = Nuvio's own name for it; anything typed renames it.
+        const title = patch.title.slice(0, 80);
+        next.title = title.trim() ? title : OWNED_DEFAULT_TITLE;
+        next.customTitle = Boolean(title.trim());
+      }
+      return next;
+    }));
   }
   const presetLabel = STREAM_PRESETS.find((preset) => preset.id === formatting.preset)?.name ?? formatting.preset;
   const artworkLabel = POSTER_PROVIDERS.find((p) => p.id === posters.provider)?.name ?? 'TMDB default';
@@ -595,7 +617,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
           <TierStep id="home" index={3} title="Home" hidden={wizard.step !== 2} lede="The rows on your home screen.">
             <HomeRowsSection
               rows={homeRows} onChange={setHomeRows} platform={platform} prefix={providerPrefix}
-              lang={meta.lang}
+              lang={meta.lang} ownedInCollections
               hasMdblistKey={Boolean((keys.mdblistKey ?? '').trim()) || Boolean(edit?.savedServices.includes('mdblistKey'))}
             />
           </TierStep>
@@ -604,6 +626,8 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
               collections={collections} onChange={setCollections} providerPrefix={providerPrefix}
               platform={platform} packs={packs} onPacks={setPacks}
               ownedOn={ownedFranchiseOn} onToggleOwned={toggleOwnedFranchise}
+              owned={platform === 'nuvio' && ownedMarker ? { slot: ownedMarker.collectionSlot ?? null, title: ownedMarker.customTitle ? ownedMarker.title : '' } : null}
+              onOwned={updateOwnedFranchise}
               lang={meta.lang}
               hideAnime={meta.hideAnime === true}
               hasMdblistKey={Boolean((keys.mdblistKey ?? '').trim()) || Boolean(edit?.savedServices.includes('mdblistKey'))}

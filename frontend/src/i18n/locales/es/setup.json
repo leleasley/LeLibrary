@@ -1775,6 +1775,10 @@
     "LeLibrary Special added, with the LeLibrary Hub and Movie Collections": "LeLibrary Special añadido, con el LeLibrary Hub y las colecciones de películas",
     "LeLibrary Special added, with your Movie Collections": "LeLibrary Special añadido, con tus colecciones de películas",
     "LeLibrary Special added. Connect a debrid provider to add the LeLibrary Hub and Movie Collections too.": "LeLibrary Special añadido. Conecta un proveedor debrid para añadir también el LeLibrary Hub y las colecciones de películas.",
-    "Open Posters+, pick a style and paste its poster link here (a /p/ preset link or the Copy config link).": "Abre Posters+, elige un estilo y pega aquí su enlace de póster (un enlace de preajuste /p/ o el enlace de Copy config)."
+    "Open Posters+, pick a style and paste its poster link here (a /p/ preset link or the Copy config link).": "Abre Posters+, elige un estilo y pega aquí su enlace de póster (un enlace de preajuste /p/ o el enlace de Copy config).",
+    "Built from your library ·": "Creada con tu biblioteca ·",
+    "Franchise folders made from the films you own. You can move, rename or remove it, but not edit its folders.": "Carpetas de sagas hechas con las películas que tienes. Puedes moverla, renombrarla o quitarla, pero no editar sus carpetas.",
+    "LeLibrary Collections": "LeLibrary Collections",
+    "Your owned films, automatically grouped into franchise folders. On Nuvio it shows above your Home rows.": "Tus películas, agrupadas automáticamente en carpetas de sagas. En Nuvio aparece encima de tus filas de Inicio."
   }
 }

@@ -3,7 +3,10 @@ import { toast } from '@/features/setup/shared/Toast';
 import { nativeLibraryRows, DISCOVERY_ROWS,
   HUB_COLLECTION_ID,
   collectionDefault,
+  collectionEntries,
   folderDefault,
+  moveCollectionEntry,
+  slotAfterRemoving,
   hubCollection,
   orderCollections,
   type CollectionDoc,
@@ -16,7 +19,7 @@ import {
 } from '@/features/setup/full/collections/curated-packs';
 import { addPackFolders, packKind, sizeMeter, specialExtras, SPECIAL_PACK_ID } from '@/features/setup/full/collections/pack-picker-model';
 import { regionForLang } from '@/features/setup/full/collections/region';
-import { CollectionCard, applyCollectionField } from '@/features/setup/full/collections/CollectionCard';
+import { CollectionCard, MovieCollectionsCard, applyCollectionField } from '@/features/setup/full/collections/CollectionCard';
 import { FolderEditorModal } from '@/features/setup/full/collections/FolderEditorModal';
 import { PackLibraryModal } from '@/features/setup/full/collections/PackLibraryModal';
 import { useCatalogSources } from '@/features/setup/full/collections/catalog-sources';
@@ -25,7 +28,7 @@ import { NuvioPublicModal } from '@/features/setup/full/NuvioPublicModal';
 // Collections studio: the list of Nuvio collections, the Quick Pack launch
 // block and its library, the public Nuvio directory browser, plus the
 // LeLibrary Hub system toggle.
-export function CollectionStudio({ collections, onChange, providerPrefix, platform, packs, onPacks, ownedOn, onToggleOwned, nuvioToken, savedSetup, lang, hasMdblistKey = false, hideAnime = false, defaultOpenId = null }: {
+export function CollectionStudio({ collections, onChange, providerPrefix, platform, packs, onPacks, ownedOn, onToggleOwned, owned = null, onOwned, nuvioToken, savedSetup, lang, hasMdblistKey = false, hideAnime = false, defaultOpenId = null }: {
   collections: CollectionDoc[];
   onChange: (next: CollectionDoc[]) => void;
   providerPrefix: string | null;
@@ -34,6 +37,10 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
   onPacks: (next: string[]) => void;
   ownedOn: boolean;
   onToggleOwned: (on: boolean) => void;
+  // Nuvio: Movie Collections as a card in the list (on), with its slot among
+  // the collections (null = first) and its typed name ('' = Nuvio's own).
+  owned?: { slot: number | null; title: string } | null;
+  onOwned?: (patch: { slot?: number | null; title?: string }) => void;
   // Draft Nuvio session for the pre-creation public browser (no setup row
   // exists yet). Absent on Stremio setups and before Nuvio is connected.
   nuvioToken?: string | null;
@@ -71,8 +78,9 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
   // LeLibrary's own rows lead the folder source picker. The Stremio-only
   // "LeLibrary Collections" row is a collection, not a folder source.
   const folderLeadingSources = [...nativeLibraryRows(providerPrefix, platform).filter((row) => !row.nativeCollection), ...DISCOVERY_ROWS];
-  // Every collection moves, the Hub included (its place is its Nuvio place).
-  const regularCount = collections.length;
+  // Every card moves, the Hub and Movie Collections included (its place is its
+  // Nuvio place).
+  const entries = collectionEntries(collections.length, owned ? owned.slot ?? 0 : null);
   const bundleCount = curated.filter((pack) => packKind(pack) === 'bundle').length;
   const packCount = curated.filter((pack) => packKind(pack) !== 'bundle').length;
   const meter = sizeMeter(collections, aliases);
@@ -144,20 +152,18 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
     const removed = collections[index];
     if (!removed) return;
     const next = collections.filter((_, at) => at !== index);
+    if (owned && onOwned) onOwned({ slot: slotAfterRemoving(owned.slot ?? 0, index, collections.length) });
     if (editor && collections[editor.ci]?.id === removed.id) setEditor(null);
     if (openId === removed.id) setOpenId(next[0]?.id ?? null);
     onChange(orderCollections(next));
   }
 
-  function moveCollection(index: number, delta: -1 | 1) {
-    const collection = collections[index];
-    if (!collection) return;
-    const target = index + delta;
-    if (target < 0 || target >= regularCount) return;
-    const next = collections.slice();
-    next.splice(index, 1);
-    next.splice(target, 0, collection);
-    onChange(orderCollections(next));
+  // Moves a card in the shown list, where Movie Collections (when on) sits
+  // among the collections and swaps places like any other card.
+  function moveEntry(at: number, delta: -1 | 1) {
+    const moved = moveCollectionEntry(collections, owned ? owned.slot ?? 0 : null, at, delta);
+    if (moved.collections !== collections) onChange(orderCollections(moved.collections));
+    if (owned && onOwned && moved.slot !== (owned.slot ?? 0)) onOwned({ slot: moved.slot });
   }
 
   function toggleHub() {
@@ -253,22 +259,46 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
       {platform === 'nuvio' && !canBrowse && (
         <p className="setup-note">Connect Nuvio in Step 1 to browse public collections.</p>
       )}
-      {collections.length === 0 && (
+      {collections.length === 0 && !owned && (
         <p className="setup-note">No collections yet. Start one above, or add the Hub for My Movies and My Shows.</p>
       )}
-      {collections.map((collection, index) => (
+      {platform === 'nuvio' && !owned && (
+        <label className="switch-row hr-owned">
+          <span><strong>LeLibrary Movie Collections</strong><small>Your owned films, automatically grouped into franchise folders.</small></span>
+          <input type="checkbox" checked={false} onChange={() => onToggleOwned(true)} />
+          <i aria-hidden="true" />
+        </label>
+      )}
+      {entries.map((entry, at) => {
+        if (entry.kind === 'owned') {
+          return (
+            <MovieCollectionsCard
+              key="movie-collections"
+              title={owned?.title ?? ''}
+              disableUp={at === 0}
+              disableDown={at === entries.length - 1}
+              onTitle={(title) => onOwned?.({ title })}
+              onMove={(delta) => moveEntry(at, delta)}
+              onRemove={() => onToggleOwned(false)}
+            />
+          );
+        }
+        const index = entry.index;
+        const collection = collections[index];
+        if (!collection) return null;
+        return (
         <CollectionCard
           key={collection.id}
           collection={collection}
           open={openId === collection.id}
           system={collection.id === HUB_COLLECTION_ID}
           names={sourceNames}
-          disableUp={index === 0}
-          disableDown={index >= regularCount - 1}
+          disableUp={at === 0}
+          disableDown={at === entries.length - 1}
           onToggle={() => setOpenId((current) => (current === collection.id ? null : collection.id))}
           onTitle={(title) => update(index, { ...collection, title })}
           onRemove={() => removeCollection(index)}
-          onMove={(delta) => moveCollection(index, delta)}
+          onMove={(delta) => moveEntry(at, delta)}
           onField={(field, value) => update(index, applyCollectionField(collection, field, value))}
           onBool={(field) => {
             if (field === 'focusGlowEnabled' || field === 'showAllTab') {
@@ -282,7 +312,8 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
           onRemoveFolder={(fi) => removeFolder(index, fi)}
           onMoveFolder={(from, to) => moveFolder(index, from, to)}
         />
-      ))}
+        );
+      })}
       <PackLibraryModal
         open={libraryOpen}
         onClose={() => setLibraryOpen(false)}

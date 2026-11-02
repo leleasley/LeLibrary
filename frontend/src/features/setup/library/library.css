@@ -106,3 +106,26 @@
 .lib-choice-wrap .lib-choice { padding-right: 110px; }
 .lib-tmdb-link { position: absolute; right: 12px; bottom: 10px; color: var(--amber); font-size: 0.74rem; text-decoration: none; }
 .lib-tmdb-link:hover { text-decoration: underline; }
+
+/* Library at a glance (size, 4K/HDR share, added this week, new posters). */
+.lib-glance-wrap { display: grid; gap: 12px; margin-bottom: 16px; }
+.lib-glance { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.lib-glance-tile { position: relative; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; min-height: 72px; padding: 13px 16px; border: 1px solid var(--border); border-radius: 14px; background: linear-gradient(160deg, rgba(245, 158, 11, 0.05), transparent 60%), var(--surface); overflow: hidden; }
+.lib-glance-tile strong { font-size: 1.25rem; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.lib-glance-tile strong small { margin-left: 4px; color: var(--muted); font-size: 0.74rem; font-weight: 600; }
+.lib-glance-tile span { color: var(--muted); font-size: 0.76rem; }
+.lib-glance-bar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--amber); border-radius: 0 3px 3px 0; }
+.lib-glance-bar.is-hdr { background: linear-gradient(90deg, #a78bfa, #f472b6); }
+.lib-glance.is-loading { min-height: 72px; }
+.lib-glance.is-loading > div { min-height: 72px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); animation: lib-pulse 1.4s ease-in-out infinite; }
+.lib-recent { display: grid; gap: 8px; }
+.lib-recent-label { color: var(--muted); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.lib-recent-row { display: grid; grid-auto-flow: column; grid-auto-columns: 92px; gap: 10px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: thin; }
+.lib-recent-item { margin: 0; display: grid; gap: 6px; min-width: 0; }
+.lib-recent-item img, .lib-recent-blank { width: 92px; aspect-ratio: 2 / 3; border-radius: 9px; object-fit: cover; background: var(--surface); border: 1px solid var(--border); display: grid; place-items: center; }
+.lib-recent-item figcaption { overflow: hidden; color: var(--muted); font-size: 0.7rem; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 520px) {
+  .lib-glance { grid-template-columns: 1fr 1fr; }
+  .lib-recent-row { grid-auto-columns: 78px; }
+  .lib-recent-item img, .lib-recent-blank { width: 78px; }
+}

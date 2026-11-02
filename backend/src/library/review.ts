@@ -237,12 +237,101 @@ async function requeue(scopeId: string, id: number): Promise<boolean> {
   return (rowCount || 0) > 0;
 }
 
+// "At a glance" numbers for the top of the Library page. Titles are counted
+// once however many files they have. 4K and HDR use the same tags as the
+// 4K / HDR & Dolby Vision rows (library/quality-filter.ts), over the release
+// name and the file names inside packs. About 1.6s on a 10,000-file library,
+// so it is cached per library for 10 minutes and loaded after the summary.
+const STATS_TTL = 600;
+const FILE_NAMES = `coalesce((SELECT string_agg(coalesce(f->>'name', f->>'short_name', f->>'path', ''), ' ')
+    FROM jsonb_array_elements(CASE WHEN jsonb_typeof(raw->'files') = 'array' THEN raw->'files' ELSE '[]'::jsonb END) f), '')`;
+const UHD_RE = String.raw`\y(2160P|4K|UHD)\y`;
+const HDR_RE = String.raw`(DOLBY.?VISION|\yDV\y|\yDOVI\y|\yHDR(10)?(\+|PLUS)?\y)`;
+
+export interface LibraryStats {
+  titles: number;
+  films: number;
+  shows: number;
+  sizeBytes: number;
+  uhd: number;
+  hdr: number;
+  addedWeek: number;
+  recent: { type: 'movie' | 'series'; title: string; year: string | null; poster: string | null }[];
+}
+
+async function stats(scopeId: string): Promise<LibraryStats> {
+  const cache = require('../runtime/cache.ts');
+  const key = cache.makeKey('libstats:v1', scopeId);
+  const hit = await cache.get(key).catch(() => null);
+  if (hit && typeof hit === 'object' && typeof (hit as LibraryStats).titles === 'number') return hit as LibraryStats;
+  const pool = await store.ensure();
+  const [{ rows: counts }, { rows: sizes }, { rows: recent }] = await Promise.all([
+    pool.query(
+      `WITH titles AS (
+         SELECT media_type, tmdb_id,
+                bool_or(upper(name || ' ' || ${FILE_NAMES}) ~ $2) AS uhd,
+                bool_or(upper(name || ' ' || ${FILE_NAMES}) ~ $3) AS hdr,
+                min(coalesce(source_created_at, first_seen_at)) AS added
+           FROM lib_items
+          WHERE scope_id = $1 AND removed_at IS NULL AND match_status = 'matched' AND tmdb_id IS NOT NULL
+          GROUP BY media_type, tmdb_id)
+       SELECT count(*)::int AS titles,
+              count(*) FILTER (WHERE media_type = 'movie')::int AS films,
+              count(*) FILTER (WHERE media_type IN ('series', 'anime'))::int AS shows,
+              count(*) FILTER (WHERE uhd)::int AS uhd,
+              count(*) FILTER (WHERE hdr)::int AS hdr,
+              count(*) FILTER (WHERE added > now() - interval '7 days')::int AS week
+         FROM titles`,
+      [scopeId, UHD_RE, HDR_RE]
+    ),
+    // Box-set film rows (#film:) point into a file already counted.
+    pool.query(
+      `SELECT coalesce(sum(size), 0)::text AS bytes FROM lib_items
+        WHERE scope_id = $1 AND removed_at IS NULL AND source_id NOT LIKE '%#film:%'`,
+      [scopeId]
+    ),
+    pool.query(
+      `SELECT media_type, title, year, poster FROM (
+         SELECT DISTINCT ON (media_type, tmdb_id) media_type,
+                match_meta->>'name' AS title, match_meta->>'releaseInfo' AS year, match_meta->>'poster' AS poster,
+                coalesce(source_created_at, first_seen_at) AS added
+           FROM lib_items
+          WHERE scope_id = $1 AND removed_at IS NULL AND match_status = 'matched' AND tmdb_id IS NOT NULL
+            AND coalesce(source_created_at, first_seen_at) > now() - interval '7 days'
+          ORDER BY media_type, tmdb_id, coalesce(source_created_at, first_seen_at) DESC) t
+        ORDER BY added DESC LIMIT 12`,
+      [scopeId]
+    ),
+  ]);
+  const row = counts[0] || {};
+  const out: LibraryStats = {
+    titles: Number(row.titles) || 0,
+    films: Number(row.films) || 0,
+    shows: Number(row.shows) || 0,
+    sizeBytes: Number(sizes[0]?.bytes) || 0,
+    uhd: Number(row.uhd) || 0,
+    hdr: Number(row.hdr) || 0,
+    addedWeek: Number(row.week) || 0,
+    recent: recent
+      .filter((r: Record<string, unknown>) => typeof r['title'] === 'string' && r['title'])
+      .map((r: Record<string, unknown>) => ({
+        type: r['media_type'] === 'movie' ? 'movie' as const : 'series' as const,
+        title: String(r['title']),
+        year: typeof r['year'] === 'string' && r['year'] ? String(r['year']).slice(0, 4) : null,
+        poster: posterOrNull(r['poster']),
+      })),
+  };
+  cache.set(key, out, STATS_TTL).catch(() => {});
+  return out;
+}
+
 export interface ReviewApi {
   summary: typeof summary;
+  stats: typeof stats;
   items: typeof items;
   itemForFix: typeof itemForFix;
   requeue: typeof requeue;
   reasonCode: typeof reasonCode;
 }
 
-module.exports = { summary, items, itemForFix, requeue, reasonCode } satisfies ReviewApi;
+module.exports = { summary, stats, items, itemForFix, requeue, reasonCode } satisfies ReviewApi;

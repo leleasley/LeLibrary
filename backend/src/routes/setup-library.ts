@@ -95,6 +95,13 @@ function mountSetupLibraryRoutes(app: Express, { basePath = '/api/setup', editSe
     res.json({ ...summary, hasPassword: ctx.hasPassword, canFix: Boolean(ctx.tmdbApiKey) });
   });
 
+  // Library at a glance: size, 4K/HDR share, added this week (cached 10 min).
+  router.get('/:uuid/library/stats', rateLimited(60_000, 30), async (req: Request, res: Response) => {
+    const ctx = await context(req, res);
+    if (!ctx) return;
+    res.json(await review.stats(ctx.scopeId));
+  });
+
   router.get('/:uuid/library/items', rateLimited(60_000, 120), async (req: Request, res: Response) => {
     const ctx = await context(req, res);
     if (!ctx) return;

@@ -1763,6 +1763,12 @@
     "Saving moves this setup to {{value}}.": "Saving moves this setup to {{value}}.",
     "You have unsaved changes.": "You have unsaved changes.",
     "Sign in to {{value}} on the Connect page to push from here.": "Sign in to {{value}} on the Connect page to push from here.",
-    "Sign in to Nuvio again on the Connect page": "Sign in to Nuvio again on the Connect page"
+    "Sign in to Nuvio again on the Connect page": "Sign in to Nuvio again on the Connect page",
+    "Added this week": "Added this week",
+    "HDR & Dolby Vision": "HDR & Dolby Vision",
+    "In your cloud": "In your cloud",
+    "Library at a glance": "Library at a glance",
+    "New this week": "New this week",
+    "Titles in 4K": "Titles in 4K"
   }
 }

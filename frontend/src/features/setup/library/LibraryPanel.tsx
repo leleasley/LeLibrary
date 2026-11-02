@@ -4,10 +4,11 @@ import { apiErrorCopy } from '@/api/error-copy';
 import { toast } from '@/features/setup/shared/Toast';
 import { setupCopy, setupCount } from '@/features/setup/shared/setup-copy';
 import {
-  episodeLabel, fetchLibraryItems, fetchLibrarySummary, fetchSeasonEpisodes, fetchShowSeasons, fixItem, formatSize,
+  episodeLabel, fetchLibraryItems, fetchLibraryStats, fetchLibrarySummary, fetchSeasonEpisodes, fetchShowSeasons, fixItem, formatSize,
   episodeOptionLabel, ignoreItem, parsedEpisode, retryMatching, searchSeed, searchTmdb, undoFix,
-  type FixMediaType, type LibraryItem, type LibrarySummary, type LibraryView, type SeasonEpisode, type ShowSeason, type TmdbChoice,
+  type FixMediaType, type LibraryItem, type LibraryStats, type LibrarySummary, type LibraryView, type SeasonEpisode, type ShowSeason, type TmdbChoice,
 } from '@/features/setup/library/library-api';
+import { LibraryGlance } from '@/features/setup/library/LibraryGlance';
 import './library.css';
 
 // The Library tab of the setup edit page: what LeLibrary found in this
@@ -325,6 +326,7 @@ function FixDialog({ uuid, editToken, item, onClose, onFixed }: {
 export function LibraryPanel({ uuid, editToken }: { uuid: string; editToken: string | null }) {
   const [summary, setSummary] = useState<LibrarySummary | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [stats, setStats] = useState<LibraryStats | null>(null);
   const [view, setView] = useState<LibraryView>('attention');
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<LibraryItem[]>([]);
@@ -345,6 +347,14 @@ export function LibraryPanel({ uuid, editToken }: { uuid: string; editToken: str
       setSummaryError(apiErrorCopy(err, setupCopy('Your library could not be loaded.', 'Your library could not be loaded.')));
       return null;
     }
+  }, [uuid, editToken]);
+
+  // At-a-glance numbers: their own request, so the page never waits on them.
+  useEffect(() => {
+    if (!editToken) return;
+    let cancelled = false;
+    fetchLibraryStats(uuid, editToken).then((next) => { if (!cancelled) setStats(next); }).catch(() => { /* the strip just stays hidden */ });
+    return () => { cancelled = true; };
   }, [uuid, editToken]);
 
   const loadItems = useCallback(async (append = false) => {
@@ -447,6 +457,8 @@ export function LibraryPanel({ uuid, editToken }: { uuid: string; editToken: str
       ) : (
         <div className="lib-stats is-loading" aria-hidden="true">{[0, 1, 2, 3].map((n) => <div key={n} className="lib-stat" />)}</div>
       )}
+
+      {summary && summary.matched > 0 && <LibraryGlance stats={stats} language={language()} />}
 
       {summary && (
         <div className="lib-sync">

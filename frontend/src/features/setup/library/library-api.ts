@@ -70,6 +70,22 @@ export function fetchLibrarySummary(uuid: string, editToken: string): Promise<Li
   return apiClient.get<LibrarySummary>(base(uuid), auth(editToken));
 }
 
+// Library at a glance (cached on the server for 10 minutes).
+export interface LibraryStats {
+  titles: number;
+  films: number;
+  shows: number;
+  sizeBytes: number;
+  uhd: number;
+  hdr: number;
+  addedWeek: number;
+  recent: { type: 'movie' | 'series'; title: string; year: string | null; poster: string | null }[];
+}
+
+export function fetchLibraryStats(uuid: string, editToken: string): Promise<LibraryStats> {
+  return apiClient.get<LibraryStats>(`${base(uuid)}/stats`, auth(editToken));
+}
+
 export function fetchLibraryItems(uuid: string, editToken: string, params: { view: LibraryView; q?: string; offset?: number }): Promise<{ total: number; items: LibraryItem[] }> {
   const query = new URLSearchParams({ view: params.view });
   if (params.q) query.set('q', params.q);

@@ -1763,6 +1763,12 @@
     "Saving moves this setup to {{value}}.": "Al guardar, esta configuración pasa a {{value}}.",
     "You have unsaved changes.": "Tienes cambios sin guardar.",
     "Sign in to {{value}} on the Connect page to push from here.": "Inicia sesión en {{value}} en la página Conectar para enviarla desde aquí.",
-    "Sign in to Nuvio again on the Connect page": "Vuelve a iniciar sesión en Nuvio en la página Conectar"
+    "Sign in to Nuvio again on the Connect page": "Vuelve a iniciar sesión en Nuvio en la página Conectar",
+    "Added this week": "Añadidos esta semana",
+    "HDR & Dolby Vision": "HDR y Dolby Vision",
+    "In your cloud": "En tu nube",
+    "Library at a glance": "Tu biblioteca de un vistazo",
+    "New this week": "Nuevo esta semana",
+    "Titles in 4K": "Títulos en 4K"
   }
 }

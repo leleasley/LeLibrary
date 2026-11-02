@@ -715,7 +715,14 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
     // `{prefix}-movies-4k` / `-hdr`: My Movies / My Shows narrowed to one
     // release quality (library/quality-filter.ts).
     const libraryId = require('../library/quality-filter.ts').parseLibraryCatalogId(catalogId);
-    const variant = libraryId?.variant || null;
+    let variant = libraryId?.variant || null;
+    // The Hub's Genres folder catalogue: the genre extra names the genre.
+    if (variant === 'genres') {
+      const genreName = parseExtra(req.params.extra || '').genre;
+      const genre = require('../library/genres.ts').genreByName(libraryId!.kind === 'movies' ? 'movies' : 'series', genreName);
+      if (!genre) return res.json({ metas: [] });
+      variant = `g-${genre.slug}`;
+    }
     let type;
     if (libraryId) type = libraryId.kind === 'anime' ? 'anime' : libraryId.kind === 'movies' ? 'movie' : 'series';
     else if (catalogId.endsWith('-anime'))   type = 'anime';

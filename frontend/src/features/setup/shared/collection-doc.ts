@@ -69,6 +69,8 @@ export const HUB_4K_FOLDER_ID = 'folder-lelibrary-hub-4k';
 export const HUB_HDR_FOLDER_ID = 'folder-lelibrary-hub-hdr';
 export const HUB_4K_COVER = '/collection-assets/collections/covers/lelibrary-hub-4k-v3.jpg';
 export const HUB_HDR_COVER = '/collection-assets/collections/covers/lelibrary-hub-hdr-v3.jpg';
+export const HUB_GENRES_FOLDER_ID = 'folder-lelibrary-hub-genres';
+export const HUB_GENRES_COVER = '/collection-assets/collections/covers/lelibrary-hub-genres-v3.jpg';
 
 export const FALLBACK_ART = '/LeLibrary.png?v=3';
 
@@ -255,7 +257,9 @@ export function hubCollection(prefix: string, origin: string): CollectionDoc {
         heroBackdropUrl: abs(HUB_SHOWS_COVER),
         catalogSources: [{ addonId: '', addonUrl: '', catalogId: `${prefix}-series`, type: 'series', genre: '' }],
       },
-      ...([[HUB_4K_FOLDER_ID, '4K', '4k', HUB_4K_COVER], [HUB_HDR_FOLDER_ID, 'HDR & Dolby Vision', 'hdr', HUB_HDR_COVER]] as const).map(([id, title, variant, cover]) => ({
+      // Genres: saved as two genre-less sources; each push fills in one tab
+      // per genre the library owns enough of (server: expandHubGenres).
+      ...([[HUB_4K_FOLDER_ID, '4K', '4k', HUB_4K_COVER], [HUB_HDR_FOLDER_ID, 'HDR & Dolby Vision', 'hdr', HUB_HDR_COVER], [HUB_GENRES_FOLDER_ID, 'Genres', 'genres', HUB_GENRES_COVER]] as const).map(([id, title, variant, cover]) => ({
         id,
         title,
         tileShape: 'LANDSCAPE' as const,
@@ -336,33 +340,137 @@ export function ownedFranchiseMarker(order: number): HomeRowDoc {
   };
 }
 
-// "Your genres" rows: My Movies / My Shows narrowed to one TMDB genre.
-// Mirrors GENRES in backend/src/library/genres.ts (slugs are part of saved
-// catalogue ids; a test keeps the two lists equal). `movie` / `tv` say which
-// kinds have the genre on TMDB (no TV Horror, no film Kids).
-export const LIBRARY_GENRES: { slug: string; name: string; movie: boolean; tv: boolean; tvName?: string }[] = [
-  { slug: 'action', name: 'Action', movie: true, tv: true, tvName: 'Action & Adventure' },
-  { slug: 'adventure', name: 'Adventure', movie: true, tv: false },
-  { slug: 'animation', name: 'Animation', movie: true, tv: true },
-  { slug: 'comedy', name: 'Comedy', movie: true, tv: true },
-  { slug: 'crime', name: 'Crime', movie: true, tv: true },
-  { slug: 'documentary', name: 'Documentary', movie: true, tv: true },
-  { slug: 'drama', name: 'Drama', movie: true, tv: true },
-  { slug: 'family', name: 'Family', movie: true, tv: true },
-  { slug: 'fantasy', name: 'Fantasy', movie: true, tv: false },
-  { slug: 'history', name: 'History', movie: true, tv: false },
-  { slug: 'horror', name: 'Horror', movie: true, tv: false },
-  { slug: 'kids', name: 'Kids', movie: false, tv: true },
-  { slug: 'music', name: 'Music', movie: true, tv: false },
-  { slug: 'mystery', name: 'Mystery', movie: true, tv: true },
-  { slug: 'reality', name: 'Reality', movie: false, tv: true },
-  { slug: 'romance', name: 'Romance', movie: true, tv: false },
-  { slug: 'scifi', name: 'Sci-Fi', movie: true, tv: true, tvName: 'Sci-Fi & Fantasy' },
-  { slug: 'thriller', name: 'Thriller', movie: true, tv: false },
-  { slug: 'war', name: 'War', movie: true, tv: true, tvName: 'War & Politics' },
-  { slug: 'western', name: 'Western', movie: true, tv: true },
+// "Your genres" rows: My Movies / My Shows narrowed to one genre, theme
+// (TMDB keyword) or world cinema (original language). Mirrors GENRES in
+// backend/src/library/genres.ts (slugs are part of saved catalogue ids; a
+// test keeps the two lists equal). `movie` / `tv` say which kinds have it.
+export const LIBRARY_GENRES: { slug: string; name: string; group: 'genre' | 'theme' | 'world'; movie: boolean; tv: boolean; tvName?: string }[] = [
+  { slug: 'action', name: 'Action', group: 'genre', movie: true, tv: true, tvName: 'Action & Adventure' },
+  { slug: 'adventure', name: 'Adventure', group: 'genre', movie: true, tv: false },
+  { slug: 'animation', name: 'Animation', group: 'genre', movie: true, tv: true },
+  { slug: 'comedy', name: 'Comedy', group: 'genre', movie: true, tv: true },
+  { slug: 'crime', name: 'Crime', group: 'genre', movie: true, tv: true },
+  { slug: 'documentary', name: 'Documentary', group: 'genre', movie: true, tv: true },
+  { slug: 'drama', name: 'Drama', group: 'genre', movie: true, tv: true },
+  { slug: 'family', name: 'Family', group: 'genre', movie: true, tv: true },
+  { slug: 'fantasy', name: 'Fantasy', group: 'genre', movie: true, tv: false },
+  { slug: 'history', name: 'History', group: 'genre', movie: true, tv: false },
+  { slug: 'horror', name: 'Horror', group: 'genre', movie: true, tv: false },
+  { slug: 'kids', name: 'Kids', group: 'genre', movie: false, tv: true },
+  { slug: 'music', name: 'Music', group: 'genre', movie: true, tv: false },
+  { slug: 'mystery', name: 'Mystery', group: 'genre', movie: true, tv: true },
+  { slug: 'news', name: 'News', group: 'genre', movie: false, tv: true },
+  { slug: 'reality', name: 'Reality', group: 'genre', movie: false, tv: true },
+  { slug: 'romance', name: 'Romance', group: 'genre', movie: true, tv: false },
+  { slug: 'scifi', name: 'Sci-Fi', group: 'genre', movie: true, tv: true, tvName: 'Sci-Fi & Fantasy' },
+  { slug: 'soap', name: 'Soap', group: 'genre', movie: false, tv: true },
+  { slug: 'talk', name: 'Talk', group: 'genre', movie: false, tv: true },
+  { slug: 'thriller', name: 'Thriller', group: 'genre', movie: true, tv: false },
+  { slug: 'tvmovie', name: 'TV Movie', group: 'genre', movie: true, tv: false },
+  { slug: 'war', name: 'War', group: 'genre', movie: true, tv: true, tvName: 'War & Politics' },
+  { slug: 'western', name: 'Western', group: 'genre', movie: true, tv: true },
+  { slug: 'superhero', name: 'Superheroes', group: 'theme', movie: true, tv: true },
+  { slug: 'comicbook', name: 'Comic Book Adaptations', group: 'theme', movie: true, tv: true },
+  { slug: 'zombie', name: 'Zombies', group: 'theme', movie: true, tv: true },
+  { slug: 'vampire', name: 'Vampires', group: 'theme', movie: true, tv: true },
+  { slug: 'werewolf', name: 'Werewolves', group: 'theme', movie: true, tv: true },
+  { slug: 'slasher', name: 'Slashers', group: 'theme', movie: true, tv: false },
+  { slug: 'foundfootage', name: 'Found Footage', group: 'theme', movie: true, tv: false },
+  { slug: 'monster', name: 'Monsters & Kaiju', group: 'theme', movie: true, tv: true },
+  { slug: 'ghost', name: 'Ghosts & Hauntings', group: 'theme', movie: true, tv: true },
+  { slug: 'possession', name: 'Possession & Exorcism', group: 'theme', movie: true, tv: false },
+  { slug: 'witch', name: 'Witches', group: 'theme', movie: true, tv: true },
+  { slug: 'supernatural', name: 'Supernatural', group: 'theme', movie: true, tv: true },
+  { slug: 'psychhorror', name: 'Psychological Horror', group: 'theme', movie: true, tv: false },
+  { slug: 'bodyhorror', name: 'Body Horror', group: 'theme', movie: true, tv: false },
+  { slug: 'folkhorror', name: 'Folk Horror', group: 'theme', movie: true, tv: false },
+  { slug: 'gothic', name: 'Gothic', group: 'theme', movie: true, tv: false },
+  { slug: 'heist', name: 'Heists', group: 'theme', movie: true, tv: true },
+  { slug: 'spy', name: 'Spies', group: 'theme', movie: true, tv: true },
+  { slug: 'martialarts', name: 'Martial Arts', group: 'theme', movie: true, tv: true },
+  { slug: 'samurai', name: 'Samurai', group: 'theme', movie: true, tv: true },
+  { slug: 'gangster', name: 'Gangsters & Mafia', group: 'theme', movie: true, tv: true },
+  { slug: 'serialkiller', name: 'Serial Killers', group: 'theme', movie: true, tv: true },
+  { slug: 'police', name: 'Cops & Police', group: 'theme', movie: true, tv: true },
+  { slug: 'detective', name: 'Detectives', group: 'theme', movie: true, tv: true },
+  { slug: 'legal', name: 'Courtroom & Legal', group: 'theme', movie: true, tv: true },
+  { slug: 'prison', name: 'Prison', group: 'theme', movie: true, tv: true },
+  { slug: 'hitman', name: 'Hitmen', group: 'theme', movie: true, tv: false },
+  { slug: 'revenge', name: 'Revenge', group: 'theme', movie: true, tv: true },
+  { slug: 'kidnapping', name: 'Kidnapping', group: 'theme', movie: true, tv: false },
+  { slug: 'conspiracy', name: 'Conspiracy', group: 'theme', movie: true, tv: true },
+  { slug: 'politics', name: 'Politics', group: 'theme', movie: true, tv: true },
+  { slug: 'psychthriller', name: 'Psychological Thrillers', group: 'theme', movie: true, tv: true },
+  { slug: 'noir', name: 'Noir', group: 'theme', movie: true, tv: true },
+  { slug: 'timetravel', name: 'Time Travel', group: 'theme', movie: true, tv: true },
+  { slug: 'space', name: 'Space', group: 'theme', movie: true, tv: true },
+  { slug: 'aliens', name: 'Aliens', group: 'theme', movie: true, tv: true },
+  { slug: 'dystopia', name: 'Dystopia', group: 'theme', movie: true, tv: true },
+  { slug: 'postapoc', name: 'Post-Apocalyptic', group: 'theme', movie: true, tv: true },
+  { slug: 'cyberpunk', name: 'Cyberpunk', group: 'theme', movie: true, tv: true },
+  { slug: 'ai', name: 'AI & Robots', group: 'theme', movie: true, tv: true },
+  { slug: 'parallel', name: 'Parallel Worlds', group: 'theme', movie: true, tv: true },
+  { slug: 'dinosaur', name: 'Dinosaurs', group: 'theme', movie: true, tv: true },
+  { slug: 'mecha', name: 'Mecha', group: 'theme', movie: true, tv: true },
+  { slug: 'isekai', name: 'Isekai', group: 'theme', movie: true, tv: true },
+  { slug: 'steampunk', name: 'Steampunk', group: 'theme', movie: true, tv: false },
+  { slug: 'magic', name: 'Magic', group: 'theme', movie: true, tv: true },
+  { slug: 'dragon', name: 'Dragons', group: 'theme', movie: true, tv: true },
+  { slug: 'fairytale', name: 'Fairy Tales', group: 'theme', movie: true, tv: true },
+  { slug: 'mythology', name: 'Mythology', group: 'theme', movie: true, tv: true },
+  { slug: 'medieval', name: 'Medieval & Knights', group: 'theme', movie: true, tv: true },
+  { slug: 'pirate', name: 'Pirates & Swashbucklers', group: 'theme', movie: true, tv: true },
+  { slug: 'romcom', name: 'Rom-Coms', group: 'theme', movie: true, tv: true },
+  { slug: 'comingofage', name: 'Coming of Age', group: 'theme', movie: true, tv: true },
+  { slug: 'teen', name: 'High School & Teens', group: 'theme', movie: true, tv: true },
+  { slug: 'parody', name: 'Parody & Spoof', group: 'theme', movie: true, tv: true },
+  { slug: 'satire', name: 'Satire', group: 'theme', movie: true, tv: true },
+  { slug: 'darkcomedy', name: 'Dark Comedy', group: 'theme', movie: true, tv: true },
+  { slug: 'mockumentary', name: 'Mockumentary', group: 'theme', movie: true, tv: true },
+  { slug: 'standup', name: 'Stand-Up Comedy', group: 'theme', movie: true, tv: true },
+  { slug: 'buddy', name: 'Buddy Comedy', group: 'theme', movie: true, tv: false },
+  { slug: 'roadtrip', name: 'Road Trips', group: 'theme', movie: true, tv: false },
+  { slug: 'sitcom', name: 'Sitcoms', group: 'theme', movie: false, tv: true },
+  { slug: 'musical', name: 'Musicals', group: 'theme', movie: true, tv: true },
+  { slug: 'concert', name: 'Concerts', group: 'theme', movie: true, tv: false },
+  { slug: 'sports', name: 'Sports', group: 'theme', movie: true, tv: true },
+  { slug: 'boxing', name: 'Boxing', group: 'theme', movie: true, tv: false },
+  { slug: 'football', name: 'Football', group: 'theme', movie: true, tv: true },
+  { slug: 'racing', name: 'Motor Racing', group: 'theme', movie: true, tv: false },
+  { slug: 'biopic', name: 'Biopics', group: 'theme', movie: true, tv: true },
+  { slug: 'truestory', name: 'Based on a True Story', group: 'theme', movie: true, tv: true },
+  { slug: 'book', name: 'Book Adaptations', group: 'theme', movie: true, tv: true },
+  { slug: 'videogame', name: 'Video Game Adaptations', group: 'theme', movie: true, tv: true },
+  { slug: 'ww2', name: 'World War II', group: 'theme', movie: true, tv: true },
+  { slug: 'coldwar', name: 'Cold War', group: 'theme', movie: true, tv: true },
+  { slug: 'vietnam', name: 'Vietnam War', group: 'theme', movie: true, tv: false },
+  { slug: 'period', name: 'Period Drama', group: 'theme', movie: true, tv: true },
+  { slug: 'disaster', name: 'Disaster', group: 'theme', movie: true, tv: true },
+  { slug: 'survival', name: 'Survival', group: 'theme', movie: true, tv: true },
+  { slug: 'outbreak', name: 'Pandemics & Outbreaks', group: 'theme', movie: true, tv: true },
+  { slug: 'shark', name: 'Sharks', group: 'theme', movie: true, tv: false },
+  { slug: 'christmas', name: 'Christmas', group: 'theme', movie: true, tv: true },
+  { slug: 'halloween', name: 'Halloween', group: 'theme', movie: true, tv: true },
+  { slug: 'anthology', name: 'Anthologies', group: 'theme', movie: true, tv: true },
+  { slug: 'cooking', name: 'Food & Cooking', group: 'theme', movie: true, tv: true },
+  { slug: 'lgbtq', name: 'LGBTQ+', group: 'theme', movie: true, tv: true },
+  { slug: 'anime', name: 'Anime', group: 'world', movie: true, tv: true },
+  { slug: 'kdrama', name: 'Korean', group: 'world', movie: true, tv: true, tvName: 'K-Drama' },
+  { slug: 'japanese', name: 'Japanese', group: 'world', movie: true, tv: true },
+  { slug: 'chinese', name: 'Chinese & Hong Kong', group: 'world', movie: true, tv: true },
+  { slug: 'indian', name: 'Indian', group: 'world', movie: true, tv: true },
+  { slug: 'french', name: 'French', group: 'world', movie: true, tv: true },
+  { slug: 'spanish', name: 'Spanish-Language', group: 'world', movie: true, tv: true },
+  { slug: 'italian', name: 'Italian', group: 'world', movie: true, tv: true },
+  { slug: 'german', name: 'German', group: 'world', movie: true, tv: true },
+  { slug: 'nordic', name: 'Nordic', group: 'world', movie: true, tv: true },
+  { slug: 'turkish', name: 'Turkish', group: 'world', movie: true, tv: true },
+  { slug: 'thai', name: 'Thai', group: 'world', movie: true, tv: true },
 ];
 export const YOUR_GENRES_GROUP = 'Your genres';
+export const YOUR_THEMES_GROUP = 'Your themes';
+export const YOUR_WORLD_GROUP = 'Your world cinema';
+const GENRE_GROUP_NAMES = { genre: YOUR_GENRES_GROUP, theme: YOUR_THEMES_GROUP, world: YOUR_WORLD_GROUP } as const;
 
 // Native library browser rows. Always present so the LeLibrary shelf is
 // findable before any key is typed: with no provider connected yet the rows
@@ -386,8 +494,9 @@ export function nativeLibraryRows(prefix: string | null, platform: string): Brow
   // Your genres: only what you own, one genre at a time. Never on Home
   // unless picked; a folder can use them too.
   for (const genre of LIBRARY_GENRES) {
-    if (genre.movie) rows.push({ id: `native-genre-movies-${genre.slug}`, catalogId: `${resolved}-movies-g-${genre.slug}`, name: `Your ${genre.name} Movies`, type: 'movie', category: YOUR_GENRES_GROUP, addonId: '', nativeLibrary: true, defaultHome: false });
-    if (genre.tv) rows.push({ id: `native-genre-shows-${genre.slug}`, catalogId: `${resolved}-series-g-${genre.slug}`, name: `Your ${genre.tvName ?? genre.name} Shows`, type: 'series', category: YOUR_GENRES_GROUP, addonId: '', nativeLibrary: true, defaultHome: false });
+    const category = GENRE_GROUP_NAMES[genre.group];
+    if (genre.movie) rows.push({ id: `native-genre-movies-${genre.slug}`, catalogId: `${resolved}-movies-g-${genre.slug}`, name: `Your ${genre.name} Movies`, type: 'movie', category, addonId: '', nativeLibrary: true, defaultHome: false });
+    if (genre.tv) rows.push({ id: `native-genre-shows-${genre.slug}`, catalogId: `${resolved}-series-g-${genre.slug}`, name: `Your ${genre.tvName ?? genre.name} Shows`, type: 'series', category, addonId: '', nativeLibrary: true, defaultHome: false });
   }
   if (platform === 'stremio') {
     rows.push({ id: 'native-lelibrary-collections', catalogId: 'torbox-collections', name: 'LeLibrary Collections', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, nativeCollection: true, defaultHome: false });
@@ -456,6 +565,8 @@ export function homeCategoryRank(category: string): number {
   const name = String(category || '').toLowerCase();
   if (name === 'lelibrary') return -10;
   if (name === 'your genres') return -9;
+  if (name === 'your themes') return -8;
+  if (name === 'your world cinema') return -7;
   if (/trending/.test(name)) return 0;
   if (/popular/.test(name)) return 1;
   if (name === 'watchlists') return 2;

@@ -52,9 +52,10 @@ test('a Hub saved before 5.8 gains the 4K and HDR folders on its own provider', 
     { id: 'folder-lelibrary-hub-shows', title: 'Shows', catalogSources: [{ catalogId: 'rd-series', type: 'series' }] },
   ] };
   const upgraded = withHubExtras(hub);
-  assert.deepEqual(upgraded.folders.map((f) => f.id), ['folder-lelibrary-hub-movies', 'folder-lelibrary-hub-shows', 'folder-lelibrary-hub-4k', 'folder-lelibrary-hub-hdr']);
+  // 5.9 adds the Genres folder too (filled per library at push time).
+  assert.deepEqual(upgraded.folders.map((f) => f.id), ['folder-lelibrary-hub-movies', 'folder-lelibrary-hub-shows', 'folder-lelibrary-hub-4k', 'folder-lelibrary-hub-hdr', 'folder-lelibrary-hub-genres']);
   assert.deepEqual(upgraded.folders[2].catalogSources.map((s) => s.catalogId), ['rd-movies-4k', 'rd-series-4k']);
-  assert.equal(withHubExtras(upgraded).folders.length, 4, 'never added twice');
+  assert.equal(withHubExtras(upgraded).folders.length, 5, 'never added twice');
   assert.equal(withHubExtras({ id: 'collection-x', folders: [] }).folders.length, 0, 'other collections untouched');
   const plan = compileCollectionPlan({ collections: [hub], integration: 'nuvio', manifestId: 'community.lelibrary.selfhosted' });
   const folders = plan.collections.find((c) => c.id === 'collection-lelibrary-hub').folders;

@@ -279,6 +279,11 @@ const MIGRATIONS = [
      PRIMARY KEY (media_type, tmdb_id)
    )`,
   `CREATE INDEX IF NOT EXISTS lib_tmdb_genres_ids_idx ON lib_tmdb_genres USING gin (genre_ids)`,
+  // Themes (TMDB keywords) and world cinema (original language). NULL =
+  // stored before these were kept: the fill reads the title once more.
+  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS keyword_ids integer[]`,
+  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS orig_lang text`,
+  `CREATE INDEX IF NOT EXISTS lib_tmdb_genres_kw_idx ON lib_tmdb_genres USING gin (keyword_ids)`,
 ];
 
 async function migrate() {

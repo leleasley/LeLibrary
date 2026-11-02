@@ -734,6 +734,28 @@ async function pushToStremio(data: PushConnection, manifestUrl: string, manifest
   log('Stremio addon upserted');
 }
 
+// Fills the Hub's Genres folder for the setup behind this install link.
+// Best effort: without the library database, or on any error, the folder is
+// simply left out of this push (compileCollectionPlan drops it empty).
+async function withHubGenreTabs(collections: unknown[], installToken: string, hideAnime: boolean): Promise<unknown[]> {
+  const hasHub = collections.some((c) => (c as { id?: string })?.id === 'collection-lelibrary-hub');
+  if (!hasHub) return collections;
+  try {
+    if (!require('../library/engine.ts').isIndexed()) return collections;
+    const setupStore = await require('./runtime.ts').getSetupStore();
+    const opened = setupStore ? await setupStore.resolveByToken(installToken) : null;
+    if (!opened) return collections;
+    const scopeId = require('../providers/index.ts').getUserKey(setupStore.toEngineConfig(opened));
+    if (!scopeId) return collections;
+    let counts = await require('../library/genres.ts').ownedGenreCounts(scopeId);
+    if (hideAnime) counts = counts.filter((entry: { slug: string }) => entry.slug !== 'anime');
+    log(`Hub genres: ${counts.filter((entry: { count: number }) => entry.count >= 10).length} genres with 10+ titles`);
+    return require('../catalog/collection-plan.ts').expandHubGenres(collections, counts);
+  } catch {
+    return collections;
+  }
+}
+
 async function pushToNuvio(
   conn: PushConnection,
   manifestUrl: string,
@@ -743,6 +765,9 @@ async function pushToNuvio(
   sources: unknown[],
   options: PushOptions & { uuidKey: string; origin: string; port?: number; installToken: string },
 ): Promise<{ ok: boolean; connection: PushConnection; libraryPending: boolean }> {
+  // The Hub's Genres folder: one tab per genre this library owns enough of,
+  // decided now from the library's own titles (library/genres.ts).
+  collections = await withHubGenreTabs(collections, options.installToken, options.hideAnime === true);
   const collectionPlan = compileCollectionPlan({
     collections,
     homeRows,

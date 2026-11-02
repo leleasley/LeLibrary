@@ -8,15 +8,16 @@
 // Catalogue ids: `{prefix}-movies-4k`, `{prefix}-series-4k`,
 // `{prefix}-movies-hdr`, `{prefix}-series-hdr` (prefix = torbox, rd, ...).
 
-// '4k' | 'hdr' (release quality) or 'g-<slug>' (a "Your genres" row, see
-// library/genres.ts; filtered by TMDB genre, not by release name).
-type Variant = '4k' | 'hdr' | `g-${string}`;
+// '4k' | 'hdr' (release quality), 'g-<slug>' (one "Your genres" row) or
+// 'genres' (the Hub's Genres folder catalogue: the genre comes in the genre
+// extra). Genres are filtered by TMDB facts (library/genres.ts), not names.
+type Variant = '4k' | 'hdr' | 'genres' | `g-${string}`;
 type Row = { name?: unknown; raw?: unknown; [key: string]: unknown };
 
 const VARIANTS: readonly Variant[] = ['4k', 'hdr'];
-const LIBRARY_ID = /^([a-z]+)-(movies|series|anime)(?:-(4k|hdr|g-[a-z]+))?$/;
+const LIBRARY_ID = /^([a-z]+)-(movies|series|anime)(?:-(4k|hdr|genres|g-[a-z0-9]+))?$/;
 
-const TESTS: Record<Variant, RegExp> = {
+const TESTS: Record<'4k' | 'hdr', RegExp> = {
   '4k': /\b(?:2160P|4K|UHD)\b/,
   hdr: /DOLBY.?VISION|\bDV\b|\bDOVI\b|\bHDR(?:10)?(?:\+|PLUS)?\b/,
 };
@@ -29,14 +30,13 @@ function parseLibraryCatalogId(id: unknown): { prefix: string; kind: 'movies' | 
   if (variant && kind === 'anime') return null;
   if (variant && variant.startsWith('g-')) {
     const genre = require('./genres.ts').genreBySlug(variant.slice(2));
-    const ids = genre ? (kind === 'movies' ? genre.movie : genre.tv) : [];
-    if (!ids.length) return null;
+    if (!genre || !(kind === 'movies' ? genre.movie : genre.tv)) return null;
   }
   return { prefix: match[1] as string, kind, variant };
 }
 
-function isGenreVariant(variant: unknown): variant is `g-${string}` {
-  return typeof variant === 'string' && variant.startsWith('g-');
+function isGenreVariant(variant: unknown): variant is `g-${string}` | 'genres' {
+  return typeof variant === 'string' && (variant.startsWith('g-') || variant === 'genres');
 }
 
 // Every name a release carries: the item name, and file names where the
@@ -67,7 +67,7 @@ function matchesVariant(item: Row, variant: Variant | null): boolean {
   if (!variant) return true;
   // Genre rows are filtered by TMDB genre (library/genres.ts), not names.
   if (isGenreVariant(variant)) return true;
-  const test = TESTS[variant];
+  const test = TESTS[variant as '4k' | 'hdr'];
   return releaseNames(item).some((name) => test.test(name.toUpperCase()));
 }
 

@@ -221,9 +221,24 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
         const picked = selectedHomeCatalogs.has(id);
         if (!picked && !qualityWanted.has(id)) continue;
         const tag = separate && groups.length > 1 ? ` [${providers.PROVIDER_META[providers.providerByCat(prefix)].short}]` : '';
-        const name = type === 'movies' ? `🎬 Your ${genre.name} Movies` : `📺 Your ${genre.tvName || genre.name} Shows`;
+        const name = type === 'movies' ? `🎬 Your ${genre.name} Movies` : `📺 Your ${genres.nameFor(genre, type)} Shows`;
         const row: LooseConfig = { id, type: type === 'movies' ? 'movie' : 'series', name: name + tag, extra: CAT_EXTRA };
         if (integration === 'nuvio' && !picked) row.showInHome = false;
+        catalogs.push(row);
+      }
+      // The Hub's Genres folder: one catalogue per kind, the genre comes in
+      // the genre extra (its tabs read "Movies · Horror"). Two entries however
+      // many genres exist; on Stremio it is a row with a genre picker.
+      const byGenre = `${prefix}-${type}-genres`;
+      const pickedByGenre = selectedHomeCatalogs.has(byGenre);
+      if (pickedByGenre || qualityWanted.has(byGenre)) {
+        const tag = separate && groups.length > 1 ? ` [${providers.PROVIDER_META[providers.providerByCat(prefix)].short}]` : '';
+        const options = genres.genresFor(type).map((genre: any) => genres.nameFor(genre, type));
+        const row: LooseConfig = {
+          id: byGenre, type: type === 'movies' ? 'movie' : 'series', name: (type === 'movies' ? 'Movies' : 'Shows') + tag,
+          extra: [{ name: 'genre', isRequired: true, options }, { name: 'skip' }],
+        };
+        if (integration === 'nuvio' && !pickedByGenre) row.showInHome = false;
         catalogs.push(row);
       }
     }

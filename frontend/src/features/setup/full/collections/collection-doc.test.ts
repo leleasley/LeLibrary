@@ -68,7 +68,9 @@ describe('collection document', () => {
   it('builds the Hub with fixed ids and absolute artwork', () => {
     const hub = hubCollection('torbox', 'https://example.test');
     expect(hub.id).toBe(HUB_COLLECTION_ID);
-    expect(hub.folders.map((folder) => folder.id)).toEqual([HUB_MOVIES_FOLDER_ID, HUB_SHOWS_FOLDER_ID, 'folder-lelibrary-hub-4k', 'folder-lelibrary-hub-hdr']);
+    expect(hub.folders.map((folder) => folder.id)).toEqual([HUB_MOVIES_FOLDER_ID, HUB_SHOWS_FOLDER_ID, 'folder-lelibrary-hub-4k', 'folder-lelibrary-hub-hdr', 'folder-lelibrary-hub-genres']);
+    // Genres is filled per library at push time; saved, it holds the two by-genre catalogues.
+    expect(hub.folders[4]!.catalogSources.map((s) => s.catalogId)).toEqual(['torbox-movies-genres', 'torbox-series-genres']);
     expect(hub.folders[2]?.catalogSources.map((source) => source.catalogId)).toEqual(['torbox-movies-4k', 'torbox-series-4k']);
     expect(hub.folders[3]?.catalogSources.map((source) => source.catalogId)).toEqual(['torbox-movies-hdr', 'torbox-series-hdr']);
     expect(hub.folders[0]?.catalogSources).toEqual([
@@ -99,12 +101,13 @@ describe('home rows', () => {
   it('builds native and discovery browser rows', () => {
     expect(nativeLibraryRows(null, 'nuvio')).toEqual(nativeLibraryRows('torbox', 'nuvio'));
     const native = nativeLibraryRows('torbox', 'nuvio');
-    const owned = (rows: typeof native) => rows.filter((row) => row.category !== YOUR_GENRES_GROUP).map((row) => row.catalogId);
+    const owned = (rows: typeof native) => rows.filter((row) => !/^Your /.test(row.category)).map((row) => row.catalogId);
     expect(owned(native)).toEqual(['torbox-movies', 'torbox-series', 'torbox-anime', 'torbox-movies-4k', 'torbox-series-4k', 'torbox-movies-hdr', 'torbox-series-hdr']);
     const stremio = nativeLibraryRows('rd', 'stremio');
     expect(owned(stremio)).toEqual(['rd-movies', 'rd-series', 'rd-anime', 'rd-movies-4k', 'rd-series-4k', 'rd-movies-hdr', 'rd-series-hdr', 'torbox-collections']);
     // Your genres: one row per kind TMDB has the genre for, on the same prefix.
-    const genres = native.filter((row) => row.category === YOUR_GENRES_GROUP);
+    const genres = native.filter((row) => /^Your /.test(row.category));
+    expect(new Set(genres.map((row) => row.category))).toEqual(new Set([YOUR_GENRES_GROUP, 'Your themes', 'Your world cinema']));
     expect(genres).toHaveLength(LIBRARY_GENRES.filter((g) => g.movie).length + LIBRARY_GENRES.filter((g) => g.tv).length);
     expect(genres.map((row) => row.catalogId)).toContain('torbox-movies-g-horror');
     expect(genres.map((row) => row.catalogId)).not.toContain('torbox-series-g-horror');

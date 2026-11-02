@@ -163,8 +163,12 @@ addon, and within a few minutes otherwise.
   remove it and add it again to change it. The hosted site only reaches public
   HTTPS addons.
 - **Your genres rows** (Settle In and Move In). In **Add rows**, the **Your
-  genres** group has a row per genre made only from what you own: Your Horror
-  Movies, Your Comedy Shows and so on. Use them as Home rows or in a folder.
+  genres**, **Your themes** and **Your world cinema** groups have a row per
+  genre, theme (Zombies, Heists, Time Travel...) and world cinema (Anime,
+  K-Drama...), made only from what you own. Use them as Home rows or in a
+  folder. On Move In the LeLibrary Hub also has a **Genres** folder: it shows
+  a tab for every genre you own at least 10 titles of, most-owned first, and
+  is updated each time you push.
   Genres are looked up once per title in the background, so on a big library
   the rows fill in over the first hour. They need the library database
   (always on the hosted site; self-hosters need Postgres).

@@ -7,9 +7,12 @@ import { LIBRARY_GENRES } from '@/features/setup/shared/collection-doc';
 describe('Your genres list', () => {
   it('matches backend/src/library/genres.ts', () => {
     const server = readFileSync(new URL('../../../../../backend/src/library/genres.ts', import.meta.url), 'utf8');
-    const rows = [...server.matchAll(/\{ slug: '([a-z]+)', name: '([^']+)', movie: \[([^\]]*)\], tv: \[([^\]]*)\](?:, tvName: '([^']+)')? \}/g)]
-      .map(([, slug, name, movie, tv, tvName]) => ({ slug, name, movie: movie!.trim() !== '', tv: tv!.trim() !== '', ...(tvName ? { tvName } : {}) }));
-    expect(rows.length).toBeGreaterThan(10);
+    const rows = server.split('\n').map((line) => line.match(/^\s*\{ slug: '([a-z0-9]+)', name: '([^']+)', group: '(genre|theme|world)'(.*)\},\s*$/)).filter((m): m is RegExpMatchArray => m !== null)
+      .map(([, slug, name, group, rest]) => {
+        const tvName = rest!.match(/tvName: '([^']+)'/)?.[1];
+        return { slug, name, group, movie: /\bmovie: \{/.test(rest!), tv: /\btv: \{/.test(rest!), ...(tvName ? { tvName } : {}) };
+      });
+    expect(rows.length).toBeGreaterThan(80);
     expect(LIBRARY_GENRES).toEqual(rows);
   });
 });

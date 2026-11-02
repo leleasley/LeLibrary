@@ -107,6 +107,10 @@ const HUB_FOLDER_ART: Record<string, { coverImageUrl: string; focusGifUrl: strin
     coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-hdr-v3.jpg',
     focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-hdr-focus-v3.gif',
   },
+  'folder-lelibrary-hub-genres': {
+    coverImageUrl: '/collection-assets/collections/covers/lelibrary-hub-genres-v3.jpg',
+    focusGifUrl: '/collection-assets/collections/gifs/lelibrary-hub-genres-focus-v3.gif',
+  },
 };
 
 // The Hub's 4K and HDR & Dolby Vision folders (My Movies + My Shows narrowed
@@ -117,7 +121,45 @@ const HUB_ID = 'collection-lelibrary-hub';
 const HUB_EXTRAS = [
   { id: 'folder-lelibrary-hub-4k', title: '4K', variant: '4k' },
   { id: 'folder-lelibrary-hub-hdr', title: 'HDR & Dolby Vision', variant: 'hdr' },
+  // Saved as two genre-less sources; a push turns them into one tab per genre
+  // the library owns enough of (expandHubGenres). Without that step (or with
+  // no genre to show) the folder is left out: an empty genre shows nothing.
+  { id: 'folder-lelibrary-hub-genres', title: 'Genres', variant: 'genres' },
 ];
+const HUB_GENRES_ID = 'folder-lelibrary-hub-genres';
+// A genre gets a tab once the library owns this many of its titles; a small
+// library falls back to a lower bar so the folder is not empty for it.
+const GENRE_TAB_MIN = 10;
+const GENRE_TAB_FALLBACK_MIN = 3;
+const GENRE_TAB_MAX = 40;
+
+// The Hub's Genres folder for one library, from ownedGenreCounts (most owned
+// first, movies and shows mixed). Pure: the push supplies the counts.
+function expandHubGenres(collections, counts) {
+  const list = Array.isArray(counts) ? counts : [];
+  let picked = list.filter((entry) => entry.count >= GENRE_TAB_MIN);
+  if (picked.length < 3) picked = list.filter((entry) => entry.count >= GENRE_TAB_FALLBACK_MIN);
+  picked = picked.slice(0, GENRE_TAB_MAX);
+  return (Array.isArray(collections) ? collections : []).map((raw) => {
+    const collection = withHubExtras(raw);
+    if (!collection || collection.id !== HUB_ID || !Array.isArray(collection.folders)) return raw;
+    return {
+      ...collection,
+      folders: collection.folders.map((folder) => {
+        if (folder?.id !== HUB_GENRES_ID) return folder;
+        const prefix = (String(folder.catalogSources?.[0]?.catalogId || '').match(/^([a-z]+)-(?:movies|series)-genres$/) || [])[1];
+        if (!prefix) return folder;
+        return {
+          ...folder,
+          catalogSources: picked.map((entry) => ({
+            addonId: '', addonUrl: '', catalogId: `${prefix}-${entry.kind}-genres`,
+            type: entry.kind === 'movies' ? 'movie' : 'series', genre: entry.name,
+          })),
+        };
+      }),
+    };
+  });
+}
 
 function withHubExtras(collection) {
   if (!collection || collection.id !== HUB_ID || !Array.isArray(collection.folders)) return collection;
@@ -303,6 +345,8 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
     ...collection,
     folders: (Array.isArray(collection?.folders) ? collection.folders : []).map((folder, fi) => {
       if (hideAnime && isAnimeFolder(folder)) return null;
+      // The Genres folder only goes out once a push has filled in its genres.
+      if (folder?.id === HUB_GENRES_ID && !(Array.isArray(folder.catalogSources) && folder.catalogSources.some((source) => String(source?.genre || '').trim()))) return null;
       const hubArt = HUB_FOLDER_ART[String(folder?.id || '')];
       const folderId = folder?.id || `folder-${ci}-${fi}`;
       const merged = { ...folder, ...(hubArt ? { ...hubArt, focusGifEnabled: true } : {}) };
@@ -351,6 +395,7 @@ export interface CollectionPlanApi {
   sourceCatalogId: any;
   companionGatewayLabel: any;
   withHubExtras: any;
+  expandHubGenres: any;
 }
 
-module.exports = { compileCollectionPlan, upgradeCuratedSourceId, isLeLibrarySource, isAnimeSource, sourceCatalogId, companionGatewayLabel, withHubExtras } satisfies CollectionPlanApi;
+module.exports = { compileCollectionPlan, upgradeCuratedSourceId, isLeLibrarySource, isAnimeSource, sourceCatalogId, companionGatewayLabel, withHubExtras, expandHubGenres } satisfies CollectionPlanApi;

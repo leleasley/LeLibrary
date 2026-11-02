@@ -113,7 +113,8 @@ test('the Hub sits immediately above Movie Collections when both are enabled', (
   );
 });
 
-test('the Hub stays at the bottom even when Movie Collections is disabled', () => {
+test('the Hub keeps the place the setup gives it, never a stale pinToTop', () => {
+  // 5.9: the Hub moves like any collection on the Collections page.
   const hub = { id: 'collection-lelibrary-hub', title: 'LeLibrary', pinToTop: true };
   const regular = { id: 'collection-lelibrary-discover', title: 'Discover' };
   assert.deepEqual(
@@ -121,8 +122,8 @@ test('the Hub stays at the bottom even when Movie Collections is disabled', () =
       .map((collection) => [collection.id, collection.pinToTop]),
     [
       ['collection-external', undefined],
-      ['collection-lelibrary-discover', undefined],
       ['collection-lelibrary-hub', false],
+      ['collection-lelibrary-discover', undefined],
     ]
   );
 });

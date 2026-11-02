@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchCatalogLibrary } from '@/features/setup/full/collections/catalog-sources';
-import { sourceKey, type CatalogSourceRef } from '@/features/setup/shared/collection-doc';
+import { sourceKey, type BrowserSource, type CatalogSourceRef } from '@/features/setup/shared/collection-doc';
 
 interface RegistrySource {
   catalogId?: string;
@@ -22,12 +22,14 @@ interface PickerSource {
   icon: string;
 }
 
-// Catalogue source picker for the folder editor. Lists the shared catalogue
-// registry (/api/catalog-library). Native library and discovery rows join
-// this picker with the home-rows stage, which owns their definitions.
-export function SourcePickerModal({ open, selected, onApply, onClose }: {
+// Catalogue source picker for the folder editor: LeLibrary's own rows first
+// (`leading`: My Movies / My Shows, 4K, HDR, Your genres / themes / world
+// cinema, Trending and Popular, the same definitions the Home rows picker
+// uses), then the shared catalogue registry (/api/catalog-library).
+export function SourcePickerModal({ open, selected, onApply, onClose, leading = [] }: {
   open: boolean;
   selected: CatalogSourceRef[];
+  leading?: BrowserSource[];
   onApply: (sources: CatalogSourceRef[]) => void;
   onClose: () => void;
 }) {
@@ -47,12 +49,23 @@ export function SourcePickerModal({ open, selected, onApply, onClose }: {
         if (cancelled) return;
         const list = Array.isArray(payload?.catalogs) ? payload.catalogs : [];
         const normalized: PickerSource[] = [];
+        const seen = new Set<string>();
+        for (const row of leading) {
+          const mediaType = row.type === 'series' ? 'series' : 'movie';
+          const key = sourceKey({ addonId: '', catalogId: row.catalogId, type: mediaType });
+          if (seen.has(key)) continue;
+          seen.add(key);
+          normalized.push({ key, catalogId: row.catalogId, title: row.name, mediaType, category: row.category, icon: mediaType === 'series' ? '📺' : '🎬' });
+        }
         for (const source of list) {
           const catalogId = String(source.catalogId || source.id || '').trim();
           if (!catalogId) continue;
           const mediaType = source.type === 'series' ? 'series' : 'movie';
+          const key = sourceKey({ addonId: '', catalogId, type: mediaType });
+          if (seen.has(key)) continue;
+          seen.add(key);
           normalized.push({
-            key: sourceKey({ addonId: '', catalogId, type: mediaType }),
+            key,
             catalogId,
             title: String(source.name || source.title || catalogId.replace(/^lib-/, '')),
             mediaType,

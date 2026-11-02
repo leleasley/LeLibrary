@@ -1,4 +1,4 @@
-import { normalizeTileShape, normalizeViewMode, type CollectionDoc, type FolderDoc } from '@/features/setup/shared/collection-doc';
+import { collectionBackdrop, normalizeTileShape, normalizeViewMode, type CollectionDoc, type FolderDoc } from '@/features/setup/shared/collection-doc';
 import { FolderCard } from '@/features/setup/full/collections/FolderCard';
 
 // One collection in the studio. Closed it is a hero (artwork, inline title,
@@ -34,7 +34,7 @@ export function CollectionCard({ collection, open, system, names = {}, disableUp
   return (
     <article className={`collection-card${open ? ' collection-card-expanded' : ' collection-card-collapsed'}${system ? ' collection-card-system' : ''}`}>
       <div className="collection-hero">
-        {collection.backdropUrl && <img className="collection-hero-image" src={collection.backdropUrl} alt="" onError={(event) => { event.currentTarget.hidden = true; }} />}
+        {collectionBackdrop(collection) && <img className="collection-hero-image" src={collectionBackdrop(collection)} alt="" onError={(event) => { event.currentTarget.hidden = true; }} />}
         <button
           type="button" className="collection-hero-click" aria-expanded={open}
           aria-label={`${open ? 'Collapse ' : 'Expand '}${title}`} onClick={onToggle}
@@ -53,7 +53,8 @@ export function CollectionCard({ collection, open, system, names = {}, disableUp
             </div>
           </div>
           <div className="collection-hero-actions">
-            {!system && (
+            {/* The Hub moves and goes like any collection since 5.9. */}
+            {(
               <span className="collection-order-controls">
                 <button type="button" className="eye-btn" aria-label="Move collection up" disabled={disableUp} onClick={(event) => { event.stopPropagation(); onMove(-1); }}>↑</button>
                 <button type="button" className="eye-btn" aria-label="Move collection down" disabled={disableDown} onClick={(event) => { event.stopPropagation(); onMove(1); }}>↓</button>
@@ -62,9 +63,7 @@ export function CollectionCard({ collection, open, system, names = {}, disableUp
             <button type="button" className="collection-expand-button" aria-expanded={open} onClick={(event) => { event.stopPropagation(); onToggle(); }}>
               {open ? 'Collapse' : 'Edit collection'}
             </button>
-            {!system && (
-              <button type="button" className="btn-danger" onClick={(event) => { event.stopPropagation(); onRemove(); }}>Remove</button>
-            )}
+            <button type="button" className="btn-danger" onClick={(event) => { event.stopPropagation(); onRemove(); }}>Remove</button>
           </div>
         </div>
       </div>

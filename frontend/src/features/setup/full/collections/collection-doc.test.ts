@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
+import { collectionBackdrop,
   DISCOVERY_ROWS,
   HUB_COLLECTION_ID,
   HUB_MOVIES_FOLDER_ID,
@@ -82,13 +82,20 @@ describe('collection document', () => {
     }
   });
 
-  it('keeps the Hub last and leaves other order alone', () => {
+  it('keeps the order the setup chose, Hub included (it moves like any collection)', () => {
     const a = collectionDefault('A');
     const b = collectionDefault('B');
     const hub = hubCollection('rd', 'https://example.test');
-    const ordered = orderCollections([hub, a, b]);
-    expect(ordered.map((collection: CollectionDoc) => collection.id)).toEqual([a.id, b.id, hub.id]);
-    expect(orderCollections([a, b]).map((collection) => collection.id)).toEqual([a.id, b.id]);
+    expect(orderCollections([hub, a, b]).map((collection: CollectionDoc) => collection.id)).toEqual([hub.id, a.id, b.id]);
+    expect(orderCollections([a, hub, b]).map((collection) => collection.id)).toEqual([a.id, hub.id, b.id]);
+  });
+
+  it('every collection has a backdrop: its own, else its first folder art', () => {
+    const plain = { ...collectionDefault('A'), backdropUrl: '' };
+    expect(collectionBackdrop(plain)).toBe('');
+    const withArt = { ...plain, folders: [{ ...plain.folders[0]!, heroBackdropUrl: '', coverImageUrl: 'https://x.test/cover.jpg' }] };
+    expect(collectionBackdrop(withArt)).toBe('https://x.test/cover.jpg');
+    expect(collectionBackdrop({ ...withArt, backdropUrl: 'https://x.test/own.jpg' })).toBe('https://x.test/own.jpg');
   });
 
   it('absolutizes artwork urls and drops blanks', () => {

@@ -1,3 +1,4 @@
+import { withHubExtras } from '@/features/setup/shared/collection-doc';
 import {
   DEFAULT_STREAM_PRESET,
   HOME_ROW_PACKS,
@@ -73,10 +74,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 // so they ride through as-is once their minimum shape is proven.
 function cleanCollections(value: unknown): CollectionDoc[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(
-    (entry): entry is CollectionDoc =>
-      isRecord(entry) && typeof entry['id'] === 'string' && Array.isArray(entry['folders']),
-  );
+  const origin = typeof window === 'undefined' ? '' : window.location.origin;
+  return value
+    .filter((entry): entry is CollectionDoc =>
+      isRecord(entry) && typeof entry['id'] === 'string' && Array.isArray(entry['folders']))
+    // An older Hub shows its 4K, HDR and Genres folders, as a push sends them.
+    .map((collection) => withHubExtras(collection, origin));
 }
 
 export function cleanHomeRowDocs(value: unknown): HomeRowDoc[] {

@@ -290,7 +290,7 @@ export const ARTWORK_KEY_FIELDS: KeyField[] = [
   { field: 'erdbToken', label: 'ERDB token', hint: 'Ratings on posters from EasyRatingsDB.', docsUrl: 'https://easyratingsdb.com/configurator' },
   { field: 'rpdbKey', label: 'RPDB key', hint: 'Rating posters from Rating Poster DB.', docsUrl: 'https://ratingposterdb.com/' },
   { field: 'fanartKey', label: 'Fanart.tv key', hint: 'High-resolution alternative art.', docsUrl: 'https://www.fanart.tv/' },
-  { field: 'postersPlusUrl', label: 'Posters+ link', hint: 'Open Posters+, pick a style, press Copy config and paste the link here.', docsUrl: 'https://postersplus.elfhosted.com/' },
+  { field: 'postersPlusUrl', label: 'Posters+ link', hint: 'Open Posters+, pick a style and paste its poster link here (a /p/ preset link or the Copy config link).', docsUrl: 'https://postersplus.elfhosted.com/' },
 ];
 
 // Key field -> POST /api/verify/* endpoint. The server checks the key live;

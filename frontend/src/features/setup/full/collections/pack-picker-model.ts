@@ -240,7 +240,8 @@ export function addPackFolders(
       const known = new Set(existing.folders.map((folder) => folder.id));
       existing.folders.push(...folders.filter((folder) => !known.has(folder.id)));
     } else {
-      next.push({ ...PACK_BASE, backdropUrl: pack.backdropUrl || '', id: group.id, title: group.title, folders });
+      // Every collection gets a backdrop: the pack's own, else its cover.
+      next.push({ ...PACK_BASE, backdropUrl: pack.backdropUrl || pack.coverImageUrl || '', id: group.id, title: group.title, folders });
     }
     openedId = openedId ?? group.id;
   }

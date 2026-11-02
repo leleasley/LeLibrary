@@ -172,10 +172,10 @@ export function sourceKey(source: Pick<CatalogSourceRef, 'addonId' | 'catalogId'
 }
 
 // The Hub is always last; everything else keeps its order.
+// The setup's own order, Hub included. (Before 5.9 the Hub was always forced
+// last here, so it could never be moved: a push then put it at the bottom.)
 export function orderCollections(collections: CollectionDoc[]): CollectionDoc[] {
-  const hub = collections.filter((collection) => collection.id === HUB_COLLECTION_ID);
-  if (hub.length === 0) return [...collections];
-  return [...collections.filter((collection) => collection.id !== HUB_COLLECTION_ID), ...hub];
+  return [...collections];
 }
 
 // Provider → native catalogue prefix (matches the manifest's catalogue ids).
@@ -275,6 +275,32 @@ export function hubCollection(prefix: string, origin: string): CollectionDoc {
       })),
     ],
   };
+}
+
+// The image behind a collection: its own backdrop, else its first folder's
+// backdrop or cover, so no collection is ever blank (the push sends the same
+// as Nuvio's backdropImageUrl).
+export function collectionBackdrop(collection: CollectionDoc): string {
+  if (collection.backdropUrl) return collection.backdropUrl;
+  for (const folder of collection.folders || []) {
+    const image = folder.heroBackdropUrl || folder.coverImageUrl;
+    if (image) return image;
+  }
+  return '';
+}
+
+// A Hub saved before its 4K, HDR & Dolby Vision or Genres folders existed
+// gets them on load, on its Movies folder's provider prefix, so the editor
+// shows what a push sends (server: withHubExtras in collection-plan.ts).
+// Only missing folders are added; saved folders are never touched.
+export function withHubExtras(collection: CollectionDoc, origin: string): CollectionDoc {
+  if (!collection || collection.id !== HUB_COLLECTION_ID || !Array.isArray(collection.folders)) return collection;
+  const movies = collection.folders.find((folder) => folder.id === HUB_MOVIES_FOLDER_ID);
+  const prefix = (String(movies?.catalogSources?.[0]?.catalogId || '').match(/^([a-z]+)-movies$/) || [])[1];
+  if (!prefix) return collection;
+  const have = new Set(collection.folders.map((folder) => folder.id));
+  const extras = hubCollection(prefix, origin).folders.filter((folder) => !have.has(folder.id) && folder.id !== HUB_SHOWS_FOLDER_ID && folder.id !== HUB_MOVIES_FOLDER_ID);
+  return extras.length ? { ...collection, folders: [...collection.folders, ...extras] } : collection;
 }
 
 // ── Home rows (Move In Step 6) ────────────────────────────────────────────

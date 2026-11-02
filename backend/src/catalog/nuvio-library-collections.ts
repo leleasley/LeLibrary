@@ -91,20 +91,15 @@ function mergeCollectionsInPlace(existing, generated, { removeMissing = () => fa
     }
     out.push(item);
   }
+  // The setup's own order (its Collections page), Hub included; Home order
+  // itself comes from the Home items (setup/home-layout.ts). Movie Collections
+  // has no place on that page, so it stays last in this list. Neither the Hub
+  // nor Movie Collections may float to the top through a stale pinToTop.
   const franchise = requested.find((item) => String(item?.id) === LIBRARY_COLLECTION_ID);
-  const hub = requested.find((item) => String(item?.id) === LELIBRARY_HUB_ID);
-  const others = requested.filter((item) => {
-    const id = String(item?.id);
-    return id !== LIBRARY_COLLECTION_ID && id !== LELIBRARY_HUB_ID;
-  });
-  // LeLibrary's own library views always form the final section. The Hub sits
-  // immediately above Movie Collections when both are enabled, and neither
-  // may float back to the top through a stale pinToTop value.
-  const tail = [
-    ...(hub ? [{ ...hub, pinToTop: false }] : []),
-    ...(franchise ? [{ ...franchise, pinToTop: false }] : []),
-  ];
-  return [...out, ...others, ...tail];
+  const ordered = requested
+    .filter((item) => String(item?.id) !== LIBRARY_COLLECTION_ID)
+    .map((item) => (String(item?.id) === LELIBRARY_HUB_ID ? { ...item, pinToTop: false } : item));
+  return [...out, ...ordered, ...(franchise ? [{ ...franchise, pinToTop: false }] : [])];
 }
 
 export interface NuvioLibraryCollectionsApi {

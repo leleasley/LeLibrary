@@ -10,7 +10,9 @@
 // series), {id} (the Stremio id: the IMDb id, else "tmdb:<id>") and {shape}
 // ("poster"). A trailing "?" ({tmdb_id?}) makes one optional: when the title
 // has no value it is sent empty instead of dropping the whole poster. This is
-// the form Posters+ (and other Nuvio-style poster services) emit.
+// the form Posters+ (and other Nuvio-style poster services) emit. A pipe picks
+// the first one with a value ({imdb_id|tmdb_id}: the IMDb id, else the TMDB
+// id), the form Nuvio and Posters+ preset links use.
 const ALLOWED: Set<string> = new Set(['imdbId', 'imdb_id', 'tmdbId', 'tmdb_id', 'type', 'id', 'shape']);
 const IDENTIFIERS: Set<string> = new Set(['imdbId', 'imdb_id', 'tmdbId', 'tmdb_id', 'id']);
 
@@ -20,6 +22,16 @@ function normalizeEncodedPlaceholders(value: unknown): string {
 
 function baseName(placeholder: string): string {
   return placeholder.endsWith('?') ? placeholder.slice(0, -1) : placeholder;
+}
+
+// "imdb_id|tmdb_id?" -> ["imdb_id", "tmdb_id"]
+function choices(placeholder: string): string[] {
+  return baseName(placeholder).split('|');
+}
+
+function firstValue(placeholder: string, values: Record<string, string>): string {
+  for (const name of choices(placeholder)) if (values[name]) return values[name] as string;
+  return '';
 }
 
 export type PosterValidation =
@@ -35,9 +47,9 @@ function validate(template: unknown): PosterValidation {
   value.replace(/\{([^{}]+)\}/g, (_match: string, name: string) => { placeholders.push(name); return _match; });
   const residue = value.replace(/\{[^{}]+\}/g, '');
   if (/[{}]/.test(residue)) return { ok: false, error: 'The template contains an incomplete placeholder.' };
-  const unknown = placeholders.find((name) => !ALLOWED.has(baseName(name)));
+  const unknown = placeholders.find((name) => choices(name).some((choice) => !ALLOWED.has(choice)));
   if (unknown) return { ok: false, error: 'Unknown placeholder {' + unknown + '}.' };
-  if (!placeholders.some((name) => IDENTIFIERS.has(baseName(name)))) {
+  if (!placeholders.some((name) => choices(name).some((choice) => IDENTIFIERS.has(choice)))) {
     return { ok: false, error: 'Include at least one IMDb or TMDB ID placeholder.' };
   }
   let parsed: URL;
@@ -82,10 +94,10 @@ function resolve(template: unknown, media: PosterMedia | null | undefined): stri
   // own); an optional one is simply sent empty. Every template still needs
   // one identifier with a value, or there is nothing to draw.
   for (const name of checked.placeholders) {
-    if (!name.endsWith('?') && !values[name]) return null;
+    if (!name.endsWith('?') && !firstValue(name, values)) return null;
   }
-  if (!checked.placeholders.some((name) => IDENTIFIERS.has(baseName(name)) && values[baseName(name)])) return null;
-  return checked.value.replace(/\{([^{}]+)\}/g, (_match: string, name: string) => encodeURIComponent(values[baseName(name)] || ''));
+  if (!checked.placeholders.some((name) => choices(name).some((choice) => IDENTIFIERS.has(choice) && values[choice]))) return null;
+  return checked.value.replace(/\{([^{}]+)\}/g, (_match: string, name: string) => encodeURIComponent(firstValue(name, values)));
 }
 
 function apply<T>(row: T, template: unknown): T {
@@ -109,6 +121,13 @@ function fromPostersPlus(link: unknown): PosterValidation {
   try { parsed = new URL(raw); } catch { return { ok: false, error: 'Paste the full Posters+ link (it starts with https://).' }; }
   if (parsed.protocol !== 'https:') return { ok: false, error: 'Posters+ links must use HTTPS.' };
   const path = parsed.pathname.replace(/\/+$/, '');
+  // Newer Posters+ preset links: /p/<preset>/{type}/{imdb_id|tmdb_id}.jpg?shape={shape}
+  // (no key; the id may be an IMDb id or a TMDB id). Keep the preset, rebuild
+  // the rest with the placeholders we fill.
+  const preset = /^((?:\/[^/]+)*?)\/p\/([A-Za-z0-9_-]+)(?:\/|$)/.exec(path);
+  if (preset) {
+    return validate(parsed.origin + preset[1] + '/p/' + preset[2] + '/{type}/{imdb_id|tmdb_id}.jpg?shape={shape}');
+  }
   if (path && path !== '/poster' && !path.endsWith('/poster')) {
     return { ok: false, error: 'That is not a Posters+ poster link. In Posters+, press Copy config and paste that link.' };
   }

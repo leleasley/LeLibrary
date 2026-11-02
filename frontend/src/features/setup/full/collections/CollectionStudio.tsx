@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { toast } from '@/features/setup/shared/Toast';
-import {
+import { nativeLibraryRows, DISCOVERY_ROWS,
   HUB_COLLECTION_ID,
   collectionDefault,
   folderDefault,
@@ -68,7 +68,11 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
   const gifLibrary = useMemo(() => focusGifLibrary(curated), [curated]);
 
   const hubOn = collections.some((collection) => collection.id === HUB_COLLECTION_ID);
-  const regularCount = collections.filter((collection) => collection.id !== HUB_COLLECTION_ID).length;
+  // LeLibrary's own rows lead the folder source picker. The Stremio-only
+  // "LeLibrary Collections" row is a collection, not a folder source.
+  const folderLeadingSources = [...nativeLibraryRows(providerPrefix, platform).filter((row) => !row.nativeCollection), ...DISCOVERY_ROWS];
+  // Every collection moves, the Hub included (its place is its Nuvio place).
+  const regularCount = collections.length;
   const bundleCount = curated.filter((pack) => packKind(pack) === 'bundle').length;
   const packCount = curated.filter((pack) => packKind(pack) !== 'bundle').length;
   const meter = sizeMeter(collections, aliases);
@@ -147,7 +151,7 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
 
   function moveCollection(index: number, delta: -1 | 1) {
     const collection = collections[index];
-    if (!collection || collection.id === HUB_COLLECTION_ID) return;
+    if (!collection) return;
     const target = index + delta;
     if (target < 0 || target >= regularCount) return;
     const next = collections.slice();
@@ -311,6 +315,7 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
           folder={editorFolder}
           gifLibrary={gifLibrary}
           names={sourceNames}
+          leadingSources={folderLeadingSources}
           onSave={saveFolder}
           onClose={() => setEditor(null)}
         />

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { toast } from '@/features/setup/shared/Toast';
 import { FolderArt } from '@/features/setup/full/collections/FolderCard';
-import {
+import { type BrowserSource,
   absoluteUrl,
   sourceDisplayName,
   normalizeTileShape,
@@ -18,8 +18,10 @@ const EMOJI = ['🎬', '📺', '🍿', '⭐', '🔥', '💜', '✨', '🗂️'];
 // Folder editor: name + layout, artwork, catalogue sources. The focus-GIF
 // library picker arrives with the Quick Packs stage; until then the animation
 // URL is pasted by hand. Validation copies the old saveFolderModal().
-export function FolderEditorModal({ folder, gifLibrary, names = {}, onSave, onClose }: {
+export function FolderEditorModal({ folder, gifLibrary, names = {}, onSave, onClose, leadingSources = [] }: {
   folder: FolderDoc;
+  // LeLibrary's own rows, listed first in the source picker.
+  leadingSources?: BrowserSource[];
   gifLibrary: GifItem[];
   names?: Record<string, string>;
   onSave: (next: FolderDoc) => void;
@@ -220,6 +222,7 @@ export function FolderEditorModal({ folder, gifLibrary, names = {}, onSave, onCl
       <SourcePickerModal
         open={pickerOpen}
         selected={sources}
+        leading={leadingSources}
         onApply={(next) => { setSources(next); setPickerOpen(false); }}
         onClose={() => setPickerOpen(false)}
       />

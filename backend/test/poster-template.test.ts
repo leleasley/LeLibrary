@@ -107,3 +107,17 @@ test('Posters+ reaches every catalogue path as a custom template', () => {
   // Other providers are untouched.
   assert.equal(posterEnhance({ posterProvider: 'custom', customPosterTemplate: 'https://x.example/{tmdbId}.jpg' }).customPosterTemplate, 'https://x.example/{tmdbId}.jpg');
 });
+
+test('Posters+ preset links (/p/<preset>/...) work, with the {imdb_id|tmdb_id} pick', () => {
+  const t = require('../src/media/poster-template.ts');
+  const checked = t.fromPostersPlus('https://postersplus.elfhosted.com/p/bar_sash/{type}/{imdb_id|tmdb_id}.jpg?shape={shape}');
+  assert.equal(checked.ok, true);
+  assert.equal(t.resolve(checked.value, { imdbId: 'tt0111161', tmdbId: '278', type: 'movie' }), 'https://postersplus.elfhosted.com/p/bar_sash/movie/tt0111161.jpg?shape=poster');
+  assert.equal(t.resolve(checked.value, { tmdbId: '1399', type: 'series' }), 'https://postersplus.elfhosted.com/p/bar_sash/series/1399.jpg?shape=poster', 'no IMDb id: the TMDB id');
+  assert.equal(t.resolve(checked.value, { type: 'movie' }), null, 'no id at all: no poster');
+  // A preset link pasted with real values (copied from a result) is rebuilt with placeholders.
+  const copied = t.fromPostersPlus('https://postersplus.elfhosted.com/p/bar_sash/movie/tt0111161.jpg?shape=poster');
+  assert.equal(copied.value, 'https://postersplus.elfhosted.com/p/bar_sash/{type}/{imdb_id|tmdb_id}.jpg?shape={shape}');
+  // The pipe only accepts known placeholders.
+  assert.equal(t.validate('https://x.example/{imdb_id|nope}.jpg').ok, false);
+});

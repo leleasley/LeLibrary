@@ -39,6 +39,10 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 - New actors (Arnold Schwarzenegger, Sylvester Stallone, Bruce Willis, Denzel Washington, Tom Cruise, Adam Sandler, Jim Carrey, Eddie Murphy, Rowan Atkinson), M. Night Shyamalan, and new themes such as Sharks, Dinosaurs, Disasters, Robots & AI and Courtroom Dramas.
 - Batman and Spider-Man now hold every era of films.
 - Adding LeLibrary Special also adds the LeLibrary Hub and your Movie Collections, since they are part of the same LeLibrary set.
+- Collections now keep the order you give them on Nuvio. Your collections follow your Home rows in the order of the Collections page, Movie Collections sits wherever you put its Home row, and renaming that row renames it on Nuvio. The LeLibrary Hub can be moved and removed like any other collection.
+- Every collection gets a backdrop (its own, else its pack cover or first folder), on the setup page and on Nuvio TV.
+- The folder source picker lists your own LeLibrary rows first: My Movies, My Shows, 4K, HDR and every genre, theme and world cinema row. An older Hub now shows its Genres, 4K and HDR folders without being re-added.
+- Posters+ preset links (the newer /p/ style, such as .../p/bar_sash/{type}/{imdb_id|tmdb_id}.jpg) now work.
 
 ### Fixes
 

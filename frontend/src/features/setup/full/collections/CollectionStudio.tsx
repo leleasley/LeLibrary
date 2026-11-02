@@ -14,7 +14,7 @@ import {
   useCuratedPacks,
   type CuratedPack,
 } from '@/features/setup/full/collections/curated-packs';
-import { addPackFolders, packKind, sizeMeter } from '@/features/setup/full/collections/pack-picker-model';
+import { addPackFolders, packKind, sizeMeter, specialExtras, SPECIAL_PACK_ID } from '@/features/setup/full/collections/pack-picker-model';
 import { regionForLang } from '@/features/setup/full/collections/region';
 import { CollectionCard, applyCollectionField } from '@/features/setup/full/collections/CollectionCard';
 import { FolderEditorModal } from '@/features/setup/full/collections/FolderEditorModal';
@@ -88,6 +88,25 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
   // themselves, so an unticked folder never comes back through the pack.
   function addPack(pack: CuratedPack, excluded: ReadonlySet<string>) {
     const next = addPackFolders(collections, pack, { region, hasMdblistKey, excluded, aliases });
+    // LeLibrary Special is the whole LeLibrary set: it brings the Hub (My
+    // Movies, My Shows, 4K, HDR, Genres) and the Movie Collections with it.
+    // Removing Special leaves them: they stay their own cards.
+    if (pack.id === SPECIAL_PACK_ID) {
+      const extra = specialExtras({
+        packId: pack.id, collections: next.collections, hubOn, ownedOn,
+        makeHub: providerPrefix ? () => hubCollection(providerPrefix, window.location.origin) : null,
+      });
+      if (next.added === 0 && !extra.addedHub && !extra.turnOnOwned) {
+        toast('Those folders are already in this setup');
+        return;
+      }
+      onChange(orderCollections(extra.collections));
+      if (extra.turnOnOwned) onToggleOwned(true);
+      if (extra.addedHub) toast('LeLibrary Special added, with the LeLibrary Hub and Movie Collections');
+      else if (extra.turnOnOwned) toast('LeLibrary Special added, with your Movie Collections');
+      else if (!providerPrefix) toast('LeLibrary Special added. Connect a debrid provider to add the LeLibrary Hub and Movie Collections too.');
+      return;
+    }
     if (next.added === 0) {
       toast('Those folders are already in this setup');
       return;

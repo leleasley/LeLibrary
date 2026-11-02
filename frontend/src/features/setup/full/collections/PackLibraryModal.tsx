@@ -236,7 +236,7 @@ export function PackLibraryModal({
     const title = kind === 'owned' ? 'LeLibrary Movie Collections' : 'LeLibrary Hub';
     const description = kind === 'owned'
       ? 'Automatically groups your owned films into franchise folders.'
-      : 'Keeps My Movies and My Shows together in two simple folders.';
+      : 'My Movies, My Shows, 4K, HDR and your genres, together in one place.';
     return (
       <article className={`pp-card pp-card-system${on ? ' is-added' : ''}`} key={kind}>
         <div className="pp-card-main">

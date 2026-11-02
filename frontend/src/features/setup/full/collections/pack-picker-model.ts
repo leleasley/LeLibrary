@@ -270,3 +270,26 @@ export function sizeMeter(collections: CollectionDoc[], aliases: Record<string, 
     warn: folders > HOME_FOLDER_WARNING,
   };
 }
+
+// LeLibrary Special is the whole LeLibrary set: adding it also brings the Hub
+// (My Movies, My Shows, 4K, HDR, Genres) and turns on the owned Movie
+// Collections. Pure, so the studio and the tests share it.
+export const SPECIAL_PACK_ID = 'lelibrary-special';
+
+export function specialExtras(input: {
+  packId: string;
+  collections: CollectionDoc[];
+  hubOn: boolean;
+  ownedOn: boolean;
+  // null while no debrid provider is connected: neither the Hub nor the
+  // owned Movie Collections can exist yet, so nothing extra is added.
+  makeHub: (() => CollectionDoc) | null;
+}): { collections: CollectionDoc[]; addedHub: boolean; turnOnOwned: boolean } {
+  if (input.packId !== SPECIAL_PACK_ID || input.makeHub === null) return { collections: input.collections, addedHub: false, turnOnOwned: false };
+  const addedHub = !input.hubOn;
+  return {
+    collections: addedHub ? [...input.collections, input.makeHub()] : input.collections,
+    addedHub,
+    turnOnOwned: !input.ownedOn,
+  };
+}

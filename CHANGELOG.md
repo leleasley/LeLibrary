@@ -38,6 +38,7 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 - Kids & Family gains an Animated Sagas section (Moana, Zootopia, Trolls, Wallace & Gromit and more), Anime Hub and the Anime Fan bundle gain Anime Movie Sagas (Pokemon, Dragon Ball, One Piece, Naruto and more), and Horror Fan gains Hatchet, Silent Hill, Tremors, Leprechaun, Blair Witch, Universal Monsters, Stephen King and more.
 - New actors (Arnold Schwarzenegger, Sylvester Stallone, Bruce Willis, Denzel Washington, Tom Cruise, Adam Sandler, Jim Carrey, Eddie Murphy, Rowan Atkinson), M. Night Shyamalan, and new themes such as Sharks, Dinosaurs, Disasters, Robots & AI and Courtroom Dramas.
 - Batman and Spider-Man now hold every era of films.
+- Adding LeLibrary Special also adds the LeLibrary Hub and your Movie Collections, since they are part of the same LeLibrary set.
 
 ### Fixes
 

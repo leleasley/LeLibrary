@@ -621,7 +621,7 @@ const CURATED_COLLECTIONS = mergeCompatibleMediaSources([
   {
     // Sections and folders are derived below from the standard packs.
     id: 'lelibrary-special', title: 'LeLibrary Special', icon: '🌟',
-    description: 'The ultimate LeLibrary sampler: big, bold, and packed with variety. Made for Home Rows and Nuvio Collections.',
+    description: 'The ultimate LeLibrary sampler: big, bold, and packed with variety. Also adds the LeLibrary Hub and your Movie Collections.',
     sections: [],
     folders: [],
   },

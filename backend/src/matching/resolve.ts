@@ -36,7 +36,10 @@ const RESOLVER_VERSION = 'v6';
 // r8 adds the guarded near-title fallback (and/&, " - " prefixes, typos).
 // r9 fixes the shared search cache key for non-Latin queries.
 // r10 retries names with a scene group's name in front ("honor-...").
-const MATCH_RETRY_VERSION = 'r10';
+// r11: a film whose title starts like a season ("S4.The.Bob.Lazar.Story.2026")
+// is retried as that film; a yearless outer name ("The First Time", "Tormoz
+// Brake MVO...") that fails falls back to its one dated main video file.
+const MATCH_RETRY_VERSION = 'r11';
 // Parser-only corrections should re-open failed/terminal rows without marking
 // every already-matched library row stale. Bump this when parser semantics
 // change in a way that can recover a prior failure.
@@ -314,7 +317,10 @@ function failure(reason, tried) {
 // Resolve one release name. Pure decision apart from the injected deps
 // (default: real parser + key-scoped TMDB layer; tests inject stubs). Never
 // throws: TMDB/network failures become retryable Failure reasons.
-async function resolveMatch({ name, mediaType = 'series', lang = 'en-US', tmdbApiKey = null, requireUniqueStrongYear = false }, deps, shared = null) {
+// `parsed` lets a caller hand over a title/year the parser cannot express
+// (a film whose title starts with what looks like a season marker, "S4: The
+// Bob Lazar Story"); everything else still goes through the same checks.
+async function resolveMatch({ name, mediaType = 'series', lang = 'en-US', tmdbApiKey = null, requireUniqueStrongYear = false, parsed = null }, deps, shared = null) {
   const baseDeps = deps || defaultDeps(tmdbApiKey);
   const d = shared ? { ...baseDeps } : baseDeps;
   const seasonMemo = shared?.seasonCounts || new Map();
@@ -340,11 +346,13 @@ async function resolveMatch({ name, mediaType = 'series', lang = 'en-US', tmdbAp
   }
   const tried = [];
   try {
-    let info = null;
-    try {
-      info = d.parse(name);
-    } catch {
-      info = null;
+    let info = parsed && typeof parsed === 'object' ? parsed : null;
+    if (!info) {
+      try {
+        info = d.parse(name);
+      } catch {
+        info = null;
+      }
     }
     if (!info || !info.title) return failure('unparseable', tried);
     if (mediaType === 'movie' && info.isSeries && info.season != null) {

@@ -44,3 +44,4 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 - Director collections now hold only the films that person directed. Before, a film they wrote, produced or worked on as an assistant could appear.
 - Every collection was checked against TMDB so each one holds the films it is named after.
+- Better matching for downloads whose name gives too little away. A film whose title starts like a season (S4: The Bob Lazar Story) is no longer read as a TV show, and a download name with no year (The First Time, or a mostly non-English name) now uses the year and title from the film file inside it. Files that failed before are tried once more.

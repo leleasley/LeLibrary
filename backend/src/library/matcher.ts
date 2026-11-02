@@ -162,6 +162,31 @@ function embeddedDominantMovieCandidate(files) {
   return { title: String(info.title).trim(), year: info.year };
 }
 
+// "S4.The.Bob.Lazar.Story.2026": the parser reads a leading "S4" as season 4
+// of a show. When that finds nothing, the same name as a dated film with the
+// marker kept in its title ("S4 The Bob Lazar Story", 2026) is the other
+// honest reading. Only for a leading marker, a year and no episode.
+function leadingSeasonFilm(name, parsed) {
+  const lead = /^\s*S(\d{1,2})[.\s_-]/i.exec(String(name || ''));
+  if (!lead || !parsed || parsed.season == null || parsed.episode != null) return null;
+  if (!Number.isInteger(parsed.year) || parseInt(lead[1], 10) !== Number(parsed.season)) return null;
+  return {
+    ...parsed,
+    title: `S${lead[1]} ${parsed.title}`,
+    isSeries: false, season: null, seasonStart: null, seasonEnd: null, episode: null, episodeEnd: null,
+  };
+}
+
+// The outer download name carries no year ("The First Time", "Tormoz Brake
+// MVO Sub Rus + Original Eng") and found nothing usable, but the release's one
+// main video file is a clean dated film name. Same byte-dominance and dating
+// rules as the hash-named path; the caller resolves it with the normal rules.
+function weakOuterFilm(name, parsed, files) {
+  if (isOpaqueOuterName(name)) return null; // handled by the hash-named path
+  if (parsed && Number.isInteger(parsed.year)) return null;
+  return embeddedDominantMovieCandidate(files);
+}
+
 function parsedTypeCorrection(mediaType, parsed, failureReason) {
   if (failureReason === 'type-mismatch' && mediaType === 'movie' && parsed?.isSeries) {
     return parsed.isAnime ? 'anime' : 'series';
@@ -516,6 +541,28 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
             if (embeddedResolved?.ok) { resolved = embeddedResolved; resolvedType = 'movie'; }
           }
         }
+        // A film whose title starts like a season ("S4.The.Bob.Lazar.Story").
+        if (!resolved?.ok && resolved?.reason === 'no-candidate') {
+          const film = leadingSeasonFilm(name, parsedOuter);
+          if (film) {
+            metrics.add('tmdbCalls');
+            const again = await resolveMatch({ name, mediaType: 'movie', lang, tmdbApiKey, requireUniqueStrongYear: true, parsed: film }, undefined, sharedMatchLookups);
+            if (again?.ok) { resolved = again; resolvedType = 'movie'; }
+          }
+        }
+        // A yearless outer name that found nothing, or too much ("The First
+        // Time" has several films): its one dated main video decides.
+        if (!resolved?.ok && (resolved?.reason === 'no-candidate' || resolved?.reason === 'ambiguous-candidate') && !embeddedSummary) {
+          const film = weakOuterFilm(name, parsedOuter, embedded);
+          if (film) {
+            metrics.add('tmdbCalls');
+            // The normal rules, as for the outer name: one exact title and
+            // year, or one that clearly outvotes the rest (TMDB has two 2012
+            // "The First Time" films, 2,187 votes against 2). Close calls stay failed.
+            const again = await resolveMatch({ name: `${film.title} ${film.year}`, mediaType: 'movie', lang, tmdbApiKey }, undefined, sharedMatchLookups);
+            if (again?.ok) { resolved = again; resolvedType = 'movie'; }
+          }
+        }
       } catch (err) {
         if (await failOrKeep(job, { status: 'failed', error: String(err.message || err).slice(0, 300), version: retryVersion() })) { processed++; return; }
         builder.publishMatchEntry(mediaType, lang, name, null);
@@ -691,6 +738,8 @@ export interface MatcherApi {
   embeddedDominantMovieCandidate: any;
   parsedTypeCorrection: any;
   resolveEmbeddedMovieTypeConflict: any;
+  leadingSeasonFilm: any;
+  weakOuterFilm: any;
 }
 
-module.exports = { matchScope, offlineEnabled, embeddedVideoFiles, isOpaqueOuterName, stripLeadingGroupPrefix, releaseNameHints, mediaFileName, embeddedDominantMovieCandidate, parsedTypeCorrection, resolveEmbeddedMovieTypeConflict } satisfies MatcherApi;
+module.exports = { matchScope, offlineEnabled, embeddedVideoFiles, isOpaqueOuterName, stripLeadingGroupPrefix, releaseNameHints, mediaFileName, embeddedDominantMovieCandidate, parsedTypeCorrection, resolveEmbeddedMovieTypeConflict, leadingSeasonFilm, weakOuterFilm } satisfies MatcherApi;

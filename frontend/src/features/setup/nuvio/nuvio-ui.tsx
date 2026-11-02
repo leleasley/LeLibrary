@@ -33,7 +33,7 @@ export interface Problem {
 export function problemFrom(error: unknown, fallback = 'That did not work. Try again.'): Problem {
   const code = error instanceof ApiError ? error.code ?? null : null;
   if (code === 'nuvio-session-expired') {
-    return { code, message: setupCopy('Sign in to Nuvio again on the Destination step', 'Sign in to Nuvio again on the Destination step') };
+    return { code, message: setupCopy('Sign in to Nuvio again on the Connect page', 'Sign in to Nuvio again on the Connect page') };
   }
   return { code, message: apiErrorCopy(error, setupCopy(fallback, fallback)) };
 }

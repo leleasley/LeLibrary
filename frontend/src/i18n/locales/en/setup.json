@@ -1761,6 +1761,8 @@
     "Little-known hidden": "Little-known hidden",
     "Language, order, anime, notices, row names and Nuvio playback.": "Language, order, anime, notices, row names and Nuvio playback.",
     "Saving moves this setup to {{value}}.": "Saving moves this setup to {{value}}.",
-    "You have unsaved changes.": "You have unsaved changes."
+    "You have unsaved changes.": "You have unsaved changes.",
+    "Sign in to {{value}} on the Connect page to push from here.": "Sign in to {{value}} on the Connect page to push from here.",
+    "Sign in to Nuvio again on the Connect page": "Sign in to Nuvio again on the Connect page"
   }
 }

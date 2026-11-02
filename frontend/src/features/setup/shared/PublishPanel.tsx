@@ -100,8 +100,8 @@ export function publishActionFor(input: {
   platformName: string;
   onSaveAndPush: () => void;
   onSave: () => void;
-  // Where the login lives for this tier: Move In has a Destination step, Settle
-  // In collects it right in the publish desk.
+  // Where to sign in to push. Settle In and Move In both sign in on their
+  // Connect page; a caller can word it differently.
   connectHint?: string;
 }): PublishAction {
   const { dirty, pushing, saving, pushAvailable, platformName } = input;
@@ -111,7 +111,7 @@ export function publishActionFor(input: {
       busy: saving,
       disabled: !dirty,
       onClick: input.onSave,
-      hint: input.connectHint ?? `Connect ${platformName} on the Destination step to push from here.`,
+      hint: input.connectHint ?? `Sign in to ${platformName} on the Connect page to push from here.`,
     };
   }
   return {

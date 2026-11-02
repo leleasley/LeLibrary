@@ -158,7 +158,7 @@ describe('the single action at the end of a setup', () => {
     const onSave = vi.fn();
     const action = publishActionFor({ ...base, dirty: true, pushAvailable: false, onSaveAndPush: () => {}, onSave });
     expect(action.label).toBe('Save changes');
-    expect(action.hint).toContain('Connect Nuvio on the Destination step');
+    expect(action.hint).toContain('Sign in to Nuvio on the Connect page');
     action.onClick();
     expect(onSave).toHaveBeenCalledOnce();
   });

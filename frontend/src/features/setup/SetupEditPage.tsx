@@ -688,9 +688,8 @@ export function SetupEditPage() {
                 dirty, pushing, saving, pushAvailable, platformName,
                 onSaveAndPush: () => void saveAndPush(),
                 onSave: () => void saveAll(),
-                connectHint: activeTier === 'full'
-                  ? `Connect ${platformName} on the Destination step to push from here.`
-                  : `Sign in above (optional) and this pushes straight to ${platformName}.`,
+                // Both Settle In and Move In sign in on their Connect page now.
+                connectHint: `Sign in to ${platformName} on the Connect page to push from here.`,
               })}
               secondaryAction={{ label: 'Clear my edits', disabled: !dirty, onClick: clearEdits }}
               regenerate={regenerate}

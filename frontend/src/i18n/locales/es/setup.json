@@ -1761,6 +1761,8 @@
     "Little-known hidden": "Poco conocidos ocultos",
     "Language, order, anime, notices, row names and Nuvio playback.": "Idioma, orden, anime, avisos, nombres de filas y reproducción de Nuvio.",
     "Saving moves this setup to {{value}}.": "Al guardar, esta configuración pasa a {{value}}.",
-    "You have unsaved changes.": "Tienes cambios sin guardar."
+    "You have unsaved changes.": "Tienes cambios sin guardar.",
+    "Sign in to {{value}} on the Connect page to push from here.": "Inicia sesión en {{value}} en la página Conectar para enviarla desde aquí.",
+    "Sign in to Nuvio again on the Connect page": "Vuelve a iniciar sesión en Nuvio en la página Conectar"
   }
 }

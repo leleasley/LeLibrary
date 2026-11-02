@@ -768,6 +768,13 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       }
     }
 
+    // "Your genres" rows need the library database (genres live there). The
+    // request-time path has none: answer empty rather than the whole library.
+    if (require('../library/quality-filter.ts').isGenreVariant(variant)) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json(withCacheHints({ metas: [] }, { cacheMaxAge: 0, staleRevalidate: 0, staleError: 0 }));
+    }
+
     console.log(`[Catalog] catalog=${catalogId} type=${type} skip=${skip} lang=${lang}`);
     const catKey   = separate ? providers.PROVIDER_META[catalogProviderId].cat : 'merged';
     // hideAnime is part of the key: installs sharing provider keys but differing

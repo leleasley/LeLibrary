@@ -4,6 +4,11 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 ## [5.9.0]
 
+### Your library
+
+- New Your genres rows: Your Horror Movies, Your Comedy Shows, Your Sci-Fi & Fantasy Shows and more, made only from what you own. Add them as Home rows or put them in a folder, like the 4K and HDR rows. Genres are looked up once per title in the background, so a big library fills in over the first hour.
+- The Library page now shows your library at a glance: how much is in your cloud, how many titles are in 4K and in HDR or Dolby Vision, how many arrived this week, and posters of the newest.
+
 ### A tidier setup
 
 - Settle In is now four short pages (Connect, Setup, Home rows, Protect) and Move In five (Connect, Setup, Home, Collections, Protect). Your player login always comes first.

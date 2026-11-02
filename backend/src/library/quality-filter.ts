@@ -8,11 +8,13 @@
 // Catalogue ids: `{prefix}-movies-4k`, `{prefix}-series-4k`,
 // `{prefix}-movies-hdr`, `{prefix}-series-hdr` (prefix = torbox, rd, ...).
 
-type Variant = '4k' | 'hdr';
+// '4k' | 'hdr' (release quality) or 'g-<slug>' (a "Your genres" row, see
+// library/genres.ts; filtered by TMDB genre, not by release name).
+type Variant = '4k' | 'hdr' | `g-${string}`;
 type Row = { name?: unknown; raw?: unknown; [key: string]: unknown };
 
 const VARIANTS: readonly Variant[] = ['4k', 'hdr'];
-const LIBRARY_ID = /^([a-z]+)-(movies|series|anime)(?:-(4k|hdr))?$/;
+const LIBRARY_ID = /^([a-z]+)-(movies|series|anime)(?:-(4k|hdr|g-[a-z]+))?$/;
 
 const TESTS: Record<Variant, RegExp> = {
   '4k': /\b(?:2160P|4K|UHD)\b/,
@@ -25,7 +27,16 @@ function parseLibraryCatalogId(id: unknown): { prefix: string; kind: 'movies' | 
   const kind = match[2] as 'movies' | 'series' | 'anime';
   const variant = (match[3] as Variant | undefined) || null;
   if (variant && kind === 'anime') return null;
+  if (variant && variant.startsWith('g-')) {
+    const genre = require('./genres.ts').genreBySlug(variant.slice(2));
+    const ids = genre ? (kind === 'movies' ? genre.movie : genre.tv) : [];
+    if (!ids.length) return null;
+  }
   return { prefix: match[1] as string, kind, variant };
+}
+
+function isGenreVariant(variant: unknown): variant is `g-${string}` {
+  return typeof variant === 'string' && variant.startsWith('g-');
 }
 
 // Every name a release carries: the item name, and file names where the
@@ -54,6 +65,8 @@ function releaseNames(item: Row): string[] {
 
 function matchesVariant(item: Row, variant: Variant | null): boolean {
   if (!variant) return true;
+  // Genre rows are filtered by TMDB genre (library/genres.ts), not names.
+  if (isGenreVariant(variant)) return true;
   const test = TESTS[variant];
   return releaseNames(item).some((name) => test.test(name.toUpperCase()));
 }
@@ -62,6 +75,7 @@ export interface QualityFilterApi {
   VARIANTS: readonly Variant[];
   parseLibraryCatalogId: typeof parseLibraryCatalogId;
   matchesVariant: typeof matchesVariant;
+  isGenreVariant: typeof isGenreVariant;
 }
 
-module.exports = { VARIANTS, parseLibraryCatalogId, matchesVariant } satisfies QualityFilterApi;
+module.exports = { VARIANTS, parseLibraryCatalogId, matchesVariant, isGenreVariant } satisfies QualityFilterApi;

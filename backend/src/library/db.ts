@@ -269,6 +269,16 @@ const MIGRATIONS = [
      created_at  timestamptz NOT NULL DEFAULT now(),
      PRIMARY KEY (key_kind, key, voter)
    )`,
+  // TMDB genre ids per title for the "Your genres" rows (library/genres.ts).
+  // A fact about the title, shared by every library; filled in the background.
+  `CREATE TABLE IF NOT EXISTS lib_tmdb_genres (
+     media_type  text NOT NULL CHECK (media_type IN ('movie', 'tv')),
+     tmdb_id     integer NOT NULL,
+     genre_ids   integer[] NOT NULL DEFAULT '{}',
+     fetched_at  timestamptz NOT NULL DEFAULT now(),
+     PRIMARY KEY (media_type, tmdb_id)
+   )`,
+  `CREATE INDEX IF NOT EXISTS lib_tmdb_genres_ids_idx ON lib_tmdb_genres USING gin (genre_ids)`,
 ];
 
 async function migrate() {

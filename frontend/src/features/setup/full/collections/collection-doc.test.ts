@@ -13,6 +13,8 @@ import {
   hubCollection,
   hubPrefix,
   nativeLibraryRows,
+  LIBRARY_GENRES,
+  YOUR_GENRES_GROUP,
   normalizeHomeOrder,
   normalizeTileShape,
   normalizeViewMode,
@@ -97,9 +99,17 @@ describe('home rows', () => {
   it('builds native and discovery browser rows', () => {
     expect(nativeLibraryRows(null, 'nuvio')).toEqual(nativeLibraryRows('torbox', 'nuvio'));
     const native = nativeLibraryRows('torbox', 'nuvio');
-    expect(native.map((row) => row.catalogId)).toEqual(['torbox-movies', 'torbox-series', 'torbox-anime', 'torbox-movies-4k', 'torbox-series-4k', 'torbox-movies-hdr', 'torbox-series-hdr']);
+    const owned = (rows: typeof native) => rows.filter((row) => row.category !== YOUR_GENRES_GROUP).map((row) => row.catalogId);
+    expect(owned(native)).toEqual(['torbox-movies', 'torbox-series', 'torbox-anime', 'torbox-movies-4k', 'torbox-series-4k', 'torbox-movies-hdr', 'torbox-series-hdr']);
     const stremio = nativeLibraryRows('rd', 'stremio');
-    expect(stremio.map((row) => row.catalogId)).toEqual(['rd-movies', 'rd-series', 'rd-anime', 'rd-movies-4k', 'rd-series-4k', 'rd-movies-hdr', 'rd-series-hdr', 'torbox-collections']);
+    expect(owned(stremio)).toEqual(['rd-movies', 'rd-series', 'rd-anime', 'rd-movies-4k', 'rd-series-4k', 'rd-movies-hdr', 'rd-series-hdr', 'torbox-collections']);
+    // Your genres: one row per kind TMDB has the genre for, on the same prefix.
+    const genres = native.filter((row) => row.category === YOUR_GENRES_GROUP);
+    expect(genres).toHaveLength(LIBRARY_GENRES.filter((g) => g.movie).length + LIBRARY_GENRES.filter((g) => g.tv).length);
+    expect(genres.map((row) => row.catalogId)).toContain('torbox-movies-g-horror');
+    expect(genres.map((row) => row.catalogId)).not.toContain('torbox-series-g-horror');
+    expect(genres.find((row) => row.catalogId === 'torbox-series-g-comedy')?.name).toBe('Your Comedy Shows');
+    expect(genres.every((row) => row.defaultHome === false)).toBe(true);
     expect(DISCOVERY_ROWS.map((row) => row.catalogId)).toEqual([
       'torbox-trending-movies', 'torbox-trending-series', 'torbox-popular-movies', 'torbox-popular-series',
     ]);

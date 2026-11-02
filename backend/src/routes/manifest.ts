@@ -210,6 +210,23 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
         catalogs.push(row);
       }
     }
+    // "Your genres" rows (library/genres.ts): the same library narrowed to one
+    // TMDB genre. Database-backed libraries only; declared, like the quality
+    // rows, only when picked as a Home row or used by a folder.
+    if (!require('../library/engine.ts').isIndexed()) return;
+    const genres = require('../library/genres.ts');
+    for (const prefix of groups) {
+      for (const genre of genres.genresFor(type)) {
+        const id = `${prefix}-${type}-g-${genre.slug}`;
+        const picked = selectedHomeCatalogs.has(id);
+        if (!picked && !qualityWanted.has(id)) continue;
+        const tag = separate && groups.length > 1 ? ` [${providers.PROVIDER_META[providers.providerByCat(prefix)].short}]` : '';
+        const name = type === 'movies' ? `🎬 Your ${genre.name} Movies` : `📺 Your ${genre.tvName || genre.name} Shows`;
+        const row: LooseConfig = { id, type: type === 'movies' ? 'movie' : 'series', name: name + tag, extra: CAT_EXTRA };
+        if (integration === 'nuvio' && !picked) row.showInHome = false;
+        catalogs.push(row);
+      }
+    }
   }
 
   // ── "LeLibrary Collections" movie catalogs ──

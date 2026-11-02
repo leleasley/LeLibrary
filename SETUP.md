@@ -120,6 +120,9 @@ Once a setup is unlocked, the edit page has a **Library** tab. It
 shows what LeLibrary found in your debrid account (or WebDAV server) and how it
 matched each file:
 
+- The top of the tab shows your library at a glance: how much is in your
+  cloud, how many titles are in 4K and in HDR or Dolby Vision, how many
+  arrived this week, and posters of the newest.
 - **Need attention** lists files that could not be matched, with the reason.
   Press **Fix** to pick the right film or show (search by title, TMDB id or IMDb
   id; for a show you can pick the season or episode). **Ignore** hides a file
@@ -159,6 +162,12 @@ addon, and within a few minutes otherwise.
   order. The link is stored sealed with your keys and is never shown again;
   remove it and add it again to change it. The hosted site only reaches public
   HTTPS addons.
+- **Your genres rows** (Settle In and Move In). In **Add rows**, the **Your
+  genres** group has a row per genre made only from what you own: Your Horror
+  Movies, Your Comedy Shows and so on. Use them as Home rows or in a folder.
+  Genres are looked up once per title in the background, so on a big library
+  the rows fill in over the first hour. They need the library database
+  (always on the hosted site; self-hosters need Postgres).
 - **Settings backup.** On your setup's edit page, **Download settings backup**
   saves the setup's settings to a file. Keys, your password and player logins
   are never included. On the setup page, **Start from a settings backup** fills

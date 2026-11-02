@@ -382,6 +382,27 @@ function identityYearOf(row) {
 // every matched entity, one entity at a time, entirely in the background. A
 // series confirmed as anime is reclassified and the scope's identity version is
 // bumped so catalog caches rebuild.
+// "Your genres" fill (library/genres.ts): a gentle background pass that
+// gives every matched title its TMDB genres. Off with LIBRARY_GENRES=off.
+let genreTimer = null;
+let genreFilling = false;
+async function genresOnce() {
+  if (genreFilling || String(process.env.LIBRARY_GENRES || '').toLowerCase() === 'off') return 0;
+  genreFilling = true;
+  let total = 0;
+  try {
+    const { fillForScope } = require('./genres.ts');
+    for (const rec of registry.values()) {
+      if (rec.syncing) continue;
+      total += await fillForScope(rec.scopeId, rec.tmdbApiKey).catch(() => 0);
+    }
+    if (total) console.log(`[Library] genres filled for ${total} titles`);
+    return total;
+  } finally {
+    genreFilling = false;
+  }
+}
+
 async function enrichOnce() {
   if (enriching) return { skipped: true };
   enriching = true;
@@ -504,6 +525,9 @@ async function start() {
   drainTimer.unref?.();
   enrichTimer = setInterval(() => { enrichOnce().catch(() => {}); }, enrichIntervalMs());
   enrichTimer.unref?.();
+  genreTimer = setInterval(() => { genresOnce().catch(() => {}); }, 60_000);
+  genreTimer.unref?.();
+  setTimeout(() => { genresOnce().catch(() => {}); }, 30_000).unref?.();
   setTimeout(() => { runOnce().catch(() => {}); }, 2000).unref?.();
   setTimeout(() => { drainOnce().catch(() => {}); }, 5000).unref?.();
   setTimeout(() => { enrichOnce().catch(() => {}); }, 8000).unref?.();
@@ -513,6 +537,7 @@ async function start() {
 function stop() {
   if (startRetryTimer) { clearTimeout(startRetryTimer); startRetryTimer = null; }
   if (workerTimer) { clearInterval(workerTimer); workerTimer = null; }
+  if (genreTimer) { clearInterval(genreTimer); genreTimer = null; }
   if (drainTimer) { clearInterval(drainTimer); drainTimer = null; }
   if (enrichTimer) { clearInterval(enrichTimer); enrichTimer = null; }
   started = false;
@@ -592,7 +617,11 @@ async function buildCatalog({ token, config, type, sortBy = 'data_adicao', skip 
   // Movies / My Series (Your Name., Totoro). Part of the cache key, so the
   // switch takes effect on the next request.
   const hideAnime = config?.hideAnime === true && type !== 'anime';
-  const fingerprint = catalogFingerprint({ userKey, type, sortBy, skip, libraryIdMode, provider, enhance, hideAnime, variant });
+  // Genre rows also key on the genre fill's progress, so a page cached while
+  // the first fill ran is rebuilt as genres arrive.
+  const genreRow = typeof variant === 'string' && variant.startsWith('g-');
+  const fingerprint = catalogFingerprint({ userKey, type, sortBy, skip, libraryIdMode, provider, enhance, hideAnime,
+    variant: genreRow ? `${variant}@${require('./genres.ts').genreVersion()}` : variant });
   // Result cache keyed on the projection fingerprint, so a completed sync that
   // changed nothing keeps serving cached pages, and stale pages expire on
   // their own TTL. A content change (or identity-version bump) naturally
@@ -636,7 +665,11 @@ async function buildCatalog({ token, config, type, sortBy = 'data_adicao', skip 
       if (hideAnime) rows = catalog.withoutTmdbAnime(rows);
       // 4K / HDR rows: titles with at least one release of that quality. All
       // releases of a kept title stay, so its page and streams match My Movies.
-      if (variant) {
+      if (genreRow) {
+        // "Your genres" rows: titles whose TMDB genres include this one.
+        const ids = await require('./genres.ts').tmdbIdsWithGenre(type === 'movie' ? 'movies' : 'series', variant.slice(2));
+        rows = rows.filter((row) => ids.has(Number(row.tmdb_id)));
+      } else if (variant) {
         const { matchesVariant } = require('./quality-filter.ts');
         const keep = new Set(rows.filter((row) => matchesVariant(row, variant)).map((row) => String(row.tmdb_id || row.entity_key)));
         rows = rows.filter((row) => keep.has(String(row.tmdb_id || row.entity_key)));

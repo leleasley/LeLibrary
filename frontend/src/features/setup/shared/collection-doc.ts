@@ -336,6 +336,34 @@ export function ownedFranchiseMarker(order: number): HomeRowDoc {
   };
 }
 
+// "Your genres" rows: My Movies / My Shows narrowed to one TMDB genre.
+// Mirrors GENRES in backend/src/library/genres.ts (slugs are part of saved
+// catalogue ids; a test keeps the two lists equal). `movie` / `tv` say which
+// kinds have the genre on TMDB (no TV Horror, no film Kids).
+export const LIBRARY_GENRES: { slug: string; name: string; movie: boolean; tv: boolean; tvName?: string }[] = [
+  { slug: 'action', name: 'Action', movie: true, tv: true, tvName: 'Action & Adventure' },
+  { slug: 'adventure', name: 'Adventure', movie: true, tv: false },
+  { slug: 'animation', name: 'Animation', movie: true, tv: true },
+  { slug: 'comedy', name: 'Comedy', movie: true, tv: true },
+  { slug: 'crime', name: 'Crime', movie: true, tv: true },
+  { slug: 'documentary', name: 'Documentary', movie: true, tv: true },
+  { slug: 'drama', name: 'Drama', movie: true, tv: true },
+  { slug: 'family', name: 'Family', movie: true, tv: true },
+  { slug: 'fantasy', name: 'Fantasy', movie: true, tv: false },
+  { slug: 'history', name: 'History', movie: true, tv: false },
+  { slug: 'horror', name: 'Horror', movie: true, tv: false },
+  { slug: 'kids', name: 'Kids', movie: false, tv: true },
+  { slug: 'music', name: 'Music', movie: true, tv: false },
+  { slug: 'mystery', name: 'Mystery', movie: true, tv: true },
+  { slug: 'reality', name: 'Reality', movie: false, tv: true },
+  { slug: 'romance', name: 'Romance', movie: true, tv: false },
+  { slug: 'scifi', name: 'Sci-Fi', movie: true, tv: true, tvName: 'Sci-Fi & Fantasy' },
+  { slug: 'thriller', name: 'Thriller', movie: true, tv: false },
+  { slug: 'war', name: 'War', movie: true, tv: true, tvName: 'War & Politics' },
+  { slug: 'western', name: 'Western', movie: true, tv: true },
+];
+export const YOUR_GENRES_GROUP = 'Your genres';
+
 // Native library browser rows. Always present so the LeLibrary shelf is
 // findable before any key is typed: with no provider connected yet the rows
 // use the default torbox prefix, and re-resolve live to the connected
@@ -355,6 +383,12 @@ export function nativeLibraryRows(prefix: string | null, platform: string): Brow
     { id: 'native-hdr-movies', catalogId: `${resolved}-movies-hdr`, name: 'HDR & Dolby Vision Movies', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
     { id: 'native-hdr-shows', catalogId: `${resolved}-series-hdr`, name: 'HDR & Dolby Vision Shows', type: 'series', category: 'LeLibrary', addonId: '', nativeLibrary: true, defaultHome: false },
   ];
+  // Your genres: only what you own, one genre at a time. Never on Home
+  // unless picked; a folder can use them too.
+  for (const genre of LIBRARY_GENRES) {
+    if (genre.movie) rows.push({ id: `native-genre-movies-${genre.slug}`, catalogId: `${resolved}-movies-g-${genre.slug}`, name: `Your ${genre.name} Movies`, type: 'movie', category: YOUR_GENRES_GROUP, addonId: '', nativeLibrary: true, defaultHome: false });
+    if (genre.tv) rows.push({ id: `native-genre-shows-${genre.slug}`, catalogId: `${resolved}-series-g-${genre.slug}`, name: `Your ${genre.tvName ?? genre.name} Shows`, type: 'series', category: YOUR_GENRES_GROUP, addonId: '', nativeLibrary: true, defaultHome: false });
+  }
   if (platform === 'stremio') {
     rows.push({ id: 'native-lelibrary-collections', catalogId: 'torbox-collections', name: 'LeLibrary Collections', type: 'movie', category: 'LeLibrary', addonId: '', nativeLibrary: true, nativeCollection: true, defaultHome: false });
   }
@@ -421,6 +455,7 @@ export function normalizeHomeOrder(rows: HomeRowDoc[], platform: string): HomeRo
 export function homeCategoryRank(category: string): number {
   const name = String(category || '').toLowerCase();
   if (name === 'lelibrary') return -10;
+  if (name === 'your genres') return -9;
   if (/trending/.test(name)) return 0;
   if (/popular/.test(name)) return 1;
   if (name === 'watchlists') return 2;

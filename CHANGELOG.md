@@ -43,6 +43,7 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 - Every collection gets a backdrop (its own, else its pack cover or first folder), on the setup page and on Nuvio TV.
 - The folder source picker lists your own LeLibrary rows first: My Movies, My Shows, 4K, HDR and every genre, theme and world cinema row. An older Hub now shows its Genres, 4K and HDR folders without being re-added.
 - Posters+ preset links (the newer /p/ style, such as .../p/bar_sash/{type}/{imdb_id|tmdb_id}.jpg) now work.
+- When you already own a film that has no digital release yet, your own copy now comes first and the "Digital release not found" notice sits just below it, so auto-play plays your file instead of the notice.
 
 ### Fixes
 

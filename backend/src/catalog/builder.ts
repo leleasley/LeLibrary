@@ -2208,6 +2208,16 @@ function makeProviderRateLimitNotice({ label = 'Debrid provider', retryAfterSec 
   };
 }
 
+// How many of the first streams are the user's own debrid files.
+function isOwnedLibraryStream(stream) {
+  return Boolean(stream) && (stream._owned === true || String(stream.url || '').startsWith(PLAY_PREFIX));
+}
+function countLeadingOwned(list) {
+  let count = 0;
+  while (count < list.length && isOwnedLibraryStream(list[count])) count++;
+  return count;
+}
+
 async function applyStreamNotices(streams, { config = {}, tmdbApiKey, tmdbId, type } = {}) {
   if (!streamNoticesEnabled(config)) return streams;
   const isMovie = type === 'movie';
@@ -2248,10 +2258,15 @@ async function applyStreamNotices(streams, { config = {}, tmdbApiKey, tmdbId, ty
     )];
   }
   if (isMovie && notDigitalYet && noticeKindEnabled(config, 'digitalRelease')) {
-    return [
-      makeNoticeRow('ℹ️ Digital release not found', `TMDB has no digital release listed for this film yet, so sources may be limited.${digitalNote}`),
-      ...list,
-    ];
+    const notice = makeNoticeRow('ℹ️ Digital release not found', `TMDB has no digital release listed for this film yet, so sources may be limited.${digitalNote}`);
+    // A copy in the user's own debrid library goes first: with auto-play on
+    // ("first source"), Nuvio would otherwise "play" the notice. The notice
+    // then sits right under the owned files, above any other source. Only
+    // LeLibrary's own debrid files count (lelibrary-play:// links), never a
+    // custom link or another addon's stream.
+    const ownedCount = countLeadingOwned(list);
+    if (ownedCount > 0) return [...list.slice(0, ownedCount), notice, ...list.slice(ownedCount)];
+    return [notice, ...list];
   }
   return list;
 }

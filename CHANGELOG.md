@@ -6,7 +6,7 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 ### Your library
 
-- New Your genres rows, made only from what you own: every TMDB genre, over 70 themes (Zombies, Heists, Superheroes, Time Travel, Slashers, Rom-Coms, Christmas, Based on a True Story and many more) and world cinema (Anime, K-Drama, Indian, French, Nordic and more). Add any of them as a Home row or put them in a folder, like the 4K and HDR rows.
+- New Your genres rows, made only from what you own: every TMDB genre, over 80 themes (Zombies, Heists, Superheroes, Time Travel, Slashers, Rom-Coms, Christmas, Based on a True Story and many more) and world cinema (Anime, K-Drama, Indian, French, Nordic and more). Add any of them as a Home row or put them in a folder, like the 4K and HDR rows.
 - The LeLibrary Hub gets a Genres folder with its own cover and animation. It opens on a tab for every genre you own at least 10 titles of, most-owned first, and updates each time you push.
 - Genres are looked up once per title in the background, so a big library fills in over the first hour.
 - The Library page now shows your library at a glance: how much is in your cloud, how many titles are in 4K and in HDR or Dolby Vision, how many arrived this week, and posters of the newest.

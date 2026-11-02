@@ -400,6 +400,13 @@
   .qs-dock-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.82rem; }
   .qs-dock-btn { flex: none; padding: 11px 15px; border: 0; border-radius: 13px; background: var(--amber); color: #1a1203; font: 700 0.82rem var(--font, inherit); cursor: pointer; }
   .qs-dock-btn.is-ghost { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+  /* Narrow phones with both buttons: the label was squeezed to "Add y...".
+     The poster stack already says "preview", so drop the label and let
+     Continue take the width. */
+  @media (max-width: 440px) {
+    .qs-dock.has-next .qs-dock-copy { display: none; }
+    .qs-dock.has-next .qs-dock-btn:not(.is-ghost) { flex: 1; text-align: center; }
+  }
   /* With Continue in the dock, the in-page Continue would be a duplicate. */
   .qs-wizard .qs-nav-next { display: none; }
   .qs-scrim { display: block; position: fixed; inset: 0; z-index: 70; border: 0; background: rgba(0, 0, 0, 0.6); animation: qs-fade 0.3s; }

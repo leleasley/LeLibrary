@@ -24,9 +24,10 @@ Every setup ends with one thing: an install link. Keep it.
    - **Quick Look** (about 2 minutes): your library, posters, a Nuvio badge
      pack and the stream style, on one page.
    - **Settle In** (about 5 minutes): Quick Look plus Home rows, playback
-     filters, extra stream sources and Nuvio playback settings, step by step.
+     filters, search options, extra stream sources and Nuvio playback
+     settings, on four short pages.
    - **Move In** (about 10 minutes): everything, including collections and
-     folders, Quick Packs and a one-click push to Nuvio.
+     folders, Quick Packs and a one-click push to Nuvio, on five pages.
    The [guide](https://lelibrary.uk/guide) has a short video walkthrough of
    each level.
 3. Turn on your debrid service and paste its key. The page checks it before
@@ -38,11 +39,46 @@ Every setup ends with one thing: an install link. Keep it.
 6. Press **Create my manifest** (Quick Look) or **Create my setup** (Settle In
    and Move In).
 
-The finish screen gives you everything once:
+### Settle In and Move In, page by page
 
-- **Open in Stremio** installs it in one click; **Copy for Nuvio** copies the
-  link to paste into Nuvio's addons. Other apps (STRMR, Fusion, Vidi, WuPlay)
-  have their own copy buttons.
+- **Connect**: pick Nuvio or Stremio and sign in (optional, but it lets
+  LeLibrary push your Home rows and collections for you), name the setup, or
+  bring an old setup across with **Import an old setup**.
+- **Setup**: one page of sections. Each starts closed and shows a one-line
+  summary of what you picked; open only what you want to change.
+  - **Integrations**: your debrid keys, TMDB, MDBList and watchlists.
+  - **Streams**: playback filters (presets such as Best quality or Save
+    space, resolutions you can tap and reorder, size limits), extra stream
+    sources and your own addons.
+  - **Search**: see [Search options](#search-options).
+  - **Posters**: poster style and rating badges.
+  - **Formatting**: Nuvio badge pack and how streams are written.
+  - **Preferences**: language, library order, Main Metadata, hide anime,
+    TorBox sources, stream notices, library row names and Nuvio playback.
+- **Home rows** (Move In: **Home**): starts empty. Press **Add rows** to pick
+  what goes on your Home screen (full screen on a phone), then drag to order.
+- **Collections** (Move In only): Quick Packs and your own folders.
+- **Protect**: your password, then **Create my setup**.
+
+### When it is created
+
+Quick Look's finish screen has **Open in Stremio** (installs in one click),
+**Copy for Nuvio** (paste it into Nuvio's addons) and copy buttons for other
+apps (STRMR, Fusion, Vidi, WuPlay).
+
+Settle In and Move In show a short "Creating your setup" screen, then a
+**Ready** page:
+
+- **Push to Nuvio** (or Stremio) sends your Home rows and collections to the
+  account you signed in with. It says which account (**Pushing to ...**);
+  press **Not you?** to sign in with another.
+- **Add to Stremio** opens the install link in Stremio or copies it.
+- **More players** holds the other apps, sharing (Move In) and **Manual
+  setup**: the install link, the collections file, **Clear cached data** and
+  **Revoke and regenerate** (see [If your install link leaks](#if-your-install-link-leaks)).
+
+Every level gives you:
+
 - the **install link**, which looks like
   `https://lelibrary.uk/{setup-id}.{secret}/manifest.json`
 - the **setup id** and the **edit link** (`https://lelibrary.uk/{setup-id}`)
@@ -61,15 +97,17 @@ recovery. If you lose both, you start a new setup.
 2. Enter the password. The same page you created the setup on opens, with
    every key, choice, Home row and collection already filled in. Saved keys
    arrive filled in but hidden; edit one only if you want to replace it.
-3. Change anything and press **Save**. Only what you changed is sent, and your
-   install link stays exactly the same, so nothing needs reinstalling.
+3. Change anything and press **Save** (in the bar along the top, or on the
+   last page). Only what you changed is sent, and your install link stays
+   exactly the same, so nothing needs reinstalling.
 
-The settings panel on that page also lets you:
+The **Settings** tab on that page also lets you:
 
 - **Switch level**, for example from Quick Look up to Move In. The switch is
-  staged and only happens when you save; the setup keeps the same id and
-  install link.
-- copy your install link again,
+  staged and only happens when you save (a **Save changes** bar appears right
+  there); the setup keeps the same id and install link.
+- copy your install link again, or **Regenerate link** if it leaked,
+- **Download settings backup**,
 - **Clear my edits** to throw away unsaved changes,
 - **Delete** the setup.
 
@@ -78,7 +116,7 @@ a save.
 
 ### Your library
 
-Once a setup is unlocked, the edit page has a second tab, **Your library**. It
+Once a setup is unlocked, the edit page has a **Library** tab. It
 shows what LeLibrary found in your debrid account (or WebDAV server) and how it
 matched each file:
 
@@ -105,17 +143,17 @@ addon, and within a few minutes otherwise.
 
 - **Rename your library rows.** Call "My Movies" whatever you like. On Quick
   Look this is under **Your library rows** in step 1, where you can also hide
-  a row you do not want. On Settle In and Move In it is under **Rename your
-  library rows** in the Home step (visibility there comes from your Home rows).
-- **Language.** Quick Look now has the metadata language under **More library
-  options**; Settle In and Move In have it in the Metadata step.
+  a row you do not want. On Settle In and Move In it is under **Library row
+  names** in Setup > Preferences (visibility there comes from your Home rows).
+- **Language.** Quick Look has the metadata language under **More library
+  options**; Settle In and Move In have it in Setup > Preferences.
 - **Choose your TorBox sources.** By default your library holds everything in
   your TorBox account: torrents, usenet and web downloads. Untick any of them
   to leave them out of My Movies, My Shows, collections and search, for
   example to keep only the NZBs you add yourself. Quick Look has it under
-  **More library options**; Settle In and Move In have it in the Metadata
-  step. At least one stays on. Your TorBox account itself is not changed.
-- **Add your own stream addon** (Settle In and Move In, Playback step). Paste
+  **More library options**; Settle In and Move In have it in Setup >
+  Preferences. At least one stays on. Your TorBox account itself is not changed.
+- **Add your own stream addon** (Settle In and Move In, Setup > Streams). Paste
   the link to any Stremio stream addon you use, such as StreamNZB or your own
   AIOStreams, up to three. It joins the stream source list and follows your
   order. The link is stored sealed with your keys and is never shown again;
@@ -127,6 +165,53 @@ addon, and within a few minutes otherwise.
   in a brand-new setup from that file: you add your own keys and password and
   get a new install link. Handy for setting someone else in your home up the
   same way.
+
+---
+
+## Search options
+
+Settle In and Move In have a **Search** section on the Setup page. It decides
+which LeLibrary rows appear when you search in Nuvio or Stremio. Everything is
+plain TMDB search; nothing here uses AI.
+
+- **Include LeLibrary in search**: turn it off to search with your other
+  addons only.
+- **What to search**: TMDB and your library (separate rows), only your
+  library, or only TMDB.
+- **Order results by**: best match, most popular, newest first or highest
+  rated (titles with only a few votes sit below properly rated ones).
+- **Hide little-known results**: leaves out titles hardly anyone has rated. A
+  title you type in full always shows.
+- **Anime in its own row**: anime gets its own row and leaves the Series row.
+  Not available while **Hide anime** is on.
+- **Similar titles row**: search a title and get a row of titles people who
+  liked it also watched. It only appears when your search clearly names one
+  title.
+- **People row**: search an actor ("tom hanks") and get their films and shows.
+  It only appears when your search spells the person's name.
+- **Search your collections** (off by default): adds a row for the films in
+  your LeLibrary Collections. They are already in My Movies, so they can show
+  twice.
+- **Rename rows**: change what any of these rows is called in your player.
+
+After saving, reinstall the addon in Stremio, or push again to Nuvio, so the
+player picks up the new rows.
+
+---
+
+## If your install link leaks
+
+Anyone with your install link can watch from your library. If you shared it
+by mistake, make a new one:
+
+1. Open your edit link and unlock it, or use the Ready page right after
+   creating a setup.
+2. Press **Regenerate link** (Settings tab, or at the bottom of **Manual
+   setup**) and confirm.
+3. The old link stops working straight away. Your settings, keys, password and
+   edit link stay exactly the same.
+4. Add the new link to every device you watch on. For Nuvio, press **Push to
+   Nuvio again** and it picks up the new link itself.
 
 ---
 
@@ -412,8 +497,8 @@ Good to know:
 
 ## Nuvio playback (Settle In and Move In only)
 
-Settle In and Move In include a **Nuvio playback** block in the Playback step.
-It appears only when the setup is going to Nuvio.
+Settle In and Move In include a **Nuvio playback** block in Setup >
+Preferences. It appears only when the setup is going to Nuvio.
 
 1. Turn on **Set these in Nuvio when I push**.
 2. Choose Auto Stream Selection:
@@ -497,8 +582,8 @@ The paste box and each setup's own link keep working.
 ## Moving from an older version
 
 Old configurations still work through their own link. To turn one into a v5.5
-setup, open Settle In or Move In and use the **Import an old setup** card at
-the top. Your old keys, Nuvio or Stremio login, collections and Home rows come
+setup, open Settle In or Move In and use the **Import an old setup** card on
+the Connect page. Your old keys, Nuvio or Stremio login, collections and Home rows come
 across, and the previous copy is hidden.
 
 An older install link that points at `/{token}/configure` now opens the setup
@@ -521,12 +606,18 @@ delete too), or remove the row from Postgres.
 
 **My library is empty.**
 Check the provider key and that the downloads exist on the provider. Use
-**Refresh catalog** on the edit page, then reopen the addon in Stremio or
-Nuvio. The first index can take a few minutes on a large account.
+**Clear cached data** (edit page, **More players** > **Manual setup**), then
+reopen the addon in Stremio or Nuvio. The first index can take a few minutes
+on a large account. The **Library** tab on the edit page shows anything that
+could not be matched.
 
 **Search returns nothing.**
 Add a valid TMDB key to the setup. The native search catalogs only appear after
-a TMDB key is saved.
+a TMDB key is saved. Also check that **Include LeLibrary in search** is on
+(Setup > Search), then reinstall or push again.
+
+**I shared my install link.**
+See [If your install link leaks](#if-your-install-link-leaks).
 
 **A title has no streams.**
 Library rows use the private `torbox:` namespace and are answered by LeLibrary
@@ -536,7 +627,7 @@ addons installed in the same client.
 **Nuvio's detail page looks basic.**
 Nuvio builds production logos, collections, recommendations and clickable cast
 itself. It needs a TMDB key in Nuvio's own settings on the active profile, and
-bare IMDb ids (turn on **Use Main Meta** in the setup) rather than `torbox:`
+bare IMDb ids (turn on **Use Main Metadata** in Setup > Preferences) rather than `torbox:`
 ids.
 
 **Setup storage is unavailable.**
@@ -549,7 +640,7 @@ The setup routes need Postgres. Check `DATABASE_URL`/`DB_PASSWORD` and that the
 
 - Provider keys are never written to logs. Saved keys are sealed on the server,
   so a database dump is not readable on its own.
-- The install link is a capability. Treat it like a password. Rotate it from the
-  edit page if it leaks.
+- The install link is a capability. Treat it like a password. Use **Regenerate
+  link** if it leaks (see [If your install link leaks](#if-your-install-link-leaks)).
 - The setup password is stored hashed and rate limited per IP and per setup.
 - No tracking, no analytics and no advertising cookies.

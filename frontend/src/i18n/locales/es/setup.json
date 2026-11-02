@@ -1759,6 +1759,8 @@
     "TMDB only": "Solo TMDB",
     "Similar titles": "Títulos similares",
     "Little-known hidden": "Poco conocidos ocultos",
-    "Language, order, anime, notices, row names and Nuvio playback.": "Idioma, orden, anime, avisos, nombres de filas y reproducción de Nuvio."
+    "Language, order, anime, notices, row names and Nuvio playback.": "Idioma, orden, anime, avisos, nombres de filas y reproducción de Nuvio.",
+    "Saving moves this setup to {{value}}.": "Al guardar, esta configuración pasa a {{value}}.",
+    "You have unsaved changes.": "Tienes cambios sin guardar."
   }
 }

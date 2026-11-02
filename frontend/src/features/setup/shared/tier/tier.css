@@ -530,6 +530,8 @@
 .edit-tier.is-active small { color: var(--amber); }
 .edit-link { display: flex; gap: 8px; }
 .edit-link input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 11px; border: 1px solid rgba(255, 255, 255, 0.12); background: #0b0b0e; color: var(--muted); font: 0.76rem var(--mono, monospace); }
+.edit-settings-save { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 4px; padding: 12px 14px; border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 12px; background: rgba(245, 158, 11, 0.06); }
+.edit-settings-save span { color: var(--text); font-size: 0.8rem; }
 .edit-settings-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.07); }
 
 @media (max-width: 980px) {

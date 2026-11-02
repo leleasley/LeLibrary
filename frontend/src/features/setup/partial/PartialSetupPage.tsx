@@ -447,7 +447,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
   return (
     <section className="setup setup-wide qs qs-wizard">
       <TierProgress
-        steps={PARTIAL_SECTIONS.map((section) => ({ id: section.id, label: section.title }))}
+        steps={PARTIAL_SECTIONS.map((section) => ({ id: section.id, label: edit && section.id === 'password' ? 'Save' : section.title }))}
         unsaved={dirty}
         wizard={{ active: wizard.step, onStep: wizard.go }}
         save={edit && !edit.locked ? { onSave: edit.onSave, onSaveAndPush: edit.onSaveAndPush, pushTarget: edit.pushTarget, busy: edit.saving || edit.pushing } : null}

@@ -1759,6 +1759,8 @@
     "TMDB only": "TMDB only",
     "Similar titles": "Similar titles",
     "Little-known hidden": "Little-known hidden",
-    "Language, order, anime, notices, row names and Nuvio playback.": "Language, order, anime, notices, row names and Nuvio playback."
+    "Language, order, anime, notices, row names and Nuvio playback.": "Language, order, anime, notices, row names and Nuvio playback.",
+    "Saving moves this setup to {{value}}.": "Saving moves this setup to {{value}}.",
+    "You have unsaved changes.": "You have unsaved changes."
   }
 }

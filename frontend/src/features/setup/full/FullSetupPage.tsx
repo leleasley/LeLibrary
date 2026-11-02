@@ -476,7 +476,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
   return (
     <section className="setup setup-wide qs qs-wizard">
       <TierProgress
-        steps={FULL_SECTIONS.map((section) => ({ id: section.id, label: section.title }))}
+        steps={FULL_SECTIONS.map((section) => ({ id: section.id, label: edit && section.id === 'review' ? 'Save' : section.title }))}
         unsaved={dirty}
         wizard={{ active: wizard.step, onStep: wizard.go }}
         save={edit && !edit.locked ? { onSave: edit.onSave, onSaveAndPush: edit.onSaveAndPush, pushTarget: edit.pushTarget, busy: edit.saving || edit.pushing } : null}

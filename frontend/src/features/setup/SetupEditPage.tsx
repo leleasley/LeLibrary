@@ -567,6 +567,16 @@ export function SetupEditPage() {
             </button>
           ))}
         </div>
+        {/* Saving used to live only on the Edit view, so a type switched here
+            (or any other unsaved edit) had no Save in sight. */}
+        {dirty && (
+          <div className="edit-settings-save">
+            <span>{activeTier !== savedTier ? `Saving moves this setup to ${TIER_LABELS[activeTier]}.` : 'You have unsaved changes.'}</span>
+            <button type="button" className="setup-primary" disabled={saving} onClick={() => void saveAll()}>
+              {saving ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+        )}
       </div>
       {manifest && (
         <div className="edit-settings-block">

@@ -393,15 +393,16 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
   const ownedMarker = homeRows.find((row) => row._nativeFranchiseCollection === true) ?? null;
   const ownedFranchiseOn = ownedMarker !== null;
 
-  function toggleOwnedFranchise(on: boolean) {
+  function toggleOwnedFranchise(on: boolean, slot?: number) {
     if (on) {
       if (!providerPrefix) {
         toast('Connect a debrid provider to build owned movie collections', 'error');
         return;
       }
       if (!ownedFranchiseOn) {
-        // A new Movie Collections card goes after the collections already there.
-        setHomeRows(normalizeHomeOrder([...homeRows, ownedFranchiseMarker(homeRows.length, collections.length)], platform));
+        // A new Movie Collections card goes after the collections already there,
+        // unless the caller names its place (LeLibrary Special: under the Hub).
+        setHomeRows(normalizeHomeOrder([...homeRows, ownedFranchiseMarker(homeRows.length, slot ?? collections.length)], platform));
       }
     } else {
       setHomeRows(normalizeHomeOrder(homeRows.filter((row) => row._nativeFranchiseCollection !== true), platform));

@@ -10,7 +10,17 @@ describe('LeLibrary Special brings the LeLibrary set', () => {
     const out = specialExtras({ packId: SPECIAL_PACK_ID, collections: [other], hubOn: false, ownedOn: false, makeHub });
     expect(out.addedHub).toBe(true);
     expect(out.turnOnOwned).toBe(true);
-    expect(out.collections.map((c) => c.id)).toEqual(['collection-x', 'collection-lelibrary-hub']);
+    // The Hub leads by its place, never by pin to top; Movie Collections goes under it.
+    expect(out.collections.map((c) => c.id)).toEqual(['collection-lelibrary-hub', 'collection-x']);
+    expect(out.collections[0]?.pinToTop).toBe(false);
+    expect(out.ownedSlot).toBe(1);
+  });
+
+  it('a Hub already there keeps its place; Movie Collections goes under it', () => {
+    const hub = makeHub();
+    const out = specialExtras({ packId: SPECIAL_PACK_ID, collections: [other, hub], hubOn: true, ownedOn: false, makeHub });
+    expect(out.collections).toEqual([other, hub]);
+    expect(out.ownedSlot).toBe(2);
   });
 
   it('never adds a second Hub or toggles what is already on', () => {

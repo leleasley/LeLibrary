@@ -285,12 +285,19 @@ export function specialExtras(input: {
   // null while no debrid provider is connected: neither the Hub nor the
   // owned Movie Collections can exist yet, so nothing extra is added.
   makeHub: (() => CollectionDoc) | null;
-}): { collections: CollectionDoc[]; addedHub: boolean; turnOnOwned: boolean } {
+}): { collections: CollectionDoc[]; addedHub: boolean; turnOnOwned: boolean; ownedSlot?: number } {
   if (input.packId !== SPECIAL_PACK_ID || input.makeHub === null) return { collections: input.collections, addedHub: false, turnOnOwned: false };
   const addedHub = !input.hubOn;
+  // A new Hub leads the Collections page (its place, not pin to top, so it can
+  // still be moved); Movie Collections, when this turns it on, sits right below
+  // the Hub.
+  const collections = addedHub ? [input.makeHub(), ...input.collections] : input.collections;
+  const hubAt = collections.findIndex((collection) => collection.id === HUB_COLLECTION_ID);
+  const turnOnOwned = !input.ownedOn;
   return {
-    collections: addedHub ? [...input.collections, input.makeHub()] : input.collections,
+    collections,
     addedHub,
-    turnOnOwned: !input.ownedOn,
+    turnOnOwned,
+    ...(turnOnOwned ? { ownedSlot: hubAt >= 0 ? hubAt + 1 : 0 } : {}),
   };
 }

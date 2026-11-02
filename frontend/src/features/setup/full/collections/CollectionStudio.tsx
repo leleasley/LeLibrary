@@ -36,7 +36,8 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
   packs: string[];
   onPacks: (next: string[]) => void;
   ownedOn: boolean;
-  onToggleOwned: (on: boolean) => void;
+  // `slot`: where a newly turned-on Movie Collections goes (default: last).
+  onToggleOwned: (on: boolean, slot?: number) => void;
   // Nuvio: Movie Collections as a card in the list (on), with its slot among
   // the collections (null = first) and its typed name ('' = Nuvio's own).
   owned?: { slot: number | null; title: string } | null;
@@ -113,7 +114,7 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
         return;
       }
       onChange(orderCollections(extra.collections));
-      if (extra.turnOnOwned) onToggleOwned(true);
+      if (extra.turnOnOwned) onToggleOwned(true, extra.ownedSlot);
       if (extra.addedHub) toast('LeLibrary Special added, with the LeLibrary Hub and Movie Collections');
       else if (extra.turnOnOwned) toast('LeLibrary Special added, with your Movie Collections');
       else if (!providerPrefix) toast('LeLibrary Special added. Connect a debrid provider to add the LeLibrary Hub and Movie Collections too.');

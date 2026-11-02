@@ -177,6 +177,27 @@ function leadingSeasonFilm(name, parsed) {
   };
 }
 
+// "Turning.Point.Generation.9.11.2026": the parser reads "9.11.2026" as an
+// air date (a daily show's episode). When no show is found, the same name as a
+// 2026 film with the two numbers kept in its title ("Turning Point Generation
+// 9 11", TMDB "Turning Point: Generation 9/11") is the other honest reading.
+// Only a day/month-first date right after the title; a year-first date
+// ("Show.2026.03.12") is a real daily-show date and is left alone.
+function airDateFilm(name, parsed) {
+  if (!parsed || !parsed.airDate || parsed.season != null || parsed.episode != null) return null;
+  const m = /(?:^|[.\s_-])(\d{1,2})[.\s_-](\d{1,2})[.\s_-]((?:19|20)\d{2})(?=[.\s_-]|$)/.exec(String(name || ''));
+  if (!m) return null;
+  const year = parseInt(m[3], 10);
+  if (!parsed.title || year !== Number(String(parsed.airDate).slice(0, 4))) return null;
+  return {
+    ...parsed,
+    title: `${parsed.title} ${parseInt(m[1], 10)} ${parseInt(m[2], 10)}`,
+    year,
+    airDate: null, airDates: null,
+    isSeries: false, season: null, seasonStart: null, seasonEnd: null, episode: null, episodeEnd: null,
+  };
+}
+
 // The outer download name carries no year ("The First Time", "Tormoz Brake
 // MVO Sub Rus + Original Eng") and found nothing usable, but the release's one
 // main video file is a clean dated film name. Same byte-dominance and dating
@@ -541,9 +562,10 @@ async function matchScopeInner(scope, { batch = 50, concurrency = 4, budgetMs = 
             if (embeddedResolved?.ok) { resolved = embeddedResolved; resolvedType = 'movie'; }
           }
         }
-        // A film whose title starts like a season ("S4.The.Bob.Lazar.Story").
+        // A film whose title starts like a season ("S4.The.Bob.Lazar.Story")
+        // or holds a date ("Turning.Point.Generation.9.11.2026").
         if (!resolved?.ok && resolved?.reason === 'no-candidate') {
-          const film = leadingSeasonFilm(name, parsedOuter);
+          const film = leadingSeasonFilm(name, parsedOuter) || airDateFilm(name, parsedOuter);
           if (film) {
             metrics.add('tmdbCalls');
             const again = await resolveMatch({ name, mediaType: 'movie', lang, tmdbApiKey, requireUniqueStrongYear: true, parsed: film }, undefined, sharedMatchLookups);
@@ -739,7 +761,8 @@ export interface MatcherApi {
   parsedTypeCorrection: any;
   resolveEmbeddedMovieTypeConflict: any;
   leadingSeasonFilm: any;
+  airDateFilm: any;
   weakOuterFilm: any;
 }
 
-module.exports = { matchScope, offlineEnabled, embeddedVideoFiles, isOpaqueOuterName, stripLeadingGroupPrefix, releaseNameHints, mediaFileName, embeddedDominantMovieCandidate, parsedTypeCorrection, resolveEmbeddedMovieTypeConflict, leadingSeasonFilm, weakOuterFilm } satisfies MatcherApi;
+module.exports = { matchScope, offlineEnabled, embeddedVideoFiles, isOpaqueOuterName, stripLeadingGroupPrefix, releaseNameHints, mediaFileName, embeddedDominantMovieCandidate, parsedTypeCorrection, resolveEmbeddedMovieTypeConflict, leadingSeasonFilm, airDateFilm, weakOuterFilm } satisfies MatcherApi;

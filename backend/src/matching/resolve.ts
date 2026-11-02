@@ -39,7 +39,9 @@ const RESOLVER_VERSION = 'v6';
 // r11: a film whose title starts like a season ("S4.The.Bob.Lazar.Story.2026")
 // is retried as that film; a yearless outer name ("The First Time", "Tormoz
 // Brake MVO...") that fails falls back to its one dated main video file.
-const MATCH_RETRY_VERSION = 'r11';
+// r12: a film with a date in its title ("Turning.Point.Generation.9.11.2026")
+// is retried as that film when no daily show is found.
+const MATCH_RETRY_VERSION = 'r12';
 // Parser-only corrections should re-open failed/terminal rows without marking
 // every already-matched library row stale. Bump this when parser semantics
 // change in a way that can recover a prior failure.

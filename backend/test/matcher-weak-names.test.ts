@@ -45,6 +45,25 @@ test('the leading-season film reading needs a leading marker, a matching season 
   assert.equal(matcher.leadingSeasonFilm('S01E02.Show.Name.2020', { title: 'Show Name', year: 2020, season: 1, episode: 2 }), null, 'an episode is a show');
 });
 
+test('a film with a date in its title is retried as that film', async () => {
+  const name = 'Turning.Point.Generation.9.11.2026.1080p.WEB.h264-GRACE';
+  const parsed = parser.guessMediaInfo(name);
+  assert.equal(parsed.airDate, '2026-09-11', 'the parser still reads it as an air date');
+  const film = matcher.airDateFilm(name, parsed);
+  assert.equal(film.title, 'Turning Point Generation 9 11');
+  assert.equal(film.year, 2026);
+  assert.equal(film.isSeries, false);
+  const out = await resolve.resolveMatch({ name, mediaType: 'movie', requireUniqueStrongYear: true, parsed: film },
+    deps([{ id: 777, title: 'Turning Point: Generation 9/11', release_date: '2026-09-05' }]));
+  assert.equal(out.ok, true);
+  assert.equal(out.tmdbId, 777);
+});
+
+test('a year-first date is a real daily show and keeps no film reading', () => {
+  const name = 'The.Daily.Show.2026.03.12.1080p.WEB';
+  assert.equal(matcher.airDateFilm(name, parser.guessMediaInfo(name)), null);
+});
+
 test('a yearless outer name falls back to its one dated main video', () => {
   const files = (names) => names.map(([name, size]) => ({ name, size }));
   assert.deepEqual(matcher.weakOuterFilm('The First Time', parser.guessMediaInfo('The First Time'), files([['The.First.Time.2012.BDRip.1080p.ylnian.mkv', 8e9]])),
@@ -68,5 +87,5 @@ test('The First Time resolves once the inner year picks one of several films', a
 });
 
 test('failed rows get one more try under the new retry version', () => {
-  assert.match(resolve.retryVersion(), /^r11:/);
+  assert.match(resolve.retryVersion(), /^r12:/);
 });

@@ -39,7 +39,9 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 - New actors (Arnold Schwarzenegger, Sylvester Stallone, Bruce Willis, Denzel Washington, Tom Cruise, Adam Sandler, Jim Carrey, Eddie Murphy, Rowan Atkinson), M. Night Shyamalan, and new themes such as Sharks, Dinosaurs, Disasters, Robots & AI and Courtroom Dramas.
 - Batman and Spider-Man now hold every era of films.
 - Adding LeLibrary Special also adds the LeLibrary Hub and your Movie Collections, since they are part of the same LeLibrary set.
-- Collections now keep the order you give them on Nuvio. Your collections follow your Home rows in the order of the Collections page, Movie Collections sits wherever you put its Home row, and renaming that row renames it on Nuvio. The LeLibrary Hub can be moved and removed like any other collection.
+- Collections now always sit above your Home rows on Nuvio, in the order of your Collections page. Other collections on that profile follow LeLibrary's, then your Home rows.
+- LeLibrary Movie Collections is now a card on the Collections page (Move In): move it anywhere among your collections, rename it or remove it. Its folders are still made for you from the films you own.
+- The LeLibrary Hub can be moved and removed like any other collection, and adding LeLibrary Special puts it first, with your Movie Collections right below.
 - Every collection gets a backdrop (its own, else its pack cover or first folder), on the setup page and on Nuvio TV.
 - The folder source picker lists your own LeLibrary rows first: My Movies, My Shows, 4K, HDR and every genre, theme and world cinema row. An older Hub now shows its Genres, 4K and HDR folders without being re-added.
 - Posters+ preset links (the newer /p/ style, such as .../p/bar_sash/{type}/{imdb_id|tmdb_id}.jpg) now work.
@@ -50,3 +52,4 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 - Director collections now hold only the films that person directed. Before, a film they wrote, produced or worked on as an assistant could appear.
 - Every collection was checked against TMDB so each one holds the films it is named after.
 - Better matching for downloads whose name gives too little away. A film whose title starts like a season (S4: The Bob Lazar Story) or holds a date (Turning Point: Generation 9/11) is no longer read as a TV show, and a download name with no year (The First Time, or a mostly non-English name) now uses the year and title from the film file inside it. Files that failed before are tried once more.
+- Updated the server's web request library to close a security issue where a login header could follow a redirect to another site.

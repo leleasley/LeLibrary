@@ -158,8 +158,25 @@ function openRow(row: ConfigRow | undefined, key: Buffer): OpenedConfig | null {
   };
 }
 
+// The setup page picks ONE poster provider; its key is a separate field and
+// may outlive the choice. The engine applies whichever poster key exists, in a
+// fixed order (ERDB and RPDB first), so a saved ERDB token used to beat a later
+// "BetterPosters" choice everywhere. When the setup names a provider, poster
+// keys of the other providers are left out of the engine config. A setup with
+// no choice saved keeps the old behaviour.
+const POSTER_KEY_FOR: Record<string, string> = { erdb: 'erdbToken', rpdb: 'rpdbKey' };
+function withPosterChoice(config: Record<string, unknown>): Record<string, unknown> {
+  const choice = typeof config['posterProvider'] === 'string' ? config['posterProvider'] as string : '';
+  if (!choice) return config;
+  const out = { ...config };
+  for (const [provider, field] of Object.entries(POSTER_KEY_FOR)) {
+    if (provider !== choice) delete out[field];
+  }
+  return out;
+}
+
 function toEngineConfig(opened: OpenedConfig): Record<string, unknown> {
-  return { ...opened.config, ...opened.keys };
+  return withPosterChoice({ ...opened.config, ...opened.keys });
 }
 
 function createConfigStore(options: ConfigStoreOptions = {}): ConfigStore {
@@ -341,9 +358,10 @@ export interface ConfigStoreApi {
   createConfigStore: (options?: ConfigStoreOptions) => ConfigStore;
   migrate: (pool: PoolLike) => Promise<void>;
   toEngineConfig: (opened: OpenedConfig) => Record<string, unknown>;
+  withPosterChoice: (config: Record<string, unknown>) => Record<string, unknown>;
   normaliseTier: (tier: unknown) => Tier;
   TIERS: Tier[];
   DEFAULT_TIER: Tier;
   MIGRATIONS: string[];
 }
-module.exports = { createConfigStore, migrate, toEngineConfig, normaliseTier, TIERS, DEFAULT_TIER, MIGRATIONS } satisfies ConfigStoreApi;
+module.exports = { createConfigStore, migrate, toEngineConfig, withPosterChoice, normaliseTier, TIERS, DEFAULT_TIER, MIGRATIONS } satisfies ConfigStoreApi;

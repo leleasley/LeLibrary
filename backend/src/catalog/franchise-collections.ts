@@ -215,7 +215,7 @@ function collectionKey(name, id) {
 // Poster providers applied to the films inside collections (TMDB ids only -
 // matching and poster URLs never depend on IMDb ids). Same services and URL
 // shapes the movie catalog rows already use.
-function enhancedPosterUrl(tmdbId, imdbId, enhance) {
+function enhancedPosterUrl(tmdbId, imdbId, enhance, fallback = '') {
   const { erdbToken, rpdbKey, posterProvider, customPosterTemplate } = enhance || {};
   if (posterProvider === 'custom') {
     return require('../media/poster-template.ts').resolve(customPosterTemplate, { tmdbId, imdbId, type: 'movie' });
@@ -224,8 +224,12 @@ function enhancedPosterUrl(tmdbId, imdbId, enhance) {
     const url = require('./builder.ts').buildPictoriumPosterUrl(enhance, { type: 'movie', id: tmdbId || imdbId, imdbId, fallback: '' });
     if (url) return url;
   }
-  if (erdbToken && tmdbId) return `https://easyratingsdb.com/${erdbToken}/poster/tmdb:movie:${tmdbId}`;
+  // Same ERDB link and poster cache as every other row: the old direct
+  // "/poster/tmdb:movie:<id>" form answered an HTML page, so these posters
+  // stayed blank in Nuvio.
+  if (erdbToken && tmdbId) return require('./builder.ts').erdbProxyUrl(enhance, 'poster', `tmdb:movie:${tmdbId}`, fallback) || null;
   if (rpdbKey && tmdbId) return `https://api.ratingposterdb.com/${rpdbKey}/tmdb/poster-default/movie-${tmdbId}.jpg?fallback=true`;
+  if (posterProvider === 'betterposter' && imdbId) return require('./builder.ts').buildBetterPosterUrl(imdbId, 'movie');
   return null;
 }
 
@@ -385,7 +389,10 @@ async function collectionsFromMatched(matched, tmdbApiKey, lang = 'en-US', enhan
       videos: ownedMovies.map((m, i) => {
         const year = (m.result.release_date || '').slice(0, 4);
         const imdbId = imdbByTmdb.get(String(m.result.id)) || null;
-        const enhanced = enhancedPosterUrl(m.result.id, imdbId, enhance);
+        // The TMDB poster is the fallback the ERDB poster cache redirects to
+        // when ERDB fails (a dead token used to leave these blank).
+        const plainPoster = m.result.poster_path ? `https://image.tmdb.org/t/p/w342${m.result.poster_path}` : '';
+        const enhanced = enhancedPosterUrl(m.result.id, imdbId, enhance, plainPoster);
         return {
           id: `torbox:collection:${key}:${m.result.id}`,
           title: `${m.result.title || m.title}${year ? ` (${year})` : ''}`,
@@ -513,6 +520,7 @@ async function refreshCollectionsProjection({ userKey, downloads, films = null, 
 }
 
 export interface FranchiseCollectionsApi {
+  enhancedPosterUrl: any;
   buildCollectionsCatalog: any;
   buildCollectionsFromMatched: any;
   cacheCollections: any;
@@ -526,4 +534,4 @@ export interface FranchiseCollectionsApi {
   filterOfficialCollectionMembers: any;
 }
 
-module.exports = { buildCollectionsCatalog, buildCollectionsFromMatched, cacheCollections, getCollectionMeta, getCollections, collectionsBuilt, getCollectionForMovie, getMovieDetail, refreshCollectionsProjection, collectionKey, filterOfficialCollectionMembers } satisfies FranchiseCollectionsApi;
+module.exports = { enhancedPosterUrl, buildCollectionsCatalog, buildCollectionsFromMatched, cacheCollections, getCollectionMeta, getCollections, collectionsBuilt, getCollectionForMovie, getMovieDetail, refreshCollectionsProjection, collectionKey, filterOfficialCollectionMembers } satisfies FranchiseCollectionsApi;

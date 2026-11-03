@@ -76,20 +76,12 @@ async function removeSelfHost(ref: any) {
   return true;
 }
 
-// Resolve the connector URL for a request's config, preferring the account
-// vault for opaque account tokens and the sealed self-host reference otherwise.
-// Never returns the URL to a browser.
+// Resolve the connector URL for a request's config from its sealed self-host
+// reference. (The accounts-era vault lookup for 'account' scopes was removed
+// in v5.5: resolveConfig no longer produces that scope.) Never returns the URL
+// to a browser.
 async function resolveAioStreamsUrl(config: any, token: any) {
   if (!config) return null;
-  if (config.__configScope && config.__configScope.type === 'account') {
-    try {
-      const HOSTED = require('../hosted');
-      if (HOSTED && typeof HOSTED.getAioStreamsUrlForToken === 'function') {
-        return await HOSTED.getAioStreamsUrlForToken(token);
-      }
-    } catch { /* hosted extension absent */ }
-    return null;
-  }
   if (typeof config.aiostreamsRef === 'string' && config.aiostreamsRef) {
     return getSelfHost(config.aiostreamsRef);
   }

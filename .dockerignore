@@ -9,7 +9,17 @@ Dockerfile.ghcr.dockerignore
 .gitignore
 
 # Local notes, fixtures and generated test output never belong in an image.
+# AGENTS.md / CLAUDE.md, Docs/ and scripts/ are private (gitignored) operator
+# notes and dev tooling: the server never reads them, and npm start only runs
+# backend/index.ts. (frontend/scripts is a different folder and stays: the
+# frontend build runs its i18n check.)
 Docs
+AGENTS.md
+CLAUDE.md
+scripts
+.claude
+.superpowers
+.github
 tmp-fixture
 # Art and video tooling (renders, frames, recordings: ~2 GB). The server never
 # reads it; its scripts docker cp themselves into /tmp when they need the app.
@@ -29,5 +39,20 @@ frontend/.vite
 .env
 .env.*
 !.env.example
-compose.yml
-compose.indexed.yml
+compose*.yml
+!compose.example.yml
+# Stray key material never belongs in an image either.
+**/*.pem
+**/*.key
+
+# Deliberately NOT excluded (this file serves the dev and home-prod builds,
+# which build from the full tree; the public GHCR image uses
+# Dockerfile.ghcr.dockerignore and excludes all of these):
+# - backend/src/registry.ts: the private addon identity. manifest/catalog/
+#   collections require it at runtime and fall back to the generic self-host
+#   id without it, which would change the dev and home-prod addon id and break
+#   every installed link. Home prod gets prod's copy from /root/deploy.sh.
+# - frontend/public/collection-art, art-review, guide/videos: Vite copies
+#   public/ into the bundle; the dev and home builds serve that own art.
+# - the private site pages and frontend/public/sitemap.xml: home prod's
+#   bundle is built from them.

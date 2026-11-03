@@ -744,14 +744,27 @@ function health() {
   return { enabled: isIndexed(), started };
 }
 
+// The getScope() columns the status endpoint may show (everything except
+// config_token, the sealed install link).
+const SCOPE_STATUS_FIELDS = [
+  'scope_id', 'provider', 'last_sync_at', 'last_sync_ms', 'last_status', 'last_error',
+  'item_count', 'matched_count', 'pending_count', 'removed_count',
+  'last_added', 'last_changed', 'last_removed', 'last_unchanged', 'identity_version',
+  'last_success_at', 'last_error_at', 'consecutive_errors', 'failed_count', 'retryable_count',
+  'oldest_pending_at', 'oldest_retry_at',
+];
+
 async function scopeStatus(scopeId) {
   const row = await store.getScope(scopeId).catch(() => null);
   const rec = registry.get(scopeId);
   const identities = await store.identityCounts(scopeId).catch(() => null);
   const coverage = await store.identityCoverage(scopeId).catch(() => null);
   const mediaTypes = await store.mediaTypeCounts(scopeId).catch(() => null);
-  // Never echo the remembered install link back (audit B3).
-  const { config_token: _token, ...safe } = (row || {}) as Record<string, unknown>;
+  // Allowlist, never a spread of the row: a spread is what once echoed the
+  // remembered install link (config_token) back to the browser (audit B3,
+  // B21). A new lib_scopes column stays private until it is listed here.
+  const safe = {};
+  if (row) for (const field of SCOPE_STATUS_FIELDS) safe[field] = row[field];
   return { ...safe, syncing: !!rec?.syncing, registered: !!rec, identities, coverage, mediaTypes };
 }
 

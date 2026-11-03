@@ -15,14 +15,11 @@ const SCAN = [path.join(ROOT, 'app.ts'), path.join(ROOT, 'index.ts'), path.join(
 
 // Modules that are intentionally absent from the public tree and required
 // inside a try/catch or behind a hosted-only branch that cannot run here.
+// (The accounts-era '../accounts/*' and '../hosted' entries were dropped in v6
+// with the last code that required them: a new require of either now fails.)
 const OPTIONAL = new Set([
-  // Accounts-era extension, removed in v5.5 (guarded elsewhere).
-  '../accounts/encrypt',
-  '../accounts/external-catalog',
-  '../hosted',
   // Private addon identity: present on dev/prod, absent from a public clone,
   // where the manifest falls back to the generic self-hosted identity.
-  './src/registry.ts',
   '../registry.ts',
 ]);
 

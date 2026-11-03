@@ -8,7 +8,7 @@ const {
   TTL_CATALOG, TTL_STREAM, OWNED_CATALOG_CLIENT_TTL,
   knownConfigs, KNOWN_CONFIGS_MAX, knownConfigFailures, catalogBuildInFlight,
   providerRefreshSnapshots, providerRefreshInFlight,
-  rememberConfig, registerBackgroundRefresh, restoreAccountRefreshRegistry,
+  rememberConfig, registerBackgroundRefresh,
   refreshDownloadsForUser, hashDownloads, buildAndCacheForConfigInner, buildAndCacheForConfig,
 } = require('../runtime/refresh.ts');
 const fs      = require('fs');
@@ -60,9 +60,6 @@ export interface BaseManifest {
 // Private addon identity (gitignored). When absent, self-hosted builds serve a
 // generic manifest so self-hosters never expose the official id or the signed
 // Stremio registry config.
-// v5.5 removed the hosted account extension; guarded paths degrade to self-host.
-const HOSTED: any = null;
-
 let REGISTRY: Registry | null = null;
 try { REGISTRY = require('../registry.ts') as Registry; } catch { /* self-hosted build */ }
 function getLogoUrl(baseUrl: string): string {
@@ -719,26 +716,6 @@ async function handleConfiguredManifest(req: Request, res: Response, deps: Manif
       }
     } catch {
       // No setup store, no setup watchlists; legacy path below still applies.
-    }
-    if (HOSTED) {
-      const profileId = typeof req.query.profile_id === 'string' ? req.query.profile_id : 'default';
-      const simkl = await HOSTED.tokenWatchlistConn(req.params.token, 'simkl');
-      if (simkl) watchlist.push({ provider: 'simkl', type: 'movie', name: '🎬 Simkl Watchlist' }, { provider: 'simkl', type: 'series', name: '📺 Simkl Watchlist' });
-      const trakt = await HOSTED.tokenWatchlistConn(req.params.token, 'trakt');
-      if (trakt) watchlist.push({ provider: 'trakt', type: 'movie', name: '🎬 Trakt Watchlist' }, { provider: 'trakt', type: 'series', name: '📺 Trakt Watchlist' });
-      // A collection context belongs to one manifest token.  Without this guard
-      // an ordinary account token inherited the Collections Wizard document for
-      // the same account, then advertised its folders alongside its own rows.
-      // Nuvio received a mixed setup (and could fetch hundreds of unintended
-      // catalogues), rather than the setup the person actually pushed.
-      const stored = await HOSTED.tokenCollectionConfig(req.params.token, { integration: requestedIntegration, profile_id: profileId });
-      const ownsStoredContext = stored && String(stored.manifest_token_id || '') === String(req.params.token);
-      if (ownsStoredContext) collectionDocument = {
-        collections: Array.isArray(stored.collections) ? stored.collections : [],
-        homeRows: Array.isArray(stored.home_rows) ? stored.home_rows : [],
-        sources: Array.isArray(stored.sources) ? stored.sources : [],
-        externalSources: Array.isArray(stored.external_sources) ? stored.external_sources : [],
-      };
     }
     const plan = compileCollectionPlan({
       collections: collectionDocument.collections,

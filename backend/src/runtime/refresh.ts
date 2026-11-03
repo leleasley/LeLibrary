@@ -10,12 +10,8 @@ const providers = require('../providers/index.ts');
 const libraryEngine = require('../library/engine.ts');
 const { buildCatalog } = require('../catalog/builder.ts');
 const { buildCollectionsCatalog, cacheCollections, getCollections } = require('../catalog/franchise-collections.ts');
-const { decodeConfig } = require('../config/token.ts');
 const { hashShort, posterFp, posterEnhance } = require('./cache-fingerprint.ts');
 const { libraryCatalogTtl } = require('../library/cache-policy.ts');
-
-// v5.5 removed the hosted account extension; guarded paths degrade to self-host.
-const HOSTED = null;
 
 const TTL_CATALOG = parseInt(process.env.CACHE_TTL_CATALOG) || 3600;  // default 1h
 // Provider-backed library rows are refreshed in the background every two
@@ -41,8 +37,6 @@ const knownConfigs = new Map();
 const KNOWN_CONFIGS_MAX = 500;
 const knownConfigFailures = new Map(); // token → consecutive failure count
 const catalogBuildInFlight = new Map(); // token → active full-library build
-const ACCOUNT_REFRESH_REGISTRY_TTL = 30 * 24 * 60 * 60;
-const ACCOUNT_REFRESH_REGISTRY_PREFIX = 'refresh:account-token:';
 const providerRefreshSnapshots = new Map(); // provider-key hash → { at, downloads, error }
 const providerRefreshInFlight = new Map();
 function rememberConfig(token, config) {
@@ -69,50 +63,8 @@ function registerBackgroundRefresh(token, config) {
   // legacy full provider scan + TMDB rebuild on every route. The worker syncs
   // the same provider snapshot into the index instead.
   if (libraryEngine.isIndexed()) return;
-  // Opaque ids are already the account cache namespace. Persist only that
-  // non-secret id, never a legacy config token (which embeds credentials), so
-  // an active account install resumes its normal refresh loop after restart.
-  if (HOSTED && !decodeConfig(token)) {
-    cache.set(`${ACCOUNT_REFRESH_REGISTRY_PREFIX}${token}`, { active: true }, ACCOUNT_REFRESH_REGISTRY_TTL)
-      .catch(() => {});
-  }
   if (rememberConfig(token, config)) {
     buildAndCacheForConfig(token, config).catch(() => {});
-  }
-}
-
-async function restoreAccountRefreshRegistry() {
-  if (!HOSTED) return;
-  const client = cache.getRedisClient();
-  if (!client) return;
-  let cursor = '0';
-  let restored = 0;
-  do {
-    const [nextCursor, keys] = await client.scan(cursor, 'MATCH', `${ACCOUNT_REFRESH_REGISTRY_PREFIX}*`, 'COUNT', 100);
-    cursor = nextCursor;
-    for (const key of keys.slice(0, KNOWN_CONFIGS_MAX - restored)) {
-      const token = key.slice(ACCOUNT_REFRESH_REGISTRY_PREFIX.length);
-      const config = await resolveConfig(token);
-      if (!config) {
-        await cache.del(key);
-        continue;
-      }
-      rememberConfig(token, config);
-      restored++;
-    }
-  } while (cursor !== '0' && restored < KNOWN_CONFIGS_MAX);
-  if (restored) {
-    console.log(`[Cache] Restored ${restored} active account refresh setup(s)`);
-    // Do not leave restored account installs serving a pre-restart catalogue
-    // for a whole polling interval.  The normal loop remains two minutes and
-    // provider-key snapshots still coalesce sibling profiles, but one fresh
-    // startup pass makes newly-added downloads visible as soon as the app is
-    // back rather than after the first timer tick.
-    if (!libraryEngine.isIndexed()) {
-      await Promise.allSettled(
-        [...knownConfigs.entries()].map(([token, config]) => buildAndCacheForConfig(token, config))
-      );
-    }
   }
 }
 
@@ -435,13 +387,6 @@ setInterval(async () => {
   }
 }, REFRESH).unref?.();
 
-// Delay until startup/migrations have settled. This restores only opaque
-// account ids, resolves their configs server-side, and resumes the same loop
-// as an active normal Configure install without ever persisting credentials.
-setTimeout(() => {
-  restoreAccountRefreshRegistry().catch((err) => console.warn('[Cache] Account refresh restore failed:', err.message));
-}, 5000).unref?.();
-
 export interface RefreshApi {
   TTL_CATALOG: any;
   TTL_STREAM: any;
@@ -454,7 +399,6 @@ export interface RefreshApi {
   providerRefreshInFlight: any;
   rememberConfig: any;
   registerBackgroundRefresh: any;
-  restoreAccountRefreshRegistry: any;
   refreshDownloadsForUser: any;
   hashDownloads: any;
   buildAndCacheForConfigInner: any;
@@ -476,7 +420,6 @@ module.exports = {
   providerRefreshInFlight,
   rememberConfig,
   registerBackgroundRefresh,
-  restoreAccountRefreshRegistry,
   refreshDownloadsForUser,
   hashDownloads,
   buildAndCacheForConfigInner,

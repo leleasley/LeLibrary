@@ -74,7 +74,10 @@ test('provider rate-limit notices are non-playable, transient and human-readable
 });
 
 test('metadata routes no longer prefetch TorBox playback links', () => {
-  const appSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'addon.ts'), 'utf8');
+  // The addon router only wires route modules; the stream route owns the bridge.
+  const appSource = ['addon.ts', 'meta.ts', 'stream.ts']
+    .map((file) => fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', file), 'utf8'))
+    .join('\n');
   assert.doesNotMatch(appSource, /prefetchPublicStreams/);
   assert.doesNotMatch(appSource, /streamPrefetch/);
   // The actual tt: bridge remains the stream-route implementation.

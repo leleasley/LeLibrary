@@ -12,21 +12,9 @@ const { mountCoreRoutes, mountAddonRoutes } = addonRoutes;
 const { cors } = require('./src/middleware/cors.ts');
 const { requestLogger } = require('./src/middleware/request-logger.ts');
 const { securityHeaders } = require('./src/middleware/security-headers.ts');
-const { applyAsyncWrap } = require('./src/middleware/async-wrap.ts');
 const { errorHandler } = require('./src/middleware/error-handler.ts');
 const fs      = require('fs');
 const path    = require('path');
-
-
-
-
-
-
-
-
-
-
-
 
 const { version: APP_VERSION } = require('../package.json');
 
@@ -48,20 +36,13 @@ try {
   console.warn(`[website] Web routes unavailable (${err.message}): addon routes only`);
 }
 
-const ROOT_DIR = path.resolve(__dirname, '..');
-
-// Private addon identity (gitignored). When absent: self-hosted builds: the
-// addon serves a generic manifest so self-hosters never expose the official
-// id or the signed Stremio registry config.
-let REGISTRY = null;
-try { REGISTRY = require('./src/registry.ts'); } catch (e) { /* self-hosted build */ }
+// The private addon identity (gitignored backend/src/registry.ts) is read by
+// the route modules that need it (manifest, catalog, collections), each with
+// a self-hosted fallback.
 
 const http  = require('http');
 const https = require('https');
 
-// Simple per-IP rate limiter for the config-store routes. (This is a tiny copy
-// of the one in website/index.js so the addon core doesn't depend on the
-// private website file to guard these endpoints.)
 // Reuse TCP/TLS connections to provider APIs (TorBox, Real-Debrid, TMDB).
 // axios opens a brand-new connection per request by default and each TLS
 // handshake can cost 100ms–1s depending on the provider: keep-alive makes the
@@ -69,9 +50,6 @@ const https = require('https');
 http.globalAgent.keepAlive  = true;
 https.globalAgent.keepAlive = true;
 
-// Coalesce cold public-ID stream requests in this process. Stremio/Nuvio can
-// issue duplicate requests while opening a detail page; without this, each one
-// fans out to every selected upstream before Redis has the first result.
 const app = express();
 app.disable('x-powered-by');
 
@@ -85,7 +63,9 @@ app.disable('x-powered-by');
 app.set('query parser', 'extended');
 app.use(require('compression')({ threshold: 1024 }));
 
-applyAsyncWrap(app);
+// No async wrapper: Express 5 (router 2) forwards a rejected promise from any
+// handler or middleware to next(err), so async route errors reach the terminal
+// errorHandler below (test/express-async-errors.test.ts pins this).
 
 app.use(cors);
 app.use(requestLogger);

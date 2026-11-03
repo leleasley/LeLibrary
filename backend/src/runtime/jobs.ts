@@ -153,18 +153,11 @@ async function syncFromStore(store = cache) {
   return added;
 }
 
-// Pick up whatever the previous process left queued.
-async function resumeJobs() {
-  const keys = await cache.keys(`${KEY_PREFIX}*`);
-  let restored = 0;
-  for (const key of keys) {
-    const record = await cache.get(key);
-    if (!record || typeof record !== 'object' || !record.kind || !record.id) continue;
-    if (!handlers.has(record.kind)) continue;
-    if (record.expiresAt <= Date.now()) { await cache.del(key); continue; }
-    queue.set(key, record);
-    restored += 1;
-  }
+// Pick up whatever the previous process left queued. Same scan as the periodic
+// sync (one function, so the two can never drift): a job enqueued in this
+// process before the resume finished keeps its in-memory record.
+async function resumeJobs(store = cache) {
+  const restored = await syncFromStore(store);
   if (restored) console.log(`[Jobs] Resumed ${restored} background job(s)`);
   return restored;
 }

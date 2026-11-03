@@ -13,6 +13,7 @@ import type { EditSessionsApi, EditSessionStore } from '../setup/edit-sessions.t
 import type { ConnectionsApi, SetupStoreLike } from '../setup/connections.ts';
 import type { PushApi, PushConnection } from '../setup/push.ts';
 import type { OAuthApi, WatchlistOAuthProvider } from '../setup/oauth.ts';
+import type { RateLimitApi } from '../middleware/rate-limit.ts';
 
 const express = require('express') as typeof import('express');
 const runtime = require('../setup/runtime.ts') as RuntimeApi;
@@ -21,6 +22,7 @@ const conns = require('../setup/connections.ts') as ConnectionsApi;
 const push = require('../setup/push.ts') as PushApi;
 const oauth = require('../setup/oauth.ts') as OAuthApi;
 const tokenModule = require('../setup/token.ts') as TokenApi;
+const { rateLimit } = require('../middleware/rate-limit.ts') as RateLimitApi;
 const community = require('../catalog/nuvio-community.ts') as {
   MAX_UPSTREAM_BYTES: number;
   listParams: (query: unknown) => Record<string, unknown>;
@@ -85,13 +87,10 @@ function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', edi
     return Boolean(session && session.uuid === uuid);
   }
 
+  // One limiter per route, built once at mount. Buckets live in the shared
+  // rate-limit module keyed by IP + method + route pattern, as before.
   function rateLimited(windowMs: number, max: number) {
-    return (req: Request, res: Response, next: () => void) => {
-      const { rateLimit } = require('../middleware/rate-limit.ts') as {
-        rateLimit: (options?: { windowMs?: number; max?: number }) => (req: unknown, res: unknown, next: () => void) => void;
-      };
-      rateLimit({ windowMs, max })(req, res, next);
-    };
+    return rateLimit({ windowMs, max });
   }
 
   async function persistPush(uuid: string, store: Store, platform: string, connection: PushConnection): Promise<void> {

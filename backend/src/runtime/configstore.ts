@@ -10,9 +10,9 @@
 // is flushed or the key expires, everything keeps working from the token alone
 // (just without the server-side stream settings). It holds ONLY stream
 // settings: never API keys or account/session tokens. Direct stream URLs may
-// contain signed parameters, so hosted installs encrypt Custom Streams before
-// they reach Redis; self-hosted instances without an encryption key retain
-// them only in their local store.
+// contain signed parameters, so a v5.5 setup's Custom Streams stay only in its
+// sealed Postgres row and never reach Redis; legacy token installs retain
+// them in their local store.
 
 const cache = require('./cache.ts');
 const { getUserKey } = require('../providers/index.ts');
@@ -82,22 +82,12 @@ async function saveStreamSettings(config = {}) {
   const subset = streamSettings(config);
   if (Object.keys(subset).length === 0) return userKey || 'account';
   // Hosted mapping URLs can contain private hosts or signed query parameters.
-  // Encrypt that one field before it reaches Redis. Self-hosted instances that
-  // do not configure the private account encryption key keep their local-only
-  // store behavior; an account scope must always be encryptable.
-  const canEncrypt = /^[0-9a-f]{64}$/i.test(process.env.ENCRYPTION_KEY || '');
-  if ((accountScoped || canEncrypt) && Array.isArray(subset.customStreams)) {
-    try {
-      const enc = require('../accounts/encrypt');
-      subset.customStreamsSealed = enc.sealJson(subset.customStreams);
-      delete subset.customStreams;
-    } catch (err) {
-      // Account-backed hosted storage must never downgrade to plaintext.
-      // Public self-host builds intentionally omit src/accounts entirely, so
-      // a legacy local store falls back to its operator-controlled boundary.
-      if (accountScoped) throw new Error(`Could not protect Custom Streams: ${err.message}`);
-    }
-  }
+  // A v5.5 setup keeps its Custom Streams in its sealed Postgres row, so they
+  // never need a plaintext copy in Redis: drop them from the scoped subset.
+  // (This used to seal them with the accounts-era helper, removed in v5.5;
+  // the require failed, so scoped saves with Custom Streams threw instead.)
+  // Legacy token installs keep their local-only store behaviour.
+  if (accountScoped) delete subset.customStreams;
   await cache.set(storeKey(config), subset, CONFIG_TTL);
   return userKey || 'account';
 }
@@ -107,16 +97,10 @@ async function loadStreamSettings(userKeyOrConfig) {
   if (typeof userKeyOrConfig === 'object') {
     let scoped = await cache.get(storeKey(userKeyOrConfig));
     if (scoped?.customStreamsSealed) {
-      try {
-        const enc = require('../accounts/encrypt');
-        const customStreams = enc.unsealJson(scoped.customStreamsSealed);
-        scoped = { ...scoped };
-        delete scoped.customStreamsSealed;
-        if (Array.isArray(customStreams)) scoped.customStreams = customStreams;
-      } catch {
-        scoped = { ...scoped };
-        delete scoped.customStreamsSealed;
-      }
+      // Written by the accounts-era sealer (removed in v5.5): nothing can open
+      // it any more, so drop it rather than hand back an opaque blob.
+      scoped = { ...scoped };
+      delete scoped.customStreamsSealed;
     }
     if (scoped || ['account', 'config'].includes(userKeyOrConfig.__configScope?.type)) return scoped;
     // Compatibility read for legacy settings written before scoping was added.

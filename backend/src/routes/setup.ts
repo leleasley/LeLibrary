@@ -163,9 +163,10 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
       }
       return store;
     } catch {
-      // A dropped Postgres connection (or a failed lazy migration) used to
-      // reject out of an async Express 4 handler: no response, and the
-      // rejection surfaced as an unhandledRejection. Treat it as unavailable.
+      // A dropped Postgres connection (or a failed lazy migration) would
+      // otherwise reject to the terminal errorHandler as a generic 500.
+      // Answer with the same 503 as "no store" so clients can tell storage
+      // being down apart from a bug.
       if (!res.headersSent) {
         res.status(503).json({ error: 'Setup storage is unavailable on this instance' });
       }
@@ -363,12 +364,7 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
   // tight per-IP rate limit, password-protected setups only, allowlisted
   // services only, and the value itself is never logged.
   router.post('/:uuid/keys/reveal',
-    (req, res, next) => {
-      const { rateLimit } = require('../middleware/rate-limit.ts') as {
-        rateLimit: (options?: { windowMs?: number; max?: number }) => (req: any, res: any, next: () => void) => void;
-      };
-      rateLimit({ windowMs: 60_000, max: 20 })(req, res, next);
-    },
+    rateLimit({ windowMs: 60_000, max: 20 }),
     async (req: Request, res: Response) => {
       const store = await withStore(res);
       if (!store) return;

@@ -12,9 +12,6 @@ const { timeSpan } = require('../middleware/perf-timing.ts') as {
   timeSpan: <T>(trace: unknown, name: string, fn: () => Promise<T> | T) => Promise<T>;
 };
 
-// v5.5 removed the hosted account extension; guarded paths degrade to self-host.
-const HOSTED = null;
-
 // Resolve a token to a config. Legacy base64 tokens decode directly; opaque
 // V5 token ids (random ids pointing at a saved account token) are looked up in
 // Postgres, where the user's saved provider keys are folded back in. This keeps

@@ -2,10 +2,10 @@
 const app = require('./app.ts');
 const PORT = process.env.PORT || 7860;
 
-// Backstop: Express 4 does not catch rejected promises from async handlers,
-// and on Node >= 15 an unhandled rejection terminates the process. Handlers
-// are wrapped with asyncHandler(), but this keeps a transient bug or an
-// un-wrapped path (middleware, timers, background jobs) from taking prod down.
+// Backstop: on Node >= 15 an unhandled rejection terminates the process.
+// Express 5 already forwards rejected route/middleware promises to the error
+// handler, but timers, background jobs and fire-and-forget promises outside a
+// request are not covered, so this keeps one of those from taking prod down.
 process.on('unhandledRejection', (err: unknown) => {
   console.error('[Process] Unhandled rejection:', err instanceof Error ? err.stack ?? err.message : err);
 });

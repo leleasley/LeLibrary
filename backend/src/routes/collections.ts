@@ -2,12 +2,11 @@
 // set, plus the profile-scoped collections.json the client reads.
 import type { Express, Request, Response } from 'express';
 
-const { errorHandler } = require('../middleware/error-handler.ts');
 const {
   TTL_CATALOG, TTL_STREAM, OWNED_CATALOG_CLIENT_TTL,
   knownConfigs, KNOWN_CONFIGS_MAX, knownConfigFailures, catalogBuildInFlight,
   providerRefreshSnapshots, providerRefreshInFlight,
-  rememberConfig, registerBackgroundRefresh, restoreAccountRefreshRegistry,
+  rememberConfig, registerBackgroundRefresh,
   refreshDownloadsForUser, hashDownloads, buildAndCacheForConfigInner, buildAndCacheForConfig,
   settleWithin, waitFor,
 } = require('../runtime/refresh.ts');
@@ -21,15 +20,12 @@ const { buildCatalog, buildMeta, buildStreams, populateTmdbIndexFromMetas, apply
 const { buildDiscoveryCatalog, buildDiscoveryMeta, buildDiscoveryStreams, discoveryStreamKeyParts } = require('../catalog/discovery.ts');
 const { buildCollectionsCatalog, cacheCollections, getCollectionMeta, getCollections, collectionsBuilt, getCollectionForMovie } = require('../catalog/franchise-collections.ts');
 const { normaliseNuvioArtwork, absoluteLocalArtwork } = require('../catalog/collection-artwork.ts');
-const { compileCollectionPlan } = require('../catalog/collection-plan.ts');
 const { posterFp } = require('./shared.ts') as { posterFp: (config: Record<string, any>) => string };
 
 const { buildLibraryCollection, collectionCatalogMetas } = require('../catalog/nuvio-library-collections.ts') as {
   buildLibraryCollection: (...args: any[]) => any;
   collectionCatalogMetas: (...args: any[]) => any;
 };
-
-const HOSTED: any = null;
 
 // How long an owned-only request (a Nuvio push) may wait for a cold library
 // build before publishing what is ready. Bounded so the push always answers
@@ -198,57 +194,11 @@ function mountCollectionsRoutes(app: Express, deps: CollectionsDeps): void {
       return (importedOrder.get(aKey) ?? Number.MAX_SAFE_INTEGER) - (importedOrder.get(bKey) ?? Number.MAX_SAFE_INTEGER);
     });
     imported.forEach(collection => { delete collection._importSourceId; delete collection.enabled; });
-    // If the token owner has a saved Collections config, render THAT structure
-    // instead of the franchise default. Folders point at `lib-{catalogId}` rows
-    // (or torbox-collections with a genre) and Nuvio resolves them against the
-    // manifest. The catalog handler ignores the genre extra for lib- rows.
-    let storedCollections = [];
-    if (HOSTED && typeof HOSTED.tokenCollectionConfig === 'function') {
-      try {
-        const stored = await HOSTED.tokenCollectionConfig(req.params.token, {
-          integration: req.query.integration === 'stremio' ? 'stremio' : 'nuvio',
-          profile_id: typeof req.query.profile_id === 'string' ? req.query.profile_id : 'default',
-        });
-        // Do not leak a Collections Wizard document into a different account
-        // token's legacy /collections.json export. The token being installed is
-        // the authority for this response; mixing the two was the source of the
-        // duplicate native collections and mobile Nuvio crashes.
-        if (stored && String(stored.manifest_token_id || '') === String(req.params.token) && Array.isArray(stored.collections)) {
-          storedCollections = compileCollectionPlan({
-            collections: stored.collections,
-            homeRows: stored.home_rows,
-            sources: stored.sources,
-            externalSources: stored.external_sources,
-            manifestId: addonId,
-            integration: req.query.integration === 'stremio' ? 'stremio' : 'nuvio',
-            hideAnime: config.hideAnime === true,
-          }).collections;
-        }
-      } catch (err: any) {
-        console.warn('[Nuvio] stored collections render failed, falling back:', err.message);
-      }
-    }
-
-    // The Collections Wizard already persists its complete native-collection
-    // document. Its token must export that document verbatim: adding legacy
-    // packs or the provider-franchise fallback here creates a second, competing
-    // collection tree for the very same Nuvio profile.
-    if (config.collection_setup === true && storedCollections.length && req.query.owned_only !== '1') {
-      cacheNuvioCollections(res);
-      return res.json(renderCollections(storedCollections));
-    }
-
+    // Saved Collections Wizard documents were an accounts-era feature (removed
+    // in v5.5): the packs plus the live franchise collection are the tree now.
     if (config.catalogFranchises === false && req.query.owned_only !== '1') {
       cacheNuvioCollections(res);
-      return res.json(renderCollections([...curated, ...imported, ...storedCollections]));
-    }
-
-    // A saved account collection document may contain additional custom
-    // collections, but it must not silently remove the live library-franchise
-    // collection. Respect an explicitly saved replacement with the same id.
-    if (storedCollections.some((collection: any) => collection?.id === 'collection-lelibrary-franchises')) {
-      cacheNuvioCollections(res);
-      return res.json(renderCollections([...curated, ...imported, ...storedCollections]));
+      return res.json(renderCollections([...curated, ...imported]));
     }
 
     const userKey = providers.getUserKey(config);
@@ -342,7 +292,7 @@ function mountCollectionsRoutes(app: Express, deps: CollectionsDeps): void {
     cacheNuvioCollections(res);
     const ownedLibraryCollection = buildLibraryCollection(metas, addonId, config);
     if (req.query.owned_only === '1') return res.json(renderCollections([ownedLibraryCollection]));
-    res.json(renderCollections([...curated, ...imported, ...storedCollections, ownedLibraryCollection]));
+    res.json(renderCollections([...curated, ...imported, ownedLibraryCollection]));
   }
 
   app.get('/:token/collections.json', handleNuvioProfile);

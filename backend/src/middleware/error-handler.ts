@@ -1,6 +1,7 @@
-// Terminal error handler. Async rejections land here via the auto-wrapper;
-// without it Express 4's default would leak a stack trace as HTML. JSON for API
-// routes, plain text otherwise, and never an internal message.
+// Terminal error handler. Express 5 forwards async rejections here; without it
+// the default finalhandler would answer with an HTML error page (and a stack
+// trace outside production). JSON for API routes, plain text otherwise, and
+// never an internal message.
 //
 // Over-limit bodies get a plain-English 413: the pre-push save carries pasted
 // collections imports and used to fail here as an opaque "Internal error" with

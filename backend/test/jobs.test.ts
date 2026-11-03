@@ -133,3 +133,21 @@ test('re-reading the store never overwrites a job this process already holds', a
   assert.deepEqual(jobs.jobState(kind, 'y').payload, { mine: true });
   await jobs.cancelJob(kind, 'y');
 });
+
+// Audit B10: resumeJobs() was a copy of syncFromStore() without the
+// "already queued" skip, so a job scheduled during boot could be replaced by
+// its older Redis copy. Both now share one scan.
+test('resuming on boot keeps a job this process scheduled first', async () => {
+  const kind = freshKind('resume');
+  jobs.registerJobHandler(kind, async () => 'retry');
+  await jobs.scheduleJob({ kind, id: 'z', payload: { mine: true }, delayMs: 60000 });
+  const store = fakeStore({
+    [`job:${kind}:z`]: { kind, id: 'z', payload: { stale: true }, attempts: 9, notBefore: 0, expiresAt: Date.now() + 60000 },
+    [`job:${kind}:w`]: { kind, id: 'w', payload: {}, attempts: 0, notBefore: Date.now() + 60000, expiresAt: Date.now() + 60000 },
+  });
+  assert.equal(await jobs.resumeJobs(store), 1);
+  assert.deepEqual(jobs.jobState(kind, 'z').payload, { mine: true });
+  assert.ok(jobs.jobState(kind, 'w'), 'stored job was not resumed');
+  await jobs.cancelJob(kind, 'z');
+  await jobs.cancelJob(kind, 'w');
+});

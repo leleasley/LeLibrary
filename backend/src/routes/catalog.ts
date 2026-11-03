@@ -2,13 +2,11 @@
 // the Configure preview endpoints. Largest group in the addon router.
 import type { Express, Request, Response } from 'express';
 
-const { applyAsyncWrap } = require('../middleware/async-wrap.ts');
-const { errorHandler } = require('../middleware/error-handler.ts');
 const {
   TTL_CATALOG, TTL_STREAM, OWNED_CATALOG_CLIENT_TTL, LIBRARY_PROJECTION_VERSION,
   knownConfigs, KNOWN_CONFIGS_MAX, knownConfigFailures, catalogBuildInFlight,
   providerRefreshSnapshots, providerRefreshInFlight,
-  rememberConfig, registerBackgroundRefresh, restoreAccountRefreshRegistry,
+  rememberConfig, registerBackgroundRefresh,
   refreshDownloadsForUser, hashDownloads, buildAndCacheForConfigInner, buildAndCacheForConfig,
 } = require('../runtime/refresh.ts');
 const express = require('express');
@@ -30,8 +28,6 @@ const { normaliseNuvioArtwork, absoluteLocalArtwork } = require('../catalog/coll
 // Private addon identity (gitignored).
 let REGISTRY: { addonId?: string; name?: string } | null = null;
 try { REGISTRY = require('../registry.ts') as { addonId?: string; name?: string }; } catch { /* self-hosted build */ }
-
-const HOSTED: any = null;
 
 const { withCacheHints, streamResponseTtl, setPrivateResponseCache, posterFp, posterEnhance, hashShort, parseExtra, markClientIntegrationStage } = require('./shared.ts') as {
   withCacheHints: (...args: any[]) => any;
@@ -286,49 +282,10 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       const importedSourceId = importedMatch[2] || (/^imp_[a-f0-9]{64}$/.test(String(extra.genre || '')) ? String(extra.genre) : '');
       const importedLabel = !importedSourceId ? String(extra.genre || '').trim().slice(0, 160) : '';
       if (importedSourceId || importedLabel) {
-        // Only an opaque account token can resolve a private definition. The
-        // genre carries the human label Nuvio displays on the folder tab
-        // ("<catalog name> · <genre>"); hashes remain accepted for old pushes.
-        if (config.__configScope?.type !== 'account' || (!HOSTED?.resolveImportedSource && !HOSTED?.resolveImportedSourceByLabel)) return res.json({ metas: [] });
-        const definition = importedSourceId
-          ? await HOSTED.resolveImportedSource(req.params.token, importedSourceId, type)
-          : await HOSTED.resolveImportedSourceByLabel(req.params.token, importedLabel, type);
-        try {
-          if (definition) {
-            metas = await require('../catalog/libcatalog.ts').buildNormalizedImportedCatalog({
-              definition, tmdbApiKey, lang, skip, search,
-              enhance: posterEnhance(config), posterFp: posterFp(config), mdblistKey: config.mdblistKey || '',
-              hideAnime: config.hideAnime === true,
-            });
-          } else if (!importedSourceId && HOSTED?.resolveExternalSourceByLabel) {
-            const external = await HOSTED.resolveExternalSourceByLabel(req.params.token, importedLabel, type);
-            if (!external) return res.json({ metas: [] });
-            metas = await require('../accounts/external-catalog').fetchExternalCatalog(external, {
-              skip,
-              search,
-              genre: external.genre || '',
-            });
-          } else {
-            return res.json({ metas: [] });
-          }
-        } catch (error: any) {
-          console.warn(`[Imported catalog] ${error.code || 'upstream_error'}`);
-          const messages: Record<string, string> = {
-            source_not_found: 'This public list or collection was deleted, made private, or is unavailable.',
-            source_unavailable: 'This public source is no longer accessible.',
-            provider_not_configured: 'This source provider is not configured on LeLibrary.',
-            rate_limited: 'The source provider is temporarily rate limiting requests.',
-            temporary_upstream_error: 'The source provider is temporarily unavailable.',
-            blocked_external_host: 'This external catalogue address is not permitted.',
-            external_catalog_missing: 'The configured addon no longer provides this catalogue.',
-            external_catalog_empty: 'The external catalogue returned no compatible public titles.',
-            external_timeout: 'The external catalogue took too long to respond.',
-            unsupported_external_transport: 'This external addon does not expose a compatible catalogue route.',
-            invalid_external_response: 'The external addon returned an invalid catalogue response.',
-            external_source_unavailable: 'The external catalogue is temporarily unavailable.',
-          };
-          return res.json({ metas: [], sourceError: { code: error.code || 'upstream_error', message: messages[error.code] || 'This imported source is unavailable.' } });
-        }
+        // Private import definitions ("imp_<hash>" ids or the folder label)
+        // were resolved by the accounts-era extension, removed in v5.5. No
+        // v5.5 setup can own one, so these rows stay empty.
+        return res.json({ metas: [] });
       } else {
         // Read-only compatibility for existing pre-normalization imports. New
         // imports never create these recipe strings.
@@ -535,22 +492,9 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
     // generic path (would otherwise look like a library catalog).
     const wlMatch = catalogId.match(/^torbox-watchlist-([a-z]+)-(movie|series)$/);
     if (wlMatch) {
-      const wlProvider = wlMatch[1];
-      const wlType = wlMatch[2];
-      const extra = parseExtra(req.params.extra || '');
-      const skip = parseInt(extra.skip) || 0;
-      const search = extra.search || '';
-      const userKey = providers.getUserKey(config);
-      if (!HOSTED) return res.json({ metas: [] });
-      let paginated = [];
-      try {
-        paginated = await HOSTED.buildWatchlistCatalog({ token: req.params.token, config, provider: wlProvider, type: wlType, lang, userKey, skip, search });
-      } catch (err: any) {
-        console.error(`[Watchlist] ${wlProvider} ${wlType} error:`, err.message);
-      }
-      console.log(`[Watchlist] ${wlProvider}:${wlType} → ${paginated.length} rows`);
-      setPrivateResponseCache(res, 300);
-      return res.json(withCacheHints({ metas: paginated }, { cacheMaxAge: 300, staleRevalidate: 300, staleError: 1800 }));
+      // Watchlist rows were built by the accounts-era extension (removed in
+      // v5.5). Old pushes still reference the ids, so answer with an empty row.
+      return res.json({ metas: [] });
     }
 
     // ── Trending / Popular discovery catalogs ──

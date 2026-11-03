@@ -16,6 +16,8 @@ interface StatusLike { overall?: unknown; providers?: unknown }
 export interface BootData {
   features: { releases: boolean; savedSetups: boolean; unavailableStreamAddons?: string[]; webdavSource?: boolean };
   status?: unknown;
+  // Hash of the shared browser helpers: their URLs are versioned with it.
+  assets?: string;
 }
 
 // Mirrors statusClass() in frontend/src/features/site/site-hooks.ts.

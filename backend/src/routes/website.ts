@@ -73,7 +73,30 @@ function serveShell(res: any): boolean {
 const bootHtml = require('../platform/boot-html.ts');
 let latestStatus: { at: number; data: unknown } | null = null;
 const BOOT_STATUS_MAX_AGE = 10 * 60 * 1000;
-function bootData(): { features: { releases: boolean; savedSetups: boolean; unavailableStreamAddons: string[]; webdavSource: boolean }; status?: unknown } {
+// Version of the shared browser helpers (/poster-template.js and friends):
+// a hash of their sources, so every change gets a new URL on its own. A fixed
+// number used to be bumped by hand; 5.9 changed poster-template.ts without a
+// bump and browsers kept the old copy (Posters+ "Unknown placeholder").
+let assetVersionCache: string | null = null;
+function assetVersion(): string {
+  if (assetVersionCache) return assetVersionCache;
+  const crypto = require('crypto');
+  const hash = crypto.createHash('sha256');
+  for (const file of [
+    path.join(ROOT_DIR, 'backend', 'src', 'streams', 'formatter.ts'),
+    path.join(ROOT_DIR, 'backend', 'src', 'config', 'token-map.ts'),
+    path.join(ROOT_DIR, 'backend', 'src', 'media', 'poster-template.ts'),
+    path.join(ROOT_DIR, 'backend', 'src', 'runtime', 'pictorium-options.ts'),
+    path.join(ROOT_DIR, 'frontend', 'dist', 'custom-streams-editor.js'),
+  ]) {
+    try { hash.update(fs.readFileSync(file)); } catch { hash.update(file); }
+  }
+  const version: string = hash.digest('hex').slice(0, 10);
+  assetVersionCache = version;
+  return version;
+}
+
+function bootData(): { features: { releases: boolean; savedSetups: boolean; unavailableStreamAddons: string[]; webdavSource: boolean }; status?: unknown; assets: string } {
   let releases = false;
   let webdavSource = false;
   let savedSetups = false;
@@ -83,7 +106,7 @@ function bootData(): { features: { releases: boolean; savedSetups: boolean; unav
   try { unavailableStreamAddons = require('../streams/streamAddons.ts').unavailableStreamAddons(); } catch { /* none */ }
   try { webdavSource = require('../providers/webdav.ts').webdavEnabled() === true; } catch { /* off */ }
   const fresh = latestStatus && Date.now() - latestStatus.at < BOOT_STATUS_MAX_AGE ? latestStatus.data : null;
-  return { features: { releases, savedSetups, unavailableStreamAddons, webdavSource }, ...(fresh ? { status: fresh } : {}) };
+  return { features: { releases, savedSetups, unavailableStreamAddons, webdavSource }, ...(fresh ? { status: fresh } : {}), assets: assetVersion() };
 }
 
 // The public homepage is pre-rendered at build time for search engines and

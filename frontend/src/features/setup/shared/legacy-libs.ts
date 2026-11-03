@@ -56,9 +56,22 @@ export interface PictoriumOptionsLib {
 
 const cache = new Map<string, Promise<unknown>>();
 
-// Shared browser helpers use immutable static caching. Bump this query version
-// whenever one of their implementations changes.
-export const FROZEN_ASSET_VERSION = '12';
+// Shared browser helpers are cached by URL, so the URL carries a version: the
+// server puts a hash of their sources in the page's boot data (ll-boot
+// "assets"), so any change reaches browsers on its own. The number is only the
+// fallback for a page served without boot data.
+function bootAssetVersion(): string | null {
+  if (typeof document === 'undefined') return null;
+  try {
+    const text = document.getElementById('ll-boot')?.textContent;
+    const value = text ? (JSON.parse(text) as { assets?: unknown }).assets : null;
+    return typeof value === 'string' && /^[a-z0-9]{1,32}$/i.test(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export const FROZEN_ASSET_VERSION = bootAssetVersion() ?? '13';
 
 export const FROZEN_ASSETS = {
   'formatter.js': `/formatter.js?v=${FROZEN_ASSET_VERSION}`,

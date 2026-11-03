@@ -81,6 +81,7 @@ export function ImportSection({ staged, platform, keepsCollections = true, onSta
             <span className="imp-kicker">Coming from the old setup</span>
             <h3 id="imp-title">Bring your old setup across</h3>
             <p>Find it with your email and everything comes with it. No retyping.</p>
+            <p className="imp-sunset">Moving across ends in v6: this import goes away then, and every email still kept from the old setups is deleted.</p>
             <ul className="imp-carries" aria-label="What comes with it">
               {carries.map((item) => <li key={item}><span aria-hidden="true">✓</span>{item}</li>)}
             </ul>

@@ -1905,6 +1905,7 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
 .imp-main h3 { margin: 0; font-size: 1.12rem; letter-spacing: -0.02em; }
 .imp-main h3 small { color: var(--muted); font: 500 0.78rem var(--mono, monospace); letter-spacing: 0; }
 .imp-main p { margin: 0; color: var(--muted); font-size: 0.86rem; line-height: 1.5; }
+.imp-main p.imp-sunset { margin-top: 6px; color: var(--amber); font-size: 0.8rem; }
 .imp-carries, .imp-found { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 4px 0 0; padding: 0; list-style: none; }
 .imp-carries li { display: inline-flex; align-items: center; gap: 6px; color: var(--text); font-size: 0.8rem; }
 .imp-carries li span { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: rgba(52, 211, 153, 0.16); color: #34d399; font-size: 0.6rem; font-weight: 900; }

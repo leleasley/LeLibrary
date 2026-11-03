@@ -335,10 +335,10 @@ async function getTorBoxDownloads(apiKey, { requireFresh = false } = {}) {
 const TBDL_TTL = 300;
 const requestDlInFlight = new Map();
 
+// Scopes the playback-link cache to the API key: a 32-bit hash here could
+// hand one user's signed TorBox link to another with the same item/file ids.
 function tbdHash(s) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
-  return (h >>> 0).toString(36);
+  return require('../runtime/cache-fingerprint.ts').hashShort(s);
 }
 
 async function getTorBoxStreamLink(apiKey, source, itemId, fileId) {

@@ -34,11 +34,8 @@ const DISCOVERY_PAGES = 3;
 // always kept; the cap only trims the external tail.
 const MAX_DISCOVERY_STREAMS = Math.max(50, parseInt(process.env.MAX_DISCOVERY_STREAMS, 10) || 300);
 
-function hashShort(s) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
-  return (h >>> 0).toString(36);
-}
+// Cache key fingerprints: the one shared SHA-256 helper, never a local copy.
+const { hashShort } = require('../runtime/cache-fingerprint.ts');
 
 // Apply the user's configured poster providers to a discovery catalog row set.
 // Rows carry plain tt: ids (= IMDb id) plus tmdbId. Precedence MUST mirror

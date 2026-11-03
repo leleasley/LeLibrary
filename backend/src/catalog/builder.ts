@@ -16,11 +16,8 @@ const formatter = require('../streams/formatter.ts');
 
 const CACHE_FILE = '/tmp/torbox-tmdb-cache.json';
 
-function hashShort(s) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
-  return (h >>> 0).toString(36);
-}
+// Cache key fingerprints: the one shared SHA-256 helper, never a local copy.
+const { hashShort } = require('../runtime/cache-fingerprint.ts');
 
 // Name→TMDB match cache. The match itself is global (the same release name
 // resolves to the same title whoever owns it), so it is shared across users

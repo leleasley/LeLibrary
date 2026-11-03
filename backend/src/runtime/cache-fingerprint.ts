@@ -1,12 +1,18 @@
-// Shared, dependency-free cache identity helpers. Kept separate from route
-// modules so background refresh can use them without a refresh/routes cycle.
+// Shared cache identity helpers (server only: node:crypto). Kept separate from
+// route modules so background refresh can use them without a refresh/routes cycle.
+const crypto = require('node:crypto');
+
 type Config = Record<string, any>;
 
+// Fingerprint length in hex chars (96 bits). These values separate users and
+// settings inside shared caches (poster style, MDBList key, stream addons,
+// stream format), so a collision would merge two users' entries. The old
+// 32-bit string hash collided within tens of thousands of values; every cache
+// key fingerprint goes through this one function instead of a local copy.
+const FP_HEX_LENGTH = 24;
+
 function hashShort(value: unknown): string {
-  const s = String(value);
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
-  return (h >>> 0).toString(36);
+  return crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, FP_HEX_LENGTH);
 }
 
 function posterFp(config: Config = {}): string {
@@ -54,4 +60,4 @@ function posterEnhance(config: Config = {}) {
   };
 }
 
-module.exports = { hashShort, posterFp, posterEnhance };
+module.exports = { FP_HEX_LENGTH, hashShort, posterFp, posterEnhance };

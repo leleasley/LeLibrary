@@ -8,11 +8,8 @@ const { guessMediaInfo } = require('../media/parser.ts');
 const store = require('./store.ts');
 const metrics = require('./metrics.ts');
 
-function hashShort(s) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
-  return (h >>> 0).toString(36);
-}
+// Cache key fingerprints: the one shared SHA-256 helper, never a local copy.
+const { hashShort } = require('../runtime/cache-fingerprint.ts');
 
 // Rebuild the catalog meta shape from a persisted match_meta + the raw provider
 // item, preserving everything the stream/meta paths rely on. The MATCHED

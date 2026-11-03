@@ -45,7 +45,9 @@
     } catch { return null; }
   }
 
-  // poster fingerprint - must match app.ts:posterFp()
+  // Legacy browser-side poster fingerprint (no node:crypto in the UMD build).
+  // NOT a cache key: the server's cache keys use runtime/cache-fingerprint.ts
+  // (SHA-256), which this no longer matches. Do not use it server-side.
   function hashShort(s) {
     var h = 0; for (var i=0;i<s.length;i++) h = ((h<<5)-h+s.charCodeAt(i))|0;
     return (h>>>0).toString(36);

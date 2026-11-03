@@ -96,6 +96,7 @@ export interface StreamDeps {
 export interface StreamApi {
   mountStreamRoutes: (app: Express, deps: StreamDeps) => void;
   handleStream: (req: any, res: any, deps: StreamDeps) => Promise<void>;
+  publicStreamCacheKey: (input: any) => string;
 }
 
 async function handleStream(req: any, res: any, deps: StreamDeps): Promise<void> {
@@ -334,4 +335,4 @@ function mountStreamRoutes(app: Express, deps: StreamDeps): void {
   app.get('/:token/stream/:type/:id.json', (req, res) => handleStream(req, res, deps));
 }
 
-module.exports = { mountStreamRoutes, handleStream } satisfies StreamApi;
+module.exports = { mountStreamRoutes, handleStream, publicStreamCacheKey } satisfies StreamApi;

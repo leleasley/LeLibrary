@@ -51,7 +51,10 @@ async function warmConfiguredLibraryCatalogs(config = {}, { limit = 3 } = {}) {
   const { buildLibraryCatalog } = require('./libcatalog.ts');
   const providers = require('../providers/index.ts');
   // The same poster settings the catalogue route uses (Posters+, Pictorium...).
-  const enhance = require('../runtime/cache-fingerprint.ts').posterEnhance(config);
+  // posterFp must be the route's own (runtime/cache-fingerprint.ts), else the
+  // warmed entries sit under a key the catalogue route never reads.
+  const fingerprint = require('../runtime/cache-fingerprint.ts');
+  const enhance = fingerprint.posterEnhance(config);
   const eligible = ids.filter((id) => !!getSourceDefinition(id));
   let warmed = 0;
   let failed = 0;
@@ -63,7 +66,7 @@ async function warmConfiguredLibraryCatalogs(config = {}, { limit = 3 } = {}) {
         lang: config.lang || 'en-US',
         userKey: providers.getUserKey(config),
         enhance,
-        posterFp: require('../config/wizard-shared.js').posterFp(config),
+        posterFp: fingerprint.posterFp(config),
         mdblistKey: config.mdblistKey,
       });
       warmed++;

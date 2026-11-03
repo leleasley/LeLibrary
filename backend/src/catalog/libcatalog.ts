@@ -35,11 +35,8 @@ class ImportedSourceUpstreamError extends Error {
   }
 }
 
-function hashShort(s) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
-  return (h >>> 0).toString(36);
-}
+// Cache key fingerprints: the one shared SHA-256 helper, never a local copy.
+const { hashShort } = require('../runtime/cache-fingerprint.ts');
 
 // Library-source rows are discovery rows too: they carry public IMDb ids and
 // therefore need the same user-selected artwork precedence as Trending and

@@ -2,11 +2,11 @@
 
 Notes for the current version. Every earlier version is on [GitHub Releases](https://github.com/leleasley/LeLibrary/releases).
 
-## [5.9.1]
+## [5.9.2]
 
-### Collections
+### Fixes
 
-- Refreshed the cover art for over 300 collection folders so their covers show the films those folders hold now.
+- Your collection order now reaches the Nuvio phone and desktop apps. Before, those apps could ignore the order LeLibrary sent and keep an older one, so the LeLibrary Hub and Movie Collections could end up at the bottom. Push your setup again once, then fully close and reopen Nuvio.
 
 ### Heads up for v6
 

@@ -7,6 +7,8 @@
 // Nuvio already holds for existing users.
 const axios = require('axios');
 const homeLayout = require('./home-layout.ts');
+import type { BoundedMapApi } from '../runtime/bounded-map.ts';
+const { boundedSet } = require('../runtime/bounded-map.ts') as BoundedMapApi;
 const { compileCollectionPlan } = require('../catalog/collection-plan.ts') as {
   compileCollectionPlan: (input: Record<string, unknown>) => {
     collections: unknown[];
@@ -147,6 +149,8 @@ const STREMIO_API = 'https://api.strem.io/api';
 const TIMEOUT = 20000;
 const NUVIO_PUSH_WINDOW_MS = 60 * 1000;
 const NUVIO_PUSH_MAX_PER_USER = 4;
+const NUVIO_PUSH_BUCKETS_MAX = 5000;
+// Bounded: windows that have ended are swept when a new window starts.
 const nuvioPushBuckets = new Map<string, { startedAt: number; count: number }>();
 
 function allowPush(key: string): boolean {
@@ -155,7 +159,7 @@ function allowPush(key: string): boolean {
   let bucket = nuvioPushBuckets.get(id);
   if (!bucket || now - bucket.startedAt >= NUVIO_PUSH_WINDOW_MS) {
     bucket = { startedAt: now, count: 0 };
-    nuvioPushBuckets.set(id, bucket);
+    boundedSet(nuvioPushBuckets, id, bucket, NUVIO_PUSH_BUCKETS_MAX, (b) => now - b.startedAt >= NUVIO_PUSH_WINDOW_MS);
   }
   if (bucket.count >= NUVIO_PUSH_MAX_PER_USER) return false;
   bucket.count++;

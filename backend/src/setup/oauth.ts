@@ -11,10 +11,16 @@ import type { WatchlistConn } from './connections.ts';
 
 const axios = require('axios');
 const crypto = require('node:crypto') as typeof import('node:crypto');
+import type { BoundedMapApi } from '../runtime/bounded-map.ts';
+const { boundedSet } = require('../runtime/bounded-map.ts') as BoundedMapApi;
 
 export type WatchlistOAuthProvider = 'simkl' | 'trakt';
 
 const PENDING_TTL_MS = 10 * 60 * 1000;
+// Abandoned flows are never consumed. States share one TTL, so each insert
+// sweeps every expired state, and the cap drops the oldest live ones if a
+// burst ever outruns the TTL.
+const PENDING_MAX = 2000;
 
 interface PendingOAuth {
   uuid: string | null;
@@ -52,10 +58,14 @@ function authorizeUrl(provider: WatchlistOAuthProvider, state: string, baseUrl: 
   return u.toString();
 }
 
+function pendingOAuthCount(): number {
+  return pending.size;
+}
+
 function createPendingOAuth(uuid: string | null, provider: WatchlistOAuthProvider, nowMs: number = Date.now()): { state: string; expiresAt: number } {
   const state = randomState();
   const expiresAt = nowMs + PENDING_TTL_MS;
-  pending.set(state, { uuid, provider, expiresAt });
+  boundedSet(pending, state, { uuid, provider, expiresAt }, PENDING_MAX, (entry) => entry.expiresAt <= nowMs);
   return { state, expiresAt };
 }
 
@@ -156,6 +166,8 @@ export interface OAuthApi {
   authorizeUrl: (provider: WatchlistOAuthProvider, state: string, baseUrl: string) => string;
   createPendingOAuth: (uuid: string | null, provider: WatchlistOAuthProvider, nowMs?: number) => { state: string; expiresAt: number };
   consumePendingOAuth: (state: unknown, nowMs?: number) => { uuid: string | null; provider: WatchlistOAuthProvider } | null;
+  pendingOAuthCount: () => number;
+  PENDING_MAX: number;
   exchangeCode: (provider: WatchlistOAuthProvider, code: string, baseUrl: string) => Promise<WatchlistConn>;
   popupPage: (provider: string, ok: boolean, message: string) => string;
   popupPageWithTokens: (provider: string, connection: WatchlistConn) => string;
@@ -167,6 +179,8 @@ module.exports = {
   authorizeUrl,
   createPendingOAuth,
   consumePendingOAuth,
+  pendingOAuthCount,
+  PENDING_MAX,
   exchangeCode,
   popupPage,
   popupPageWithTokens,

@@ -6,6 +6,8 @@ import type { PasswordApi } from './password.ts';
 const { hashPassword, verifyPassword, recordFromRow } = require('./password.ts') as PasswordApi;
 import type { TokenApi } from './token.ts';
 const { newUuid, newSecret, buildInstallToken, parseInstallToken, secretHash, isUuid } = require('./token.ts') as TokenApi;
+import type { BoundedMapApi } from '../runtime/bounded-map.ts';
+const { boundedSet } = require('../runtime/bounded-map.ts') as BoundedMapApi;
 
 export type Tier = 'quick' | 'partial' | 'full';
 
@@ -145,6 +147,7 @@ function withoutCleared(record: Record<string, unknown>, clear: unknown): Record
 
 function openRow(row: ConfigRow | undefined, key: Buffer): OpenedConfig | null {
   if (!row) return null;
+  const secret = unseal(key, row.secret_sealed);
   return {
     uuid: row.uuid,
     tier: normaliseTier(row.tier),
@@ -152,7 +155,7 @@ function openRow(row: ConfigRow | undefined, key: Buffer): OpenedConfig | null {
     config: asRecord(unseal(key, row.encrypted_config)),
     keys: asRecord(unseal(key, row.encrypted_keys)),
     hasPassword: typeof row.password_hash === 'string' && row.password_hash.length > 0,
-    secret: typeof unseal(key, row.secret_sealed) === 'string' ? unseal(key, row.secret_sealed) as string : null,
+    secret: typeof secret === 'string' ? secret : null,
     createdAt: row.created_at ?? null,
     updatedAt: row.updated_at ?? null,
   };
@@ -177,6 +180,19 @@ function withPosterChoice(config: Record<string, unknown>): Record<string, unkno
 
 function toEngineConfig(opened: OpenedConfig): Record<string, unknown> {
   return withPosterChoice({ ...opened.config, ...opened.keys });
+}
+
+// last_used_at is written at most once a minute per setup. The throttle map
+// is bounded: entries past the window are swept on insert (they would write
+// again anyway), and the cap drops the oldest if the window ever holds more.
+const TOUCH_WINDOW_MS = 60_000;
+const TOUCH_THROTTLE_MAX = 5000;
+
+function shouldTouch(throttle: Map<string, number>, uuid: string, nowMs: number, max: number = TOUCH_THROTTLE_MAX): boolean {
+  const last = throttle.get(uuid);
+  if (last !== undefined && nowMs - last <= TOUCH_WINDOW_MS) return false;
+  boundedSet(throttle, uuid, nowMs, max, (at) => nowMs - at > TOUCH_WINDOW_MS);
+  return true;
 }
 
 function createConfigStore(options: ConfigStoreOptions = {}): ConfigStore {
@@ -228,10 +244,7 @@ function createConfigStore(options: ConfigStoreOptions = {}): ConfigStore {
       );
       const opened = openRow(row.rows[0], key);
       if (!opened) return null;
-      const timestamp = Date.now();
-      const last = touchThrottle.get(opened.uuid) ?? 0;
-      if (timestamp - last > 60_000) {
-        touchThrottle.set(opened.uuid, timestamp);
+      if (shouldTouch(touchThrottle, opened.uuid, Date.now())) {
         pool.query('UPDATE configs SET last_used_at = now() WHERE uuid = $1', [opened.uuid]).catch((error: Error) => {
           logger?.warn?.('[setup] last_used_at write failed:', error.message);
         });
@@ -359,9 +372,12 @@ export interface ConfigStoreApi {
   migrate: (pool: PoolLike) => Promise<void>;
   toEngineConfig: (opened: OpenedConfig) => Record<string, unknown>;
   withPosterChoice: (config: Record<string, unknown>) => Record<string, unknown>;
+  openRow: (row: ConfigRow | undefined, key: Buffer) => OpenedConfig | null;
+  shouldTouch: (throttle: Map<string, number>, uuid: string, nowMs: number, max?: number) => boolean;
+  TOUCH_THROTTLE_MAX: number;
   normaliseTier: (tier: unknown) => Tier;
   TIERS: Tier[];
   DEFAULT_TIER: Tier;
   MIGRATIONS: string[];
 }
-module.exports = { createConfigStore, migrate, toEngineConfig, withPosterChoice, normaliseTier, TIERS, DEFAULT_TIER, MIGRATIONS } satisfies ConfigStoreApi;
+module.exports = { createConfigStore, migrate, toEngineConfig, withPosterChoice, openRow, shouldTouch, TOUCH_THROTTLE_MAX, normaliseTier, TIERS, DEFAULT_TIER, MIGRATIONS } satisfies ConfigStoreApi;

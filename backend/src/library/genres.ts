@@ -13,6 +13,8 @@
 
 const axios = require('axios');
 const store = require('./store.ts');
+import type { BoundedMapApi } from '../runtime/bounded-map.ts';
+const { boundedSet } = require('../runtime/bounded-map.ts') as BoundedMapApi;
 
 const TMDB = 'https://api.themoviedb.org/3';
 
@@ -246,6 +248,7 @@ function auth(apiKey: string): { headers: Record<string, string>; params: Record
 // Keys TMDB rejected are left alone for an hour (matching has its own gate).
 const rejected = new Map<string, number>();
 const REJECT_MS = 60 * 60 * 1000;
+const REJECTED_MAX = 1000;
 
 const FILL_PER_TICK = Math.max(1, Number(process.env['LIBRARY_GENRE_FILL'] || 150));
 const CONCURRENCY = 4;
@@ -305,7 +308,12 @@ async function fillForScope(scopeId: string, setupKey: string | null | undefined
     while (!stop && index < todo.length) {
       const job = todo[index++]!;
       const facts = await fetchFacts(apiKey, job.apiType, job.tmdbId, options.get);
-      if (facts === 'rejected') { rejected.set(apiKey, Date.now() + REJECT_MS); stop = true; return; }
+      if (facts === 'rejected') {
+        const at = Date.now();
+        boundedSet(rejected, apiKey, at + REJECT_MS, REJECTED_MAX, (until) => until <= at);
+        stop = true;
+        return;
+      }
       if (facts === null) continue;
       await pool.query(
         `INSERT INTO lib_tmdb_genres (media_type, tmdb_id, genre_ids, keyword_ids, orig_lang, fetched_at)

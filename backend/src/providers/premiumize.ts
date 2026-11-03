@@ -1,6 +1,7 @@
 // @ts-nocheck
 const axios = require('axios');
 const { guessMediaInfo } = require('../media/parser.ts');
+const { boundedSet } = require('../runtime/bounded-map.ts');
 
 const PM_BASE = 'https://www.premiumize.me/api';
 
@@ -54,8 +55,10 @@ function isPmVideoFile(name = '') {
 
 // Short in-memory cache for the flat file list (one call returns the whole
 // cloud, so we avoid hammering it on every catalog/meta/stream rebuild).
+// Bounded: stale lists are swept on insert, capped per account.
 const listAllCache = new Map();
 const LISTALL_TTL = 45000;
+const PM_CACHE_MAX = 200;
 
 async function pmListAllFiles(apiKey) {
   const now = Date.now();
@@ -66,7 +69,7 @@ async function pmListAllFiles(apiKey) {
     console.warn(`[Premiumize] /item/listall failed: ${error || 'unexpected response'}`);
     return [];
   }
-  listAllCache.set(apiKey, { at: now, files: data.files });
+  boundedSet(listAllCache, apiKey, { at: now, files: data.files }, PM_CACHE_MAX, (e) => now - e.at >= LISTALL_TTL);
   return data.files;
 }
 
@@ -308,7 +311,7 @@ async function pmRootWalkItems(apiKey) {
       items.push(...pmTreeToItems(c, 0));
     }
   }
-  rootWalkCache.set(apiKey, { at: now, items });
+  boundedSet(rootWalkCache, apiKey, { at: now, items }, PM_CACHE_MAX, (e) => now - e.at >= ROOTWALK_TTL);
   return items;
 }
 

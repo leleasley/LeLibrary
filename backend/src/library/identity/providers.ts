@@ -248,7 +248,9 @@ async function jikanById(malId) {
 // Cache entries are scoped by a key hash so one account's responses can never
 // be served to another.
 const crypto = require('crypto');
-const tvdbTokens = new Map(); // keyHash -> { value, exp }
+const { boundedSet } = require('../../runtime/bounded-map.ts');
+const tvdbTokens = new Map(); // keyHash -> { value, exp }; bounded, expired swept on insert
+const TVDB_TOKENS_MAX = 1000;
 
 function tvdbKeyHash(apiKey) {
   return crypto.createHash('sha1').update(String(apiKey || '')).digest('hex').slice(0, 12);
@@ -282,7 +284,7 @@ async function tvdbLogin(apiKey) {
     method: 'post', data: { apikey: key },
   });
   const token = data?.data?.token || null;
-  if (token) tvdbTokens.set(hash, { value: token, exp: now + 20 * 24 * 60 * 60 * 1000 });
+  if (token) boundedSet(tvdbTokens, hash, { value: token, exp: now + 20 * 24 * 60 * 60 * 1000 }, TVDB_TOKENS_MAX, (e) => now >= e.exp);
   return token;
 }
 

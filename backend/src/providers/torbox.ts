@@ -3,6 +3,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 const https = require('https');
 const http = require('http');
+const { boundedSet } = require('../runtime/bounded-map.ts');
 
 const TORBOX_BASE = 'https://api.torbox.app/v1/api';
 
@@ -97,7 +98,13 @@ function requestDlIdentity(apiKey) {
 }
 
 const requestDlLimiter = createRequestDlLimiter();
+// identity -> last Redis miss; bounded, stale checks swept on insert.
 const requestDlCooldownChecks = new Map();
+const REQUESTDL_CHECKS_MAX = 5000;
+function rememberCooldownCheck(identity) {
+  const at = Date.now();
+  boundedSet(requestDlCooldownChecks, identity, at, REQUESTDL_CHECKS_MAX, (t) => at - t >= 60_000);
+}
 const requestDlCooldownLoads = new Map();
 
 function requestDlCooldownKey(cache, identity) {
@@ -132,7 +139,7 @@ async function getTorBoxPlaybackStatus(apiKey) {
       const stored = await cache.get(requestDlCooldownKey(cache, identity));
       const restored = normalizePlaybackCooldown(stored?.cooldownUntil);
       if (restored) requestDlLimiter.cooldown(identity, restored.retryAfterSec * 1000);
-      requestDlCooldownChecks.set(identity, Date.now());
+      rememberCooldownCheck(identity);
       return restored;
     })();
     requestDlCooldownLoads.set(identity, pending);
@@ -400,7 +407,7 @@ async function requestTorBoxStreamLink(apiKey, source, itemId, fileId, cache, ck
     if (s === 429) {
       const backoff = retryAfterMs(err.response?.headers?.['retry-after']);
       requestDlLimiter.cooldown(limiterIdentity, backoff);
-      requestDlCooldownChecks.set(limiterIdentity, Date.now());
+      rememberCooldownCheck(limiterIdentity);
       const cooldownUntil = Date.now() + backoff;
       await cache.set(
         requestDlCooldownKey(cache, limiterIdentity),

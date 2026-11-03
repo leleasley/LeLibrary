@@ -5,8 +5,6 @@ const path = require('path');
 const express = require('express');
 const fs = require('fs');
 const crypto = require('crypto');
-const { decodeConfig } = require('../config/token.ts');
-const { validateCustomStreamsConfig } = require('../media/custom-streams.ts');
 const { MAX_UPSTREAM_BYTES: NUVIO_COMMUNITY_MAX_BYTES, listParams: nuvioCommunityListParams, failurePayload: nuvioCommunityFailurePayload, compactListPayload: compactNuvioCommunityList } = require('../catalog/nuvio-community.ts');
 
 const WEBSITE_DIR = path.resolve(__dirname, '..', '..', '..', 'website');
@@ -170,7 +168,6 @@ function serveErrorPage(res: any, req: any, code: any, title: any, desc: any) {
 // configure page) so self-hosters get the same API surface.
 function createWebRoutes(resolveConfig: any, options: any = {}): Router {
   const router: Router = express.Router();
-  const hosted = options.hosted || null;
   // Gate + derived cookie live in one module so the v5.5 setup list and the
   // legacy saved-configs routes cannot drift apart.
   const selfhostAccess = require('../platform/selfhost-access.ts') as SelfhostAccessApi;
@@ -356,138 +353,6 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
     } catch (err) {
       const detail = err as any;
       nuvioCommunityError(res, err);
-    }
-  });
-
-  // Curated Nuvio packs are consumed by the public Configure page, so this
-  // route must live in the shared website router. Routes declared later in
-  // app.ts are unreachable after this router's 404 fallback runs.
-  // Both reference payloads are static for the process lifetime: build and
-  // validate them once, then serve the cached JSON string so a cold process
-  // does not re-run asset validation on every request.
-  // One cached body per Hide anime choice. no-cache + the ETag Express adds
-  // means a browser always re-checks (an unchanged list is a 304), so a new
-  // release's packs show at once instead of an hour-old copy.
-  const curatedPayloads = new Map<string, string>();
-  router.get('/api/curated-collections', (req, res) => {
-    try {
-      const hideAnime = req.query.hideAnime === 'true';
-      const origin = String(process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
-      const variant = `${hideAnime ? 'no-anime' : 'all'}|${origin}`;
-      let curatedPayload = curatedPayloads.get(variant);
-      if (!curatedPayload) {
-        const curated = require('../catalog/curated-collections.ts');
-        const validation = curated.validateCuratedCollections();
-        if (!validation.ok) return res.status(500).json({ error: 'Invalid curated collections', details: validation.errors });
-        curatedPayload = JSON.stringify({ ...curated.curatedCollectionsPayload({ compact: true, hideAnime, origin }), ...validation });
-        curatedPayloads.set(variant, curatedPayload);
-      }
-      res.set('Cache-Control', 'no-cache');
-      res.type('application/json').send(curatedPayload);
-    } catch (err) {
-      const detail = err as any;
-      res.status(500).json({ error: 'Could not load curated collections' });
-    }
-  });
-
-  // Catalogue library metadata is also consumed by the public Configure page.
-  // Keep it in this router so it runs before the website 404 fallback.
-  let catalogLibraryPayload: string | null = null;
-  router.get('/api/catalog-library', (req, res) => {
-    try {
-      if (!catalogLibraryPayload) {
-        const { listPickerSources, validateSourceDefinitions } = require('../catalog/catalog-source-registry.ts');
-        const validation = validateSourceDefinitions();
-        if (!validation.ok) return res.status(500).json({ error: 'Invalid catalogue source registry', details: validation.errors });
-        catalogLibraryPayload = JSON.stringify({ catalogs: listPickerSources(), total: validation.total });
-      }
-      res.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
-      res.type('application/json').send(catalogLibraryPayload);
-    } catch (err) {
-      const detail = err as any;
-      res.status(500).json({ error: 'Could not load catalogue library' });
-    }
-  });
-
-  // Config-store routes must also live here: app.ts mounts this router before
-  // its addon routes, and the router has a 404 fallback at the end.
-  router.post('/api/save-config', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) => {
-    // Failure logging only: status + reason + body size, never body content
-    // (it carries API keys) and never the token value.
-    const bodyBytes = Number(req.headers['content-length'] || 0) || '?';
-    const saveFail = (status: any, reason: any) => console.error(`[Web] POST /api/save-config → ${status}: ${reason} (body ${bodyBytes}B)`);
-    try {
-      let config = req.body && req.body.config;
-      if (!config || typeof config !== 'object') { saveFail(400, 'Missing config'); return res.status(400).json({ error: 'Missing config' }); }
-      config = validateCustomStreamsConfig(config);
-      if (config.posterProvider === 'custom') {
-        const checked = require('../media/poster-template.ts').validate(config.customPosterTemplate);
-        if (!checked.ok) { saveFail(400, checked.error); return res.status(400).json({ error: checked.error }); }
-        config.customPosterTemplate = checked.value;
-      }
-      const providers = require('../providers/index.ts');
-      const tokenId = req.body && req.body.token;
-      let configForStore = config;
-      let ownershipVerified = false;
-      if (typeof tokenId === 'string' && tokenId && tokenId.length <= 64 && !decodeConfig(tokenId) && hosted?.saveTokenConfig) {
-        if (!(await hosted.ownsOpaqueToken(req, tokenId))) {
-          saveFail(403, 'opaque token not owned by session');
-          return res.status(403).json({ error: 'Sign in to the account that owns this saved setup before changing it.' });
-        }
-        await hosted.saveTokenConfig(tokenId, config).catch((err: any) => { saveFail('store', `saveTokenConfig: ${err.message}`); console.error('[token] saveTokenConfig failed:', err.message); });
-        // Wizard/account saves deliberately never carry provider keys in the
-        // browser payload. Resolve the just-saved opaque token on the server
-        // so its settings, including libraryIdMode, are keyed to the same
-        // library instead of leaving an older Redis toggle in charge.
-        configForStore = await resolveConfig(tokenId) || config;
-        // Ownership just passed a session check: the account area's push and
-        // install flows skip the bot gate below untouched.
-        ownershipVerified = true;
-      }
-      // Turnstile bot gate (managed, invisible): anonymous/legacy saves must
-      // carry a fresh `cf-turnstile-response` for action "save-config" once
-      // TURNSTILE_SECRET + TURNSTILE_HOSTNAMES are set. Unconfigured
-      // instances (self-hosters, pre-secret dev) proceed exactly as before.
-      if (!ownershipVerified) {
-        const turnstile = require('../platform/turnstile.ts');
-        if (turnstile.turnstileConfigured()) {
-          const verdict = await turnstile.verifyTurnstile(req.body && req.body['cf-turnstile-response'], {
-            action: 'save-config',
-            remoteip: req.ip,
-          });
-          if (!verdict.ok) { saveFail(403, `bot check: ${verdict.error || 'rejected'}`); return res.status(403).json({ error: 'Bot check failed. Reload the page and try again.' }); }
-        }
-      }
-      const userKey = await require('../runtime/configstore.ts').saveStreamSettings(configForStore);
-      // Providerless legacy installs carry their bounded mapping table inside
-      // the self-contained install token. Validation above is still required,
-      // but there is intentionally no server-side scope to persist here.
-      if (!userKey && Array.isArray(configForStore.customStreams) && configForStore.customStreams.length > 0) {
-        return res.json({ ok: true, selfContained: true });
-      }
-      if (!userKey) { saveFail(400, 'no usable API keys in config'); return res.status(400).json({ error: 'Config has no usable API keys' }); }
-      res.json({ ok: true, userKey });
-    } catch (err) {
-      const detail = err as any;
-      const status = detail.statusCode || 500;
-      saveFail(status, detail.message);
-      res.status(status).json({ error: detail.message, ...(detail.details ? { details: detail.details } : {}) });
-    }
-  });
-
-  router.get('/api/config/:token', rateLimit({ windowMs: 60000, max: 60 }), async (req, res) => {
-    try {
-      const config = await resolveConfig(req.params.token);
-      if (!config) return res.status(400).json({ error: 'Invalid token' });
-      const providers = require('../providers/index.ts');
-      const userKey = providers.getUserKey(config);
-      const stored = (userKey || config.__configScope?.type === 'account')
-        ? await require('../runtime/configstore.ts').loadStreamSettings(config)
-        : null;
-      res.json(stored || null);
-    } catch (err) {
-      const detail = err as any;
-      res.status(500).json({ error: detail.message });
     }
   });
 

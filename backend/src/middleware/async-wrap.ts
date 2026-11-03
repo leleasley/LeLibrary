@@ -12,6 +12,9 @@ export interface AsyncWrapApi {
 interface WrappedHandler {
   (req: unknown, res: unknown, next: unknown): unknown;
   _asyncWrapped?: boolean;
+  // The handler this one wraps, so route-table checks can see inside a
+  // wrapped sub-router.
+  _asyncInner?: unknown;
 }
 
 const METHODS = ['get', 'post', 'put', 'delete', 'patch', 'use', 'all'] as const;
@@ -27,6 +30,7 @@ function applyAsyncWrap(app: Express): void {
       if (handler.length === 4 || handler._asyncWrapped) return handler;
       const wrapped: WrappedHandler = (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next as (error: unknown) => void);
       wrapped._asyncWrapped = true;
+      wrapped._asyncInner = handler;
       return wrapped;
     }));
   }

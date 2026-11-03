@@ -145,6 +145,13 @@ test('collections lead Nuvio Home, above every Home row', async () => {
     .map((i) => (i.is_collection ? `collection_${i.collection_id}` : `${i.addon_id}:${i.catalog_id}`));
   assert.deepEqual(keys.slice(0, 3), ['collection_collection-lelibrary-b', 'collection_collection-lelibrary-a', 'collection_my-own']);
   assert.ok(keys.indexOf('other.addon:top') > 2 && keys.indexOf('community.lelibrary.test:torbox-movies') > 2, keys.join(' | '));
+  // Nuvio mobile/desktop reject the WHOLE Home list if any item lacks these
+  // (kotlinx: no defaults), then keep their old local order.
+  for (const item of home.p_settings_json.items) {
+    for (const field of ['addon_id', 'type', 'catalog_id']) {
+      assert.equal(typeof item[field], 'string', `${item.key} lacks ${field}`);
+    }
+  }
   manifestCatalogs = [];
   homeBlob = null;
 });

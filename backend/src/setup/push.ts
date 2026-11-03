@@ -607,6 +607,13 @@ async function syncNuvioHomeOrder(token: string, profileIndex: number, manifest:
       const existing = byKey.get(key) || {};
       byKey.set(key, {
         ...existing,
+        // Nuvio mobile/desktop decode every Home item with addon_id, type and
+        // catalog_id REQUIRED (no defaults): one item without them fails the
+        // whole list and the app keeps its old local order. The apps write
+        // them as "" for collections; so do we.
+        addon_id: '',
+        type: '',
+        catalog_id: '',
         is_collection: true,
         collection_id: id,
         enabled: true,
@@ -657,7 +664,16 @@ async function syncNuvioHomeOrder(token: string, profileIndex: number, manifest:
         const catalogKey = !item['is_collection'] && item['addon_id'] && item['type'] && item['catalog_id']
           ? nuvioItemKey(item['addon_id'], item['type'], item['catalog_id'])
           : null;
-        return { ...item, key: catalogKey || own || key, order };
+        // Every item carries the three fields the apps require (see above),
+        // including entries other addons or older pushes left without them.
+        return {
+          ...item,
+          addon_id: typeof item['addon_id'] === 'string' ? item['addon_id'] : '',
+          type: typeof item['type'] === 'string' ? item['type'] : '',
+          catalog_id: typeof item['catalog_id'] === 'string' ? item['catalog_id'] : '',
+          key: catalogKey || own || key,
+          order,
+        };
       });
     })();
 

@@ -8,10 +8,6 @@ import { weekStartIso } from '@/features/releases/release-groups';
 
 export const WEEKDAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-export const MONTH_SHORT = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-];
-
 export interface WeekStripCounts {
   total: number;
   premieres: number;

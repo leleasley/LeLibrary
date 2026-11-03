@@ -105,7 +105,9 @@ export interface WeekResponse {
   days: WeekDay[];
 }
 
-export type SearchSource = 'cache' | 'local' | 'tmdb';export interface SearchResponse {
+export type SearchSource = 'cache' | 'local' | 'tmdb';
+
+export interface SearchResponse {
   query: string;
   region: string;
   source: SearchSource;

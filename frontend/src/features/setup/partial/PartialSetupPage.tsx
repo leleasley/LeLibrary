@@ -71,6 +71,7 @@ import { DestinationStep, connectionUser } from '@/features/setup/full/Destinati
 import { usePlatformPush } from '@/features/setup/shared/usePlatformPush';
 import { toast } from '@/features/setup/shared/Toast';
 import type { PlatformConnection } from '@/features/setup/full/platform-login';
+import { same } from '@/features/setup/shared/same';
 
 // Settle In builds on the library-first Quick Look with Home rows, playback
 // controls and artwork. External sources and list providers remain optional.
@@ -110,7 +111,6 @@ export function isPartialDirty(state: {
   if ((state.addons ?? []).length > 0 || (state.customStreams ?? []).length > 0) return true;
   if (Object.keys(state.watchlist ?? {}).length > 0) return true;
   if (state.customBadgeUrl.trim() !== '') return true;
-  const same = (current: unknown, pristine: unknown) => JSON.stringify(current) === JSON.stringify(pristine);
   return (
     !same(state.formatting, EMPTY_FORMATTING) ||
     !same(state.posters, EMPTY_POSTERS) ||

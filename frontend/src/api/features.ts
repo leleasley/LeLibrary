@@ -43,5 +43,3 @@ export function fetchFeatures(signal?: AbortSignal): Promise<Features> {
   shared = { at: Date.now(), promise };
   return promise;
 }
-
-export function resetFeaturesCache(): void { shared = null; }

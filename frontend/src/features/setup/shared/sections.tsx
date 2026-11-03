@@ -6,14 +6,11 @@ import { WebdavCard } from '@/features/setup/shared/webdav-card';
 import { useFeatures } from '@/features/site/site-hooks';
 import {
   ARTWORK_KEY_FIELDS,
-  HOME_ROW_PACKS,
-  METADATA_KEY_FIELDS,
   POSTER_PROVIDERS,
   PROVIDER_KEY_FIELDS,
   STREAM_PRESETS,
   VERIFY_ENDPOINTS,
   type SetupKeysDraft,
-  type StreamFilterDraft,
   type StreamPresetId,
 } from '@/features/setup/shared/config-contract';
 
@@ -480,13 +477,6 @@ export function RdCatalogSelect({ value, onChange }: {
   );
 }
 
-export function MetadataKeys({ values, onChange, savedServices, revealSaved }: {
-  values: SetupKeysDraft;
-  onChange: (next: SetupKeysDraft) => void;
-} & RevealProps) {
-  return <div className="key-card-list">{keyFields(METADATA_KEY_FIELDS, values, onChange, { savedServices, revealSaved })}</div>;
-}
-
 export function ListKey({ value, onChange, savedServices, revealSaved }: {
   value: string;
   onChange: (value: string) => void;
@@ -504,65 +494,5 @@ export function ListKey({ value, onChange, savedServices, revealSaved }: {
         {...(savedServices?.includes('mdblistKey') && revealSaved ? { onReveal: () => revealSaved('mdblistKey') } : {})}
       />
     </div>
-  );
-}
-
-// One-click home-row packs. Ids are validated server-side; unknown ids are refused.
-export function HomeRows({ values, onChange }: {
-  values: string[];
-  onChange: (next: string[]) => void;
-}) {
-  function toggle(id: string) {
-    onChange(values.includes(id) ? values.filter((kept) => kept !== id) : [...values, id]);
-  }
-  return (
-    <div className="setup-checks">
-      {HOME_ROW_PACKS.map((pack) => (
-        <label className="setup-check" key={pack.id}>
-          <input type="checkbox" checked={values.includes(pack.id)} onChange={() => toggle(pack.id)} />
-          <span>{pack.name}</span>
-        </label>
-      ))}
-      <p className="setup-note">Pick the rows you actually watch. You can change these later.</p>
-    </div>
-  );
-}
-
-export function StreamFilters({ values, onChange }: {
-  values: StreamFilterDraft;
-  onChange: (next: StreamFilterDraft) => void;
-}) {
-  return (
-    <>
-      <label className="setup-check">
-        <input
-          type="checkbox" checked={values.hideUncached}
-          onChange={(event) => onChange({ ...values, hideUncached: event.target.checked })}
-        />
-        <span>Hide uncached sources</span>
-      </label>
-      <div className="setup-row">
-        <label className="setup-field">
-          <span>Minimum resolution</span>
-          <select
-            value={values.minResolution}
-            onChange={(event) => onChange({ ...values, minResolution: event.target.value as StreamFilterDraft['minResolution'] })}
-          >
-            <option value="">Any</option>
-            <option value="480p">480p</option>
-            <option value="720p">720p</option>
-            <option value="1080p">1080p</option>
-            <option value="2160p">2160p</option>
-          </select>
-        </label>
-        <label className="setup-field">
-          <span>Maximum file size (GB)</span>
-          <input
-            inputMode="decimal" placeholder="No limit"
-            value={values.maxSizeGb} onChange={(event) => onChange({ ...values, maxSizeGb: event.target.value })}
-          />
-        </label>
-      </div>
-    </>
   );
 }

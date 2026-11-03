@@ -85,7 +85,6 @@ export interface NuvioSettings {
 }
 
 export type NuvioPart = 'settings' | 'addons' | 'collections' | 'home';
-export const NUVIO_PARTS: readonly NuvioPart[] = ['settings', 'addons', 'collections', 'home'];
 
 export interface NuvioBackup {
   id: string;
@@ -111,16 +110,6 @@ export interface NuvioProfileDetail {
   settings: NuvioSettings;
   readAt: string;
 }
-
-export type NuvioErrorCode =
-  | 'nuvio-not-connected'
-  | 'nuvio-session-expired'
-  | 'nuvio-conflict'
-  | 'not-found'
-  | 'invalid'
-  | 'profile-limit'
-  | 'profile-protected'
-  | 'nuvio-error';
 
 function auth(editToken: string): { headers: Record<string, string> } {
   return { headers: { Authorization: `Bearer ${editToken}` } };

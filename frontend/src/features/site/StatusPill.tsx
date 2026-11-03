@@ -27,7 +27,7 @@ export function StatusPill({ status, mobile, label }: { status: StatusResponse |
 
 export function FooterStatus({ status }: { status: StatusResponse | null }) {
   const overall = status ? statusClass(status.overall) : 'unknown';
-  const label = status ? statusLabel(status.overall) : 'Unknown';
+  const label = statusLabel(status ? status.overall : 'unknown');
   return (
     // data-boot markers: the server fills these in on the prerendered home page
     // (platform/boot-html.ts), so keep the structure fixed.

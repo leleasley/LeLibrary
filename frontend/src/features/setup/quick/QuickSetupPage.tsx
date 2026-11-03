@@ -36,6 +36,7 @@ import {
   pruneConfig,
   type SetupKeysDraft,
 } from '@/features/setup/shared/config-contract';
+import { same } from '@/features/setup/shared/same';
 
 export const QUICK_SECTION_IDS = [
   'providers',
@@ -64,7 +65,6 @@ export function isQuickDirty(state: {
 }): boolean {
   if (state.name.trim() !== '') return true;
   if (Object.keys(cleanKeys(state.keys)).length > 0) return true;
-  const same = (current: unknown, pristine: unknown) => JSON.stringify(current) === JSON.stringify(pristine);
   return (
     !same(state.formatting, EMPTY_FORMATTING) ||
     !same(state.posters, EMPTY_POSTERS) ||
@@ -306,7 +306,6 @@ export function QuickSetupPage({ edit }: { edit?: EditMode } = {}) {
 
         <aside className="qs-aside">{panel}</aside>
       </div>
-
 
       <TierDock hasArt={hasTmdb} label={hasTmdb ? `${posterLabel} · ${streamLabel}` : 'Add your TMDB key to see posters'}>
         {panel}

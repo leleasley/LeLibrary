@@ -107,6 +107,7 @@ export function TvTab({ region }: { region: RegionCode }) {
     if (params.has('language')) { next.language = params.get('language'); changed = true; }
     if (params.has('sort')) { next.sort = params.get('sort') === 'name' ? 'name' : 'popularity'; changed = true; }
     if (changed) setFilters(next);
+    // First load only: later URL changes come from this page's own setters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -153,7 +154,7 @@ export function TvTab({ region }: { region: RegionCode }) {
   }, [date, filters, params, minDate, maxDate]);
 
   const dayQuery = useQuery({
-    queryKey: [...queryKeys.releasesDay(region, date), filters.notable, filters.types.join('|'), filters.language, filters.sort],
+    queryKey: queryKeys.releasesDay(region, date, filters),
     queryFn: ({ signal }) => fetchDay({
       region, date,
       sort: filters.sort,
@@ -169,7 +170,7 @@ export function TvTab({ region }: { region: RegionCode }) {
   // request and the counts behave like the list beside them.
   const weekFrom = weekStartIso(date);
   const weekQuery = useQuery({
-    queryKey: [...queryKeys.releasesWeek(region, weekFrom), filters.notable, filters.types.join('|'), filters.language],
+    queryKey: queryKeys.releasesWeek(region, weekFrom, filters),
     queryFn: ({ signal }) => fetchWeek({
       region,
       from: weekFrom,

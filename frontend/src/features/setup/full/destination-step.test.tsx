@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { renderToStaticMarkup as renderStatic } from 'react-dom/server';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ProviderKeys } from '@/features/setup/shared/sections';
 import { DestinationStep } from '@/features/setup/full/DestinationStep';
+
+// The key cards read the server's feature flags through React Query.
+const renderToStaticMarkup = (node: React.ReactElement) =>
+  renderStatic(<QueryClientProvider client={new QueryClient()}>{node}</QueryClientProvider>);
 
 // A provider card that holds a key must read as ON. It used to render off even
 // with an imported or saved key present, and turning it off deleted that key.

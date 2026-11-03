@@ -12,13 +12,12 @@ const HTTP_ERROR_KEYS: Record<number, string> = {
 /** Translate only stable transport/status codes; preserve server error text verbatim. */
 export function apiErrorCopy(error: unknown, fallback: string): string {
   if (error instanceof ApiError && error.code) {
-    const key = error.code === 'NETWORK_TIMEOUT'
-      ? 'timeout'
-      : error.code === 'NETWORK_UNAVAILABLE'
-        ? 'unavailable'
-        : error.code.startsWith('HTTP_')
-          ? HTTP_ERROR_KEYS[error.status] ?? (error.status >= 500 ? 'server' : 'requestFailed')
-          : undefined;
+    const key = error.code === 'NETWORK_TIMEOUT' ? 'timeout'
+      : error.code === 'ABORTED' ? 'aborted'
+        : error.code === 'NETWORK_UNAVAILABLE' ? 'unavailable'
+          : error.code.startsWith('HTTP_')
+            ? HTTP_ERROR_KEYS[error.status] ?? (error.status >= 500 ? 'server' : 'requestFailed')
+            : undefined;
     if (key) {
       const value = i18n.t(`apiErrors.${key}`, {
         ns: 'common',

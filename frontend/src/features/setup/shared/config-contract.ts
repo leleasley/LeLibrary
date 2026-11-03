@@ -321,7 +321,6 @@ export const POSTER_PROVIDERS: { id: string; name: string; blurb: string }[] = [
   { id: 'custom', name: 'Custom template', blurb: 'Your own poster URL template with {tmdbId} or {imdbId}.' },
 ];
 
-
 export function cleanKeys(draft: SetupKeysDraft): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [field, value] of Object.entries(draft)) {

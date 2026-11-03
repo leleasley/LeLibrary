@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/api/query-keys';
+import { i18n } from '@/i18n';
 import { fetchStatus, normalizeStatus, type StatusResponse } from '@/api/status';
 import { fetchFeatures, normalizeFeatures, type Features } from '@/api/features';
 
@@ -33,12 +36,6 @@ function initialStatus(): StatusResponse | null {
   if (latestStatus) return latestStatus;
   const boot = readBoot();
   return boot?.status ? normalizeStatus(boot.status) : null;
-}
-
-// Hamburger / mobile menu state shared by every site page.
-export function useMenu() {
-  const [open, setOpen] = useState(false);
-  return { open, toggle: () => setOpen((value) => !value), close: () => setOpen(false) };
 }
 
 // The legacy pages reset a pinch-out zoom on double-tap; keep the behaviour.
@@ -80,16 +77,22 @@ export function useReveal(selector: string, extraClass?: string) {
 // an unreachable flag never shows a link that the server would 404. This is the
 // single feature-flag mechanism shared by the nav and the route guard.
 export function useFeatures(): Features | null {
-  const [features, setFeatures] = useState<Features | null>(initialFeatures);
-  useEffect(() => {
-    let cancelled = false;
-    fetchFeatures()
-      .then((value) => { latestFeatures = value; if (!cancelled) setFeatures(value); })
-      // Keep what the page already knows rather than blanking the menu.
-      .catch(() => undefined);
-    return () => { cancelled = true; };
-  }, []);
-  return features;
+  const initial = initialFeatures();
+  const { data } = useQuery({
+    queryKey: queryKeys.features,
+    queryFn: async () => {
+      const value = await fetchFeatures();
+      latestFeatures = value;
+      return value;
+    },
+    // Boot data paints first and still counts as stale, so the flags are
+    // checked once on mount. A failed check keeps what the page already
+    // knows rather than blanking the menu.
+    ...(initial ? { initialData: initial, initialDataUpdatedAt: 0 } : {}),
+    staleTime: 60_000,
+    retry: false,
+  });
+  return data ?? null;
 }
 
 export interface SectionPosition {
@@ -167,35 +170,35 @@ export function checkedProviders<T extends { status: string }>(providers: T[]): 
   return providers.filter((p) => p.status !== 'unknown');
 }
 
+// Labels live in the always-loaded `common` bundle (statusStates), so the
+// banner and footer can use them on every page. English must stay the same
+// words as backend/src/platform/boot-html.ts: English visitors hydrate the
+// prerendered home page.
+const STATUS_STATES = new Set(['operational', 'maintenance', 'degraded', 'down']);
 export function statusLabel(status: string): string {
-  const es = typeof document !== 'undefined' && document.documentElement.lang.toLowerCase().startsWith('es');
-  return status === 'operational' ? (es ? 'Operativo' : 'Operational')
-    : status === 'maintenance' ? (es ? 'Mantenimiento' : 'Maintenance')
-    : status === 'degraded' ? (es ? 'Degradado' : 'Degraded')
-    : status === 'down' ? (es ? 'Caído' : 'Down')
-    : (es ? 'Desconocido' : 'Unknown');
+  const key = STATUS_STATES.has(status) ? status : 'unknown';
+  return i18n.t(`statusStates.${key}`, { ns: 'common' });
 }
 
-// Provider status pill data: fetched once, then re-polled when pollMs is set
-// (the legacy pages polled every 60s). Failures read as null, never throw.
+// Provider status pill data: fetched on mount, then re-polled when pollMs is
+// set (the legacy pages polled every 60s, hidden tab included). Its own key,
+// not the Status page's: that page starts from a live check, not boot data.
+// Failures keep the last known status instead of flashing back to the
+// placeholder; null only while nothing is known.
 export function useProviderStatus(pollMs: number | null): StatusResponse | null {
-  const [status, setStatus] = useState<StatusResponse | null>(initialStatus);
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const data = await fetchStatus(AbortSignal.timeout(15000));
-        latestStatus = data;
-        if (!cancelled) setStatus(data);
-      } catch {
-        // A failed refresh keeps the last known status instead of flashing
-        // back to the placeholder.
-      }
-    }
-    void load();
-    if (pollMs === null) return () => { cancelled = true; };
-    const timer = setInterval(() => void load(), pollMs);
-    return () => { cancelled = true; clearInterval(timer); };
-  }, [pollMs]);
-  return status;
+  const initial = initialStatus();
+  const { data } = useQuery({
+    queryKey: queryKeys.statusPill,
+    queryFn: async ({ signal }) => {
+      const value = await fetchStatus(signal);
+      latestStatus = value;
+      return value;
+    },
+    ...(initial ? { initialData: initial, initialDataUpdatedAt: 0 } : {}),
+    staleTime: 0,
+    refetchInterval: pollMs ?? false,
+    refetchIntervalInBackground: true,
+    retry: false,
+  });
+  return data ?? null;
 }

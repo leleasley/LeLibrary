@@ -150,14 +150,6 @@ export function setNuvioProfile(uuid: string, profileId: number, editToken: stri
   );
 }
 
-export function disconnectPush(uuid: string, platform: string, editToken: string): Promise<{ ok: boolean }> {
-  return apiClient.post<{ ok: boolean }>(
-    `/api/setup/${encodeURIComponent(uuid)}/push-connect/${encodeURIComponent(platform)}/disconnect`,
-    {},
-    bearer(editToken),
-  );
-}
-
 export function pushProfiles(uuid: string, editToken: string): Promise<{ profiles: NuvioProfileOption[]; selected: number | null }> {
   return apiClient.get<{ profiles: NuvioProfileOption[]; selected: number | null }>(
     `/api/setup/${encodeURIComponent(uuid)}/push-profiles`,
@@ -250,10 +242,6 @@ export function cleanWatchlistDraft(draft: WatchlistDraftMap | null | undefined)
     if (conn && typeof conn.access_token === 'string' && conn.access_token) out[key] = conn;
   }
   return out;
-}
-
-export interface PublicCollectionItem {
-  [key: string]: unknown;
 }
 
 export function browsePublicCollections(

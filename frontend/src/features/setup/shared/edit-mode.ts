@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { applySavedConfig } from '@/features/setup/shared/saved-config';
 import { buildEditSaveBody } from '@/features/setup/shared/edit-save';
 import type { SetupKeysDraft, CustomStreamRow } from '@/features/setup/shared/config-contract';
@@ -15,6 +15,7 @@ import type { CustomAddonRef } from '@/features/setup/shared/custom-addons';
 import type { NuvioProfileRef, PlatformConnection } from '@/features/setup/full/platform-login';
 import type { PartialDraft } from '@/features/setup/partial/partial-draft';
 import type { FullDraft } from '@/features/setup/full/full-draft';
+import { same } from '@/features/setup/shared/same';
 
 export type TierId = 'quick' | 'partial' | 'full';
 
@@ -111,8 +112,6 @@ export function emptySnapshot(): TierSnapshot {
   return snapshotFromSaved({}, {}, null);
 }
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-
 // The save body for an edit: only areas that differ from what the server
 // holds, keys only when genuinely new or changed, and the tier only when the
 // user switched it. Null means nothing to save (the dirty check).
@@ -174,14 +173,51 @@ export function editSaveBody(input: {
   return { ...(body ?? {}), tier: input.tier };
 }
 
+// Tells whether a snapshot's content differs from the one before. Same answer
+// as comparing JSON.stringify of the whole snapshot, but a section whose value
+// is the same object as last time (React state that was not touched) is not
+// serialized again, so a keystroke in the name field never re-serializes a
+// big Move In collections document. The first call always reports a change.
+export function createSnapshotTracker(): (snapshot: TierSnapshot | null) => boolean {
+  let previous: Record<string, unknown> | null | undefined;
+  let sections = new Map<string, string | undefined>();
+  return (snapshot) => {
+    const record = snapshot as unknown as Record<string, unknown> | null;
+    if (previous === undefined || record === null || previous === null) {
+      const changed = previous === undefined || record !== previous;
+      previous = record;
+      sections = new Map(record ? Object.keys(record).map((key) => [key, JSON.stringify(record[key])]) : []);
+      return changed;
+    }
+    const prior = previous;
+    const keys = Object.keys(record);
+    let changed = keys.join('\u0000') !== [...sections.keys()].join('\u0000');
+    const next = new Map<string, string | undefined>();
+    for (const key of keys) {
+      const value = record[key];
+      const json = key in prior && prior[key] === value && sections.has(key) ? sections.get(key) : JSON.stringify(value);
+      if (json !== sections.get(key)) changed = true;
+      next.set(key, json);
+    }
+    previous = record;
+    sections = next;
+    return changed;
+  };
+}
+
 // Pages call this every render in edit mode; it reports only when the content
 // actually changed, so the container's dirty check stays cheap and stable.
 export function useEditSnapshot(edit: EditMode | undefined, snapshot: TierSnapshot) {
-  const json = JSON.stringify(snapshot);
+  const [tracker] = useState(createSnapshotTracker);
+  const version = useRef(0);
+  if (tracker(snapshot)) version.current += 1;
+  const contentVersion = version.current;
   useEffect(() => {
     if (edit && !edit.locked) edit.onSnapshot(snapshot);
+    // Runs when the content changes (contentVersion), not on every new
+    // snapshot object, and when the page locks or unlocks.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [json, edit?.locked]);
+  }, [contentVersion, edit?.locked]);
 }
 
 // Edit mode seeds the stepped pages through the same draft shape they restore

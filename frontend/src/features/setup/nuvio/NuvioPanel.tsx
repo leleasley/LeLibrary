@@ -28,8 +28,6 @@ const TABS: { id: NuvioTab; label: string }[] = [
   { id: 'backups', label: 'Backups' },
 ];
 
-export const SAVED_NOTE = 'Saved to Nuvio. Restart Nuvio or switch profile on your devices to see it.';
-
 export interface NuvioPanelInitial {
   overview: NuvioOverview;
   detail?: NuvioProfileDetail | null;
@@ -145,6 +143,7 @@ export function NuvioPanel({ uuid, editToken, initial, onEditSetup }: {
     if (detail && detail.profile.index === profileIndex) return;
     setDetail(null);
     void loadDetail(profileIndex);
+    // Not keyed on `detail`: loading a profile sets it, which must not reload.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileIndex, loadDetail]);
 

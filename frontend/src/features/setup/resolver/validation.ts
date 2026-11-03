@@ -16,10 +16,6 @@ export function checkPassword(password: string, confirmation: string): PasswordC
   return { ok: true };
 }
 
-export function tierRequired(tier: string | null): boolean {
-  return tier === 'quick' || tier === 'partial' || tier === 'full';
-}
-
 // The install URL is the capability, so it is built from the token the server
 // returned rather than assembled in the browser.
 export function installUrl(origin: string, installToken: string): string {

@@ -62,17 +62,13 @@ export const HUB_SHOWS_FOLDER_ID = 'folder-lelibrary-hub-shows';
 // image is retired and redirects there for collections already pushed.
 export const HUB_COVER = '/collection-assets/collections/covers/lelibrary-hub-movies-v3.jpg';
 export const HUB_MOVIES_COVER = '/collection-assets/collections/covers/lelibrary-hub-movies-v3.jpg';
-export const HUB_MOVIES_FOCUS = '/collection-assets/collections/gifs/lelibrary-hub-movies-focus-v3.gif';
 export const HUB_SHOWS_COVER = '/collection-assets/collections/covers/lelibrary-hub-shows-v3.jpg';
-export const HUB_SHOWS_FOCUS = '/collection-assets/collections/gifs/lelibrary-hub-shows-focus-v3.gif';
 export const HUB_4K_FOLDER_ID = 'folder-lelibrary-hub-4k';
 export const HUB_HDR_FOLDER_ID = 'folder-lelibrary-hub-hdr';
 export const HUB_4K_COVER = '/collection-assets/collections/covers/lelibrary-hub-4k-v3.jpg';
 export const HUB_HDR_COVER = '/collection-assets/collections/covers/lelibrary-hub-hdr-v3.jpg';
 export const HUB_GENRES_FOLDER_ID = 'folder-lelibrary-hub-genres';
 export const HUB_GENRES_COVER = '/collection-assets/collections/covers/lelibrary-hub-genres-v3.jpg';
-
-export const FALLBACK_ART = '/LeLibrary.png?v=3';
 
 // Old folderDefault() pointed at the genre starter catalogue.
 export const STARTER_SOURCE: CatalogSourceRef = {

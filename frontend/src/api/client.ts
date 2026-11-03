@@ -94,9 +94,13 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const { method = 'GET', body, authenticated = false, csrfToken, timeoutMs = DEFAULT_TIMEOUT_MS, signal, headers } = options;
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // Remember which side aborted: our own timer is a timeout, the caller's
+  // signal (React Query, an effect cleanup) is a cancel, not a failure.
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
   const abort = () => controller.abort();
-  signal?.addEventListener('abort', abort, { once: true });
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener('abort', abort, { once: true });
 
   const finalHeaders: Record<string, string> = { Accept: 'application/json', ...headers };
   if (body !== undefined) finalHeaders['Content-Type'] = 'application/json';
@@ -112,9 +116,8 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       signal: controller.signal,
     });
   } catch (error) {
-    clearTimeout(timer);
-    signal?.removeEventListener('abort', abort);
     if (error instanceof DOMException && error.name === 'AbortError') {
+      if (!timedOut) throw new ApiError('The request was cancelled', 0, null, 'ABORTED');
       throw new ApiError('The request timed out', 0, null, 'NETWORK_TIMEOUT');
     }
     throw new ApiError('Could not reach the server', 0, null, 'NETWORK_UNAVAILABLE');

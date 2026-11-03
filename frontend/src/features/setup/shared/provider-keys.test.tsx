@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { renderToStaticMarkup as renderStatic } from 'react-dom/server';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ProviderKeys } from '@/features/setup/shared/sections';
+
+// The key cards read the server's feature flags through React Query.
+const renderToStaticMarkup = (node: React.ReactElement) =>
+  renderStatic(<QueryClientProvider client={new QueryClient()}>{node}</QueryClientProvider>);
 
 // The provider switch used to be disabled until a key existed, so clicking it
 // did nothing at all. It must always be clickable: with no key it opens the

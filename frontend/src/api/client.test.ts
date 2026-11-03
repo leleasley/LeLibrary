@@ -86,6 +86,20 @@ describe('api client', () => {
     vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => new Promise((_resolve, reject) => {
       init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
     })));
-    await expect(request('/api/status', { timeoutMs: 1 })).rejects.toMatchObject({ status: 0, message: 'The request timed out' });
+    await expect(request('/api/status', { timeoutMs: 1 })).rejects.toMatchObject({ status: 0, message: 'The request timed out', code: 'NETWORK_TIMEOUT' });
+  });
+
+  it('reports a caller cancel as ABORTED, not as a timeout', async () => {
+    vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => new Promise((_resolve, reject) => {
+      if (init?.signal?.aborted) reject(new DOMException('Aborted', 'AbortError'));
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+    })));
+    const caller = new AbortController();
+    const pending = request('/api/status', { signal: caller.signal });
+    caller.abort();
+    await expect(pending).rejects.toMatchObject({ status: 0, code: 'ABORTED' });
+    const already = new AbortController();
+    already.abort();
+    await expect(request('/api/status', { signal: already.signal })).rejects.toMatchObject({ code: 'ABORTED' });
   });
 });

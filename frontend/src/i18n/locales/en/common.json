@@ -43,6 +43,7 @@
   },
   "apiErrors": {
     "timeout": "The request timed out. Try again.",
+    "aborted": "The request was cancelled.",
     "unavailable": "Could not reach the server. Check your connection and try again.",
     "unauthorized": "You need to sign in to continue.",
     "forbidden": "You are not allowed to do that.",
@@ -50,6 +51,13 @@
     "rateLimited": "Too many requests. Try again shortly.",
     "server": "The server could not complete that request. Try again shortly.",
     "requestFailed": "The request failed ({{status}}). Try again."
+  },
+  "statusStates": {
+    "operational": "Operational",
+    "maintenance": "Maintenance",
+    "degraded": "Degraded",
+    "down": "Down",
+    "unknown": "Unknown"
   },
   "loading": {
     "page": "Loading LeLibrary…"

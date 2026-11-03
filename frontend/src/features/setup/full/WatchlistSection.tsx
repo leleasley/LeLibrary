@@ -78,13 +78,16 @@ export function WatchlistSection({ uuid, editToken, draft, onDraft }: {
 
   const refresh = useCallback(() => {
     if (!uuid || !editToken) return;
-    watchlistStatus(uuid, editToken).then(setStatus).catch(() => {});
+    // A failed status read keeps the last known state (null on first load =
+    // every provider offered); the next refresh or OAuth return tries again.
+    watchlistStatus(uuid, editToken).then(setStatus).catch(() => undefined);
   }, [uuid, editToken]);
 
   useEffect(() => {
     setStatus(null);
     if (precreation) {
-      watchlistConfig().then(setConfigured).catch(() => {});
+      // Unknown server config (null) offers both providers rather than hiding them.
+      watchlistConfig().then(setConfigured).catch(() => undefined);
       return;
     }
     setConfigured(null);

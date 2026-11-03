@@ -33,6 +33,7 @@ import { QuickSetupPage } from '@/features/setup/quick/QuickSetupPage';
 import { PartialSetupPage } from '@/features/setup/partial/PartialSetupPage';
 import { FullSetupPage } from '@/features/setup/full/FullSetupPage';
 import '@/features/setup/shared/tier/tier.css';
+import { same } from '@/features/setup/shared/same';
 
 // /{uuid}: one page per tier, used for both creating and editing. This route
 // only decides which tier page to show, unlocks it, and owns everything that
@@ -65,9 +66,6 @@ export function tierPageFor(tier: string | null | undefined): ComponentType<{ ed
 }
 
 type SavedAccount = { user: string | null; profiles: NuvioProfileRef[]; selected: number | null };
-
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-
 
 type EditView = 'edit' | 'library' | 'nuvio' | 'settings';
 // Matches the .edit-stage fade in tier.css.
@@ -240,6 +238,7 @@ export function SetupEditPage() {
       })
       .catch(() => { if (!cancelled) setMissing(true); });
     return () => { cancelled = true; };
+    // One summary load per setup id; `created` is read once, as it was on arrival.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uuid]);
 
@@ -321,6 +320,8 @@ export function SetupEditPage() {
       })
       .catch(() => { if (!cancelled) setNuvioCurrent(null); });
     return () => { cancelled = true; };
+    // `saved` is only read for the one-time seed (nuvioSeeded); re-reading
+    // Nuvio on every save would refetch for nothing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uuid, platform, nuvioSelected]);
 
@@ -373,7 +374,9 @@ export function SetupEditPage() {
       setClearCount(0);
       if (activeTier !== savedTier) toast(`Now a ${TIER_LABELS[activeTier]} setup. Same link, same id.`);
       else toast('Saved ✓');
-      fetchSetup(uuid).then(setSummary).catch(() => {});
+      // The save already succeeded; a failed summary refresh keeps the last
+      // known summary on screen rather than failing the save.
+      fetchSetup(uuid).then(setSummary).catch(() => undefined);
       return true;
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : 'Could not save';

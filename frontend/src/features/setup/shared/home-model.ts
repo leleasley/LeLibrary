@@ -19,28 +19,6 @@ export const CATALOGUE_META: Record<string, CatalogueMeta> = {
   franchises: { desc: 'One collections row: every franchise you own, as folders in Nuvio and a genre filter in Stremio.', enable: 'franchises' },
 };
 
-export interface CatSelection {
-  franchises: boolean;
-  trendingMovies: boolean;
-  trendingSeries: boolean;
-  popularMovies: boolean;
-  popularSeries: boolean;
-  movies: boolean;
-  series: boolean;
-  anime: boolean;
-}
-
-export const DEFAULT_CAT_SELECTION: CatSelection = {
-  franchises: true,
-  trendingMovies: false,
-  trendingSeries: false,
-  popularMovies: false,
-  popularSeries: false,
-  movies: true,
-  series: true,
-  anime: true,
-};
-
 export const DEFAULT_CAT_NAMES: Record<string, string> = {
   trendingMovies: '🔥 Trending Movies',
   trendingSeries: '🔥 Trending Series',

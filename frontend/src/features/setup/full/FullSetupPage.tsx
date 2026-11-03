@@ -63,6 +63,7 @@ import {
   type CustomStreamRow,
   type SetupKeysDraft,
 } from '@/features/setup/shared/config-contract';
+import { same } from '@/features/setup/shared/same';
 
 // Move In: the 8-step Collections spine (Docs/plans/v5.5-move-in-scoping.md).
 // Stages 2-6 fill in the destination connection, provider skins, collections
@@ -109,7 +110,6 @@ export function isFullDirty(state: {
   if (state.addons.length > 0 || state.customStreams.length > 0) return true;
   if (Object.keys(state.watchlist ?? {}).length > 0) return true;
   if (state.customBadgeUrl.trim() !== '') return true;
-  const same = (current: unknown, pristine: unknown) => JSON.stringify(current) === JSON.stringify(pristine);
   return (
     !same(state.formatting, EMPTY_FORMATTING) ||
     !same(state.posters, EMPTY_POSTERS) ||
@@ -140,6 +140,8 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
     let cancelled = false;
     ensureFreshNuvio(pushConn).then((next) => { if (!cancelled) setPushConn(next); }).catch(() => { /* Step 1 shows the reconnect prompt */ });
     return () => { cancelled = true; };
+    // Keyed on the token, not the connection, so the refreshed connection this
+    // sets cannot re-run it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pushConn?.nuvioToken]);
   const [rdCatalog, setRdCatalog] = useState(restored?.rdCatalog ?? 'merge');

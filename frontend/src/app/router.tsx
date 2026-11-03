@@ -77,7 +77,7 @@ export const routes: RouteObject[] = [
       {
         path: 'configure',
         hydrateFallbackElement: pickerFallback,
-        lazy: withLocale(['setup'], async () => ({ Component: (await import('@/features/setup/SetupWizard')).SetupWizard })),
+        lazy: withLocale(['setup'], async () => ({ Component: (await import('@/features/setup/shared/TierPicker')).TierPicker })),
       },
       {
         path: 'configure/quick',

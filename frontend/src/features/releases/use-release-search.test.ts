@@ -1,17 +1,33 @@
 import { describe, expect, it } from 'vitest';
 import type { SearchResponse } from '@/api/releases';
-import { CLIENT_CACHE_MAX, rememberSearch, searchCacheSize } from '@/features/releases/use-release-search';
+import { queryKeys } from '@/api/query-keys';
+import { searchStateFrom, type SearchQueryView } from '@/features/releases/use-release-search';
 
-const response: SearchResponse = { query: 'q', region: 'GB', source: 'local', results: [] };
+const older: SearchResponse = { query: 'du', region: 'GB', source: 'local', results: [] };
+const newer: SearchResponse = { query: 'dune', region: 'GB', source: 'tmdb', results: [] };
+const view = (over: Partial<SearchQueryView>): SearchQueryView => ({
+  enabled: true, isError: false, isSuccess: false, isPlaceholderData: false, data: undefined, ...over,
+});
 
-describe('release search client cache', () => {
-  it('stays under its cap after many searches', () => {
-    for (let i = 0; i < CLIENT_CACHE_MAX * 4; i++) rememberSearch(`GB:q${i}`, response, 1000 + i);
-    expect(searchCacheSize()).toBe(CLIENT_CACHE_MAX);
+describe('release search state', () => {
+  it('is idle and empty under two characters, even with earlier results', () => {
+    expect(searchStateFrom(view({ enabled: false, isSuccess: true, data: older }), older)).toEqual({ status: 'idle', data: null });
   });
 
-  it('sweeps expired entries on insert', () => {
-    rememberSearch('GB:fresh', response, 10_000_000);
-    expect(searchCacheSize()).toBe(1);
+  it('keeps the previous results while the next query loads', () => {
+    expect(searchStateFrom(view({ isSuccess: true, isPlaceholderData: true, data: older }), older)).toEqual({ status: 'loading', data: older });
+    expect(searchStateFrom(view({}), null)).toEqual({ status: 'loading', data: null });
+  });
+
+  it('shows the answer once it is the current query', () => {
+    expect(searchStateFrom(view({ isSuccess: true, data: newer }), older)).toEqual({ status: 'success', data: newer });
+  });
+
+  it('keeps the previous results when the query fails', () => {
+    expect(searchStateFrom(view({ isError: true }), older)).toEqual({ status: 'error', data: older });
+  });
+
+  it('caches by region and lower-cased text', () => {
+    expect(queryKeys.releasesSearch('GB', 'dune')).toEqual(['releases', 'search', 'GB', 'dune']);
   });
 });

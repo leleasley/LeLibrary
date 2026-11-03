@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { renderToStaticMarkup as renderStatic } from 'react-dom/server';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { KeyInput, ProviderKeys } from '@/features/setup/shared/sections';
+
+// The key cards read the server's feature flags through React Query.
+const renderToStaticMarkup = (node: React.ReactElement) =>
+  renderStatic(<QueryClientProvider client={new QueryClient()}>{node}</QueryClientProvider>);
 
 // On an edit page "Saved" means this setup holds the key, and a blank field
 // keeps the stored secret.

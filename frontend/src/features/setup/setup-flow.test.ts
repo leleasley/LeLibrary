@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { checkPassword, installUrl, tierRequired } from '@/features/setup/resolver/validation';
+import { checkPassword, installUrl } from '@/features/setup/resolver/validation';
 import { TIERS } from '@/features/setup/shared/tiers';
 import { clearEditToken, getEditToken, setEditToken } from '@/features/setup/resolver/edit-session';
 import { QUICK_SECTION_IDS } from '@/features/setup/quick/QuickSetupPage';
@@ -22,14 +22,6 @@ describe('setup tiers', () => {
   it('offers exactly the three tiers with one recommendation', () => {
     expect(TIERS.map((tier) => tier.id)).toEqual(['quick', 'partial', 'full']);
     expect(TIERS.filter((tier) => tier.recommended)).toHaveLength(1);
-  });
-
-  it('only accepts a real tier id', () => {
-    expect(tierRequired('quick')).toBe(true);
-    expect(tierRequired('partial')).toBe(true);
-    expect(tierRequired('full')).toBe(true);
-    expect(tierRequired('')).toBe(false);
-    expect(tierRequired('bogus')).toBe(false);
   });
 });
 

@@ -158,9 +158,9 @@ function FixDialog({ uuid, editToken, item, onClose, onFixed }: {
     fetchSeasonEpisodes(uuid, editToken, picked.tmdbId, season)
       .then((out) => {
         if (cancelled) return;
+        // The episode the file name says stays selected (nothing resets it
+        // here); the picker lists it either way.
         setEpisodes(out.episodes);
-        // Keep the episode the file name says; the picker lists it either way.
-        setEpisode((current) => current);
       })
       .catch(() => { if (!cancelled) setEpisodes([]); });
     return () => { cancelled = true; };
@@ -383,6 +383,8 @@ export function LibraryPanel({ uuid, editToken }: { uuid: string; editToken: str
   useEffect(() => {
     const timer = setTimeout(() => void loadItems(false), query ? 300 : 0);
     return () => clearTimeout(timer);
+    // loadItems changes with items.length too; keying on it would reload the
+    // first page after every "load more". uuid is fixed for the panel's life.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, query, editToken]);
 

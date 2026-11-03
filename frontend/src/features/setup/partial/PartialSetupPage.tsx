@@ -68,7 +68,7 @@ import {
   type NuvioHideUnreleased,
 } from '@/features/setup/shared/nuvio-library';
 import { DestinationStep, connectionUser } from '@/features/setup/full/DestinationStep';
-import { ImportSection, type ImportedPayload } from '@/features/setup/full/ImportSection';
+import type { ImportedPayload } from '@/features/setup/full/ImportSection';
 import { usePlatformPush } from '@/features/setup/shared/usePlatformPush';
 import { toast } from '@/features/setup/shared/Toast';
 import type { PlatformConnection } from '@/features/setup/full/platform-login';
@@ -461,8 +461,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
       />
       <div className="qs-grid">
         <div className="qs-flow">
-          <TierStep id="connect" index={1} title="Connect" hidden={wizard.step !== 0} lede="Where this setup gets installed. Sign in now and your Home rows can be pushed straight to your player at the end. Already have a v5 setup? Bring it across instead.">
-            {!edit && <ImportSection staged={stagedImport} platform={platform} keepsCollections={false} onStage={stageImport} />}
+          <TierStep id="connect" index={1} title="Connect" hidden={wizard.step !== 0} lede="Where this setup gets installed. Sign in now and your Home rows can be pushed straight to your player at the end.">
             <DestinationStep
               profileName={name}
               platform={platform} onPlatform={setPlatform}

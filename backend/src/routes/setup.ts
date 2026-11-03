@@ -132,6 +132,21 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
   router.use(express.json({ limit: '1mb' }));
   const sessions: EditSessionStore = editSessions || createEditSessionStore();
 
+  // SECURITY (5.9.5): importing an old account setup by EMAIL is closed. These
+  // endpoints trusted the email alone: anyone who knew an old account's email
+  // could list its setups, download its decrypted keys and sessions, and delete
+  // it. Registered first so they win over the handlers below. Only /migrate with
+  // the old setup's own token id (the secret from its install link) remains.
+  const MIGRATE_CLOSED = 'Importing an old setup by email is no longer available.';
+  router.post(['/migrate/lookup', '/migrate/preview', '/migrate/data', '/migrate/purge'], (_req: Request, res: Response) => {
+    res.status(410).json({ error: MIGRATE_CLOSED });
+  });
+  router.post('/migrate', (req: Request, res: Response, next: () => void) => {
+    const tokenId = (req.body as { tokenId?: unknown } | undefined)?.tokenId;
+    if (typeof tokenId !== 'string' || !tokenId.trim()) { res.status(410).json({ error: MIGRATE_CLOSED }); return; }
+    next();
+  });
+
   // Edits are authorised by either a bearer edit token from /unlock or the
   // password itself. Both arrive in the request (never a cookie), so nothing
   // ambient is sent by the browser and CSRF does not apply.

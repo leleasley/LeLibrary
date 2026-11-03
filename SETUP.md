@@ -42,8 +42,7 @@ Every setup ends with one thing: an install link. Keep it.
 ### Settle In and Move In, page by page
 
 - **Connect**: pick Nuvio or Stremio and sign in (optional, but it lets
-  LeLibrary push your Home rows and collections for you), name the setup, or
-  bring an old setup across with **Import an old setup**.
+  LeLibrary push your Home rows and collections for you) and name the setup.
 - **Setup**: one page of sections. Each starts closed and shows a one-line
   summary of what you picked; open only what you want to change.
   - **Integrations**: your debrid keys, TMDB, MDBList and watchlists.
@@ -598,10 +597,10 @@ The paste box and each setup's own link keep working.
 
 ## Moving from an older version
 
-Old configurations still work through their own link. To turn one into a v5.5
-setup, open Settle In or Move In and use the **Import an old setup** card on
-the Connect page. Your old keys, Nuvio or Stremio login, collections and Home rows come
-across, and the previous copy is hidden.
+Old configurations still work through their own link. Importing an old
+account setup by email was removed in 5.9.5 for security reasons; to move to a
+current setup, create a new one with Quick Look, Settle In or Move In and
+enter your keys again.
 
 An older install link that points at `/{token}/configure` now opens the setup
 flow. Paste the token (or its link) into the install box and the editor picks

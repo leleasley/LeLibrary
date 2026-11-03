@@ -39,7 +39,7 @@ import { EMPTY_POSTERS, PostersSection, type PostersDraft } from '@/features/set
 import { useCreateSetup } from '@/features/setup/shared/useCreateSetup';
 import { clearFullDraft, loadFullDraft, saveFullDraft, type FullDraft } from '@/features/setup/full/full-draft';
 import { useRestoreToast } from '@/features/setup/shared/Toast';
-import { ImportSection, type ImportedPayload } from '@/features/setup/full/ImportSection';
+import type { ImportedPayload } from '@/features/setup/full/ImportSection';
 import { NuvioPlaybackSection } from '@/features/setup/shared/NuvioPlaybackSection';
 import {
   EMPTY_NUVIO_PLAYBACK,
@@ -513,8 +513,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
       />
       <div className="qs-grid">
         <div className="qs-flow">
-          <TierStep id="connect" index={1} title="Connect" hidden={wizard.step !== 0} lede="Where this setup gets installed. Already have a v5 setup? Bring it across instead.">
-            {!edit && <ImportSection staged={stagedImport} platform={platform} onStage={stageImport} />}
+          <TierStep id="connect" index={1} title="Connect" hidden={wizard.step !== 0} lede="Where this setup gets installed.">
             <DestinationStep
               profileName={name}
               platform={platform} onPlatform={setPlatform}

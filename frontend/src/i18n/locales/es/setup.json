@@ -1780,6 +1780,8 @@
     "Franchise folders made from the films you own. You can move, rename or remove it, but not edit its folders.": "Carpetas de sagas hechas con las películas que tienes. Puedes moverla, renombrarla o quitarla, pero no editar sus carpetas.",
     "LeLibrary Collections": "LeLibrary Collections",
     "Your owned films, automatically grouped into franchise folders. On Nuvio it shows above your Home rows.": "Tus películas, agrupadas automáticamente en carpetas de sagas. En Nuvio aparece encima de tus filas de Inicio.",
-    "Moving across ends in v6: this import goes away then, and every email still kept from the old setups is deleted.": "El traspaso termina en la v6: esta importación desaparecerá y se borrarán todos los correos que aún se guardan de las configuraciones antiguas."
+    "Moving across ends in v6: this import goes away then, and every email still kept from the old setups is deleted.": "El traspaso termina en la v6: esta importación desaparecerá y se borrarán todos los correos que aún se guardan de las configuraciones antiguas.",
+    "Where this setup gets installed.": "Dónde se instala esta configuración.",
+    "Where this setup gets installed. Sign in now and your Home rows can be pushed straight to your player at the end.": "Dónde se instala esta configuración. Inicia sesión ahora y tus filas de Inicio se podrán enviar directamente a tu reproductor al final."
   }
 }

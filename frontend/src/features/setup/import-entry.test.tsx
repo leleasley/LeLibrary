@@ -17,16 +17,15 @@ function render(page: 'quick' | 'partial') {
   );
 }
 
-// Settle In and Move In can both bring an old setup across; Quick Look stays
-// lean. Only collection setups are importable: a plain token has no collections
-// context and would land as an empty, broken-looking setup.
+// 5.9.5: importing an old setup by email is closed (it trusted the email
+// alone), so no tier offers it. Only collection setups were ever importable.
 describe('import entry points', () => {
   it('quick look has no import entry', () => {
     expect(render('quick')).not.toContain('Import an old setup');
   });
 
-  it('settle in offers the import on its first step', () => {
-    expect(render('partial')).toContain('Import old setup');
+  it('settle in no longer offers the email import (closed in 5.9.5)', () => {
+    expect(render('partial')).not.toContain('Import old setup');
   });
 
   it('settle in lists the LeLibrary shelves with no keys filled', () => {

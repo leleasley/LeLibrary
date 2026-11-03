@@ -603,14 +603,16 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       let metas = getCollections(userKey, lang);
       if (metas.length === 0) {
         try {
-          // Prefer the persistent collections cache before rebuilding. A temporary
-          // empty provider response must not erase a previously working row.
-          const persistentKey = cache.makeKey('cat', 'collections', 'collections', sortBy, '', '0', userKey, lang, posterFp(config));
-          const persistent = await cache.get(persistentKey);
-          if (Array.isArray(persistent?.metas) && persistent.metas.length > 0) {
-            metas = persistent.metas;
-            cacheCollections(userKey, lang, metas);
-          }
+          // Stored lists first (this poster style's, then the latest from any
+          // setup on this library: posters are applied per request below).
+          // With the indexed engine and nothing stored, build from the
+          // library's matched films: no provider scan. Before 5.9.3 a setup
+          // whose poster settings differed from the one the background sync
+          // used found nothing and stayed empty.
+          metas = await require('../catalog/franchise-collections.ts').ensureCollections({
+            userKey, lang, tmdbApiKey, enhance: posterEnhance(config), sortBy,
+            posterFp: posterFp(config), buildFromIndex: indexedEngine,
+          });
           // Indexed sync owns provider polling and the franchise projection;
           // do not launch a duplicate scan from a catalogue request.
           if (metas.length === 0 && !indexedEngine) {
@@ -638,6 +640,7 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       }
 
       const filmMetas = [];
+      const collectionsEnhance = posterEnhance(config);
       for (const c of metas) {
         const fname = franchiseRowName(c.name);
         if (collectionIdFilter) {
@@ -648,7 +651,10 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
             id: libraryIdMode === 'tt' && v.imdbId ? v.imdbId : `torbox:movie:${v.id.split(':').pop()}`,
             type: 'movie',
             name: v.title,
-            poster: v.thumbnail ? v.thumbnail.replace('/w300', '/w500') : null,
+            // This setup's own poster style (the stored list may have been
+            // built with another setup's settings).
+            poster: require('../catalog/franchise-collections.ts').posterForVideo(v, collectionsEnhance)
+              || (v.thumbnail ? v.thumbnail.replace('/w300', '/w500') : null),
             releaseInfo: (v.released || '').slice(0, 4) || undefined,
             released: v.released || undefined,
           });

@@ -121,10 +121,12 @@ async function getMovieDetail(apiKey, tmdbId, lang) {
 // Authoritative franchise membership + artwork (cached 24h). parts[] is the
 // ground truth for what belongs to a collection.
 async function getCollectionDetails(apiKey, collectionId, lang) {
-  const ck = `collparts:${collectionId}:${lang}`;
+  const ck = `collparts:v2:${collectionId}:${lang}`;
   const hit = detailCache.get(ck);
   if (hit !== undefined) return hit;
-  const redisKey = cache.makeKey('collparts', 'v1', collectionId, lang);
+  // v2: parts carry poster_path (v1 dropped it, so films had no poster when
+  // no poster style was chosen and the catalogue filtered them out).
+  const redisKey = cache.makeKey('collparts', 'v2', collectionId, lang);
   try {
     const persisted = await cache.get(redisKey);
     if (persisted) { detailCache.set(ck, persisted); return persisted; }
@@ -145,6 +147,7 @@ async function getCollectionDetails(apiKey, collectionId, lang) {
         id: p.id,
         title: p.title || p.name || p.original_title || p.original_name || '',
         release_date: p.release_date || '',
+        poster_path: p.poster_path || '',
       })),
     };
     detailCache.set(ck, out);
@@ -231,6 +234,42 @@ function enhancedPosterUrl(tmdbId, imdbId, enhance, fallback = '') {
   if (rpdbKey && tmdbId) return `https://api.ratingposterdb.com/${rpdbKey}/tmdb/poster-default/movie-${tmdbId}.jpg?fallback=true`;
   if (posterProvider === 'betterposter' && imdbId) return require('./builder.ts').buildBetterPosterUrl(imdbId, 'movie');
   return null;
+}
+
+function latestCollectionsKey(userKey, lang) {
+  return cache.makeKey('cat', 'collections', 'latest', userKey, lang || 'en-US');
+}
+
+// One film's poster for the setup asking: its own poster style, else the plain
+// TMDB poster, else whatever the stored list carried.
+function posterForVideo(v, enhance) {
+  const plain = v && v.posterPath ? `https://image.tmdb.org/t/p/w342${v.posterPath}` : '';
+  const styled = v && v.tmdbId ? enhancedPosterUrl(v.tmdbId, v.imdbId || null, enhance, plain) : null;
+  return styled || plain || (v && v.thumbnail) || null;
+}
+
+// The owned franchise list for a library, whoever's poster settings built it.
+// Memory, then this poster style's copy, then the latest copy; with the indexed
+// engine and nothing stored, build it from the matched films (no provider
+// scan; concurrent requests share one build).
+const ensureInFlight = new Map();
+async function ensureCollections({ userKey, lang = 'en-US', tmdbApiKey, enhance = {}, sortBy = 'data_adicao', posterFp = '', buildFromIndex = false }) {
+  let metas = getCollections(userKey, lang);
+  if (metas.length) return metas;
+  for (const key of [cache.makeKey('cat', 'collections', 'collections', sortBy, '', '0', userKey, lang, posterFp), latestCollectionsKey(userKey, lang)]) {
+    const hit = await cache.get(key).catch(() => null);
+    if (Array.isArray(hit?.metas) && hit.metas.length) { cacheCollections(userKey, lang, hit.metas); return hit.metas; }
+  }
+  if (!buildFromIndex || !tmdbApiKey) return [];
+  const flight = `${userKey}:${lang}`;
+  if (!ensureInFlight.has(flight)) {
+    ensureInFlight.set(flight, (async () => {
+      const films = await require('../library/store.ts').matchedMovieFilms(userKey);
+      return refreshCollectionsProjection({ userKey, films, tmdbApiKey, lang, enhance, sortBy, posterFp });
+    })().finally(() => ensureInFlight.delete(flight)));
+  }
+  const built = await ensureInFlight.get(flight).catch(() => null);
+  return Array.isArray(built) ? built : getCollections(userKey, lang);
 }
 
 const collectionsBuildInFlight = new Map();
@@ -401,6 +440,9 @@ async function collectionsFromMatched(matched, tmdbApiKey, lang = 'en-US', enhan
           season: 1,
           episode: i + 1,
           released: m.result.release_date || undefined,
+          // Plain TMDB poster: the read path re-applies the requesting setup's
+          // own poster style from it (posterForVideo).
+          posterPath: m.result.poster_path || undefined,
           thumbnail: enhanced
             || (m.result.poster_path ? `https://image.tmdb.org/t/p/w300${m.result.poster_path}` : undefined),
         };
@@ -508,6 +550,10 @@ async function refreshCollectionsProjection({ userKey, downloads, films = null, 
       const { TTL_CATALOG } = require('../runtime/refresh.ts');
       const persistentKey = cache.makeKey('cat', 'collections', 'collections', sortBy, '', '0', userKey, lang, posterFp);
       await cache.set(persistentKey, { metas }, TTL_CATALOG).catch(() => {});
+      // Poster-style independent copy: another setup on the same library with
+      // different poster settings must still find the list (posters are
+      // re-applied per request, see posterForVideo).
+      await cache.set(latestCollectionsKey(userKey, lang), { metas }, TTL_CATALOG).catch(() => {});
       console.log(`[Collections] background refresh → ${metas.length} items`);
     }
     return metas;
@@ -521,6 +567,8 @@ async function refreshCollectionsProjection({ userKey, downloads, films = null, 
 
 export interface FranchiseCollectionsApi {
   enhancedPosterUrl: any;
+  posterForVideo: any;
+  ensureCollections: any;
   buildCollectionsCatalog: any;
   buildCollectionsFromMatched: any;
   cacheCollections: any;
@@ -534,4 +582,4 @@ export interface FranchiseCollectionsApi {
   filterOfficialCollectionMembers: any;
 }
 
-module.exports = { enhancedPosterUrl, buildCollectionsCatalog, buildCollectionsFromMatched, cacheCollections, getCollectionMeta, getCollections, collectionsBuilt, getCollectionForMovie, getMovieDetail, refreshCollectionsProjection, collectionKey, filterOfficialCollectionMembers } satisfies FranchiseCollectionsApi;
+module.exports = { enhancedPosterUrl, posterForVideo, ensureCollections, buildCollectionsCatalog, buildCollectionsFromMatched, cacheCollections, getCollectionMeta, getCollections, collectionsBuilt, getCollectionForMovie, getMovieDetail, refreshCollectionsProjection, collectionKey, filterOfficialCollectionMembers } satisfies FranchiseCollectionsApi;

@@ -2,11 +2,13 @@
 
 Notes for the current version. Every earlier version is on [GitHub Releases](https://github.com/leleasley/LeLibrary/releases).
 
-## [5.9.2]
+## [5.9.3]
 
 ### Fixes
 
-- Your collection order now reaches the Nuvio phone and desktop apps. Before, those apps could ignore the order LeLibrary sent and keep an older one, so the LeLibrary Hub and Movie Collections could end up at the bottom. Push your setup again once, then fully close and reopen Nuvio.
+- The poster style you pick is the one you get. Before, a ratings key saved earlier (for example an ERDB token brought across from an old setup, which the setup page no longer showed) could take over every poster, so switching to BetterPosters or another style seemed to do nothing.
+- Posters inside LeLibrary Movie Collections folders load again. They could stay blank on Nuvio, and they now fall back to the normal poster when a ratings service fails.
+- Posters+ preset links (such as .../p/bar_sash/{type}/{imdb_id|tmdb_id}.jpg) are accepted again. Some browsers kept an older copy of the setup page's poster helper and rejected them; the setup page now always loads the current one.
 
 ### Heads up for v6
 

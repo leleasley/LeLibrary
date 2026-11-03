@@ -21,30 +21,13 @@ import {
 // exactly like the Quick flow's draft. Nothing leaves the browser; a
 // successful create or an explicit reset wipes it. TTL keeps a stale tab
 // from resurrecting ancient input. The platform session (pushConn) rides
-// along too: without it, an imported login evaporates on the first refresh
-// while everything else restores, which reads as a failed import. It holds
-// the same class of secret the key drafts already persist, so this changes
-// nothing about what the browser stores.
+// along too: without it, a connected login evaporates on the first refresh
+// while everything else restores. It holds the same class of secret the key
+// drafts already persist, so this changes nothing about what the browser
+// stores.
 // Watchlist tokens ride along and seal at creation like every other secret.
 const DRAFT_KEY = 'lelibrary_full_draft';
 const DRAFT_TTL_MS = 24 * 3600000;
-
-export interface StagedImport {
-  email: string;
-  idMasked: string;
-  label: string | null;
-  kind: 'collection' | 'token';
-  // What the import brought in, for the banner. The values themselves live
-  // in the page draft from the moment of import (keys filled, docs merged).
-  // `services` names the server-filled key fields so inputs keep their
-  // "Saved" tags across reloads: users see the data is there but came from
-  // the server.
-  keyCount: number;
-  collectionCount: number;
-  homeRowCount: number;
-  hasLogin: boolean;
-  services: string[];
-}
 
 export interface FullDraft {
   platform: 'nuvio' | 'stremio';
@@ -71,7 +54,6 @@ export interface FullDraft {
   libraryRows?: LibraryRowsDraft;
   // Names of the user's own stream addons (links travel with the keys).
   customAddons?: CustomAddonRef[];
-  stagedImport: StagedImport | null;
   pushConn: PlatformConnection | null;
 }
 
@@ -88,22 +70,6 @@ function isPushConn(value: unknown): value is PlatformConnection {
   if (value['platform'] !== 'nuvio' && value['platform'] !== 'stremio') return false;
   const token = value['platform'] === 'nuvio' ? value['nuvioToken'] : value['stremioAuth'];
   return typeof token === 'string' && token.trim() !== '';
-}
-
-function isStagedImport(value: unknown): value is StagedImport {
-  if (!isRecord(value)) return false;
-  return (
-    typeof value['email'] === 'string' &&
-    typeof value['idMasked'] === 'string' &&
-    (value['label'] === null || typeof value['label'] === 'string') &&
-    (value['kind'] === 'collection' || value['kind'] === 'token') &&
-    typeof value['keyCount'] === 'number' &&
-    typeof value['collectionCount'] === 'number' &&
-    typeof value['homeRowCount'] === 'number' &&
-    typeof value['hasLogin'] === 'boolean' &&
-    Array.isArray(value['services']) &&
-    value['services'].every((service: unknown) => typeof service === 'string')
-  );
 }
 
 function isDraft(value: unknown): value is StoredDraft {
@@ -128,7 +94,6 @@ function isDraft(value: unknown): value is StoredDraft {
     isRecord(value['watchlist'] ?? {}) &&
     (value['nuvioPlayback'] == null || isRecord(value['nuvioPlayback'])) &&
     (value['nuvioHideUnreleased'] == null || typeof value['nuvioHideUnreleased'] === 'string') &&
-    (value['stagedImport'] == null || isStagedImport(value['stagedImport'])) &&
     (value['pushConn'] == null || isPushConn(value['pushConn']))
   );
 }
@@ -147,7 +112,9 @@ export function loadFullDraft(): FullDraft | null {
       localStorage.removeItem(DRAFT_KEY);
       return null;
     }
-    const { savedAt: _savedAt, ...draft } = parsed;
+    // Drafts from before v6 may still carry the removed old-setup import
+    // (`stagedImport`): drop it so it is never restored or saved again.
+    const { savedAt: _savedAt, stagedImport: _stagedImport, ...draft } = parsed as StoredDraft & { stagedImport?: unknown };
     return {
       ...draft,
       nuvioPlayback: cleanNuvioPlayback(draft.nuvioPlayback ?? null),

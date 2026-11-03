@@ -14,7 +14,6 @@ import {
   cleanKeys,
   pruneConfig,
 } from '@/features/setup/shared/config-contract';
-import { maskTokenId, tokenIdFromInput } from '@/features/setup/resolver/api';
 import { DEFAULT_CAT_ORDER } from '@/features/setup/shared/home-model';
 
 afterEach(() => clearEditToken());
@@ -197,29 +196,6 @@ describe('config contract', () => {
       streamPreset: 'torrentio',
       homeRows: ['movie-night'],
     });
-  });
-});
-
-describe('import input', () => {
-  it('accepts a pasted install link or a bare token id', () => {
-    expect(tokenIdFromInput('jbzWeu2IYZptt0-clbY4zw')).toBe('jbzWeu2IYZptt0-clbY4zw');
-    expect(tokenIdFromInput('https://lelibrary.uk/jbzWeu2IYZptt0-clbY4zw/manifest.json')).toBe('jbzWeu2IYZptt0-clbY4zw');
-    expect(tokenIdFromInput('')).toBe('');
-  });
-
-  it('unwraps every old configure URL shape to its token id', () => {
-    const id = '4v18KBDILCusxh7bDH-epA';
-    expect(tokenIdFromInput(`https://lelibrary.uk/accounts/collections/${id}/configure`)).toBe(id);
-    expect(tokenIdFromInput(`https://lelibrary.uk/accounts/collections/${id}/configure/`)).toBe(id);
-    expect(tokenIdFromInput(`https://lelibrary.uk/accounts/${id}/configure`)).toBe(id);
-    expect(tokenIdFromInput(`https://lelibrary.uk/${id}/configure`)).toBe(id);
-    expect(tokenIdFromInput(`https://lelibrary.uk/${id}/configure?x=1`)).toBe(id);
-    expect(tokenIdFromInput(`https://lelibrary.uk/accounts/collections/${id}/configure`)).not.toBe('configure');
-  });
-
-  it('masks token ids exactly like the server picker', () => {
-    expect(maskTokenId('4v18KBDILCusxh7bDH-epA')).toBe('4v18…epA');
-    expect(maskTokenId('short')).toBe('…');
   });
 });
 

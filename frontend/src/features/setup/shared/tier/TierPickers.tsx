@@ -29,7 +29,7 @@ const METADATA_LOGOS: Partial<Record<keyof SetupKeysDraft, string>> = {
   tvdbApiKey: '/tvdb.png',
 };
 
-export function TierMetadata({ values, onChange, savedServices, savedScope, revealSaved }: {
+export function TierMetadata({ values, onChange, savedServices, revealSaved }: {
   values: SetupKeysDraft;
   onChange: (next: SetupKeysDraft) => void;
 } & RevealProps) {
@@ -60,7 +60,6 @@ export function TierMetadata({ values, onChange, savedServices, savedScope, reve
           onVerifyResult={(ok) => setVerified((prev) => ({ ...prev, [entry.field]: ok }))}
           onChange={(value) => onChange({ ...values, [entry.field]: value })}
           {...(savedServices?.includes(entry.field) ? { saved: true } : {})}
-          {...(savedScope ? { savedScope } : {})}
           {...(savedServices?.includes(entry.field) && revealSaved ? { onReveal: () => revealSaved(entry.field) } : {})}
         />
       </div>

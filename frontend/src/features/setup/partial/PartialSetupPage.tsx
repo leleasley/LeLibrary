@@ -68,11 +68,9 @@ import {
   type NuvioHideUnreleased,
 } from '@/features/setup/shared/nuvio-library';
 import { DestinationStep, connectionUser } from '@/features/setup/full/DestinationStep';
-import type { ImportedPayload } from '@/features/setup/full/ImportSection';
 import { usePlatformPush } from '@/features/setup/shared/usePlatformPush';
 import { toast } from '@/features/setup/shared/Toast';
 import type { PlatformConnection } from '@/features/setup/full/platform-login';
-import type { StagedImport } from '@/features/setup/full/full-draft';
 
 // Settle In builds on the library-first Quick Look with Home rows, playback
 // controls and artwork. External sources and list providers remain optional.
@@ -177,7 +175,6 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
     playback: nuvioPlayback, setPlayback: setNuvioPlayback,
     unreleased: nuvioHideUnreleased, setUnreleased: setNuvioHideUnreleased,
   });
-  const [stagedImport, setStagedImport] = useState<StagedImport | null>(restored?.stagedImport ?? null);
   const [confirmReset, setConfirmReset] = useState(false);
   const wizard = useWizardStep(PARTIAL_SECTIONS.length);
   // Stay on the page after creation so the publish panel can offer the install
@@ -202,9 +199,8 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
       filterSets, mediaSets,
       meta, badgePack, customBadgeUrl, watchlist,
       addons, customStreams, nuvioPlayback, nuvioHideUnreleased, libraryRows, customAddons, platform, pushConn: connection,
-      stagedImport,
     });
-  }, [edit, name, keys, formatting, posters, homeRows, filterSets, mediaSets, meta, badgePack, customBadgeUrl, watchlist, addons, customStreams, nuvioPlayback, nuvioHideUnreleased, libraryRows, customAddons, platform, connection, stagedImport]);
+  }, [edit, name, keys, formatting, posters, homeRows, filterSets, mediaSets, meta, badgePack, customBadgeUrl, watchlist, addons, customStreams, nuvioPlayback, nuvioHideUnreleased, libraryRows, customAddons, platform, connection]);
 
   useRestoreToast(!edit && restored !== null && partialDraftHasContent(restored));
 
@@ -306,40 +302,9 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
 
   function submit() {
     const draft = buildDraft();
-    // An imported old setup is removed (and the old account with it once
-    // nothing else is left to import) after creation succeeds, as on Move In.
     void creation.create(
       { name, config: draft.config, keys: draft.keys, connection: connection?.platform === platform ? connection : null },
-      stagedImport ? { purgeImport: { email: stagedImport.email, idMasked: stagedImport.idMasked } } : undefined,
     ).then((ok) => { if (ok) clearPartialDraft(); });
-  }
-
-  // Bring an old setup across. Settle In stages the settings, keys, home rows
-  // and login; it deliberately does not adopt the old collections document,
-  // because this tier does not build collections (Move In does).
-  function stageImport(next: StagedImport | null, payload?: ImportedPayload) {
-    setStagedImport(next);
-    if (!next || !payload) return;
-    const { merge } = payload;
-    setName((current) => (current.trim() ? current : (merge.name?.trim() || current)));
-    if (merge.platform) setPlatform(merge.platform);
-    setPosters(merge.posters);
-    setFormatting(merge.formatting);
-    setBadgePack(merge.badgePack);
-    setCustomBadgeUrl(merge.customBadgeUrl);
-    setMeta((prev) => ({ ...prev, ...merge.meta }));
-    setFilterSets((prev) => ({ ...prev, ...merge.filterSets }));
-    // Pre-v5.5 configs kept media sets outside the shared merge.
-    const media = payload.config as { filterCodecs?: string[]; filterHdr?: string[]; filterAudio?: string[] };
-    setMediaSets((prev) => ({
-      codecs: Array.isArray(media.filterCodecs) && media.filterCodecs.length > 0 ? media.filterCodecs : prev.codecs,
-      hdr: Array.isArray(media.filterHdr) && media.filterHdr.length > 0 ? media.filterHdr : prev.hdr,
-      audio: Array.isArray(media.filterAudio) && media.filterAudio.length > 0 ? media.filterAudio : prev.audio,
-    }));
-    if (merge.addons.length > 0) setAddons(merge.addons);
-    if (payload.homeRows.length > 0) setHomeRows(normalizeHomeOrder(payload.homeRows, platform));
-    if (Object.keys(payload.keys).length > 0) setKeys((prev) => ({ ...prev, ...payload.keys }));
-    if (payload.pushConn) setConnection(payload.pushConn);
   }
 
   if (creation.creating) {

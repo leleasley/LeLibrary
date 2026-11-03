@@ -213,7 +213,6 @@ export function snapshotToPartialDraft(snapshot: TierSnapshot): PartialDraft {
     customAddons: snapshot.customAddons,
     platform: snapshot.platform,
     pushConn: snapshot.connection,
-    stagedImport: null,
   };
 }
 
@@ -238,7 +237,6 @@ export function snapshotToFullDraft(snapshot: TierSnapshot): FullDraft {
     nuvioHideUnreleased: snapshot.nuvioHideUnreleased,
     libraryRows: snapshot.libraryRows,
     customAddons: snapshot.customAddons,
-    stagedImport: null,
     pushConn: snapshot.connection,
   };
 }

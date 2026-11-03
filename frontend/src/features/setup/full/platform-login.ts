@@ -113,8 +113,8 @@ export async function loginNuvio(email: string, password: string): Promise<Platf
   };
 }
 
-// Live profile list for a session we already hold. A connection that arrived by
-// importing an old setup carries a profile snapshot that can be any age, so a
+// Live profile list for a session we already hold. A connection restored from
+// a draft or a saved setup carries a profile snapshot that can be any age, so a
 // profile created since then would be unpickable (and a renamed or deleted one
 // would linger). Refreshing also makes the visible selection honest: a select
 // with no value still *looks* like its first option, so default to that option
@@ -138,8 +138,8 @@ export async function refreshNuvioConnection(connection: PlatformConnection): Pr
   return { ...connection, nuvioProfiles: profiles, nuvioSelectedProfile: selected };
 }
 
-// Nuvio access tokens are short-lived JWTs. A login imported from an old setup
-// is usually long expired, but its refresh token still works, so renew instead
+// Nuvio access tokens are short-lived JWTs. A login restored from a draft or a
+// saved setup is often expired, but its refresh token still works, so renew instead
 // of surfacing Nuvio's "JWT expired" error.
 export function nuvioTokenExpired(token: string | null | undefined, skewSeconds = 60): boolean {
   const part = String(token || '').split('.')[1];

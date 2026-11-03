@@ -9,7 +9,6 @@ import type { SetupKeysDraft, CustomStreamRow } from '@/features/setup/shared/co
 import type { WatchlistDraftMap } from '@/features/setup/resolver/api';
 import type { HomeRowDoc } from '@/features/setup/shared/collection-doc';
 import type { PlatformConnection } from '@/features/setup/full/platform-login';
-import type { StagedImport } from '@/features/setup/full/full-draft';
 import {
   cleanNuvioPlayback,
   type NuvioPlaybackDraft,
@@ -55,8 +54,6 @@ export interface PartialDraft {
   // The player chosen on the publish desk, and the login that push uses.
   platform?: 'nuvio' | 'stremio';
   pushConn?: PlatformConnection | null;
-  // A staged old-setup import, the same shape Move In stages.
-  stagedImport?: StagedImport | null;
 }
 
 interface StoredDraft extends PartialDraft {
@@ -88,8 +85,7 @@ function isDraft(value: unknown): value is StoredDraft {
     (value['customStreams'] == null || Array.isArray(value['customStreams'])) &&
     (value['nuvioPlayback'] == null || isRecord(value['nuvioPlayback'])) &&
     (value['nuvioHideUnreleased'] == null || typeof value['nuvioHideUnreleased'] === 'string') &&
-    (value['platform'] == null || value['platform'] === 'nuvio' || value['platform'] === 'stremio') &&
-    (value['stagedImport'] == null || isRecord(value['stagedImport']))
+    (value['platform'] == null || value['platform'] === 'nuvio' || value['platform'] === 'stremio')
   );
 }
 
@@ -107,7 +103,9 @@ export function loadPartialDraft(): PartialDraft | null {
       localStorage.removeItem(DRAFT_KEY);
       return null;
     }
-    const { savedAt: _savedAt, ...draft } = parsed;
+    // Drafts from before v6 may still carry the removed old-setup import
+    // (`stagedImport`): drop it so it is never restored or saved again.
+    const { savedAt: _savedAt, stagedImport: _stagedImport, ...draft } = parsed as StoredDraft & { stagedImport?: unknown };
     return {
       ...draft,
       addons: Array.isArray(draft.addons) ? draft.addons : [],
@@ -116,7 +114,6 @@ export function loadPartialDraft(): PartialDraft | null {
       nuvioHideUnreleased: cleanNuvioHideUnreleased(draft.nuvioHideUnreleased),
       platform: draft.platform === 'stremio' ? 'stremio' : 'nuvio',
       pushConn: draft.pushConn ?? null,
-      stagedImport: (draft.stagedImport as StagedImport | null | undefined) ?? null,
     };
   } catch {
     return null;

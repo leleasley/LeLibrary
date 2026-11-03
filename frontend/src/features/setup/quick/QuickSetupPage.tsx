@@ -61,9 +61,7 @@ export function isQuickDirty(state: {
   badgePack: { pack: string; url: string };
   extras: QuickExtras;
   libraryRows?: LibraryRowsDraft;
-  stagedImport: unknown;
 }): boolean {
-  if (state.stagedImport !== null && state.stagedImport !== undefined) return true;
   if (state.name.trim() !== '') return true;
   if (Object.keys(cleanKeys(state.keys)).length > 0) return true;
   const same = (current: unknown, pristine: unknown) => JSON.stringify(current) === JSON.stringify(pristine);
@@ -88,7 +86,6 @@ export function quickDraftHasContent(draft: QuickDraft): boolean {
     badgePack: draft.badgePack,
     extras: draft.extras ?? EMPTY_QUICK_EXTRAS,
     libraryRows: draft.libraryRows ?? EMPTY_LIBRARY_ROWS,
-    stagedImport: null,
   });
 }
 
@@ -209,7 +206,7 @@ export function QuickSetupPage({ edit }: { edit?: EditMode } = {}) {
       </section>
     );
   }
-  const dirty = edit ? edit.dirty : isQuickDirty({ name, keys, formatting, posters, badgePack, extras, libraryRows, stagedImport: null });
+  const dirty = edit ? edit.dirty : isQuickDirty({ name, keys, formatting, posters, badgePack, extras, libraryRows });
   const panel = (
     <TierPreviewPanel
       keys={keys} posters={posters} formatting={formatting} badgePack={badgePack}

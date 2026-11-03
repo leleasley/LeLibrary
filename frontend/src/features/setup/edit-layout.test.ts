@@ -109,7 +109,6 @@ describe('stepped pages start from the saved setup', () => {
     expect(partial.badgePack).toBe('nard-full');
     expect(full.collections).toHaveLength(1);
     expect(full.keys.torboxApiKey).toBe('tb-saved');
-    expect(partial.stagedImport).toBeNull();
   });
 
   it('keeps an untouched badge pack URL, so it never reads as a change', () => {

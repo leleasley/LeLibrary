@@ -29,11 +29,11 @@ test('different routes do not share one IP budget', () => {
   rateLimitBuckets.clear();
   const tight = rateLimit({ windowMs: 60_000, max: 2 });
   const other = rateLimit({ windowMs: 60_000, max: 2 });
-  assert.ok(hit(tight, fakeReq('/api/setup/migrate/lookup')).nexted);
-  assert.ok(hit(tight, fakeReq('/api/setup/migrate/lookup')).nexted);
-  assert.equal(hit(tight, fakeReq('/api/setup/migrate/lookup')).status, 429);
+  assert.ok(hit(tight, fakeReq('/api/setup/aaa/unlock')).nexted);
+  assert.ok(hit(tight, fakeReq('/api/setup/aaa/unlock')).nexted);
+  assert.equal(hit(tight, fakeReq('/api/setup/aaa/unlock')).status, 429);
   // A different route on the same IP still passes.
-  assert.ok(hit(other, fakeReq('/api/setup/migrate/preview')).nexted);
+  assert.ok(hit(other, fakeReq('/api/setup/aaa/secret')).nexted);
 });
 
 test('parameterised routes share one pattern bucket', () => {

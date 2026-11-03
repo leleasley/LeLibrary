@@ -63,7 +63,6 @@ describe('poster draft provider changes', () => {
       posters: reverted,
       badgePack: { pack: DEFAULT_BADGE_PACK, url: '' },
       extras: EMPTY_QUICK_EXTRAS,
-      stagedImport: null,
     })).toBe(false);
   });
 });

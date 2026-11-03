@@ -50,7 +50,6 @@ const FULL: FullDraft = {
   packs: [],
   addons: [],
   customStreams: [],
-  stagedImport: null,
   pushConn: null,
 };
 
@@ -99,6 +98,32 @@ describe('setup drafts', () => {
     try {
       saveFullDraft({ ...FULL, pushConn: { platform: 'nuvio' } as never });
       expect(loadFullDraft()).toBe(null);
+    } finally {
+      unstub();
+    }
+  });
+
+  // Drafts saved before v6 can still hold the removed old-setup import. They
+  // must restore normally, with the import dropped, never crash or vanish.
+  it('restores a pre-v6 draft that still carries a staged import, without it', () => {
+    const unstub = stubStorage();
+    try {
+      const legacy = {
+        email: 'someone@example.com', idMasked: 'abcd...xyz', label: null, kind: 'collection',
+        keyCount: 1, collectionCount: 0, homeRowCount: 0, hasLogin: false, services: ['torboxApiKey'],
+      };
+      const savedAt = Date.now();
+      (globalThis as any).localStorage.setItem('lelibrary_full_draft', JSON.stringify({ ...FULL, stagedImport: legacy, savedAt }));
+      (globalThis as any).localStorage.setItem('lelibrary_partial_draft', JSON.stringify({ ...PARTIAL, stagedImport: legacy, savedAt }));
+      const full = loadFullDraft();
+      const partial = loadPartialDraft();
+      expect(full?.name).toBe('Living room');
+      expect(partial?.name).toBe('Living room');
+      expect(full && 'stagedImport' in full).toBe(false);
+      expect(partial && 'stagedImport' in partial).toBe(false);
+      // Even a malformed leftover must not discard the draft.
+      (globalThis as any).localStorage.setItem('lelibrary_full_draft', JSON.stringify({ ...FULL, stagedImport: 'junk', savedAt }));
+      expect(loadFullDraft()?.name).toBe('Living room');
     } finally {
       unstub();
     }

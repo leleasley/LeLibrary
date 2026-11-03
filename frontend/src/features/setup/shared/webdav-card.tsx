@@ -51,13 +51,12 @@ export function webdavRemoval(values: SetupKeysDraft, savedServices: readonly st
   return { next, clear: WEBDAV_FIELDS.filter((field) => savedServices.includes(field)) };
 }
 
-export function WebdavCard({ enabled, values, onChange, onRemove, savedServices, savedScope }: {
+export function WebdavCard({ enabled, values, onChange, onRemove, savedServices }: {
   enabled: boolean;
   values: SetupKeysDraft;
   onChange: (next: SetupKeysDraft) => void;
   onRemove?: ((field: keyof SetupKeysDraft) => void) | undefined;
   savedServices?: readonly string[] | undefined;
-  savedScope?: 'setup' | 'import' | undefined;
 }) {
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [checking, setChecking] = useState(false);
@@ -80,7 +79,7 @@ export function WebdavCard({ enabled, values, onChange, onRemove, savedServices,
           <strong>Your own WebDAV server</strong>
           <small>Add a NAS, rclone, Nextcloud or Synology WebDAV share. Its videos are matched and shown like your debrid library. Playback streams through this LeLibrary server.</small>
         </div>
-        {saved && savedScope !== 'import' && <span className="pc-pill is-verified" aria-label="Key saved on the server">Saved</span>}
+        {saved && <span className="pc-pill is-verified" aria-label="Key saved on the server">Saved</span>}
       </div>
       <div className="pc-body">
         <label className="field">
@@ -103,7 +102,6 @@ export function WebdavCard({ enabled, values, onChange, onRemove, savedServices,
           label="Password" hint="" value={values.webdavPassword ?? ''}
           onChange={(value) => set('webdavPassword', value)}
           {...(saved ? { saved: true } : {})}
-          {...(savedScope ? { savedScope } : {})}
         />
         <div className="webdav-check">
           <button type="button" className="setup-secondary" onClick={() => void check()} disabled={checking}>
@@ -112,7 +110,7 @@ export function WebdavCard({ enabled, values, onChange, onRemove, savedServices,
           {saved && !values.webdavUrl && <small>Type the address and login again to check them.</small>}
           {result && <p className={result.ok ? 'setup-note is-ok' : 'setup-note is-error'} role="status">{result.message}</p>}
         </div>
-        {saved && savedScope !== 'import' && onRemove && (
+        {saved && onRemove && (
           <button
             type="button" className="setup-secondary is-danger"
             onClick={() => {

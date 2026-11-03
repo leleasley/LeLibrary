@@ -20,12 +20,11 @@ describe('unsaved-changes detection', () => {
   it('quick look is clean when pristine, dirty on any input', () => {
     const pristine = {
       name: '', keys: {}, formatting: EMPTY_FORMATTING, posters: EMPTY_POSTERS,
-      badgePack: { pack: DEFAULT_BADGE_PACK, url: '' }, extras: EMPTY_QUICK_EXTRAS, stagedImport: null,
+      badgePack: { pack: DEFAULT_BADGE_PACK, url: '' }, extras: EMPTY_QUICK_EXTRAS,
     };
     expect(isQuickDirty(pristine)).toBe(false);
     expect(isQuickDirty({ ...pristine, name: 'Living room' })).toBe(true);
     expect(isQuickDirty({ ...pristine, keys: { tmdbApiKey: 'x' } })).toBe(true);
-    expect(isQuickDirty({ ...pristine, stagedImport: { email: 'a@b.c' } })).toBe(true);
     expect(isQuickDirty({ ...pristine, extras: { ...EMPTY_QUICK_EXTRAS, hideAnime: true } })).toBe(true);
   });
 
@@ -48,12 +47,11 @@ describe('unsaved-changes detection', () => {
       formatting: EMPTY_FORMATTING, posters: EMPTY_POSTERS, homeRows: [],
       badgePack: DEFAULT_BADGE_PACK, customBadgeUrl: '', collections: [], packs: [],
       meta: EMPTY_METADATA_EXTRAS, filterSets: EMPTY_FILTER_SETS, addons: [],
-      customStreams: [], watchlist: {}, stagedImport: null,
+      customStreams: [], watchlist: {},
     };
     expect(isFullDirty(pristine)).toBe(false);
     expect(isFullDirty({ ...pristine, platform: 'stremio' })).toBe(true);
     expect(isFullDirty({ ...pristine, collections: [{ id: 'c1' }] as never })).toBe(true);
-    expect(isFullDirty({ ...pristine, stagedImport: { email: 'a@b.c' } })).toBe(true);
   });
 });
 
@@ -74,7 +72,7 @@ describe('restore notice only fires for a draft with content', () => {
     platform: 'nuvio', rdCatalog: 'merge', name: '', keys: {}, formatting: EMPTY_FORMATTING,
     posters: EMPTY_POSTERS, homeRows: [], badgePack: DEFAULT_BADGE_PACK, customBadgeUrl: '',
     collections: [], packs: [], meta: EMPTY_METADATA_EXTRAS, filterSets: EMPTY_FILTER_SETS,
-    addons: [], customStreams: [], watchlist: {}, stagedImport: null, pushConn: null,
+    addons: [], customStreams: [], watchlist: {}, pushConn: null,
   };
 
   it('stays silent for the pristine draft the page writes on mount', () => {

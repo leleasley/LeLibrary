@@ -32,20 +32,6 @@ const { getSetupStore, getSetupLimiter } = runtime;
 const { TIERS, DEFAULT_TIER } = configStore;
 const { isUuid, parseInstallToken } = token;
 const { createEditSessionStore, bearerToken, DEFAULT_TTL_MS } = editSessionsModule;
-const { migrateAccount, MigrateError } = require('../setup/migrate.ts') as {
-  migrateAccount: (deps: any, input: any) => Promise<{
-    uuid: string; tier: string; installToken: string; keyServices: string[];
-    collections: { contexts: number; collections: number }; sourceLabel: string | null;
-    purged: 'none' | 'token' | 'account';
-  }>;
-  listAccountSetups: (deps: any, email: unknown) => Promise<{
-    setups: { id: string; label: string | null; createdAt: unknown; lastUsedAt: unknown; enabledKeyServices: string[] | null }[];
-    keyServices: string[];
-    collections: { contexts: number; collections: number };
-  }>;
-  MigrateError: new (code: string, message: string) => Error & { code: string };
-};
-
 export interface SetupRoutesOptions {
   basePath?: string;
   editSessions?: EditSessionStore;
@@ -132,19 +118,14 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
   router.use(express.json({ limit: '1mb' }));
   const sessions: EditSessionStore = editSessions || createEditSessionStore();
 
-  // SECURITY (5.9.5): importing an old account setup by EMAIL is closed. These
-  // endpoints trusted the email alone: anyone who knew an old account's email
-  // could list its setups, download its decrypted keys and sessions, and delete
-  // it. Registered first so they win over the handlers below. Only /migrate with
-  // the old setup's own token id (the secret from its install link) remains.
-  const MIGRATE_CLOSED = 'Importing an old setup by email is no longer available.';
-  router.post(['/migrate/lookup', '/migrate/preview', '/migrate/data', '/migrate/purge'], (_req: Request, res: Response) => {
-    res.status(410).json({ error: MIGRATE_CLOSED });
-  });
-  router.post('/migrate', (req: Request, res: Response, next: () => void) => {
-    const tokenId = (req.body as { tokenId?: unknown } | undefined)?.tokenId;
-    if (typeof tokenId !== 'string' || !tokenId.trim()) { res.status(410).json({ error: MIGRATE_CLOSED }); return; }
-    next();
+  // The old account-era import is gone (v6): every /migrate path answers 410
+  // Gone and nothing else. SECURITY (5.9.5): the email-based variants trusted
+  // the email alone and handed out decrypted keys and sessions; the old
+  // account data was deleted on 2026-11-03. Registered first so no later
+  // route (for example /:uuid) can ever match these paths.
+  const MIGRATE_GONE = 'Importing an old setup is no longer available.';
+  router.all(['/migrate', '/migrate/*rest'], (_req: Request, res: Response) => {
+    res.status(410).json({ error: MIGRATE_GONE });
   });
 
   // Edits are authorised by either a bearer edit token from /unlock or the
@@ -512,223 +493,6 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     // Every existing edit session is invalidated by a password change.
     sessions.revokeUuid(uuid);
     res.json({ ok: true });
-  });
-
-  // One-time import from the removed account model. The caller pastes the
-  // install link or token id of the setup to import: holding that link is the
-  // proof of ownership, so no email, session or SMTP is involved. The old
-  // provider keys are resealed into a fresh setup and a UUID is handed back;
-  // nothing account-shaped is recreated. Pass purgeToken to also delete the
-  // migrated token row, or purgeAccount to delete the whole old account
-  // (every old table cascades off it).
-  router.post('/migrate', (req, res, next) => {
-    const { rateLimit } = require('../middleware/rate-limit.ts') as {
-      rateLimit: (options?: { windowMs?: number; max?: number }) => (req: any, res: any, next: () => void) => void;
-    };
-    rateLimit({ windowMs: 60_000, max: 10 })(req, res, next);
-  }, async (req: Request, res: Response) => {
-    const { loadServerKey } = require('../setup/keys.ts') as { loadServerKey: () => Buffer | null };
-    const { getSetupPool } = require('../setup/runtime.ts') as { getSetupPool: () => any };
-    const pool = getSetupPool();
-    if (!pool) { res.status(503).json({ error: 'Setup storage is unavailable on this instance' }); return; }
-    const key = loadServerKey();
-    if (!key) { res.status(503).json({ error: 'Setup storage is unavailable on this instance' }); return; }
-    try {
-      const body = (req.body ?? {}) as Record<string, unknown>;
-      const migrated = await migrateAccount(
-        { pool, key },
-        {
-          tokenId: body.tokenId as string | undefined,
-          email: body.email as string | undefined,
-          idMasked: body.idMasked as string | undefined,
-          password: body.password as string,
-          tier: body.tier as string | undefined,
-          purgeToken: body.purgeToken === true,
-          purgeAccount: body.purgeAccount === true,
-        },
-      );
-      res.status(201).json({
-        uuid: migrated.uuid,
-        tier: migrated.tier,
-        installToken: migrated.installToken,
-        manifestPath: `/${migrated.installToken}/manifest.json`,
-        keyServices: migrated.keyServices,
-        collections: migrated.collections,
-        sourceLabel: migrated.sourceLabel,
-        purged: migrated.purged,
-      });
-    } catch (error) {
-      if (error instanceof MigrateError && error.code === 'not_found') {
-        res.status(404).json({ error: 'No saved setup matches that identifier' });
-        return;
-      }
-      if (error instanceof MigrateError && error.code === 'bad_request') {
-        res.status(400).json({ error: error.message });
-        return;
-      }
-      res.status(500).json({ error: 'Could not migrate that setup' });
-    }
-  });
-
-  // Structural preview for the import modal: the old setup's settings
-  // without its secrets, so the page can stage the import visibly before
-  // any password exists. Same narrow contract as the picker (email + masked
-  // id, rate limited); secrets never leave regardless.
-  router.post('/migrate/preview', (req, res, next) => {
-    const { rateLimit } = require('../middleware/rate-limit.ts') as {
-      rateLimit: (options?: { windowMs?: number; max?: number }) => (req: any, res: any, next: () => void) => void;
-    };
-    rateLimit({ windowMs: 60_000, max: 10 })(req, res, next);
-  }, async (req: Request, res: Response) => {
-    const { loadServerKey } = require('../setup/keys.ts') as { loadServerKey: () => Buffer | null };
-    const { getSetupPool } = require('../setup/runtime.ts') as { getSetupPool: () => any };
-    const pool = getSetupPool();
-    if (!pool) { res.status(503).json({ error: 'Setup storage is unavailable on this instance' }); return; }
-    const key = loadServerKey();
-    if (!key) { res.status(503).json({ error: 'Setup storage is unavailable on this instance' }); return; }
-    try {
-      const { previewImport } = require('../setup/migrate.ts') as {
-        previewImport: (deps: any, input: any) => Promise<unknown>;
-      };
-      const body = (req.body ?? {}) as Record<string, unknown>;
-      const preview = await previewImport(
-        { pool, key },
-        { email: body.email as string | undefined, idMasked: body.idMasked as string | undefined },
-      );
-      res.json(preview);
-    } catch (error) {
-      if (error instanceof MigrateError && error.code === 'not_found') {
-        res.status(404).json({ error: 'No saved setup matches that selection' });
-        return;
-      }
-      if (error instanceof MigrateError && error.code === 'bad_request') {
-        res.status(400).json({ error: error.message });
-        return;
-      }
-      res.status(500).json({ error: 'Could not preview that setup' });
-    }
-  });
-
-  // Full old-setup payload for the import modal: decrypted keys, logins and
-  // collection documents in one rate-limited call, so picking a setup fills
-  // the whole page. Secrets included by explicit operator decision (see
-  // OldSetupData): picker selection gates it, values only go to the browser
-  // that asked for its own account's setup.
-  router.post('/migrate/data', (req, res, next) => {
-    const { rateLimit } = require('../middleware/rate-limit.ts') as {
-      rateLimit: (options?: { windowMs?: number; max?: number }) => (req: any, res: any, next: () => void) => void;
-    };
-    rateLimit({ windowMs: 60_000, max: 10 })(req, res, next);
-  }, async (req: Request, res: Response) => {
-    const { loadServerKey } = require('../setup/keys.ts') as { loadServerKey: () => Buffer | null };
-    const { getSetupPool } = require('../setup/runtime.ts') as { getSetupPool: () => any };
-    const pool = getSetupPool();
-    if (!pool) { res.status(503).json({ error: 'Setup storage is unavailable on this instance' }); return; }
-    const key = loadServerKey();
-    if (!key) { res.status(503).json({ error: 'Setup storage is unavailable on this instance' }); return; }
-    try {
-      const { importOldSetupData } = require('../setup/migrate.ts') as {
-        importOldSetupData: (deps: any, input: any) => Promise<unknown>;
-      };
-      const body = (req.body ?? {}) as Record<string, unknown>;
-      const data = await importOldSetupData(
-        { pool, key },
-        { email: body.email as string | undefined, idMasked: body.idMasked as string | undefined },
-      );
-      res.json(data);
-    } catch (error) {
-      if (error instanceof MigrateError && error.code === 'not_found') {
-        res.status(404).json({ error: 'No saved setup matches that selection' });
-        return;
-      }
-      if (error instanceof MigrateError && error.code === 'bad_request') {
-        res.status(400).json({ error: error.message });
-        return;
-      }
-      res.status(500).json({ error: 'Could not import that setup' });
-    }
-  });
-
-  // One-way cleanup after a staged import is created: the UI calls this in
-  // the background once creation succeeds, so the old collections, keys and
-  // email vanish and a later import finds nothing. Tight limit: same
-  // email+mask gate as the import, never a standalone button.
-  router.post('/migrate/purge', (req, res, next) => {
-    const { rateLimit } = require('../middleware/rate-limit.ts') as {
-      rateLimit: (options?: { windowMs?: number; max?: number }) => (req: any, res: any, next: () => void) => void;
-    };
-    rateLimit({ windowMs: 60_000, max: 5 })(req, res, next);
-  }, async (req: Request, res: Response) => {
-    const { getSetupPool } = require('../setup/runtime.ts') as { getSetupPool: () => any };
-    const pool = getSetupPool();
-    if (!pool) { res.status(503).json({ error: 'Setup storage is unavailable on this instance' }); return; }
-    try {
-      const { purgeOldAccount } = require('../setup/migrate.ts') as {
-        purgeOldAccount: (deps: any, input: any) => Promise<{ purged: 'token' | 'account'; tokenId: string }>;
-      };
-      const body = (req.body ?? {}) as Record<string, unknown>;
-      const result = await purgeOldAccount(
-        { pool, key: null },
-        { email: body.email as string | undefined, idMasked: body.idMasked as string | undefined },
-      );
-      // The old setup's Redis leftovers: its saved stream settings and its
-      // background-refresh registration. Best effort; the rows are gone either way.
-      try {
-        const cache = require('../runtime/cache.ts');
-        const digest = require('node:crypto').createHash('sha256').update(String(result.tokenId)).digest('hex');
-        await Promise.all([
-          cache.del(`userconfig:account:${digest}`),
-          cache.del(`refresh:account-token:${result.tokenId}`),
-        ]);
-      } catch { /* cache unavailable: entries expire on their own */ }
-      res.json({ ok: true, purged: result.purged });
-    } catch (error) {
-      if (error instanceof MigrateError && error.code === 'not_found') {
-        res.status(404).json({ error: 'No saved setup matches that selection' });
-        return;
-      }
-      if (error instanceof MigrateError && error.code === 'bad_request') {
-        res.status(400).json({ error: error.message });
-        return;
-      }
-      res.status(500).json({ error: 'Could not remove that data' });
-    }
-  });
-
-  // Picker data for the import screen: which saved setups an old email owns.
-  // Metadata only (labels, dates, service names); nothing is created here.
-  router.post('/migrate/lookup', (req, res, next) => {
-    const { rateLimit } = require('../middleware/rate-limit.ts') as {
-      rateLimit: (options?: { windowMs?: number; max?: number }) => (req: any, res: any, next: () => void) => void;
-    };
-    rateLimit({ windowMs: 60_000, max: 10 })(req, res, next);
-  }, async (req: Request, res: Response) => {
-    const { loadServerKey } = require('../setup/keys.ts') as { loadServerKey: () => Buffer | null };
-    const { getSetupPool } = require('../setup/runtime.ts') as { getSetupPool: () => any };
-    const pool = getSetupPool();
-    if (!pool) { res.status(503).json({ error: 'Setup storage is unavailable on this instance' }); return; }
-    const key = loadServerKey();
-    if (!key) { res.status(503).json({ error: 'Setup storage is unavailable on this instance' }); return; }
-    try {
-      const { listAccountSetups } = require('../setup/migrate.ts') as {
-        listAccountSetups: (deps: any, email: unknown) => Promise<{
-          setups: unknown[]; keyServices: string[];
-          collections: { contexts: number; collections: number };
-        }>;
-      };
-      const found = await listAccountSetups({ pool, key }, (req.body as Record<string, unknown> | undefined)?.email);
-      res.json(found);
-    } catch (error) {
-      if (error instanceof MigrateError && error.code === 'not_found') {
-        res.status(404).json({ error: 'No saved setup matches that identifier' });
-        return;
-      }
-      if (error instanceof MigrateError && error.code === 'bad_request') {
-        res.status(400).json({ error: error.message });
-        return;
-      }
-      res.status(500).json({ error: 'Could not look up that email' });
-    }
   });
 
   // Sanity check for the UI: is this install token valid, and for which tier?

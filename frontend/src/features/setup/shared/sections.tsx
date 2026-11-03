@@ -89,7 +89,7 @@ export function VerifyButton({ endpoint, value, label, onResult, triggerRef }: {
 // One secret input with an optional live verify and eye toggle. The label row
 // carries the required marker and the provider's "Get key" link, matching the
 // reference; the input, eye and verify always sit on one line.
-export function KeyInput({ label, hint, value, onChange, verifyEndpoint, placeholder, logo, hideLabel, required, docsUrl, onVerifyResult, saved, savedScope, onReveal }: {
+export function KeyInput({ label, hint, value, onChange, verifyEndpoint, placeholder, logo, hideLabel, required, docsUrl, onVerifyResult, saved, onReveal }: {
   label: string;
   hint: string;
   value: string;
@@ -104,11 +104,6 @@ export function KeyInput({ label, hint, value, onChange, verifyEndpoint, placeho
   // Editor affordance: the server holds a value for this field (it arrives
   // masked straight into the input on unlock). The tag proves it at a glance.
   saved?: boolean;
-  // Which setup "saved" refers to. On an edit page it is this setup, and a blank
-  // field keeps the stored secret. On a create page with a staged import it is
-  // the OLD setup: nothing is stored for the new one yet, a blank field is not
-  // carried over, and creating the setup removes the old one.
-  savedScope?: 'setup' | 'import';
   // Fetch the server-held value for this field on demand. Without it the eye is
   // a plain visibility toggle; with it, an empty "saved" field fetches the real
   // value first, so asking to see a saved key actually shows it.
@@ -120,7 +115,6 @@ export function KeyInput({ label, hint, value, onChange, verifyEndpoint, placeho
   const [revealing, setRevealing] = useState(false);
   const empty = value.trim().length === 0;
   const canReveal = Boolean(onReveal) && saved === true && empty;
-  const fromImport = savedScope === 'import';
   // Checks on the input's blur, and straight after a reveal fills the field, so
   // a key is verified without the user having to find the tick.
   const verifyTrigger = useRef<(() => void) | null>(null);
@@ -148,8 +142,8 @@ export function KeyInput({ label, hint, value, onChange, verifyEndpoint, placeho
     setShow((visible) => !visible);
   }
 
-  const eyeTitle = revealing ? (fromImport ? 'Fetching it from your imported setup…' : 'Fetching the saved key…')
-    : canReveal ? (fromImport ? 'Fetch it from your imported setup' : 'Show saved key')
+  const eyeTitle = revealing ? 'Fetching the saved key…'
+    : canReveal ? 'Show saved key'
     : show ? 'Hide key' : 'Show key';
 
   return (
@@ -159,9 +153,7 @@ export function KeyInput({ label, hint, value, onChange, verifyEndpoint, placeho
           <span>{label}{required && <span className="req"> *</span>}</span>
           <span className="setup-field-flags">
             {saved && (
-              <span className="saved-tag" title={fromImport ? 'Held by the setup you imported' : 'Stored on this server'}>
-                {fromImport ? 'From import' : 'Saved ✓'}
-              </span>
+              <span className="saved-tag" title="Stored on this server">Saved ✓</span>
             )}
             {docsUrl && <a href={docsUrl} target="_blank" rel="noopener">Get key →</a>}
           </span>
@@ -202,18 +194,11 @@ export function KeyInput({ label, hint, value, onChange, verifyEndpoint, placeho
       </span>
       <small className="setup-hint">{hint}</small>
       {saved && empty && (
-        fromImport ? (
-          <small className="setup-hint is-warn">
-            Empty, so it will not be carried over - and creating this setup removes the old one.
-            {onReveal ? ' Press the eye to fetch it, or paste it again.' : ' Paste it again to keep it.'}
-          </small>
-        ) : (
-          <small className="setup-hint">
-            {onReveal
-              ? 'Saved on the server. Leave blank to keep it, or press the eye to show it.'
-              : 'Saved on the server - leave blank to keep it.'}
-          </small>
-        )
+        <small className="setup-hint">
+          {onReveal
+            ? 'Saved on the server. Leave blank to keep it, or press the eye to show it.'
+            : 'Saved on the server - leave blank to keep it.'}
+        </small>
       )}
     </label>
   );
@@ -232,8 +217,6 @@ export interface RevealProps {
   // Services with a saved server-side value (from the setup summary). Unlocks
   // the per-field Saved indicator; absent on create pages.
   savedServices?: string[] | undefined;
-  // Which setup those services belong to (see KeyInput).
-  savedScope?: 'setup' | 'import' | undefined;
   // Fetch one saved value on demand (the eye on an empty Saved field). Pages
   // wire this to whichever server path holds the value.
   revealSaved?: ((field: keyof SetupKeysDraft) => Promise<string | null>) | undefined;
@@ -243,7 +226,7 @@ function keyFields(
   fields: typeof PROVIDER_KEY_FIELDS,
   values: SetupKeysDraft,
   onChange: (next: SetupKeysDraft) => void,
-  reveal?: Pick<RevealProps, 'savedServices' | 'savedScope' | 'revealSaved'>,
+  reveal?: Pick<RevealProps, 'savedServices' | 'revealSaved'>,
 ) {
   const [verified, setVerified] = useState<Record<string, boolean>>({});
 
@@ -273,7 +256,6 @@ function keyFields(
             onVerifyResult={(ok) => mark(field, ok)}
             onChange={(value) => onChange({ ...values, [field]: value })}
             {...(reveal?.savedServices?.includes(field) ? { saved: true } : {})}
-            {...(reveal?.savedScope ? { savedScope: reveal.savedScope } : {})}
             {...(reveal?.savedServices?.includes(field) && reveal.revealSaved ? { onReveal: () => reveal.revealSaved!(field) } : {})}
           />
         </div>
@@ -307,7 +289,7 @@ const PROVIDER_BRAND: Partial<Record<keyof SetupKeysDraft, string>> = {
   pmApiKey: '238, 90, 61',
 };
 
-export function ProviderKeys({ values, onChange, onRemove, savedServices, savedScope, revealSaved }: {
+export function ProviderKeys({ values, onChange, onRemove, savedServices, revealSaved }: {
   values: SetupKeysDraft;
   onChange: (next: SetupKeysDraft) => void;
   onRemove?: (field: keyof SetupKeysDraft) => void;
@@ -317,7 +299,7 @@ export function ProviderKeys({ values, onChange, onRemove, savedServices, savedS
   );
   const [verified, setVerified] = useState<Record<string, boolean>>({});
   // Turning a card off clears its key. When the server holds that key, ask
-  // first: the switch used to delete a saved or imported key silently.
+  // first: the switch used to delete a saved key silently.
   const [pendingClear, setPendingClear] = useState<keyof SetupKeysDraft | null>(null);
   // A provider switched on before a key exists: the thumb slides immediately
   // and the card opens for the key. Closing the card without one clears it, so
@@ -401,18 +383,12 @@ export function ProviderKeys({ values, onChange, onRemove, savedServices, savedS
                 )}
                 {!verified[field] && filled && <span className="pc-pill is-added">Key added</span>}
                 {!verified[field] && !filled && savedServices?.includes(field) && (
-                  savedScope === 'import' ? (
-                    <span className="pc-pill is-warn" aria-label="In your imported setup, not filled in here">
-                      From import
-                    </span>
-                  ) : (
-                    <span className="pc-pill is-verified" aria-label="Key saved on the server">
-                      <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true" focusable="false">
-                        <path d="M2 6.2 4.6 8.8 10 3.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                      Saved
-                    </span>
-                  )
+                  <span className="pc-pill is-verified" aria-label="Key saved on the server">
+                    <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true" focusable="false">
+                      <path d="M2 6.2 4.6 8.8 10 3.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Saved
+                  </span>
                 )}
                 <span className="pc-switch">
                   <input
@@ -453,7 +429,6 @@ export function ProviderKeys({ values, onChange, onRemove, savedServices, savedS
                       if (!value.trim()) setArmed((prev) => ({ ...prev, [field]: false }));
                     }}
                     {...(savedServices?.includes(field) ? { saved: true } : {})}
-                    {...(savedScope ? { savedScope } : {})}
                     {...(savedServices?.includes(field) && revealSaved ? { onReveal: () => revealSaved(field) } : {})}
                   />
                 </div>
@@ -462,7 +437,7 @@ export function ProviderKeys({ values, onChange, onRemove, savedServices, savedS
           );
         })}
       </div>
-      <WebdavCard enabled={webdavSource} values={values} onChange={onChange} onRemove={onRemove} savedServices={savedServices} savedScope={savedScope} />
+      <WebdavCard enabled={webdavSource} values={values} onChange={onChange} onRemove={onRemove} savedServices={savedServices} />
       <p className="setup-note">
         Add at least one. Keys are sealed on the server.
       </p>
@@ -505,14 +480,14 @@ export function RdCatalogSelect({ value, onChange }: {
   );
 }
 
-export function MetadataKeys({ values, onChange, savedServices, savedScope, revealSaved }: {
+export function MetadataKeys({ values, onChange, savedServices, revealSaved }: {
   values: SetupKeysDraft;
   onChange: (next: SetupKeysDraft) => void;
 } & RevealProps) {
-  return <div className="key-card-list">{keyFields(METADATA_KEY_FIELDS, values, onChange, { savedServices, savedScope, revealSaved })}</div>;
+  return <div className="key-card-list">{keyFields(METADATA_KEY_FIELDS, values, onChange, { savedServices, revealSaved })}</div>;
 }
 
-export function ListKey({ value, onChange, savedServices, savedScope, revealSaved }: {
+export function ListKey({ value, onChange, savedServices, revealSaved }: {
   value: string;
   onChange: (value: string) => void;
 } & RevealProps) {
@@ -526,7 +501,6 @@ export function ListKey({ value, onChange, savedServices, savedScope, revealSave
         verifyEndpoint="/api/verify/mdblist"
         onChange={onChange}
         {...(savedServices?.includes('mdblistKey') ? { saved: true } : {})}
-        {...(savedScope ? { savedScope } : {})}
         {...(savedServices?.includes('mdblistKey') && revealSaved ? { onReveal: () => revealSaved('mdblistKey') } : {})}
       />
     </div>

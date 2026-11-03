@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createSetup, purgeOldAccount } from '@/features/setup/resolver/api';
+import { createSetup } from '@/features/setup/resolver/api';
 import { checkPassword } from '@/features/setup/resolver/validation';
 import { rememberSetup } from '@/features/setup/shared/setup-history';
 import { setupCopy } from '@/features/setup/shared/setup-copy';
-import { toast } from '@/features/setup/shared/Toast';
 import type { PlatformConnection } from '@/features/setup/full/platform-login';
 
 // The Destination step's login, sealed with the setup when it is created (not
@@ -25,9 +24,6 @@ export function createKeyError(keys: Record<string, unknown>): 'provider' | 'tmd
 
 // Shared creation tail for every tier page: password state, validation, the
 // POST, and the handoff to /{uuid} with the just-created install link.
-// With a staged import, creation also purges the old account in the
-// background (collections, keys, logins, email), so a later import finds
-// nothing: strictly best-effort after success, it can never fail the setup.
 // The "Creating your setup..." loader stays up at least this long, then fades
 // (CREATING_FADE_MS) before the Ready page fades in: a fast server should not
 // flash the loader for a frame.
@@ -48,7 +44,6 @@ export function useCreateSetup(tier: string, options: { navigateToSetup?: boolea
 
   async function create(
     input: { name?: string; config: Record<string, unknown>; keys: Record<string, unknown>; connection?: PlatformConnection | null },
-    after?: { purgeImport?: { email: string; idMasked: string } },
   ) {
     const check = checkPassword(password, confirmation);
     if (!check.ok) { setError(check.error ?? 'Check your password'); return false; }
@@ -81,16 +76,6 @@ export function useCreateSetup(tier: string, options: { navigateToSetup?: boolea
       }
       finish(created.uuid, created.installToken, trimmedName ?? null);
       setCreating(null);
-      if (after?.purgeImport) {
-        try {
-          const purge = await purgeOldAccount(after.purgeImport);
-          toast(purge.purged === 'token'
-            ? 'The imported old setup was removed. Your other old setups can still be imported.'
-            : 'Your old account and its data were removed');
-        } catch {
-          // Best effort only: the setup already exists, the old data simply stays.
-        }
-      }
       return true;
     } catch (caught) {
       setCreating(null);

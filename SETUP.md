@@ -9,8 +9,8 @@ There are three ways in:
 - **Hosted**: use [lelibrary.uk/configure](https://lelibrary.uk/configure) and
   let the site host the setup for you.
 - **Self-hosted**: run the Docker image on your own machine or server.
-- **Moving an existing setup**: open it by link and edit it, or import the old
-  configuration into a new setup.
+- **Moving an existing setup**: open it by its link and edit it. An older
+  (pre-5.5) setup cannot be imported; create a new one instead.
 
 Every setup ends with one thing: an install link. Keep it.
 
@@ -597,14 +597,14 @@ The paste box and each setup's own link keep working.
 
 ## Moving from an older version
 
-Old configurations still work through their own link. Importing an old
-account setup by email was removed in 5.9.5 for security reasons; to move to a
-current setup, create a new one with Quick Look, Settle In or Move In and
-enter your keys again.
+Old configurations still work through their own install link. There is no
+way to import an old setup or old account into a new one: that import was
+closed in 5.9.5 for security reasons and removed in v6, and the old account
+data has been deleted. To move to a current setup, create a new one with Quick
+Look, Settle In or Move In and enter your keys again.
 
-An older install link that points at `/{token}/configure` now opens the setup
-flow. Paste the token (or its link) into the install box and the editor picks
-out the id.
+An older link that points at `/{token}/configure`, or an old account link
+under `/accounts/...`, now opens the setup picker at `/configure`.
 
 ---
 

@@ -567,8 +567,9 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
   // ── Old account-era links ──
   // The account area was removed in v5.5 (archived outside the repo). Old
   // bookmarks and emailed links still land somewhere useful: a per-setup edit
-  // link goes to that token's configure route (which sends it into the v5.5
-  // import flow); everything else under /account goes to the setup picker.
+  // link goes to that token's configure route (a v5.5 setup opens its own edit
+  // page, anything else the setup picker); everything else under /account goes
+  // to the setup picker.
   router.get([
     '/accounts/:token/configure',
     '/accounts/collections/:token/configure',
@@ -752,8 +753,8 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
   // Configure with injected config (from Stremio addon)
   router.get('/:token/configure', async (req: Request, res: Response) => {
     // A v5.5 setup is edited at its own UUID (password gate, tier surface);
-    // legacy self-contained tokens import through the setup flow, invalid
-    // ones still 400 as before.
+    // legacy self-contained tokens go to the setup picker, invalid ones still
+    // 400 as before.
     const config = await resolveConfig(String(req.params.token));
     const target = configureRedirectTarget(config);
     if (!target) return res.status(400).send('Invalid token');
@@ -1675,7 +1676,7 @@ const STATUS_CHECKS = [
 
 // Where a token-scoped /:token/configure link lands. v5.5 setups are edited
 // at their own UUID (password gate, tier surface); legacy self-contained
-// tokens import through the setup flow; unresolvable tokens get null so the
+// tokens go to the setup picker; unresolvable tokens get null so the
 // caller can 400 as before.
 function configureRedirectTarget(config: unknown): string | null {
   if (!config || typeof config !== 'object') return null;

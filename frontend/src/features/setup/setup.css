@@ -89,39 +89,7 @@ p.setup-note-pill { width: fit-content; max-width: 100%; box-sizing: border-box;
 .setup-checks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .setup-check { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; font-size: 0.84rem; cursor: pointer; }
 .setup-check input { accent-color: var(--amber); width: 16px; height: 16px; }
-.setup-import-lookup { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 4px; }
-.setup-import-lookup .setup-field { flex: 1; min-width: 0; margin-bottom: 0; }
-.setup-import-lookup .setup-secondary { flex: none; margin-bottom: 0; white-space: nowrap; }
-.setup-import-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-@media (max-width: 560px) {
-  .setup-import-lookup { flex-direction: column; align-items: stretch; }
-  .setup-import-lookup .setup-secondary { width: 100%; }
-  .setup-import-grid { grid-template-columns: 1fr; }
-}
-.setup-import-list { margin: 0 0 16px; padding: 0; list-style: none; display: grid; gap: 8px; }
-.setup-import-list li { padding: 0; border: none; }
-.setup-import-card { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255, 255, 255, 0.015); color: inherit; font: inherit; text-align: left; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
-.setup-import-card:hover { border-color: var(--amber); }
-.setup-import-card.is-selected { border-color: var(--amber); background: rgba(245, 158, 11, 0.07); }
-.setup-import-radio { flex: none; width: 18px; height: 18px; margin-top: 2px; border: 2px solid var(--muted); border-radius: 50%; transition: border-color 0.15s, background 0.15s; }
-.setup-import-card.is-selected .setup-import-radio { border-color: var(--amber); background: radial-gradient(circle, var(--amber) 0 5px, transparent 6px); }
-.setup-import-card-main { flex: 1; min-width: 0; display: grid; gap: 3px; }
-.setup-import-card strong { display: block; font-size: 0.88rem; }
-.setup-import-card small { color: var(--muted); font-size: 0.72rem; }
-.setup-import-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.setup-import-summary { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 4px; }
-.setup-import-keys { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 8px 0 4px; color: var(--muted); font-size: 0.72rem; }
-.import-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: 0.7rem; white-space: nowrap; }
-.import-pill b { color: var(--text); }
-.import-pill-keys { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.import-pill-key { border-color: rgba(52, 211, 153, 0.35); color: var(--text); font-size: 0.66rem; }
-.import-pill-kind.is-collection { border-color: rgba(139, 92, 246, 0.5); color: #c4b5fd; }
-.import-pill-kind.is-token { border-color: rgba(52, 211, 153, 0.45); color: #34d399; }
 .quick-pack-launch.is-staged { border-color: rgba(245, 158, 11, 0.5); background: linear-gradient(120deg, rgba(245,158,11,.1), transparent); }
-.setup-import-dialog { width: min(640px, calc(100vw - 44px)); max-width: none !important; max-height: min(840px, calc(100vh - 44px)); display: flex; flex-direction: column; overflow: hidden; padding: 0 !important; }
-.setup-import-dialog .app-modal-head { margin: 0; padding: 20px 22px 14px; border-bottom: 1px solid var(--border); }
-.setup-import-modal-body { overflow: auto; padding: 16px 22px; min-height: 0; }
-.setup-import-dialog .app-modal-actions { margin: 0; padding: 14px 22px; border-top: 1px solid var(--border); }
 @media (max-width: 720px) { .setup-row, .setup-checks { grid-template-columns: 1fr; } }
 
 /* ── Base setup visual system ─────────────────────────────────────────────── */
@@ -1893,45 +1861,6 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
   font: inherit;
 }
 .nuvio-playback-regex input[aria-invalid="true"] { border-color: #ef6b73; }
-
-/* Import an old setup (Settle In / Move In, step 1). */
-.imp-card { box-sizing: border-box; position: relative; display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: 20px; padding: 20px 22px; overflow: hidden; border: 1px solid rgba(245, 158, 11, 0.28); border-radius: 18px; background: radial-gradient(120% 140% at 0% 0%, rgba(245, 158, 11, 0.12), transparent 55%), #111114; }
-.imp-card::after { content: ''; position: absolute; inset: 0 0 auto; height: 1px; background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.5), transparent); pointer-events: none; }
-.imp-glyph { display: grid; place-items: center; width: 56px; height: 56px; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 16px; background: rgba(245, 158, 11, 0.1); color: var(--amber); }
-.imp-glyph svg { width: 34px; height: 34px; }
-.imp-glyph.is-ready { border-color: rgba(52, 211, 153, 0.45); background: rgba(52, 211, 153, 0.12); color: #34d399; font-size: 1.4rem; font-weight: 800; }
-.imp-main { display: grid; gap: 6px; min-width: 0; }
-.imp-kicker { color: var(--amber); font: 500 0.66rem var(--mono, monospace); letter-spacing: 0.14em; text-transform: uppercase; }
-.imp-main h3 { margin: 0; font-size: 1.12rem; letter-spacing: -0.02em; }
-.imp-main h3 small { color: var(--muted); font: 500 0.78rem var(--mono, monospace); letter-spacing: 0; }
-.imp-main p { margin: 0; color: var(--muted); font-size: 0.86rem; line-height: 1.5; }
-.imp-main p.imp-sunset { margin-top: 6px; color: var(--amber); font-size: 0.8rem; }
-.imp-carries, .imp-found { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 4px 0 0; padding: 0; list-style: none; }
-.imp-carries li { display: inline-flex; align-items: center; gap: 6px; color: var(--text); font-size: 0.8rem; }
-.imp-carries li span { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: rgba(52, 211, 153, 0.16); color: #34d399; font-size: 0.6rem; font-weight: 900; }
-.imp-found { gap: 6px; }
-.imp-found li { padding: 4px 11px; border: 1px solid rgba(52, 211, 153, 0.35); border-radius: 999px; background: rgba(52, 211, 153, 0.08); color: #a7f3d0; font-size: 0.78rem; }
-.imp-note { padding: 8px 12px; border-left: 2px solid rgba(245, 158, 11, 0.6); border-radius: 6px; background: rgba(245, 158, 11, 0.06); }
-.imp-side { display: grid; justify-items: stretch; gap: 10px; }
-.imp-side.is-row { display: flex; gap: 8px; }
-.imp-go { white-space: nowrap; padding: 12px 20px; }
-.imp-steps { display: flex; gap: 12px; margin: 0; padding: 0; list-style: none; counter-reset: imp; }
-.imp-steps li { counter-increment: imp; display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 0.7rem; white-space: nowrap; }
-.imp-steps li::before { content: counter(imp); display: grid; place-items: center; width: 15px; height: 15px; border: 1px solid var(--border); border-radius: 50%; color: var(--text); font-size: 0.6rem; }
-.imp-card.is-staged { border-color: rgba(52, 211, 153, 0.35); background: radial-gradient(120% 140% at 0% 0%, rgba(52, 211, 153, 0.1), transparent 55%), #111114; }
-.imp-card.is-staged::after { background: linear-gradient(90deg, transparent, rgba(52, 211, 153, 0.5), transparent); }
-.imp-card.is-staged .imp-kicker { color: #34d399; }
-.imp-remove:hover { border-color: rgba(239, 107, 115, 0.5); color: #ef6b73; }
-@media (max-width: 900px) {
-  .imp-card { grid-template-columns: 48px minmax(0, 1fr); }
-  .imp-glyph { width: 48px; height: 48px; }
-  .imp-side { grid-column: 1 / -1; }
-  .imp-steps { justify-content: center; flex-wrap: wrap; }
-}
-@media (max-width: 520px) {
-  .imp-card { gap: 14px; padding: 16px; }
-  .imp-side.is-row > * { flex: 1; }
-}
 
 /* After creating: "Creating your setup..." fades out, then the Ready page
    fades in. No modal: the Ready page is the one place for push and links. */

@@ -17,7 +17,7 @@ import { EMPTY_FILTER_SETS, FilterSets, filterSummaryParts, type FilterSetsDraft
 import { StreamAddonsSection } from '@/features/setup/full/StreamAddonsSection';
 import { CustomStreamsSection } from '@/features/setup/full/CustomStreamsSection';
 import { MetadataWatchlists, WATCHLIST_ACCORDION_DESC } from '@/features/setup/full/MetadataExtras';
-import { cleanWatchlistDraft, importOldSetup, type WatchlistDraftMap } from '@/features/setup/resolver/api';
+import { cleanWatchlistDraft, type WatchlistDraftMap } from '@/features/setup/resolver/api';
 import { BADGE_PACKS, DEFAULT_BADGE_PACK } from '@/features/setup/shared/BadgePackPicker';
 import { toast } from '@/features/setup/shared/Toast';
 import { HomeRowsSection } from '@/features/setup/full/HomeRowsSection';
@@ -39,7 +39,6 @@ import { EMPTY_POSTERS, PostersSection, type PostersDraft } from '@/features/set
 import { useCreateSetup } from '@/features/setup/shared/useCreateSetup';
 import { clearFullDraft, loadFullDraft, saveFullDraft, type FullDraft } from '@/features/setup/full/full-draft';
 import { useRestoreToast } from '@/features/setup/shared/Toast';
-import type { ImportedPayload } from '@/features/setup/full/ImportSection';
 import { NuvioPlaybackSection } from '@/features/setup/shared/NuvioPlaybackSection';
 import {
   EMPTY_NUVIO_PLAYBACK,
@@ -53,8 +52,6 @@ import {
   nuvioHideUnreleasedForConfig,
   type NuvioHideUnreleased,
 } from '@/features/setup/shared/nuvio-library';
-import { importedKeys, mergeImportDocs } from '@/features/setup/full/import-merge';
-import type { StagedImport } from '@/features/setup/full/full-draft';
 import {
   POSTER_PROVIDERS,
   PROVIDER_KEY_FIELDS,
@@ -104,9 +101,7 @@ export function isFullDirty(state: {
   addons: string[];
   customStreams: CustomStreamRow[];
   watchlist: WatchlistDraftMap;
-  stagedImport: unknown;
 }): boolean {
-  if (state.stagedImport !== null && state.stagedImport !== undefined) return true;
   if (state.platform !== 'nuvio' || state.rdCatalog !== 'merge') return true;
   if (state.name.trim() !== '') return true;
   if (Object.keys(cleanKeys(state.keys)).length > 0) return true;
@@ -137,7 +132,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
   const [restored] = useState<FullDraft | null>(() => (edit ? snapshotToFullDraft(edit.initial) : loadFullDraft()));
   const [platform, setPlatform] = useState<PlatformId>(restored?.platform ?? 'nuvio');
   const [pushConn, setPushConn] = useState<PlatformConnection | null>(restored?.pushConn ?? null);
-  // A Nuvio login restored from a draft or an imported old setup is often past
+  // A Nuvio login restored from a draft or a saved setup is often past
   // its short expiry. Renew it with its refresh token so the public collection
   // browser and profile list get a working session instead of "JWT expired".
   useEffect(() => {
@@ -184,64 +179,6 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
     onRemoveKey: edit?.onRemoveKey,
   });
   const [watchlist, setWatchlist] = useState<WatchlistDraftMap>(restored?.watchlist ?? {});
-  // Staged old-setup import (picked in the Destination step modal, no
-  // password yet): creation migrates the old row instead of starting blank.
-  const [stagedImport, setStagedImport] = useState(restored?.stagedImport ?? null);
-
-  // Folds a picked old setup into the draft the moment it is imported: its
-  // settings merge, its key values fill their inputs, its collection and
-  // home-row documents merge by id (never duplicating what is already here),
-  // and a saved platform login reconnects. Creation afterwards is ordinary.
-  function stageImport(next: StagedImport | null, payload?: ImportedPayload) {
-    setStagedImport(next);
-    if (!next || !payload) return;
-    const { merge } = payload;
-    setName((current) => current.trim() ? current : (merge.name?.trim() || current));
-    if (merge.platform) setPlatform(merge.platform);
-    if (merge.rdCatalog) setRdCatalog(merge.rdCatalog);
-    setPosters(merge.posters);
-    setFormatting(merge.formatting);
-    setBadgePack(merge.badgePack);
-    setCustomBadgeUrl(merge.customBadgeUrl);
-    setMeta((prev) => ({ ...prev, ...merge.meta }));
-    setFilterSets((prev) => ({ ...prev, ...merge.filterSets }));
-    if (merge.addons.length > 0) setAddons(merge.addons);
-    // Collection/home-row documents come from the picker payload (the old
-    // account's own context docs), NOT from merge.collections: token configs
-    // on v5 accounts never carry them, so reading the merge leaves the
-    // studio empty even though the import succeeded.
-    const docs = mergeImportDocs(collections, homeRows, payload);
-    if (docs.collections) setCollections(docs.collections);
-    if (docs.homeRows) setHomeRows(normalizeHomeOrder(docs.homeRows, platform));
-    if (merge.packs.length > 0) {
-      setPacks((prev) => (prev.length === 0 ? merge.packs : [...prev, ...merge.packs.filter((pack) => !prev.includes(pack))]));
-    }
-    if (Object.keys(payload.keys).length > 0) {
-      setKeys((prev) => ({ ...prev, ...payload.keys }));
-    }
-    if (docs.homeRows) {
-      const rows = docs.homeRows;
-      setHomeRows((prev) => {
-        if (prev.length === 0) return rows;
-        const known = new Set(prev.map((row) => row.id));
-        return normalizeHomeOrder([...prev, ...rows.filter((row) => !known.has(row.id))], platform);
-      });
-    }
-    if (payload.pushConn) setPushConn(payload.pushConn);
-  }
-
-  // Ask the server for one saved key from the staged old setup. There is no
-  // setup row yet at this point, so the row's own reveal endpoint cannot be
-  // used; this goes back through the same email + masked id gate the import
-  // picker used, and only ever fills the field that was asked for.
-  async function revealSavedKey(field: keyof SetupKeysDraft): Promise<string | null> {
-    if (!stagedImport) return null;
-    const data = await importOldSetup({ email: stagedImport.email, idMasked: stagedImport.idMasked });
-    const value = importedKeys(data)[field];
-    if (!value) return null;
-    setKeys((prev) => ({ ...prev, [field]: value }));
-    return value;
-  }
   const [confirmReset, setConfirmReset] = useState(false);
   const wizard = useWizardStep(FULL_SECTIONS.length);
   // Stay on the page after creation: the review step turns into the push
@@ -254,9 +191,9 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
     saveFullDraft({
       platform, rdCatalog, name, keys, formatting, posters, homeRows,
       badgePack, customBadgeUrl, collections, packs, meta, filterSets,
-      addons, customStreams, nuvioPlayback, nuvioHideUnreleased, libraryRows, customAddons, watchlist, stagedImport, pushConn,
+      addons, customStreams, nuvioPlayback, nuvioHideUnreleased, libraryRows, customAddons, watchlist, pushConn,
     });
-  }, [edit, platform, rdCatalog, name, keys, formatting, posters, homeRows, badgePack, customBadgeUrl, collections, packs, meta, filterSets, addons, customStreams, nuvioPlayback, nuvioHideUnreleased, libraryRows, customAddons, watchlist, stagedImport, pushConn]);
+  }, [edit, platform, rdCatalog, name, keys, formatting, posters, homeRows, badgePack, customBadgeUrl, collections, packs, meta, filterSets, addons, customStreams, nuvioPlayback, nuvioHideUnreleased, libraryRows, customAddons, watchlist, pushConn]);
 
   useRestoreToast(!edit && restored !== null && fullDraftHasContent(restored));
 
@@ -297,7 +234,6 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
     setLibraryRows(EMPTY_LIBRARY_ROWS);
     setCustomAddons([]);
     setWatchlist({});
-    setStagedImport(null);
     setPushConn(null);
     setConfirmReset(false);
     clearFullDraft();
@@ -358,13 +294,9 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
   }
 
   function submit() {
-    // By submit time an import is just draft content like anything else:
-    // keys filled, docs merged, logins reconnected. Ordinary creation, then
-    // the old account is purged in the background.
     const draft = buildDraft();
     void creation.create(
       { name, config: draft.config, keys: draft.keys, connection: pushConn?.platform === platform ? pushConn : null },
-      stagedImport ? { purgeImport: { email: stagedImport.email, idMasked: stagedImport.idMasked } } : undefined,
     ).then((ok) => { if (ok) clearFullDraft(); });
   }
 
@@ -380,15 +312,6 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
     });
   }
 
-  // An import hands back a live setup, so it travels the same road as a fresh
-  // creation: /{uuid} with the just-created install link. (Staged old-setup
-  // imports migrate at submit instead - see submit().)
-
-  // Keys the import holds that are sitting empty here: they will not travel to
-  // the new setup, and creation removes the old one, so name them.
-  const missingImportedServices = (stagedImport?.services ?? []).filter(
-    (service) => !String((keys as Record<string, string | undefined>)[service] ?? '').trim(),
-  );
   const providerPrefix = hubPrefix(providerSelectionWithSaved(keys, edit?.savedServices ?? []));
   const ownedMarker = homeRows.find((row) => row._nativeFranchiseCollection === true) ?? null;
   const ownedFranchiseOn = ownedMarker !== null;
@@ -439,7 +362,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
   const dirty = edit ? edit.dirty : !creation.result && isFullDirty({
     platform, rdCatalog, name, keys, formatting, posters, homeRows,
     badgePack, customBadgeUrl, collections, packs, meta, filterSets,
-    addons, customStreams, watchlist, stagedImport,
+    addons, customStreams, watchlist,
   });
   const next = FULL_SECTIONS[wizard.step + 1];
   const folderCount = collections.reduce((total, collection) => total + (collection.folders || []).length, 0);
@@ -457,7 +380,6 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
         { label: 'Badges', value: BADGE_PACKS.find((entry) => entry.id === badgePack)?.name ?? badgePack },
         { label: 'Home rows', value: homeRows.length > 0 ? String(homeRows.length) : '-' },
         { label: 'Collections', value: collections.length > 0 ? `${collections.length} · ${folderCount} folders` : '-' },
-        ...(stagedImport ? [{ label: 'Import', value: stagedImport.label ?? stagedImport.idMasked }] : []),
         { label: 'Filters', value: filtersActive ? 'Custom' : 'Default' },
       ]}
     />
@@ -531,14 +453,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
           <TierStep id="setup" index={2} title="Setup" hidden={wizard.step !== 1} lede="Everything about your library in one place. Open a section to change it; each one shows where it stands.">
             <div className="qs-accordions qs-setup-page">
               <Accordion title="Integrations" icon="🔌"
-                summary={[connected.length ? connected.join(' + ') : 'No library yet', hasTmdb || edit?.savedServices.includes('tmdbApiKey') || stagedImport?.services?.includes('tmdbApiKey') ? 'TMDB key added' : 'TMDB key needed']}>
-                {missingImportedServices.length > 0 && (
-                  <p className="setup-error" role="alert">
-                    From your imported setup but empty here: {missingImportedServices.join(', ')}.
-                    {' '}These will not be carried over, and creating this setup removes the old one.
-                    {' '}Press the eye to fetch each one, or paste it again.
-                  </p>
-                )}
+                summary={[connected.length ? connected.join(' + ') : 'No library yet', hasTmdb || edit?.savedServices.includes('tmdbApiKey') ? 'TMDB key added' : 'TMDB key needed']}>
                 <h3 className="qs-sub"><strong>Library providers</strong><span>Debrid</span></h3>
                 {edit ? (
                   <ProviderKeys
@@ -546,20 +461,16 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
                     savedServices={edit.savedServices} revealSaved={revealEdit} onRemove={edit.onRemoveKey}
                   />
                 ) : (
-                  <ProviderKeys
-                    values={keys} onChange={setKeys}
-                    savedServices={stagedImport?.services} savedScope="import"
-                    {...(revealSavedKey ? { revealSaved: revealSavedKey } : {})}
-                  />
+                  <ProviderKeys values={keys} onChange={setKeys} />
                 )}
                 <div className="qs-catalogs"><RdCatalogSelect value={rdCatalog} onChange={setRdCatalog} /></div>
                 {edit
                   ? <TierMetadata values={keys} onChange={setKeys} savedServices={edit.savedServices} revealSaved={revealEdit} />
-                  : <TierMetadata values={keys} onChange={setKeys} savedServices={stagedImport?.services} savedScope="import" revealSaved={revealSavedKey} />}
+                  : <TierMetadata values={keys} onChange={setKeys} />}
                 <h3 className="qs-sub"><strong>MDBList</strong><span>Optional</span></h3>
                 {edit
                   ? <ListKey value={keys.mdblistKey ?? ''} onChange={(value) => setKeys({ ...keys, mdblistKey: value })} savedServices={edit.savedServices} revealSaved={revealEdit} />
-                  : <ListKey value={keys.mdblistKey ?? ''} onChange={(value) => setKeys({ ...keys, mdblistKey: value })} savedServices={stagedImport?.services} savedScope="import" revealSaved={revealSavedKey} />}
+                  : <ListKey value={keys.mdblistKey ?? ''} onChange={(value) => setKeys({ ...keys, mdblistKey: value })} />}
                 <p className="setup-hint qs-note">Want what you watch on MDBList? In Nuvio open Settings, then MDBList, then Connect, and approve the code on mdblist.com. Nuvio then scrobbles for you. The key here only powers lists and ratings in LeLibrary.</p>
                 <h3 className="qs-sub"><strong>Watchlists</strong><span>Optional</span></h3>
                 {edit
@@ -586,7 +497,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
                 />
               </Accordion>
               <Accordion title="Posters" icon="🖼️" summary={[artworkLabel]}>
-                <PostersSection draft={posters} keys={keys} onDraft={setPosters} onKeys={setKeys} hidePreview savedServices={edit ? edit.savedServices : stagedImport?.services} />
+                <PostersSection draft={posters} keys={keys} onDraft={setPosters} onKeys={setKeys} hidePreview savedServices={edit?.savedServices} />
               </Accordion>
               <Accordion title="Formatting" icon="🎨" summary={[presetLabel, BADGE_PACKS.find((entry) => entry.id === badgePack)?.name ?? badgePack]}>
                 <h3 className="qs-sub"><strong>Badge packs</strong><span>Nuvio</span></h3>

@@ -2,13 +2,12 @@
 
 Notes for the current version. Every earlier version is on [GitHub Releases](https://github.com/leleasley/LeLibrary/releases).
 
-## [5.9.3]
+## [5.9.4]
 
 ### Fixes
 
-- The poster style you pick is the one you get. Before, a ratings key saved earlier (for example an ERDB token brought across from an old setup, which the setup page no longer showed) could take over every poster, so switching to BetterPosters or another style seemed to do nothing.
-- Posters inside LeLibrary Movie Collections folders load again. They could stay blank on Nuvio, and they now fall back to the normal poster when a ratings service fails.
-- Posters+ preset links (such as .../p/bar_sash/{type}/{imdb_id|tmdb_id}.jpg) are accepted again. Some browsers kept an older copy of the setup page's poster helper and rejected them; the setup page now always loads the current one.
+- LeLibrary Movie Collections folders show their films again. After changing your poster style they could say no items were found, because the list was only kept for the poster settings it was first built with. It now works with any poster style, and each film shows your chosen poster style (or the normal poster).
+- Includes the 5.9.3 fixes: the poster style you pick always wins over older saved ratings keys, and Posters+ preset links are accepted.
 
 ### Heads up for v6
 

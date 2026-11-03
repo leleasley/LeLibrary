@@ -1,6 +1,6 @@
 {
   "name": "lelibrary",
-  "version": "5.9.3",
+  "version": "5.9.4",
   "description": "LeLibrary: TorBox & Real-Debrid addon with TMDB metadata",
   "main": "backend/index.ts",
   "license": "AGPL-3.0-only",

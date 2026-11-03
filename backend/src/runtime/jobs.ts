@@ -120,9 +120,16 @@ async function runJob(record, now) {
     // A throwing handler is a transient failure (network, provider): retry it
     // like an unready job rather than losing the work.
     record.attempts += 1;
+    console.warn(`[Jobs] ${record.kind} ${record.id} failed (attempt ${record.attempts}):`, error?.message || error);
+    // Same cap as an unready job (audit B9): a handler that always throws
+    // must not retry until it expires.
+    if (record.attempts >= MAX_ATTEMPTS) {
+      console.log(`[Jobs] ${record.kind} ${record.id} gave up after ${record.attempts} attempts`);
+      await cancelJob(record.kind, record.id);
+      return;
+    }
     record.notBefore = Date.now() + backoffFor(record.attempts);
     await cache.set(key, record, Math.max(60, Math.ceil((record.expiresAt - Date.now()) / 1000)));
-    console.warn(`[Jobs] ${record.kind} ${record.id} failed (attempt ${record.attempts}):`, error?.message || error);
   } finally {
     running.delete(key);
   }

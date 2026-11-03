@@ -1782,6 +1782,8 @@
     "Your owned films, automatically grouped into franchise folders. On Nuvio it shows above your Home rows.": "Your owned films, automatically grouped into franchise folders. On Nuvio it shows above your Home rows.",
     "Moving across ends in v6: this import goes away then, and every email still kept from the old setups is deleted.": "Moving across ends in v6: this import goes away then, and every email still kept from the old setups is deleted.",
     "Where this setup gets installed.": "Where this setup gets installed.",
-    "Where this setup gets installed. Sign in now and your Home rows can be pushed straight to your player at the end.": "Where this setup gets installed. Sign in now and your Home rows can be pushed straight to your player at the end."
+    "Where this setup gets installed. Sign in now and your Home rows can be pushed straight to your player at the end.": "Where this setup gets installed. Sign in now and your Home rows can be pushed straight to your player at the end.",
+    "Anyone with this setup's install link can open this page. Set a password in the setup settings to keep your file names private.": "Anyone with this setup's install link can open this page. Set a password in the setup settings to keep your file names private.",
+    "Your saved settings could not be loaded. Try again.": "Your saved settings could not be loaded. Try again."
   }
 }

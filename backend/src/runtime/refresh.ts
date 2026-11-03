@@ -223,7 +223,8 @@ async function buildAndCacheForConfigInner(token, config) {
   }
   knownConfigFailures.delete(token);
 
-  console.log(`[Cache] Refresh for ...${token.slice(-8)} (${lang}) providers=${active.join(',')}`);
+  // A one-way tag, never part of the secret (audit B6).
+  console.log(`[Cache] Refresh for #${crypto.createHash('sha256').update(String(token)).digest('hex').slice(0, 8)} (${lang}) providers=${active.join(',')}`);
   try {
     // Always fetch FRESH for the background rebuild (it must detect library
     // changes) but seed the Redis downloads cache so the discovery stream path

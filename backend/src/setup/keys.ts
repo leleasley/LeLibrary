@@ -13,6 +13,8 @@ export interface ServerKeyOptions {
 }
 
 const KEY_BYTES = 32;
+// In-memory fallback keys (no writable data directory), one per key file.
+const memoryKeys = new Map<string, Buffer>();
 
 // A 64-char hex value is the documented form. Anything else is hashed, so an
 // operator can use a passphrase without weakening the cipher.
@@ -38,18 +40,40 @@ function loadServerKey(options: ServerKeyOptions = {}): Buffer | null {
   if (options.allowGenerate === false) return null;
 
   const file = options.keyFile ?? keyFilePath();
+  // SECURITY (5.9.6, audit B5): only a genuinely missing key file is created.
+  // An existing file that cannot be read (permissions, I/O) or is empty is
+  // never replaced: a new key would silently orphan every sealed setup. The
+  // setup routes then report storage as unavailable until it is fixed.
+  let raw: string | null = null;
   try {
-    const key = keyFromString(fs.readFileSync(file, 'utf8'));
+    raw = fs.readFileSync(file, 'utf8');
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== 'ENOENT') {
+      console.error(`[setup] ${file} exists but cannot be read (${code}); not replacing it. Fix its permissions.`);
+      return null;
+    }
+  }
+  if (raw !== null) {
+    const key = keyFromString(raw);
     if (key) return key;
-  } catch { /* create one below */ }
+    console.error(`[setup] ${file} is empty; not replacing it. Restore it from a backup or remove it on purpose.`);
+    return null;
+  }
 
+  const memory = memoryKeys.get(file);
+  if (memory) return memory;
   const generated = crypto.randomBytes(KEY_BYTES);
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, generated.toString('hex'), { mode: 0o600 });
-  } catch {
-    // No writable data directory: keep working in memory. Rows created this way
-    // are unreadable after a restart, which is the safer failure.
+    // 'wx': never overwrite a key another process wrote a moment ago.
+    fs.writeFileSync(file, generated.toString('hex'), { mode: 0o600, flag: 'wx' });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return loadServerKey({ ...options, keyFile: file });
+    // No writable data directory: keep ONE key in memory for this process.
+    // Rows created this way are unreadable after a restart, which is the
+    // safer failure; a fresh key per call used to break them immediately.
+    memoryKeys.set(file, generated);
   }
   return generated;
 }

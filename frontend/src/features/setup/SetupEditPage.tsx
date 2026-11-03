@@ -116,6 +116,8 @@ function UnlockModal({ uuid, tier, busy, loading, error, leaving, password, onPa
   );
 }
 
+const LOAD_FAILED = 'Your saved settings could not be loaded. Try again.';
+
 export function SetupEditPage() {
   const { uuid = '' } = useParams();
   const location = useLocation();
@@ -191,7 +193,9 @@ export function SetupEditPage() {
     setLoadingSettings(true);
     try {
       const [config, keys] = await Promise.all([
-        fetchSetupConfig(uuid, token).then((data) => data.config).catch(() => ({})),
+        // A failed load must not render an empty form: saving over it could
+        // clear real settings (audit F1). It surfaces as an unlock error.
+        fetchSetupConfig(uuid, token).then((data) => data.config),
         revealKeys(token, keyServices),
       ]);
       const snapshot = snapshotFromSaved(config, keys, name);
@@ -229,7 +233,10 @@ export function SetupEditPage() {
         setActiveTier(tier);
         // Same-tab return with a live edit token: already unlocked.
         const token = getEditToken();
-        if (token && !created.justCreated) void loadSettings(token, data.keyServices ?? [], data.name ?? null);
+        if (token && !created.justCreated) {
+          loadSettings(token, data.keyServices ?? [], data.name ?? null)
+            .catch(() => setUnlockError(LOAD_FAILED));
+        }
       })
       .catch(() => { if (!cancelled) setMissing(true); });
     return () => { cancelled = true; };
@@ -246,12 +253,17 @@ export function SetupEditPage() {
       setInstallToken(result.installToken);
       setPassword('');
       rememberSetup({ uuid, name: result.name ?? null, tier: result.tier ?? null });
-      await loadSettings(result.editToken, result.keyServices ?? [], result.name ?? null);
+      try {
+        await loadSettings(result.editToken, result.keyServices ?? [], result.name ?? null);
+      } catch {
+        setUnlockError(LOAD_FAILED);
+        return;
+      }
       // Fade the modal away over the now-filled page.
       setLeaving(true);
       window.setTimeout(() => setLeaving(false), 450);
     } catch (caught) {
-      clearEditToken();
+      // A wrong password leaves any other setup's edit session alone (audit F2).
       const message = caught instanceof Error ? caught.message : 'Could not unlock this setup';
       setUnlockError(message);
     } finally {

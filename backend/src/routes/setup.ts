@@ -150,13 +150,24 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
   // Edits are authorised by either a bearer edit token from /unlock or the
   // password itself. Both arrive in the request (never a cookie), so nothing
   // ambient is sent by the browser and CSRF does not apply.
+  // A setup without a password proves ownership with its own install link
+  // (uuid.secret, the read capability) in the body. SECURITY (5.9.6, audit
+  // B2): the bare UUID used to be enough to edit, delete or rotate such a
+  // setup, and /unlock accepted any password for it.
+  async function provesInstallToken(req: Request, uuid: string, store: ReturnType<ConfigStoreApi['createConfigStore']>): Promise<boolean> {
+    const token = (req.body as { installToken?: unknown } | undefined)?.installToken;
+    if (typeof token !== 'string' || !token || token.length > 512) return false;
+    const owner = await store.resolveByToken(token).catch(() => null);
+    return Boolean(owner && owner.uuid === uuid);
+  }
+
   async function authorizeEdit(req: Request, uuid: string, store: ReturnType<ConfigStoreApi['createConfigStore']>, opened: OpenedConfig): Promise<boolean> {
     const bearer = bearerToken(req);
     if (bearer) {
       const session = sessions.verify(bearer);
       return Boolean(session && session.uuid === uuid);
     }
-    if (!opened.hasPassword) return true;
+    if (!opened.hasPassword) return provesInstallToken(req, uuid, store);
     const password = (req.body as { password?: unknown } | undefined)?.password;
     if (typeof password !== 'string') return false;
     return store.checkPassword(uuid, password);
@@ -303,14 +314,19 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
       return;
     }
     const password = (req.body as { password?: unknown } | undefined)?.password;
-    if (typeof password !== 'string' || !password) { res.status(400).json({ error: 'Password required' }); return; }
+    const hasInstallToken = typeof (req.body as { installToken?: unknown } | undefined)?.installToken === 'string';
+    if ((typeof password !== 'string' || !password) && !hasInstallToken) { res.status(400).json({ error: 'Password required' }); return; }
     const opened = await store.resolveByUuid(uuid);
     if (!opened) {
-      await store.checkPassword(uuid, password);
+      await store.checkPassword(uuid, typeof password === 'string' ? password : '');
       res.status(401).json({ error: 'Setup not found or password incorrect' });
       return;
     }
-    if (opened.hasPassword && !(await store.checkPassword(uuid, password))) {
+    // No password set: only the setup's own install link unlocks it.
+    const allowed = opened.hasPassword
+      ? typeof password === 'string' && password !== '' && await store.checkPassword(uuid, password)
+      : await provesInstallToken(req, uuid, store);
+    if (!allowed) {
       const failure = limiter.fail(clientIp(req), uuid);
       if (failure.locked) res.set('Retry-After', String(Math.ceil(failure.retryAfterMs / 1000)));
       res.status(401).json({ error: 'Setup not found or password incorrect' });

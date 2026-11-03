@@ -443,7 +443,7 @@ export function LibraryPanel({ uuid, editToken }: { uuid: string; editToken: str
       </header>
 
       {summary && !summary.hasPassword && (
-        <p className="lib-note">Anyone with this setup's id can open this page. Set a password in the setup settings to keep your file names private.</p>
+        <p className="lib-note">Anyone with this setup's install link can open this page. Set a password in the setup settings to keep your file names private.</p>
       )}
 
       {summary ? (

@@ -471,11 +471,12 @@ async function resumePersisted() {
   const scopes = await store.listScopes();
   let restored = 0;
   for (const row of scopes) {
-    if (!row.config_token) continue;
+    const token = store.openScopeToken(row.config_token);
+    if (!token) continue;
     try {
-      const config = await resolveConfig(row.config_token);
+      const config = await resolveConfig(token);
       if (!config) continue;
-      const rec = noteConfig(row.config_token, config);
+      const rec = noteConfig(token, config);
       if (rec) {
         rec.lastSyncAt = row.last_sync_at ? new Date(row.last_sync_at).getTime() : 0;
         rec.identityVersion = row.identity_version || 0;
@@ -749,7 +750,9 @@ async function scopeStatus(scopeId) {
   const identities = await store.identityCounts(scopeId).catch(() => null);
   const coverage = await store.identityCoverage(scopeId).catch(() => null);
   const mediaTypes = await store.mediaTypeCounts(scopeId).catch(() => null);
-  return { ...(row || {}), syncing: !!rec?.syncing, registered: !!rec, identities, coverage, mediaTypes };
+  // Never echo the remembered install link back (audit B3).
+  const { config_token: _token, ...safe } = (row || {}) as Record<string, unknown>;
+  return { ...safe, syncing: !!rec?.syncing, registered: !!rec, identities, coverage, mediaTypes };
 }
 
 async function triggerSync(token, config) {

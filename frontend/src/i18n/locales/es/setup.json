@@ -1782,6 +1782,8 @@
     "Your owned films, automatically grouped into franchise folders. On Nuvio it shows above your Home rows.": "Tus películas, agrupadas automáticamente en carpetas de sagas. En Nuvio aparece encima de tus filas de Inicio.",
     "Moving across ends in v6: this import goes away then, and every email still kept from the old setups is deleted.": "El traspaso termina en la v6: esta importación desaparecerá y se borrarán todos los correos que aún se guardan de las configuraciones antiguas.",
     "Where this setup gets installed.": "Dónde se instala esta configuración.",
-    "Where this setup gets installed. Sign in now and your Home rows can be pushed straight to your player at the end.": "Dónde se instala esta configuración. Inicia sesión ahora y tus filas de Inicio se podrán enviar directamente a tu reproductor al final."
+    "Where this setup gets installed. Sign in now and your Home rows can be pushed straight to your player at the end.": "Dónde se instala esta configuración. Inicia sesión ahora y tus filas de Inicio se podrán enviar directamente a tu reproductor al final.",
+    "Anyone with this setup's install link can open this page. Set a password in the setup settings to keep your file names private.": "Cualquiera con el enlace de instalación de esta configuración puede abrir esta página. Pon una contraseña en los ajustes de la configuración para mantener privados los nombres de tus archivos.",
+    "Your saved settings could not be loaded. Try again.": "No se pudieron cargar tus ajustes guardados. Inténtalo de nuevo."
   }
 }

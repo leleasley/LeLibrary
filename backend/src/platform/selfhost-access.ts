@@ -60,6 +60,14 @@ function authorized(req: { get(name: string): string | undefined }, env: Env = p
   return safeEqual(value, cookieValue(env));
 }
 
+// Only the operator's own header proves knowledge of the secret. The cookie is
+// handed to every visitor of the site, so it must never unlock saved keys
+// (audit B4, 5.9.6).
+function headerAuthorized(req: { get(name: string): string | undefined }, env: Env = process.env): boolean {
+  const expected = secret(env);
+  return Boolean(expected) && safeEqual(String(req.get('x-selfhost-secret') || ''), expected);
+}
+
 export interface SelfhostAccessApi {
   COOKIE_NAME: string;
   secret: (env?: Env) => string;
@@ -67,6 +75,7 @@ export interface SelfhostAccessApi {
   listEnabled: (env?: Env) => boolean;
   cookieValue: (env?: Env) => string;
   authorized: (req: { get(name: string): string | undefined }, env?: Env) => boolean;
+  headerAuthorized: (req: { get(name: string): string | undefined }, env?: Env) => boolean;
 }
 
 module.exports = {
@@ -76,4 +85,5 @@ module.exports = {
   listEnabled,
   cookieValue,
   authorized,
+  headerAuthorized,
 } satisfies SelfhostAccessApi;

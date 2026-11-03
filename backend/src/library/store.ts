@@ -92,6 +92,28 @@ async function getScope(scopeId) {
   return rows[0] || null;
 }
 
+// SECURITY (5.9.6, audit B3): the remembered install link (uuid.secret, the
+// read capability) is sealed with the server key like every other credential.
+// Old plaintext values still open and are rewritten sealed on the next touch.
+const SCOPE_TOKEN_PREFIX = 'sealed:v1:';
+function sealScopeToken(token) {
+  try {
+    const key = require('../setup/keys.ts').loadServerKey();
+    if (!key) return null;
+    const envelope = require('../setup/seal.ts').seal(key, String(token));
+    return SCOPE_TOKEN_PREFIX + Buffer.from(JSON.stringify(envelope)).toString('base64');
+  } catch { return null; }
+}
+function openScopeToken(value) {
+  if (!value || typeof value !== 'string') return null;
+  if (!value.startsWith(SCOPE_TOKEN_PREFIX)) return value;
+  try {
+    const envelope = JSON.parse(Buffer.from(value.slice(SCOPE_TOKEN_PREFIX.length), 'base64').toString('utf8'));
+    const opened = require('../setup/seal.ts').unseal(require('../setup/keys.ts').loadServerKey(), envelope);
+    return typeof opened === 'string' ? opened : null;
+  } catch { return null; }
+}
+
 async function touchScope(scopeId, { provider = null, configToken = null } = {}) {
   const pool = await ensure();
   await pool.query(
@@ -102,7 +124,7 @@ async function touchScope(scopeId, { provider = null, configToken = null } = {})
        provider = COALESCE(EXCLUDED.provider, lib_scopes.provider),
        config_token = CASE WHEN EXCLUDED.config_token IS NOT NULL THEN EXCLUDED.config_token
                            ELSE lib_scopes.config_token END`,
-    [scopeId, provider, configToken]
+    [scopeId, provider, configToken ? sealScopeToken(configToken) : null]
   );
 }
 
@@ -1049,6 +1071,8 @@ async function mediaTypeCounts(scopeId) {
 export interface StoreApi {
   ensure: any;
   listScopes: any;
+  openScopeToken: any;
+  sealScopeToken: any;
   getScope: any;
   touchScope: any;
   markScopeSyncing: any;
@@ -1090,6 +1114,8 @@ export interface StoreApi {
 module.exports = {
   ensure,
   listScopes,
+  openScopeToken,
+  sealScopeToken,
   getScope,
   touchScope,
   markScopeSyncing,

@@ -10,10 +10,14 @@ export interface RequestLoggerApi {
 }
 
 const LEGACY_TOKEN = /^[A-Za-z0-9_-]{16,}$/;
+// A bare setup UUID addresses a setup's edit and library pages (audit B7).
+const SETUP_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const INSTALL_TOKEN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[A-Za-z0-9_-]+$/i;
 
 function maskSensitivePath(path: string): string {
-  const segments = path.split('/').map((segment) => (LEGACY_TOKEN.test(segment) || INSTALL_TOKEN.test(segment) ? '[token]' : segment));
+  const segments = path.split('/').map((segment) => (LEGACY_TOKEN.test(segment) || INSTALL_TOKEN.test(segment)
+    ? '[token]'
+    : SETUP_UUID.test(segment) ? '[setup]' : segment));
   // /:token/play/:source/:itemId/:fileId/:name. A WebDAV file id is the
   // file's path (base64url), so file ids are never logged either.
   const play = segments.indexOf('play');

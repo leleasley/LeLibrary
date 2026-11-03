@@ -591,8 +591,10 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
   function selfhostAuthorized(req: any) {
     return selfhostAccess.authorized(req);
   }
-  function redactConfig(config: any) {
-    if (!config || typeof config !== 'object' || selfhostAccess.configured()) return config;
+  // Keys only for the x-selfhost-secret header; the browser cookie every
+  // visitor gets sees configs without credentials (audit B4, 5.9.6).
+  function redactConfig(config: any, req: any) {
+    if (!config || typeof config !== 'object' || selfhostAccess.headerAuthorized(req)) return config;
     const clean = { ...config };
     for (const k of KEY_FIELDS) delete clean[k];
     return clean;
@@ -605,7 +607,7 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
       try {
         if (!selfhostAuthorized(req)) return res.status(401).json({ error: 'Invalid selfhost secret' });
         const rows = await selfhostConfigs().list();
-        res.json({ configs: rows.map((r: any) => ({ ...r, config: redactConfig(r.config) })) });
+        res.json({ configs: rows.map((r: any) => ({ ...r, config: redactConfig(r.config, req) })) });
       } catch (err) {
         const detail = err as any;
         res.status(500).json({ error: detail.message });

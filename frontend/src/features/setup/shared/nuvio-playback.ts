@@ -1,3 +1,5 @@
+import { isRecord } from '@/features/setup/shared/is-record';
+
 // Frontend shape of the optional Nuvio playback block. Stored in the setup
 // config only when the user opts in, so an untouched setup leaves whatever they
 // already have in Nuvio alone.
@@ -30,10 +32,6 @@ export const EMPTY_NUVIO_PLAYBACK: NuvioPlaybackDraft = {
   nextEpisode: false,
   onlyLeLibrary: false,
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-}
 
 function isMode(value: unknown): value is PlaybackMode {
   return typeof value === 'string' && (PLAYBACK_MODE_IDS as string[]).includes(value);

@@ -93,11 +93,13 @@ describe('setup drafts', () => {
     }
   });
 
-  it('rejects a tokenless connection instead of restoring it', () => {
+  it('never restores a tokenless connection as connected', () => {
     const unstub = stubStorage();
     try {
       saveFullDraft({ ...FULL, pushConn: { platform: 'nuvio' } as never });
-      expect(loadFullDraft()).toBe(null);
+      const restored = loadFullDraft();
+      expect(restored?.name).toBe('Living room');
+      expect(restored?.pushConn).toBe(null);
     } finally {
       unstub();
     }

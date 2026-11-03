@@ -3,11 +3,21 @@ import type { PostersDraft } from '@/features/setup/shared/PostersSection';
 import type { QuickExtras } from '@/features/setup/full/MetadataExtras';
 import type { SetupKeysDraft } from '@/features/setup/shared/config-contract';
 import type { LibraryRowsDraft } from '@/features/setup/shared/library-rows';
+import { isRecord } from '@/features/setup/shared/is-record';
+import {
+  dropDraftSecrets,
+  heldDraftSecrets,
+  holdDraftSecrets,
+  storedDraftHasSecrets,
+  withoutSecrets,
+} from '@/features/setup/shared/draft-secrets';
 
-// Session draft: everything the user types on the Quick flow survives a
-// refresh in this tab, exactly like the legacy page's sessionStorage draft.
-// Nothing leaves the browser; a successful create or an explicit reset wipes
-// it. TTL keeps a stale tab from resurrecting ancient input.
+// Session draft: every non-secret choice on the Quick flow survives a refresh
+// in this tab, exactly like the legacy page's sessionStorage draft. Nothing
+// leaves the browser; a successful create or an explicit reset wipes it. TTL
+// keeps a stale tab from resurrecting ancient input. Keys are never stored:
+// they are held in memory (shared/draft-secrets.ts), so they survive moving
+// around the app and a reload asks for them again.
 const DRAFT_KEY = 'lelibrary_quick_draft';
 // A mistaken refresh must restore everything until creation wipes it, so the
 // TTL matches the other tiers (a full day), not an hour.
@@ -28,15 +38,14 @@ interface StoredDraft extends QuickDraft {
 }
 
 function isDraft(value: unknown): value is StoredDraft {
-  if (!value || typeof value !== 'object') return false;
-  const draft = value as Record<string, unknown>;
+  if (!isRecord(value)) return false;
   return (
-    typeof draft['savedAt'] === 'number' &&
-    typeof draft['name'] === 'string' &&
-    !!draft['keys'] && typeof draft['keys'] === 'object' &&
-    !!draft['formatting'] && typeof draft['formatting'] === 'object' &&
-    !!draft['posters'] && typeof draft['posters'] === 'object' &&
-    !!draft['badgePack'] && typeof draft['badgePack'] === 'object'
+    typeof value['savedAt'] === 'number' &&
+    typeof value['name'] === 'string' &&
+    isRecord(value['keys']) &&
+    isRecord(value['formatting']) &&
+    isRecord(value['posters']) &&
+    isRecord(value['badgePack'])
   );
 }
 
@@ -48,29 +57,39 @@ export function loadQuickDraft(): QuickDraft | null {
     const parsed: unknown = JSON.parse(raw);
     if (!isDraft(parsed)) {
       sessionStorage.removeItem(DRAFT_KEY);
+      dropDraftSecrets(DRAFT_KEY);
       return null;
     }
     if (Date.now() - parsed.savedAt > DRAFT_TTL_MS) {
       sessionStorage.removeItem(DRAFT_KEY);
+      dropDraftSecrets(DRAFT_KEY);
       return null;
     }
-    const { savedAt: _savedAt, ...draft } = parsed;
-    return draft;
+    const { savedAt, ...stored } = parsed;
+    // Drafts from before v6 stored the keys: rewrite them without (same age,
+    // so the TTL is not extended). Stored keys are never restored.
+    if (storedDraftHasSecrets(parsed)) {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ ...withoutSecrets(stored), savedAt }));
+    }
+    return { ...stored, keys: heldDraftSecrets(DRAFT_KEY)?.keys ?? {} };
   } catch {
     return null;
   }
 }
 
 export function saveQuickDraft(draft: QuickDraft): void {
+  // Keys go to memory only, whether or not storage works.
+  holdDraftSecrets(DRAFT_KEY, { keys: draft.keys, watchlist: {}, pushConn: null });
   try {
     if (typeof sessionStorage === 'undefined') return;
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, savedAt: Date.now() }));
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ ...withoutSecrets(draft), savedAt: Date.now() }));
   } catch {
     // Private mode / quota: the setup flow still works, it just won't resume.
   }
 }
 
 export function clearQuickDraft(): void {
+  dropDraftSecrets(DRAFT_KEY);
   try {
     if (typeof sessionStorage === 'undefined') return;
     sessionStorage.removeItem(DRAFT_KEY);

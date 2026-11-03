@@ -21,6 +21,7 @@ import { cleanNuvioPlayback, type NuvioPlaybackDraft } from '@/features/setup/sh
 import { cleanNuvioHideUnreleased, type NuvioHideUnreleased } from '@/features/setup/shared/nuvio-library';
 import { libraryRowsFromConfig, type LibraryRowsDraft } from '@/features/setup/shared/library-rows';
 import { cleanCustomAddons, type CustomAddonRef } from '@/features/setup/shared/custom-addons';
+import { isRecord } from '@/features/setup/shared/is-record';
 
 // Maps a saved structural config (from GET /api/setup/:uuid/config or the
 // unlock response) onto editor drafts so an edit starts where the setup left
@@ -66,9 +67,6 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string' && entry !== '') : [];
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
 
 // Collection and home-row documents carry artwork, folder and source structure,
 // so they ride through as-is once their minimum shape is proven.

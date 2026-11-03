@@ -16,16 +16,24 @@ import {
   cleanNuvioHideUnreleased,
   type NuvioHideUnreleased,
 } from '@/features/setup/shared/nuvio-library';
+import { isRecord } from '@/features/setup/shared/is-record';
+import {
+  dropDraftSecrets,
+  heldDraftSecrets,
+  holdDraftSecrets,
+  isPushConn,
+  storedDraftHasSecrets,
+  withoutOrphanAddons,
+  withoutSecrets,
+} from '@/features/setup/shared/draft-secrets';
 
-// Session draft: everything typed on the Move In flow survives a refresh,
-// exactly like the Quick flow's draft. Nothing leaves the browser; a
+// Session draft: every non-secret choice on the Move In flow survives a
+// refresh, exactly like the Quick flow's draft. Nothing leaves the browser; a
 // successful create or an explicit reset wipes it. TTL keeps a stale tab
-// from resurrecting ancient input. The platform session (pushConn) rides
-// along too: without it, a connected login evaporates on the first refresh
-// while everything else restores. It holds the same class of secret the key
-// drafts already persist, so this changes nothing about what the browser
-// stores.
-// Watchlist tokens ride along and seal at creation like every other secret.
+// from resurrecting ancient input. The secrets (keys, your own addon links,
+// watchlist tokens, the Nuvio/Stremio login) are never stored: they are held
+// in memory (shared/draft-secrets.ts), so they survive moving around the app
+// and a reload asks for them again.
 const DRAFT_KEY = 'lelibrary_full_draft';
 const DRAFT_TTL_MS = 24 * 3600000;
 
@@ -61,17 +69,6 @@ interface StoredDraft extends FullDraft {
   savedAt: number;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
-
-function isPushConn(value: unknown): value is PlatformConnection {
-  if (!isRecord(value)) return false;
-  if (value['platform'] !== 'nuvio' && value['platform'] !== 'stremio') return false;
-  const token = value['platform'] === 'nuvio' ? value['nuvioToken'] : value['stremioAuth'];
-  return typeof token === 'string' && token.trim() !== '';
-}
-
 function isDraft(value: unknown): value is StoredDraft {
   if (!isRecord(value)) return false;
   return (
@@ -94,7 +91,9 @@ function isDraft(value: unknown): value is StoredDraft {
     isRecord(value['watchlist'] ?? {}) &&
     (value['nuvioPlayback'] == null || isRecord(value['nuvioPlayback'])) &&
     (value['nuvioHideUnreleased'] == null || typeof value['nuvioHideUnreleased'] === 'string') &&
-    (value['pushConn'] == null || isPushConn(value['pushConn']))
+    // The login is never restored from storage (see below), so an old
+    // draft's leftover, valid or not, must not discard the whole draft.
+    (value['pushConn'] == null || isRecord(value['pushConn']))
   );
 }
 
@@ -106,19 +105,34 @@ export function loadFullDraft(): FullDraft | null {
     const parsed: unknown = JSON.parse(raw);
     if (!isDraft(parsed)) {
       localStorage.removeItem(DRAFT_KEY);
+      dropDraftSecrets(DRAFT_KEY);
       return null;
     }
     if (Date.now() - parsed.savedAt > DRAFT_TTL_MS) {
       localStorage.removeItem(DRAFT_KEY);
+      dropDraftSecrets(DRAFT_KEY);
       return null;
     }
     // Drafts from before v6 may still carry the removed old-setup import
     // (`stagedImport`): drop it so it is never restored or saved again.
-    const { savedAt: _savedAt, stagedImport: _stagedImport, ...draft } = parsed as StoredDraft & { stagedImport?: unknown };
+    const { savedAt, stagedImport, ...stored } = parsed as StoredDraft & { stagedImport?: unknown };
+    // Drafts from before v6 also stored secrets: rewrite them without (same
+    // age, so the TTL is not extended). Stored secrets are never restored.
+    if (storedDraftHasSecrets(parsed) || stagedImport !== undefined) {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...withoutSecrets(stored), savedAt }));
+    }
+    const secrets = heldDraftSecrets(DRAFT_KEY);
+    const keys = secrets?.keys ?? {};
+    const own = withoutOrphanAddons(stored.customAddons, stored.addons, keys);
     return {
-      ...draft,
-      nuvioPlayback: cleanNuvioPlayback(draft.nuvioPlayback ?? null),
-      nuvioHideUnreleased: cleanNuvioHideUnreleased(draft.nuvioHideUnreleased),
+      ...stored,
+      keys,
+      watchlist: secrets?.watchlist ?? {},
+      pushConn: secrets && isPushConn(secrets.pushConn) ? secrets.pushConn : null,
+      addons: own.addons,
+      customAddons: own.customAddons,
+      nuvioPlayback: cleanNuvioPlayback(stored.nuvioPlayback ?? null),
+      nuvioHideUnreleased: cleanNuvioHideUnreleased(stored.nuvioHideUnreleased),
     };
   } catch {
     return null;
@@ -126,15 +140,18 @@ export function loadFullDraft(): FullDraft | null {
 }
 
 export function saveFullDraft(draft: FullDraft): void {
+  // Secrets go to memory only, whether or not storage works.
+  holdDraftSecrets(DRAFT_KEY, { keys: draft.keys, watchlist: draft.watchlist, pushConn: draft.pushConn });
   try {
     if (typeof localStorage === 'undefined') return;
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, savedAt: Date.now() }));
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...withoutSecrets(draft), savedAt: Date.now() }));
   } catch {
     // Private mode / quota: the setup flow still works, it just won't resume.
   }
 }
 
 export function clearFullDraft(): void {
+  dropDraftSecrets(DRAFT_KEY);
   try {
     if (typeof localStorage === 'undefined') return;
     localStorage.removeItem(DRAFT_KEY);

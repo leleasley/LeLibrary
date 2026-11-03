@@ -385,58 +385,71 @@ async function writeNuvioCollections(token: string, profileIndex: number, collec
   log('Updated the owned collection on Nuvio profile', profileIndex);
 }
 
-// Apply the setup's selected badge pack to the target Nuvio profile. Nuvio
-// renders badges from the profile's own badge settings, so changing the
-// picker in LeLibrary must also rewrite that setting - otherwise the profile
-// keeps showing whichever pack was imported before. Only the badge rules
-// value is replaced; every other profile setting passes through untouched.
-// Best-effort: badge failures never fail the collection push.
-async function syncNuvioBadgePack(token: string, profileIndex: number, badge: { pack?: string; url?: string }, uuidKey: string, origin: string): Promise<void> {
+// One change to the per-profile settings blob. `apply` returns the next blob,
+// or null to leave this feature out (its own "nothing to change here" rule).
+export interface SettingsStep {
+  name: string;
+  apply: (blob: Record<string, unknown>) => unknown;
+}
+
+function isSettingsBlob(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+// The badge pack step. Nuvio renders badges from the profile's own badge
+// settings, so changing the picker in LeLibrary must also rewrite that
+// setting, otherwise the profile keeps showing whichever pack was imported
+// before. Only the badge rules value is replaced. The manifest is fetched once
+// per push; a pack that cannot be fetched or has no usable badges drops out
+// (null) and the other settings are still written.
+async function badgeSettingsStep(badge: { pack?: string; url?: string }, origin: string): Promise<SettingsStep | null> {
   try {
     const sourceUrl = badgePacks.resolveBadgePackUrl(badge.pack, badge.url, origin);
-    if (!sourceUrl) return;
+    if (!sourceUrl) return null;
     const manifest = await badgePacks.fetchBadgeManifest(sourceUrl);
     const badgeImport = badgePacks.buildBadgeImport(manifest, sourceUrl);
-    for (const platform of badgePacks.SETTINGS_PLATFORMS) {
-      try {
-        const pulled = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_profile_settings_blob', {
-          p_profile_id: profileIndex,
-          p_platform: platform,
-        }) as { settings_json?: unknown } | unknown[];
-        const row = (Array.isArray(pulled) ? pulled[0] : pulled) as { settings_json?: unknown };
-        const blob = row?.settings_json;
-        if (!blob || typeof blob !== 'object') continue;
-        await nuvioRpc(token, '/rest/v1/rpc/sync_push_profile_settings_blob', {
-          p_profile_id: profileIndex,
-          p_settings_json: badgePacks.applyBadgeImportToBlob(blob, badgeImport),
-          p_platform: platform,
-          p_origin_client_id: originClientId(uuidKey),
-        });
-        log(`Nuvio badge pack synced (${platform}):`, sourceUrl);
-      } catch (err) {
-        log(`Could not sync Nuvio badge pack (${platform}):`, (err as Error).message);
-      }
-    }
+    return { name: 'badge pack', apply: (blob) => badgePacks.applyBadgeImportToBlob(blob, badgeImport) };
   } catch (err) {
     log('Could not sync Nuvio badge pack:', (err as Error).message);
+    return null;
   }
 }
 
-// Apply the setup's Nuvio playback choices (auto stream selection + auto-play
-// next episode) to each platform's profile settings blob. The blob is pulled,
-// one feature bucket is rewritten, and the whole thing is pushed back, exactly
-// like the badge and TMDB syncs above. Platforms whose blob has no player
-// settings are skipped: the Nuvio client clears that bucket before applying it,
-// so inventing one would reset every other player preference.
-// Best-effort: a settings failure never fails the addon push.
-async function syncNuvioPlaybackSettings(
+// Nuvio's own TMDB enrichment is turned on whenever a user pushes, keeping
+// their other TMDB choices.
+const tmdbEnrichmentStep: SettingsStep = {
+  name: 'TMDB enrichment',
+  apply: (blob) => badgePacks.enableTmdbEnrichmentInBlob(blob),
+};
+
+// Playback choices (auto stream selection + auto-play next episode). Absent
+// means leave Nuvio alone (no step). A blob without player settings is left
+// out: the Nuvio client clears that bucket before applying it, so inventing
+// one would reset every other player preference.
+function playbackSettingsStep(settings: PlaybackSettings | null): SettingsStep | null {
+  if (!settings) return null;
+  return { name: 'playback settings', apply: (blob) => playbackSettings.applyPlaybackSettingsToBlob(blob, settings) };
+}
+
+// Every settings change of a push in ONE read-modify-write per platform blob
+// of the target profile: pull once, apply each step to the same document in
+// order, push once, and skip the push when nothing changed. Separate writes
+// per feature raced each other and gave a device more chances to overwrite
+// the blob with its local copy in between.
+// Never create a settings blob: the mobile app resets every settings group
+// missing from a pulled blob, so an almost empty one wiped a phone's settings.
+// No blob yet means the app has not synced; leave it.
+// Best-effort: a step that throws is left out (the others still apply) and a
+// settings failure never fails the addon push.
+async function syncNuvioProfileSettings(
   token: string,
   profileIndex: number,
-  settings: PlaybackSettings | null,
+  steps: readonly (SettingsStep | null)[],
   uuidKey: string,
   deps: { rpc?: typeof nuvioRpc; platforms?: readonly string[] } = {},
 ): Promise<void> {
-  if (!settings) return;
+  const active = steps.filter((step): step is SettingsStep => Boolean(step));
+  if (!active.length) return;
   const rpc = deps.rpc || nuvioRpc;
   const platforms = deps.platforms || badgePacks.SETTINGS_PLATFORMS;
   for (const platform of platforms) {
@@ -446,9 +459,28 @@ async function syncNuvioPlaybackSettings(
         p_platform: platform,
       }) as { settings_json?: unknown } | unknown[];
       const row = (Array.isArray(pulled) ? pulled[0] : pulled) as { settings_json?: unknown };
-      const next = playbackSettings.applyPlaybackSettingsToBlob(row?.settings_json, settings);
-      if (!next) {
-        log(`Nuvio playback settings skipped (${platform}): no player settings bucket`);
+      const blob = row?.settings_json;
+      if (!isSettingsBlob(blob)) {
+        log(`Nuvio settings skipped (${platform}): no settings yet`);
+        continue;
+      }
+      let next: Record<string, unknown> = blob;
+      const applied: string[] = [];
+      for (const step of active) {
+        try {
+          const out = step.apply(next);
+          if (isSettingsBlob(out)) {
+            next = out;
+            applied.push(step.name);
+          } else {
+            log(`Nuvio ${step.name} skipped (${platform}): nothing to change in this blob`);
+          }
+        } catch (err) {
+          log(`Could not apply Nuvio ${step.name} (${platform}):`, (err as Error).message);
+        }
+      }
+      if (JSON.stringify(next) === JSON.stringify(blob)) {
+        log(`Nuvio settings already up to date (${platform})`);
         continue;
       }
       await rpc(token, '/rest/v1/rpc/sync_push_profile_settings_blob', {
@@ -457,43 +489,22 @@ async function syncNuvioPlaybackSettings(
         p_platform: platform,
         p_origin_client_id: originClientId(uuidKey),
       });
-      log(`Nuvio playback settings synced (${platform})`);
+      log(`Nuvio settings synced (${platform}):`, applied.join(', '));
     } catch (err) {
-      log(`Could not sync Nuvio playback settings (${platform}):`, (err as Error).message);
+      log(`Could not sync Nuvio settings (${platform}):`, (err as Error).message);
     }
   }
 }
 
-// Nuvio stores TMDB enrichment settings per profile and platform. Enable the
-// feature on both clients whenever a user pushes, preserving their other
-// choices. A settings RPC failure must not fail the addon push.
-async function enableNuvioTmdbEnrichment(token: string, profileIndex: number, uuidKey: string): Promise<void> {
-  for (const platform of badgePacks.SETTINGS_PLATFORMS) {
-    try {
-      const pulled = await nuvioRpc(token, '/rest/v1/rpc/sync_pull_profile_settings_blob', {
-        p_profile_id: profileIndex,
-        p_platform: platform,
-      }) as { settings_json?: unknown } | unknown[];
-      const row = (Array.isArray(pulled) ? pulled[0] : pulled) as { settings_json?: unknown };
-      // Never create a settings blob: the mobile app resets every settings
-      // group missing from a pulled blob, so an almost empty one wiped a
-      // phone's settings. No blob yet means the app has not synced; leave it.
-      if (!row?.settings_json || typeof row.settings_json !== 'object') {
-        log(`Nuvio TMDB enrichment skipped (${platform}): no settings yet`);
-        continue;
-      }
-      const blob = row.settings_json;
-      await nuvioRpc(token, '/rest/v1/rpc/sync_push_profile_settings_blob', {
-        p_profile_id: profileIndex,
-        p_settings_json: badgePacks.enableTmdbEnrichmentInBlob(blob),
-        p_platform: platform,
-        p_origin_client_id: originClientId(uuidKey),
-      });
-      log(`Nuvio TMDB enrichment enabled (${platform})`);
-    } catch (err) {
-      log(`Could not enable Nuvio TMDB enrichment (${platform}):`, (err as Error).message);
-    }
-  }
+// Playback on its own, through the same single write.
+async function syncNuvioPlaybackSettings(
+  token: string,
+  profileIndex: number,
+  settings: PlaybackSettings | null,
+  uuidKey: string,
+  deps: { rpc?: typeof nuvioRpc; platforms?: readonly string[] } = {},
+): Promise<void> {
+  await syncNuvioProfileSettings(token, profileIndex, [playbackSettingsStep(settings)], uuidKey, deps);
 }
 
 // Order Nuvio's Home rows to match the manifest catalogue order.
@@ -1013,13 +1024,14 @@ async function pushToNuvio(
       (collectionPlan.nativeFranchiseCollection as { slot?: number | null } | undefined)?.slot ?? null,
     );
   }
-  await syncNuvioBadgePack(token, profileIndex, {
-    pack: options.badgePack,
-    url: options.badgeUrl,
-  }, options.uuidKey, options.origin);
-  await enableNuvioTmdbEnrichment(token, profileIndex, options.uuidKey);
-  // Playback settings are opt-in in the setup: absent means leave Nuvio alone.
-  await syncNuvioPlaybackSettings(token, profileIndex, options.nuvioPlayback ?? null, options.uuidKey);
+  // Badges, TMDB enrichment and playback land in one settings write per
+  // platform, applied in the order the old separate writes ran in.
+  // Playback is opt-in in the setup: absent means leave Nuvio alone.
+  await syncNuvioProfileSettings(token, profileIndex, [
+    await badgeSettingsStep({ pack: options.badgePack, url: options.badgeUrl }, options.origin),
+    tmdbEnrichmentStep,
+    playbackSettingsStep(options.nuvioPlayback ?? null),
+  ], options.uuidKey);
 
   // The owned franchise folders are the one part of a push that needs a built
   // library. When it was not ready in time this push still succeeded; say so,
@@ -1114,6 +1126,13 @@ export interface PushApi {
     uuidKey: string,
     deps?: { rpc?: typeof nuvioRpc; platforms?: readonly string[] },
   ) => Promise<void>;
+  syncNuvioProfileSettings: (
+    token: string,
+    profileIndex: number,
+    steps: readonly (SettingsStep | null)[],
+    uuidKey: string,
+    deps?: { rpc?: typeof nuvioRpc; platforms?: readonly string[] },
+  ) => Promise<void>;
 }
 
 module.exports = {
@@ -1133,4 +1152,5 @@ module.exports = {
   writeNuvioCollections,
   pushOptionsFromConfig,
   syncNuvioPlaybackSettings,
+  syncNuvioProfileSettings,
 } satisfies PushApi;

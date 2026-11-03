@@ -455,7 +455,15 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
         });
       }
     }
-    if (integration !== 'stremio' && !compactCuratedRows) {
+    // A Home-managed Nuvio setup (Settle In / Move In) that reads its folders
+    // through the compact routes does not declare a `lib-*` row for a pack
+    // source either: every pushed folder points at the compact catalogue
+    // (collection-plan.ts visit()), so those rows only padded Nuvio's addon
+    // screen (~150 catalogues for a big pack selection). A source picked as a
+    // Home row or enabled in libraryCatalogs is already in `merged` and stays.
+    // The lib-* catalogue routes keep answering for old links.
+    const folderOnlyRowsDropped = integration === 'nuvio' && homeManaged && useCompactCuratedRoutes;
+    if (integration !== 'stremio' && !compactCuratedRows && !folderOnlyRowsDropped) {
       // Legacy/self-host Nuvio installs keep their pack sources as ordinary
       // rows, exactly as before: the compact routes above are additive and
       // never remove a row a Home screen already shows.

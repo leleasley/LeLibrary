@@ -117,6 +117,15 @@ The **Settings** tab on that page also lets you:
 Settle In and Move In setups can push again to Nuvio from the same page after
 a save.
 
+### Preview
+
+The **Preview** tab on the edit page shows what your player will show, using
+what is saved now: on Nuvio your collections first, then your Home rows in
+order, with real posters; tap a collection to see its folders and a folder to
+see what is inside it. Switch to **Stremio** to see its board rows instead.
+Preview only reads: it never pushes or saves anything. If you have unsaved
+changes, save first to see them.
+
 ### Your library
 
 Once a setup is unlocked, the edit page has a **Library** tab. It
@@ -654,6 +663,9 @@ The setup routes need Postgres. Check `DATABASE_URL`/`DB_PASSWORD` and that the
 
 ## Security notes
 
+- Keys and sign-ins you type in before creating a setup are held only while
+  the page is open, never in your browser's storage. After a reload, enter
+  them again; your other choices are kept.
 - Provider keys are never written to logs. Saved keys are sealed on the server,
   so a database dump is not readable on its own.
 - The install link is a capability. Treat it like a password. Use **Regenerate

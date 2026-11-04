@@ -228,7 +228,8 @@ The setup flow offers three levels:
 
 To change a setup later, open its edit link (`/{setup-id}`) and enter the
 password: the page you built it on opens with everything filled in. You can
-also move a setup to another level there; it keeps the same install link. See
+also move a setup to another level there; it keeps the same install link, and
+**Preview** shows what Nuvio or Stremio will show before you push. See
 [Editing a setup](SETUP.md#editing-a-setup).
 
 Collections are scoped to a setup and its destination. Nuvio collections do not

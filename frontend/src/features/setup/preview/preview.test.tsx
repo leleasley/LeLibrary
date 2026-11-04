@@ -405,7 +405,7 @@ describe('Nuvio TV on a phone', () => {
     // One row per source, no tabs.
     expect(html).not.toContain('aria-label="Folder sources"');
     expect(html).toContain('>Movies in 4K - Movie<');
-    expect(html).toContain('>Curated - Series · Shows in 4K<');
+    expect(html).toContain('>Shows in 4K<');
     expect(html).toContain('uhd-0.jpg');
     expect(html).toContain('curated-0.jpg');
   });

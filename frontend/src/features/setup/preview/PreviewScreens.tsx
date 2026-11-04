@@ -84,9 +84,11 @@ export function sourceLabel(source: { catalogName: string; type: string; genre: 
 }
 
 // A folder source as its own row: "{catalogue} - {Type}" (and its genre).
+// A folder source row on phone-TV. A LeLibrary folder source carries its own
+// readable label in `genre` ("Netflix Movies") behind the shared catalogue's
+// name, so that label is the title; otherwise "{catalog} - {Type}".
 export function sourceRowTitle(source: { catalogName: string; type: string; genre: string }): string {
-  const base = `${source.catalogName} - ${typeName(source.type)}`;
-  return source.genre ? `${base} · ${source.genre}` : base;
+  return source.genre || `${source.catalogName} - ${typeName(source.type)}`;
 }
 
 // An image in a fixed box: the box holds its shape (and a shimmer) until the

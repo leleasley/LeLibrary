@@ -193,7 +193,7 @@ export function QuickSetupPage({ edit, previewOpen }: { edit?: EditMode; preview
     tier: 'quick',
     platform: edit?.initial.platform ?? 'nuvio',
     config: () => quickCreateConfig({ keys, formatting, posters, badgePack, extras, libraryRows }),
-    keys, formatting, badgePack, posterStyle: posters.provider,
+    keys, formatting, badgePack, posterStyle: posters.provider, name,
   }, previewOpen);
 
   const pickPreset = usePresetPicker(formatting, setFormatting);

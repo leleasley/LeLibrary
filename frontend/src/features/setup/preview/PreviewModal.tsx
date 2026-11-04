@@ -55,6 +55,8 @@ export interface PreviewModalProps {
   streams?: PreviewStreamStyle | null | undefined;
   // The chosen poster style; draft rows show plain TMDB posters instead.
   posterStyle?: string | undefined;
+  // The setup's name, used as the phone-TV Home heading.
+  setupName?: string | undefined;
   // Tests only: start from fixed data and fixed loaders.
   initial?: PreviewModalInitial | undefined;
   loader?: CatalogLoader | undefined;
@@ -143,7 +145,7 @@ export function PreviewModal({ open, ...rest }: PreviewModalProps) {
 }
 
 function PreviewDialog({
-  onClose, saved, draft: draftNow, savedPlatform, dirty, streams, posterStyle, initial, loader: givenLoader, metaLoader: givenMeta,
+  onClose, saved, draft: draftNow, savedPlatform, dirty, streams, posterStyle, setupName, initial, loader: givenLoader, metaLoader: givenMeta,
 }: Omit<PreviewModalProps, 'open'>) {
   // The page sits behind the modal: what it holds when the modal opens is
   // what the modal shows.
@@ -210,7 +212,7 @@ function PreviewDialog({
 
   const context: PreviewContextValue | null = preview ? {
     preview, loader, metas, go, mode, columns: gridColumns(mode === 'stremio' ? Math.max(0, stageWidth - 96) : stageWidth),
-    source, streams: streams ?? null,
+    source, streams: streams ?? null, setupName: (setupName ?? '').trim(),
   } : null;
 
   let screen: ReactNode;

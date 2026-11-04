@@ -28,7 +28,7 @@ export function phoneTvTitle(preview: SetupPreview | null, stack: PreviewScreen[
 }
 
 function HeroBand() {
-  const { preview, metas } = usePreview();
+  const { preview, metas, setupName } = usePreview();
   const source = preview.hero[0];
   const { state } = useCatalog(source ? { type: source.type, catalogId: source.catalogId } : null, true);
   const ready = state?.status === 'ready' ? state.metas[0] : undefined;
@@ -44,8 +44,8 @@ function HeroBand() {
       {art && <Art src={tmdbSized(art, 'w1280')} className="npv-ptv-hero-art" eager />}
       <span className="npv-ptv-hero-scrim" aria-hidden="true" />
       <div className="npv-ptv-hero-text">
-        {preview.addonName
-          ? <h2 data-i18n-preserve>{preview.addonName}</h2>
+        {setupName
+          ? <h2 data-i18n-preserve>{setupName}</h2>
           : <h2>Your Nuvio home</h2>}
         <p>Live preview of your Nuvio home with this setup.</p>
       </div>

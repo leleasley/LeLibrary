@@ -32,6 +32,8 @@ export interface PreviewContextValue {
   // Where the data comes from (a draft shows samples for the library).
   source?: PreviewSourceMode | undefined;
   streams?: PreviewStreamStyle | null | undefined;
+  // The setup's name ('' when unnamed).
+  setupName?: string | undefined;
 }
 
 export const PreviewContext = createContext<PreviewContextValue | null>(null);

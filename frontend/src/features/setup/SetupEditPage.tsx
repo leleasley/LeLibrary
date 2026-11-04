@@ -819,6 +819,7 @@ export function SetupEditPage() {
         saved={{ uuid, editToken: getEditToken(), installToken }}
         savedPlatform={previewDraft?.platform ?? saved?.platform ?? platform} dirty={dirty}
         draft={previewDraft?.draft ?? null} streams={previewDraft?.streams ?? null} posterStyle={previewDraft?.posterStyle ?? ''}
+        setupName={previewDraft?.setupName || summary?.name || ''}
       />
       <ConfirmModal
         open={confirmDelete}

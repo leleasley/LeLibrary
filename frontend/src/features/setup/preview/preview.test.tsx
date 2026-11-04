@@ -94,13 +94,13 @@ const noMetas: MetaLoader = { get: () => undefined, load: () => {}, subscribe: (
 
 function render(options: {
   mode?: PreviewMode; loader?: CatalogLoader; stack?: PreviewScreen[]; size?: { width: number; height: number };
-  failed?: boolean; installToken?: string | null; dirty?: boolean; open?: boolean;
+  failed?: boolean; installToken?: string | null; dirty?: boolean; open?: boolean; setupName?: string;
 }) {
   return renderToStaticMarkup(
     <PreviewModal
       open={options.open ?? true} onClose={() => {}}
       saved={{ uuid: UUID, editToken: 'edit-token', installToken: options.installToken === undefined ? TOKEN : options.installToken }}
-      savedPlatform="nuvio" dirty={options.dirty}
+      savedPlatform="nuvio" dirty={options.dirty} setupName={options.setupName}
       loader={options.loader ?? { get: () => undefined, load: () => {}, retry: () => {}, subscribe: () => () => {} }}
       metaLoader={noMetas}
       initial={{
@@ -367,9 +367,10 @@ describe('Nuvio TV on a phone', () => {
   });
 
   it('Home: a heading band, collection rows with a folder count, catalogue rows with View all', async () => {
-    const html = render({ mode: 'tv', size: phone, loader: await loadedLoader() });
+    const html = render({ mode: 'tv', size: phone, loader: await loadedLoader(), setupName: 'Living room' });
     expect(html).toContain('npv-ptv-hero');
-    expect(html).toContain('>LeLibrary</h2>');
+    expect(html).toContain('>Living room</h2>');
+    expect(render({ mode: 'tv', size: phone, loader: await loadedLoader() })).toContain('>Your Nuvio home</h2>');
     expect(html).toContain('Live preview of your Nuvio home with this setup.');
     // The top bar keeps the wordmark on Home.
     expect(html).toContain('npv-wordmark-img');

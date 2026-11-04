@@ -304,7 +304,7 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
   // The Preview reads the same draft creation saves (its config, never its keys).
   const preview = useTierPreview(edit, {
     tier: 'partial', platform, config: () => buildDraft().config, keys, formatting,
-    badgePack: { pack: badgePack, url: badgePack === 'custom' ? customBadgeUrl : '' }, posterStyle: posters.provider,
+    badgePack: { pack: badgePack, url: badgePack === 'custom' ? customBadgeUrl : '' }, posterStyle: posters.provider, name,
   }, previewOpen);
 
   function submit() {

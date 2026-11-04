@@ -24,6 +24,8 @@ export interface TierPreviewInput {
   badgePack: { pack: string; url: string };
   // The chosen poster provider ('' = plain TMDB).
   posterStyle: string;
+  // The setup's name (headings in the Preview).
+  name?: string | undefined;
 }
 
 export interface TierPreviewSource {
@@ -31,6 +33,7 @@ export interface TierPreviewSource {
   platform: 'nuvio' | 'stremio';
   streams: PreviewStreamStyle;
   posterStyle: string;
+  setupName: string;
 }
 
 // The draft as the Preview may see it: secrets stripped from the config, and
@@ -45,6 +48,7 @@ export function tierPreviewSource(input: TierPreviewInput, savedServices: readon
     platform: input.platform,
     streams: { formatting: input.formatting, badgePack: input.badgePack },
     posterStyle: input.posterStyle,
+    setupName: (input.name ?? '').trim(),
   };
 }
 
@@ -64,7 +68,7 @@ export function useTierPreview(edit: EditMode | undefined, input: TierPreviewInp
   const modal = source ? (
     <PreviewModal
       open onClose={() => setOpen(false)}
-      savedPlatform={source.platform} draft={source.draft} streams={source.streams} posterStyle={source.posterStyle}
+      savedPlatform={source.platform} draft={source.draft} streams={source.streams} posterStyle={source.posterStyle} setupName={source.setupName}
     />
   ) : null;
   return { openPreview, modal };

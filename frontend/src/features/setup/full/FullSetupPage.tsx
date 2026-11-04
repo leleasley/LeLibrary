@@ -299,7 +299,7 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
   // The Preview reads the same draft creation saves (its config, never its keys).
   const preview = useTierPreview(edit, {
     tier: 'full', platform, config: () => buildDraft().config, keys, formatting,
-    badgePack: { pack: badgePack, url: badgeUrl }, posterStyle: posters.provider,
+    badgePack: { pack: badgePack, url: badgeUrl }, posterStyle: posters.provider, name,
   }, previewOpen);
 
   function submit() {

@@ -19,6 +19,7 @@ import { setupCopy, setupCount } from '@/features/setup/shared/setup-copy';
 import { LibraryPanel } from '@/features/setup/library/LibraryPanel';
 import { NuvioPanel } from '@/features/setup/nuvio/NuvioPanel';
 import { PreviewModal } from '@/features/setup/preview/PreviewModal';
+import { TierDock, type TierPreviewSource } from '@/features/setup/shared/tier/TierPreview';
 import { fetchLibrarySummary } from '@/features/setup/library/library-api';
 import { forgetDeletedSetup } from '@/features/setup/shared/saved-setups';
 import { ErrorState } from '@/features/site/ErrorPage';
@@ -115,6 +116,14 @@ function UnlockModal({ uuid, tier, busy, loading, error, leaving, password, onPa
   );
 }
 
+// The page's preview draft with the keys marked for removal taken out.
+export function editPreviewSource(source: TierPreviewSource | null, removed: readonly string[]): TierPreviewSource | null {
+  if (!source) return null;
+  if (!removed.length) return source;
+  const gone = new Set(removed);
+  return { ...source, draft: { ...source.draft, keyServices: source.draft.keyServices.filter((name) => !gone.has(name)) } };
+}
+
 const LOAD_FAILED = 'Your saved settings could not be loaded. Try again.';
 
 export function SetupEditPage() {
@@ -157,8 +166,11 @@ export function SetupEditPage() {
   // settings. The tier page stays mounted while another view is open so
   // unsaved edits (and its scroll position) survive the switch.
   const [view, setView] = useState<EditView>('edit');
-  // The Preview is a full-screen modal over whichever view is open.
+  // The Preview is a full-screen modal over whichever view is open. The
+  // tier page keeps previewSource pointed at its draft; opening reads it.
   const [previewOpen, setPreviewOpen] = useState(false);
+  const previewSource = useRef<(() => TierPreviewSource) | null>(null);
+  const [previewDraft, setPreviewDraft] = useState<TierPreviewSource | null>(null);
   const dirtyRef = useRef(false);
   // The fade runs on the element directly: a React render of the tier page
   // takes long enough to swallow the fade-out.
@@ -608,11 +620,6 @@ export function SetupEditPage() {
         </div>
       )}
       <div className="edit-settings-block">
-        <h3>Preview</h3>
-        <p>See your saved setup the way your player shows it: Nuvio on a TV or a phone, or Stremio's board. Looking never pushes or changes anything.</p>
-        <button type="button" className="setup-secondary" onClick={() => setPreviewOpen(true)}>{`Preview in ${platformName}`}</button>
-      </div>
-      <div className="edit-settings-block">
         <h3>Settings backup</h3>
         <p>Download this setup's saved settings as a file. Keys, your password and player logins are never included. Start a new setup from it on the setup page, for example for someone else in your home.</p>
         <button type="button" className="setup-secondary" onClick={() => void downloadSettings()}>Download settings backup</button>
@@ -623,6 +630,13 @@ export function SetupEditPage() {
       </div>
     </section>
   );
+
+  // One Preview for every view: the tier page's draft as it is now (keys
+  // only as names; a key waiting to be removed no longer counts).
+  function openPreview() {
+    setPreviewDraft(editPreviewSource(previewSource.current?.() ?? null, [...clearKeys.current]));
+    setPreviewOpen(true);
+  }
 
   const editMode: EditMode = {
     uuid,
@@ -667,6 +681,8 @@ export function SetupEditPage() {
         })
         .catch(() => toast('Could not change the profile', 'error'));
     },
+    onPreview: openPreview,
+    previewSource,
     renderFinish: ({ deskBody, name }) => (
       <div className="edit-finish">
         {name && (
@@ -715,9 +731,6 @@ export function SetupEditPage() {
                 connectHint: `Sign in to ${platformName} on the Connect page to push from here.`,
               })}
               secondaryAction={{ label: 'Clear my edits', disabled: !dirty, onClick: clearEdits }}
-              actionsExtra={(
-                <button type="button" className="setup-secondary" onClick={() => setPreviewOpen(true)}>{`Preview in ${platformName}`}</button>
-              )}
               regenerate={regenerate}
               replaceOthers={pushAvailable ? { value: replaceOthers, onChange: setReplaceOthers } : null}
               profilePicker={platform === 'nuvio' && savedAccount?.profiles?.length ? {
@@ -732,17 +745,13 @@ export function SetupEditPage() {
     ),
   };
 
-  const railItems: { id: EditView | 'preview'; label: string; title: string; icon: ReactNode; badge?: number | null }[] = [
+  const railItems: { id: EditView; label: string; title: string; icon: ReactNode; badge?: number | null }[] = [
     { id: 'edit', label: 'Edit', title: 'Edit settings', icon: <path d="M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6" /> },
     { id: 'library', label: 'Library', title: 'Your library', icon: <path d="M5 4v16M9 4v16M13 5l4 15M18 4.5l2 .5" />, badge: libraryAttention },
     ...(nuvioAvailable ? [{
       id: 'nuvio' as const, label: 'Nuvio', title: 'Your Nuvio',
       icon: <><rect x="3.5" y="3.5" width="17" height="17" rx="4.5" /><path d="M10 8.6v6.8l5.4-3.4z" /></>,
     }] : []),
-    {
-      id: 'preview', label: 'Preview', title: 'Preview in your player',
-      icon: <><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z" /><circle cx="12" cy="12" r="2.8" /></>,
-    },
     {
       id: 'settings', label: 'Settings', title: 'Setup settings',
       icon: <><circle cx="12" cy="12" r="3" /><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" /></>,
@@ -757,9 +766,8 @@ export function SetupEditPage() {
             <button
               key={item.id} type="button" title={item.title}
               aria-current={view === item.id ? 'page' : undefined}
-              aria-haspopup={item.id === 'preview' ? 'dialog' : undefined}
-              className={`edit-rail-item${view === item.id || (item.id === 'preview' && previewOpen) ? ' is-active' : ''}`}
-              onClick={() => (item.id === 'preview' ? setPreviewOpen(true) : go(item.id))}
+              className={`edit-rail-item${view === item.id ? ' is-active' : ''}`}
+              onClick={() => go(item.id)}
             >
               <svg aria-hidden="true" viewBox="0 0 24 24">{item.icon}</svg>
               <span className="edit-rail-label">{item.label}</span>
@@ -798,10 +806,19 @@ export function SetupEditPage() {
           password={password} onPassword={setPassword} onSubmit={() => void unlock()}
         />
       )}
+      {/* The other views keep the same dock and the same Preview. */}
+      {unlocked && view !== 'edit' && (
+        <TierDock
+          hasArt={Boolean((current?.keys.tmdbApiKey ?? '').trim())}
+          label={`${TIER_LABELS[activeTier]} · ${platformName}`}
+          onPreview={openPreview}
+        />
+      )}
       <PreviewModal
         open={unlocked && previewOpen} onClose={() => setPreviewOpen(false)}
-        uuid={uuid} editToken={getEditToken()} installToken={installToken}
-        savedPlatform={saved?.platform ?? platform} dirty={dirty}
+        saved={{ uuid, editToken: getEditToken(), installToken }}
+        savedPlatform={previewDraft?.platform ?? saved?.platform ?? platform} dirty={dirty}
+        draft={previewDraft?.draft ?? null} streams={previewDraft?.streams ?? null} posterStyle={previewDraft?.posterStyle ?? ''}
       />
       <ConfirmModal
         open={confirmDelete}

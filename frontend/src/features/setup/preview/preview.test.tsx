@@ -99,8 +99,8 @@ function render(options: {
   return renderToStaticMarkup(
     <PreviewModal
       open={options.open ?? true} onClose={() => {}}
-      uuid={UUID} editToken="edit-token" savedPlatform="nuvio"
-      installToken={options.installToken === undefined ? TOKEN : options.installToken} dirty={options.dirty}
+      saved={{ uuid: UUID, editToken: 'edit-token', installToken: options.installToken === undefined ? TOKEN : options.installToken }}
+      savedPlatform="nuvio" dirty={options.dirty}
       loader={options.loader ?? { get: () => undefined, load: () => {}, retry: () => {}, subscribe: () => () => {} }}
       metaLoader={noMetas}
       initial={{
@@ -305,11 +305,12 @@ describe('Preview modal', () => {
     } finally {
       fetchSpy.mockRestore();
     }
-    // No preview source can reach a write: only GETs, no push or save module.
+    // No preview source can reach a write: only GETs (and the two read-only
+    // draft POSTs, which carry a body), no push or save module.
     const dir = path.dirname(fileURLToPath(import.meta.url));
     for (const file of readdirSync(dir).filter((name) => /\.tsx?$/.test(name) && !name.includes('.test.'))) {
       const source = readFileSync(path.join(dir, file), 'utf8');
-      expect(source, file).not.toMatch(/apiClient\.(post|put|patch|delete)|method:\s*['"](POST|PUT|PATCH|DELETE)|pushSetup|pushTo\w*\(|saveSetup|saveConfig|\/api\/setup\/[^'"`]*\/(push|config|keys)/);
+      expect(source, file).not.toMatch(/apiClient\.(post(?!<\w+>\('\/api\/setup\/preview-draft(\/catalog)?')|put|patch|delete)|method:\s*['"](POST|PUT|PATCH|DELETE)|pushSetup|pushTo\w*\(|saveSetup|saveConfig|\/api\/setup\/[^'"`]*\/(push|config|keys)/);
     }
   });
 

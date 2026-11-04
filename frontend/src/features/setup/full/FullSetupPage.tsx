@@ -8,7 +8,7 @@ import { useWizardStep } from '@/features/setup/shared/WizardStepper';
 import { ListKey, ProviderKeys, RdCatalogSelect } from '@/features/setup/shared/sections';
 import { TierProgress } from '@/features/setup/shared/tier/TierProgress';
 import { BadgePackStrip, StreamStylePicker, TierMetadata, usePresetPicker } from '@/features/setup/shared/tier/TierPickers';
-import { TierDock, TierPreviewPanel } from '@/features/setup/shared/tier/TierPreview';
+import { TierDock, useTierPreview } from '@/features/setup/shared/tier/TierPreview';
 import { PosterWall, TierHero, TierStep, TierWizardNav } from '@/features/setup/shared/tier/TierChrome';
 import '@/features/setup/shared/tier/tier.css';
 import { badgeForSnapshot, snapshotToFullDraft, useEditSnapshot, type EditMode } from '@/features/setup/shared/edit-mode';
@@ -128,7 +128,8 @@ export function fullDraftHasContent(draft: FullDraft): boolean {
 
 // One page, two modes: create (draft kept in this browser, ends in Review) and
 // edit (seeded from the saved setup at /{uuid}, ends in Save and publish).
-export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
+// `previewOpen` starts with the Preview open (tests only).
+export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewOpen?: boolean } = {}) {
   const [restored] = useState<FullDraft | null>(() => (edit ? snapshotToFullDraft(edit.initial) : loadFullDraft()));
   const [platform, setPlatform] = useState<PlatformId>(restored?.platform ?? 'nuvio');
   const [pushConn, setPushConn] = useState<PlatformConnection | null>(restored?.pushConn ?? null);
@@ -295,6 +296,12 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
     };
   }
 
+  // The Preview reads the same draft creation saves (its config, never its keys).
+  const preview = useTierPreview(edit, {
+    tier: 'full', platform, config: () => buildDraft().config, keys, formatting,
+    badgePack: { pack: badgePack, url: badgeUrl }, posterStyle: posters.provider,
+  }, previewOpen);
+
   function submit() {
     const draft = buildDraft();
     void creation.create(
@@ -355,9 +362,6 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
   }
   const presetLabel = STREAM_PRESETS.find((preset) => preset.id === formatting.preset)?.name ?? formatting.preset;
   const artworkLabel = POSTER_PROVIDERS.find((p) => p.id === posters.provider)?.name ?? 'TMDB default';
-  const filtersActive = filterSets.resolutions.length > 0 || filterSets.qualities.length > 0
-    || filterSets.sources.length > 0 || filterSets.minSizeGb.trim() !== '' || filterSets.maxSizeGb.trim() !== ''
-    || filterSets.cachedOnly || addons.length > 0 || customStreams.length > 0;
 
   const connected = PROVIDER_KEY_FIELDS.filter(({ field }) => (keys[field] ?? '').trim()).map(({ label }) => label.replace(/ API key$/, ''));
   const hasTmdb = Boolean((keys.tmdbApiKey ?? '').trim());
@@ -369,59 +373,8 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
   const next = FULL_SECTIONS[wizard.step + 1];
   const folderCount = collections.reduce((total, collection) => total + (collection.folders || []).length, 0);
 
-  const panel = (
-    <TierPreviewPanel
-      keys={keys} posters={posters} formatting={formatting} badgePack={{ pack: badgePack, url: badgeUrl }}
-      rows={[
-        { label: 'Destination', value: platform === 'nuvio' ? 'Nuvio' : 'Stremio' },
-        { label: 'Library', value: connected.length ? connected.join(' + ') : 'Not connected yet', ok: connected.length > 0 },
-        { label: 'Catalogs', value: rdCatalog === 'separate' ? 'Separate rows' : 'Combined' },
-        { label: 'Name', value: name.trim() || '-' },
-        { label: 'Posters', value: artworkLabel },
-        { label: 'Formatting', value: presetLabel },
-        { label: 'Badges', value: BADGE_PACKS.find((entry) => entry.id === badgePack)?.name ?? badgePack },
-        { label: 'Home rows', value: homeRows.length > 0 ? String(homeRows.length) : '-' },
-        { label: 'Collections', value: collections.length > 0 ? `${collections.length} · ${folderCount} folders` : '-' },
-        { label: 'Filters', value: filtersActive ? 'Custom' : 'Default' },
-      ]}
-    />
-  );
-
-  // Once created, the steps make way for the finished page (like Settle In):
-  // edits made on a created setup's wizard were never saved, so a push sent
-  // the setup as it was at creation. Changes go through the edit page now.
-  if (!edit && creation.creating) {
-    return (
-      <section className="setup">
-        <CreatingSetup leaving={creation.creating === 'leaving'} name={name} />
-      </section>
-    );
-  }
-  if (!edit && creation.result) {
-    return (
-      <section className="setup">
-        <ReviewStep
-          password={creation.password} confirmation={creation.confirmation}
-          busy={creation.busy} error={creation.error} backTo="/configure"
-          onPassword={creation.setPassword} onConfirmation={creation.setConfirmation}
-          onSubmit={submit} created={creation.result}
-          onRotated={creation.replaceInstallToken}
-          name={name}
-          platform={platform} onPlatform={setPlatform} pushConn={pushConn} onPushConn={setPushConn}
-          counts={{
-            homeRows: homeRows.filter((row) => row.enabled !== false).length,
-            collections: collections.length,
-            folders: folderCount,
-            lang: meta.lang,
-          }}
-          collections={collections} onImportCollections={importPublicCollections}
-        />
-      </section>
-    );
-  }
-
   return (
-    <section className="setup setup-wide qs qs-wizard">
+    <section className="setup setup-wide qs qs-tier qs-wizard">
       <TierProgress
         steps={FULL_SECTIONS.map((section) => ({ id: section.id, label: edit && section.id === 'review' ? 'Save' : section.title }))}
         unsaved={dirty}
@@ -499,7 +452,7 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
                 />
               </Accordion>
               <Accordion title="Posters" icon="🖼️" summary={[artworkLabel]}>
-                <PostersSection draft={posters} keys={keys} onDraft={setPosters} onKeys={setKeys} hidePreview savedServices={edit?.savedServices} />
+                <PostersSection draft={posters} keys={keys} onDraft={setPosters} onKeys={setKeys} savedServices={edit?.savedServices} />
               </Accordion>
               <Accordion title="Formatting" icon="🎨" summary={[presetLabel, BADGE_PACKS.find((entry) => entry.id === badgePack)?.name ?? badgePack]}>
                 <h3 className="qs-sub"><strong>Badge packs</strong><span>Nuvio</span></h3>
@@ -578,13 +531,11 @@ export function FullSetupPage({ edit }: { edit?: EditMode } = {}) {
             {...(next ? { nextLabel: next.title } : {})}
           />
         </div>
-        <aside className="qs-aside">{panel}</aside>
       </div>
       <TierDock hasArt={hasTmdb} label={hasTmdb ? `${artworkLabel} · ${presetLabel}` : 'Add your TMDB key to see posters'}
-        next={next ? { onClick: wizard.next } : undefined}
-      >
-        {panel}
-      </TierDock>
+        next={next ? { onClick: wizard.next } : undefined} onPreview={preview.openPreview}
+      />
+      {preview.modal}
       <ConfirmModal
         open={confirmReset}
         title="Start over?"

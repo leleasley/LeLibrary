@@ -308,6 +308,10 @@ with LeLibrary:
 [Posters+](https://github.com/UmbraProjects/PostersPlus). This product uses the
 TMDB API but is not endorsed or certified by TMDB.
 
+**Setup Preview**: Nuvio wordmark from
+[NuvioMedia/NuvioTV](https://github.com/NuvioMedia/NuvioTV) (GPL-3.0), shown in
+the setup Preview.
+
 The full list of projects LeLibrary relies on is on the
 [Supporters page](https://lelibrary.uk/supporters).
 

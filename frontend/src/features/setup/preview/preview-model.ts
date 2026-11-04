@@ -6,6 +6,13 @@ import { apiClient } from '@/api/client';
 // contents and item details load here, from the addon itself, with the
 // install token the unlocked page already holds: exactly the catalogue and
 // meta requests the player makes, first page only. Nothing here writes.
+//
+// Live draft (v6): before a setup is saved (creating, or editing with
+// unsaved changes) the layout comes from POST /api/setup/preview-draft,
+// built by the same server code from the page's non-secret config, and rows
+// from POST /api/setup/preview-draft/catalog (LeLibrary's own catalogues,
+// plain TMDB posters; library rows come back as a sample). The browser never
+// sends a key: only the names of the keys that are filled in.
 
 export type PreviewPlatform = 'nuvio' | 'stremio';
 // The replica's three screens: Nuvio TV, Nuvio Mobile, Stremio's board.
@@ -82,6 +89,92 @@ export function fetchSetupPreview(uuid: string, platform: PreviewPlatform, editT
   return apiClient.get<SetupPreview>(`/api/setup/${encodeURIComponent(uuid)}/preview?platform=${platform}`, {
     headers: { Authorization: `Bearer ${editToken}` },
   });
+}
+
+// The page's current draft, as the Preview may see it: the create body's
+// config (never its keys) and the names of the filled-in keys.
+export interface PreviewDraft {
+  tier: 'quick' | 'partial' | 'full';
+  config: Record<string, unknown>;
+  keyServices: string[];
+}
+
+// Where the Preview's data comes from:
+// - draft: creating (no saved setup yet), the draft endpoints only.
+// - saved: editing with nothing unsaved, the saved setup, exactly.
+// - edited: editing with unsaved changes, the draft layout; library rows
+//   still load for real through the install token.
+export type PreviewSourceMode = 'draft' | 'saved' | 'edited';
+
+export function previewSourceMode(input: { saved: boolean; dirty: boolean; hasDraft: boolean }): PreviewSourceMode {
+  if (!input.saved) return 'draft';
+  return input.dirty && input.hasDraft ? 'edited' : 'saved';
+}
+
+// Never sent in a draft, at any depth (mirrors the server's draftConfig):
+// keys, logins, links that can carry someone's credentials.
+const SECRET_FIELDS = new Set([
+  'torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'tvdbApiKey', 'omdbKey', 'mdblistKey',
+  'erdbToken', 'rpdbKey', 'fanartKey', 'postersPlusUrl', 'customAddon1', 'customAddon2', 'customAddon3',
+  'webdavUrl', 'webdavUser', 'webdavPassword', 'keys', 'push', 'watchlist', 'connection', 'pushConn', 'password',
+  'installToken', 'editToken', 'pictoriumUrl', 'customPosterTemplate', 'nuvioBadgeUrl', 'customStreams',
+  'externalSources', 'addonUrl', 'manifestUrl', 'transportUrl',
+]);
+const SECRET_NAME = /api_?key|token|secret|passw|auth|session|cookie|credential|refresh/i;
+const KEY_SERVICE_NAMES = new Set([
+  'torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'tvdbApiKey', 'omdbKey', 'mdblistKey',
+  'erdbToken', 'rpdbKey', 'fanartKey', 'postersPlusUrl',
+]);
+
+export function draftRequestConfig(value: unknown): Record<string, unknown> {
+  const walk = (input: unknown, depth: number): unknown => {
+    if (depth > 12) return undefined;
+    if (Array.isArray(input)) return input.map((child) => walk(child, depth + 1)).filter((child) => child !== undefined);
+    if (input && typeof input === 'object') {
+      const out: Record<string, unknown> = {};
+      for (const [key, child] of Object.entries(input as Record<string, unknown>)) {
+        if (key.startsWith('__') || SECRET_FIELDS.has(key) || SECRET_NAME.test(key)) continue;
+        const kept = walk(child, depth + 1);
+        if (kept !== undefined) out[key] = kept;
+      }
+      return out;
+    }
+    return typeof input === 'function' ? undefined : input;
+  };
+  const out = walk(value, 0);
+  return out && typeof out === 'object' && !Array.isArray(out) ? out as Record<string, unknown> : {};
+}
+
+// The key NAMES a draft reports (filled in now, or saved and not removed).
+export function draftKeyServices(filled: Record<string, unknown>, saved: readonly string[] = [], removed: readonly string[] = []): string[] {
+  const names = new Set<string>();
+  for (const [name, value] of Object.entries(filled)) if (typeof value === 'string' && value.trim()) names.add(name);
+  for (const name of saved) names.add(name);
+  for (const name of removed) if (!(typeof filled[name] === 'string' && String(filled[name]).trim())) names.delete(name);
+  return [...names].filter((name) => KEY_SERVICE_NAMES.has(name)).sort();
+}
+
+export function draftBody(draft: PreviewDraft, platform: PreviewPlatform) {
+  return {
+    tier: draft.tier,
+    platform,
+    config: draftRequestConfig(draft.config),
+    keyServices: draft.keyServices.filter((name) => KEY_SERVICE_NAMES.has(name)),
+  };
+}
+
+export function fetchDraftPreview(draft: PreviewDraft, platform: PreviewPlatform): Promise<SetupPreview> {
+  return apiClient.post<SetupPreview>('/api/setup/preview-draft', draftBody(draft, platform));
+}
+
+// What the draft catalogue endpoint needs to know about the setup: the
+// language, Hide anime and the chosen packs (for folder labels). Nothing else.
+export function draftCatalogConfig(config: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (typeof config['lang'] === 'string') out['lang'] = config['lang'];
+  if (config['hideAnime'] === true) out['hideAnime'] = true;
+  if (Array.isArray(config['nuvioCollectionPacks'])) out['nuvioCollectionPacks'] = (config['nuvioCollectionPacks'] as unknown[]).filter((id) => typeof id === 'string');
+  return out;
 }
 
 export function platformFor(mode: PreviewMode): PreviewPlatform {
@@ -169,10 +262,21 @@ export function metasFrom(body: unknown, limit: number): { metas: PreviewMeta[];
   return { metas: out, total: metas.length };
 }
 
+// `sample`: a draft row the preview cannot fill yet: the library (shows
+// once the setup exists) or a list that needs the person's own key.
+export type SampleReason = 'library' | 'key' | 'unavailable';
+
 export type RowState =
   | { status: 'loading' }
   | { status: 'ready'; metas: PreviewMeta[]; total: number }
+  | { status: 'sample'; reason: SampleReason }
   | { status: 'error' };
+
+function sampleOf(body: unknown): SampleReason | null {
+  if (!body || typeof body !== 'object' || (body as { sample?: unknown }).sample !== true) return null;
+  const reason = (body as { reason?: unknown }).reason;
+  return reason === 'key' || reason === 'unavailable' ? reason : 'library';
+}
 
 // Nuvio shows a row's "see all" button only when it has more than one row's
 // worth of items.
@@ -215,12 +319,43 @@ function createQueue<T>(run: (job: T) => Promise<void>, concurrency: number) {
 // once (rows, folders and the hero share it), at most `concurrency` at a time.
 export function createCatalogLoader(installToken: string, options: { fetchJson?: FetchJson; concurrency?: number; limit?: number } = {}): CatalogLoader {
   const fetchJson = options.fetchJson ?? defaultFetch;
+  return createRowLoader((ref) => fetchJson(catalogUrl(installToken, ref)), options);
+}
+
+// One draft row request (read-only: POST only because it carries a body).
+export type PostDraftRow = (body: unknown) => Promise<unknown>;
+
+const defaultPost: PostDraftRow = (body) => apiClient.post<unknown>('/api/setup/preview-draft/catalog', body);
+
+// Draft rows: LeLibrary's own catalogues through the draft endpoint. With an
+// install token (editing with unsaved changes) a library row the endpoint
+// answers with a sample loads for real from the saved setup instead: the
+// library does not depend on the draft.
+export function createDraftCatalogLoader(config: Record<string, unknown>, options: {
+  installToken?: string | null; post?: PostDraftRow; fetchJson?: FetchJson; concurrency?: number; limit?: number;
+} = {}): CatalogLoader {
+  const post = options.post ?? defaultPost;
+  const fetchJson = options.fetchJson ?? defaultFetch;
+  const setup = draftCatalogConfig(config);
+  return createRowLoader(async (ref) => {
+    const body = await post({
+      config: setup, type: ref.type, catalogId: ref.catalogId, ...(ref.genre ? { genre: ref.genre } : {}),
+    });
+    if (options.installToken && sampleOf(body) === 'library') return fetchJson(catalogUrl(options.installToken, ref));
+    return body;
+  }, options);
+}
+
+export function createRowLoader(fetchRows: (ref: CatalogRef) => Promise<unknown>, options: { concurrency?: number; limit?: number } = {}): CatalogLoader {
   const limit = options.limit ?? GRID_LIMIT;
   const states = new Map<string, RowState>();
   const listeners = new Set<() => void>();
   const notify = () => { for (const listener of listeners) listener(); };
-  const push = createQueue<CatalogRef>((ref) => fetchJson(catalogUrl(installToken, ref))
-    .then((body) => { states.set(catalogKey(ref), { status: 'ready', ...metasFrom(body, limit) }); })
+  const push = createQueue<CatalogRef>((ref) => fetchRows(ref)
+    .then((body) => {
+      const sample = sampleOf(body);
+      states.set(catalogKey(ref), sample ? { status: 'sample', reason: sample } : { status: 'ready', ...metasFrom(body, limit) });
+    })
     .catch(() => { states.set(catalogKey(ref), { status: 'error' }); })
     .finally(notify), Math.max(1, options.concurrency ?? CONCURRENCY));
   const enqueue = (ref: CatalogRef) => {

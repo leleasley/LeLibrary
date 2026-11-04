@@ -39,16 +39,18 @@ describe('quick look reference layout', () => {
       expect(at).toBeGreaterThan(cursor);
       cursor = at;
     }
-    // Live preview: TMDB is the default provider but the key is required, so
-    // the preview waits for it instead of showing art the setup cannot load yet.
-    expect(html).toContain('finish');
+    // Poster preview (inline in the Posters step since v6): TMDB is the default
+    // provider but the key is required, so the preview waits for it instead of
+    // showing art the setup cannot load yet.
     expect(html).toContain('TMDB default preview');
     expect(html).toContain('Add your TMDB key above to see TMDB posters.');
     expect(html).toContain('poster-pair-empty');
     expect(html).toContain('poster-stage');
-    // No sidebar CTA until a matching password exists; the step's own button is disabled.
-    expect(html).toContain('Set a password below');
-    expect(html).not.toContain('finish-cta');
+    // The old sidebar panel is gone: the dock's Preview opens the full Preview.
+    expect(html).not.toContain('qs-aside');
+    expect(html).not.toContain('qs-panel');
+    expect(html).toContain('class="qs-dock-btn qs-dock-preview"');
+    // The step's own create button stays disabled until a password matches.
     expect(html).toMatch(/<button type="submit" class="qs-cta" disabled="">/);
   });
 

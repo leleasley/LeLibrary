@@ -1,14 +1,25 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { setupCopy } from '@/features/setup/shared/setup-copy';
+import { FORMAT_SAMPLES } from '@/features/setup/shared/config-contract';
+import { BadgeStrip, formatSample, type FormattingDraft } from '@/features/setup/shared/FormattingSection';
+import { useBadgePreview } from '@/features/setup/shared/BadgePackPicker';
+import { loadFormatter, useLegacyLib } from '@/features/setup/shared/legacy-libs';
 import {
   GRID_LIMIT, enrich, findCollection, findFolder, folderTabs, initials, mergeSources, tmdbSized, typeLabel,
   type CatalogLoader, type CatalogRef, type MetaLoader, type PreviewAction, type PreviewFolder, type PreviewMeta,
-  type PreviewMode, type PreviewRow, type PreviewScreen, type RowState, type SetupPreview,
+  type PreviewMode, type PreviewRow, type PreviewScreen, type PreviewSourceMode, type RowState, type SampleReason,
+  type SetupPreview,
 } from '@/features/setup/preview/preview-model';
 
 // Pieces every replica screen shares: poster cards, folder tiles, row
 // states, and the screens a tap opens (a folder, a catalogue's "See all", an
 // item's details). Read-only: nothing here pushes or saves.
+
+// The page's current stream style, for the sample streams in details.
+export interface PreviewStreamStyle {
+  formatting: FormattingDraft;
+  badgePack: { pack: string; url: string };
+}
 
 export interface PreviewContextValue {
   preview: SetupPreview;
@@ -18,6 +29,9 @@ export interface PreviewContextValue {
   mode: PreviewMode;
   // Grid columns for folder and "See all" screens (by the stage's width).
   columns: number;
+  // Where the data comes from (a draft shows samples for the library).
+  source?: PreviewSourceMode | undefined;
+  streams?: PreviewStreamStyle | null | undefined;
 }
 
 export const PreviewContext = createContext<PreviewContextValue | null>(null);
@@ -169,6 +183,53 @@ export function ExternalNote() {
   return <p className="npv-note">From another addon: your player loads it, the preview cannot.</p>;
 }
 
+function sampleText(reason: SampleReason): string {
+  if (reason === 'key') return 'This list needs your MDBList key. It shows here once the setup is created.';
+  if (reason === 'unavailable') return 'This row shows here once the setup is created.';
+  return 'Your library shows here once the setup is created.';
+}
+
+// The hero of a draft whose hero rows are the library.
+export function SampleHero({ height, className = 'npv-hero' }: { height?: number; className?: string }) {
+  return (
+    <section className={`${className} is-sample`} style={height ? { height } : undefined} aria-label="Featured">
+      <span className="npv-art is-sample npv-sample-hero-art" aria-hidden="true" />
+      <div className="npv-hero-content npv-sample-hero-text">
+        <p className="npv-sample-note">Your library shows here once the setup is created.</p>
+      </div>
+    </section>
+  );
+}
+
+export function FranchiseNote() {
+  const { source } = usePreview();
+  return (
+    <EmptyNote>
+      {source === 'draft'
+        ? 'Movie Collections appears here once the setup is created and your library is built.'
+        : 'Movie Collections appears here once your library has finished building.'}
+    </EmptyNote>
+  );
+}
+
+// A row the draft cannot fill yet: quiet placeholder tiles in the row's
+// shape with one line saying when the real titles appear.
+export function SampleRow({ reason, count = 6, shape = 'poster' }: { reason: SampleReason; count?: number; shape?: 'poster' | 'landscape' | 'square' }) {
+  return (
+    <div className="npv-sample">
+      <div className="npv-strip" aria-hidden="true">
+        {Array.from({ length: count }, (_, n) => (
+          <span key={n} className={`npv-card is-sample is-${shape}`}>
+            <span className="npv-art npv-poster is-sample" />
+            <span className="npv-skel-line" />
+          </span>
+        ))}
+      </div>
+      <p className="npv-sample-note">{sampleText(reason)}</p>
+    </div>
+  );
+}
+
 // Loads a catalogue when its row nears the view and returns its state.
 export function useCatalog(ref: CatalogRef | null, eager = false) {
   const { loader } = usePreview();
@@ -195,6 +256,7 @@ function Grid({ metas, loading }: { metas: PreviewMeta[]; loading: boolean }) {
 function GridState({ state, retry }: { state: RowState | undefined; retry: () => void }) {
   if (!state || state.status === 'loading') return <Grid metas={[]} loading />;
   if (state.status === 'error') return <ErrorNote onRetry={retry} />;
+  if (state.status === 'sample') return <SampleRow reason={state.reason} />;
   if (!state.metas.length) return <EmptyNote />;
   return <Grid metas={state.metas} loading={false} />;
 }
@@ -213,6 +275,8 @@ function AllSources({ folder }: { folder: PreviewFolder }) {
   const states = refs.map((ref) => loader?.get(ref));
   const ready = states.filter((state): state is Extract<RowState, { status: 'ready' }> => state?.status === 'ready');
   if (!ready.length && states.some((state) => !state || state.status === 'loading')) return <Grid metas={[]} loading />;
+  const sample = states.find((state): state is Extract<RowState, { status: 'sample' }> => state?.status === 'sample');
+  if (!ready.length && sample) return <SampleRow reason={sample.reason} />;
   if (!ready.length) return <ErrorNote onRetry={() => { for (const ref of refs) loader?.retry(ref); }} />;
   const metas = mergeSources(ready.map((state) => state.metas), GRID_LIMIT);
   return metas.length ? <Grid metas={metas} loading={false} /> : <EmptyNote />;
@@ -316,8 +380,56 @@ export function DetailsSheet({ screen }: { screen: Extract<PreviewScreen, { at: 
           <span className="npv-details-hint">Playback is not available in the preview.</span>
         </div>
         {meta.description && <p className="npv-details-desc" data-i18n-preserve>{meta.description}</p>}
+        <SampleStreams type={meta.type} />
       </div>
     </div>
+  );
+}
+
+// The samples a details sheet lists: a series opens on the episode file.
+export function streamSamples(type: string, count = 3) {
+  const series = FORMAT_SAMPLES.filter((sample) => /S\d{2}E\d{2}/i.test(sample.filename));
+  const films = FORMAT_SAMPLES.filter((sample) => !series.includes(sample));
+  return (type === 'series' ? [...series, ...films] : [...films, ...series]).slice(0, count);
+}
+
+// Nuvio's stream list under the details, drawn with the page's CURRENT
+// stream style and badge pack through the same formatter the server uses.
+// Clearly samples: never fetched, never playable.
+export function SampleStreams({ type }: { type: string }) {
+  const { streams } = usePreview();
+  const formatter = useLegacyLib(loadFormatter);
+  const formatting = streams?.formatting;
+  // One pack lookup for the whole list.
+  const badges = useBadgePreview(streams?.badgePack.pack ?? '', streams?.badgePack.url ?? '');
+  const rendered = useMemo(() => {
+    if (!formatter || !formatting) return [];
+    return streamSamples(type).map((sample) => formatSample(formatter, formatting, sample)).filter((row): row is { name: string; description: string } => row !== null);
+  }, [formatter, formatting, type]);
+  if (!streams) return null;
+  return (
+    <section className="npv-streams" aria-label="Sample streams">
+      <header className="npv-streams-head">
+        <h3>Streams</h3>
+        <span className="npv-streams-tag">Sample streams</span>
+      </header>
+      <p className="npv-streams-note">Shown in your stream style. Not real files: nothing here plays.</p>
+      {!formatter ? (
+        <div className="npv-stream is-loading" aria-hidden="true"><span className="npv-skel-line is-title" /><span className="npv-skel-line" /></div>
+      ) : rendered.length === 0 ? (
+        <p className="npv-note">Choose a stream style to see your streams here.</p>
+      ) : (
+        <ul className="npv-stream-list">
+          {rendered.map((row, n) => (
+            <li key={n} className="npv-stream" aria-disabled="true">
+              <span className="npv-stream-name" data-i18n-preserve>{row.name}</span>
+              <span className="npv-stream-desc" data-i18n-preserve>{row.description}</span>
+              <BadgeStrip state={badges} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

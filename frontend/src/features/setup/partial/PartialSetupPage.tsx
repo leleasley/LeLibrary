@@ -13,7 +13,7 @@ import { ListKey, ProviderKeys } from '@/features/setup/shared/sections';
 import { TierProgress } from '@/features/setup/shared/tier/TierProgress';
 import { BadgePackStrip, StreamStylePicker, TierMetadata, usePresetPicker } from '@/features/setup/shared/tier/TierPickers';
 import { TierInstall } from '@/features/setup/shared/tier/TierInstall';
-import { TierDock, TierPreviewPanel } from '@/features/setup/shared/tier/TierPreview';
+import { TierDock, useTierPreview } from '@/features/setup/shared/tier/TierPreview';
 import { PosterWall, TierHero, TierStep, TierWizardNav } from '@/features/setup/shared/tier/TierChrome';
 import '@/features/setup/shared/tier/tier.css';
 import { badgeForSnapshot, snapshotToPartialDraft, useEditSnapshot, type EditMode } from '@/features/setup/shared/edit-mode';
@@ -135,7 +135,8 @@ export function partialDraftHasContent(draft: PartialDraft): boolean {
 
 // One page, two modes: create (draft kept in this browser, ends in Create) and
 // edit (seeded from the saved setup at /{uuid}, ends in Save and publish).
-export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
+// `previewOpen` starts with the Preview open (tests only).
+export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previewOpen?: boolean } = {}) {
   const [restored] = useState<PartialDraft | null>(() => (edit ? snapshotToPartialDraft(edit.initial) : loadPartialDraft()));
   const [name, setName] = useState(restored?.name ?? '');
   const [keys, setKeys] = useState<SetupKeysDraft>(restored?.keys ?? INITIAL_KEYS);
@@ -300,6 +301,12 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
     };
   }
 
+  // The Preview reads the same draft creation saves (its config, never its keys).
+  const preview = useTierPreview(edit, {
+    tier: 'partial', platform, config: () => buildDraft().config, keys, formatting,
+    badgePack: { pack: badgePack, url: badgePack === 'custom' ? customBadgeUrl : '' }, posterStyle: posters.provider,
+  }, previewOpen);
+
   function submit() {
     const draft = buildDraft();
     void creation.create(
@@ -380,13 +387,8 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
   const badgeUrl = badgePack === 'custom' ? customBadgeUrl : '';
   const presetLabel = STREAM_PRESETS.find((preset) => preset.id === formatting.preset)?.name ?? formatting.preset;
   const artworkLabel = POSTER_PROVIDERS.find((p) => p.id === posters.provider)?.name ?? 'TMDB default';
-  const filtersActive = filterSets.resolutions.length > 0 || filterSets.qualities.length > 0
-    || filterSets.sources.length > 0 || mediaSets.codecs.length > 0 || mediaSets.hdr.length > 0
-    || mediaSets.audio.length > 0 || filterSets.minSizeGb.trim() !== '' || filterSets.maxSizeGb.trim() !== ''
-    || filterSets.cachedOnly;
   const connected = PROVIDER_KEY_FIELDS.filter(({ field }) => (keys[field] ?? '').trim()).map(({ label }) => label.replace(/ API key$/, ''));
   const hasTmdb = Boolean((keys.tmdbApiKey ?? '').trim());
-  const enabledRows = homeRows.filter((row) => row.enabled !== false).length;
   const dirty = edit ? edit.dirty : !creation.result && isPartialDirty({
     name, keys, formatting, posters, homeRows,
     filterSets, mediaSets,
@@ -394,23 +396,8 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
   });
   const next = PARTIAL_SECTIONS[wizard.step + 1];
 
-  const panel = (
-    <TierPreviewPanel
-      keys={keys} posters={posters} formatting={formatting} badgePack={{ pack: badgePack, url: badgeUrl }}
-      rows={[
-        { label: 'Library', value: connected.length ? connected.join(' + ') : 'Not connected yet', ok: connected.length > 0 },
-        { label: 'Name', value: name.trim() || '-' },
-        { label: 'Posters', value: artworkLabel },
-        { label: 'Formatting', value: presetLabel },
-        { label: 'Badges', value: BADGE_PACKS.find((entry) => entry.id === badgePack)?.name ?? badgePack },
-        { label: 'Home rows', value: enabledRows > 0 ? String(enabledRows) : '-' },
-        { label: 'Filters', value: filtersActive ? 'Custom' : 'Default' },
-      ]}
-    />
-  );
-
   return (
-    <section className="setup setup-wide qs qs-wizard">
+    <section className="setup setup-wide qs qs-tier qs-wizard">
       <TierProgress
         steps={PARTIAL_SECTIONS.map((section) => ({ id: section.id, label: edit && section.id === 'password' ? 'Save' : section.title }))}
         unsaved={dirty}
@@ -485,7 +472,7 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
                 />
               </Accordion>
               <Accordion title="Posters" icon="🖼️" summary={[artworkLabel]}>
-                <PostersSection draft={posters} keys={keys} onDraft={setPosters} onKeys={setKeys} hidePreview savedServices={edit?.savedServices} />
+                <PostersSection draft={posters} keys={keys} onDraft={setPosters} onKeys={setKeys} savedServices={edit?.savedServices} />
               </Accordion>
               <Accordion title="Formatting" icon="🎨" summary={[presetLabel, BADGE_PACKS.find((entry) => entry.id === badgePack)?.name ?? badgePack]}>
                 <h3 className="qs-sub"><strong>Badge packs</strong><span>Nuvio</span></h3>
@@ -542,13 +529,11 @@ export function PartialSetupPage({ edit }: { edit?: EditMode } = {}) {
             {...(next ? { nextLabel: next.title } : {})}
           />
         </div>
-        <aside className="qs-aside">{panel}</aside>
       </div>
       <TierDock hasArt={hasTmdb} label={hasTmdb ? `${artworkLabel} · ${presetLabel}` : 'Add your TMDB key to see posters'}
-        next={next ? { onClick: wizard.next } : undefined}
-      >
-        {panel}
-      </TierDock>
+        next={next ? { onClick: wizard.next } : undefined} onPreview={preview.openPreview}
+      />
+      {preview.modal}
       <ConfirmModal
         open={confirmReset}
         title="Start over?"

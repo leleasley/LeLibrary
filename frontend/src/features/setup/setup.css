@@ -1217,27 +1217,8 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
 .advanced-body { margin-top: 16px; display: grid; gap: 16px; }
 
 /* ── Finishing-touch sidebar ─────────────────────────────────────────────── */
-.finish {
-  position: sticky; top: 14px;
-  display: grid; gap: 14px;
-  border: 1px solid var(--border); border-radius: 18px;
-  background: radial-gradient(circle at 50% 0%, rgba(245, 158, 11, 0.12), transparent 58%), var(--surface);
-  padding: 22px 20px 20px;
-}
-.finish-kicker {
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--amber);
-}
 .finish-title { margin: 0; font-size: 1.1rem; letter-spacing: -0.02em; line-height: 1.25; }
 .finish-copy { margin: 0; color: var(--muted); font-size: 0.78rem; line-height: 1.55; }
-.finish-cta { width: 100%; justify-content: center; }
-.finish-password-hint {
-  margin: 0; padding: 12px 14px;
-  border: 1px dashed rgba(245, 158, 11, 0.35); border-radius: 10px;
-  background: rgba(245, 158, 11, 0.06);
-  color: var(--muted); font-size: 0.78rem; line-height: 1.55; text-align: center;
-}
-.finish-note { margin: 0; color: var(--muted); font-size: 0.7rem; line-height: 1.5; text-align: center; }
 .finish-link { display: grid; gap: 6px; }
 .finish-link-label {
   color: var(--muted); font-size: 0.68rem; font-weight: 600;
@@ -1329,14 +1310,11 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
 .quick-setup-redesign .key-card-list .setup-provider-row { gap: 8px; }
 .quick-setup-redesign .key-card-list .setup-provider-logo { width: 36px; height: 36px; border-radius: 10px; }
 .quick-setup-redesign .key-card-list .setup-provider-row input { min-width: 0; }
-.quick-setup-redesign .finish { top: 18px; gap: 13px; padding: 20px; border-radius: 18px; background: linear-gradient(165deg, rgba(245,158,11,.12), transparent 42%), var(--surface); }
-.quick-setup-redesign .finish-kicker { font-family: inherit; font-size: .68rem; font-weight: 750; letter-spacing: .08em; }
 .quick-setup-redesign .finish-title { font-size: 1.2rem; }
 .quick-setup-redesign .finish-copy { font-size: .76rem; }
 .quick-setup-redesign :focus-visible { outline-color: var(--amber); }
 @media (max-width: 760px) {
   .quick-grid { grid-template-columns: 1fr; }
-.quick-setup-redesign .finish { position: static; }
 }
 @media (max-width: 560px) {
   
@@ -1360,7 +1338,6 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
   .flow-grid { gap: 18px; }
   
   
-  .finish { padding: 18px 16px; border-radius: 14px; }
   /* Manifest copy row: input takes the line, button drops below full-width. */
   .result-row { flex-wrap: wrap; }
   .result-row input { flex: 1 1 100%; }
@@ -1380,8 +1357,6 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
   
 }
 
-/* Poster stage inside the sidebar */
-.finish .poster-stage { position: static; padding: 0; border: none; background: none; }
 
 /* ── Badge pack picker ───────────────────────────────────────────────────── */
 .badge-packs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
@@ -1456,7 +1431,6 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
   background: radial-gradient(circle at 50% 0%, rgba(245, 158, 11, 0.1), transparent 55%), var(--surface);
   padding: 30px;
 }
-.result-card .finish-note { text-align: left; margin-top: 6px; }
 .result-card .setup-field + .setup-field { margin-top: 16px; }
 .result-kicker {
   display: block; margin-bottom: 10px;
@@ -1543,7 +1517,6 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
 
 @media (max-width: 1100px) {
   .flow-grid { grid-template-columns: 1fr; }
-  .finish { position: static; }
 }
 
 /* ── Key fields: inline input + eye + verify ─────────────────────────────── */

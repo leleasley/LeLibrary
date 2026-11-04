@@ -6,8 +6,8 @@ import {
   type PreviewScreen, type SetupPreview,
 } from '@/features/setup/preview/preview-model';
 import {
-  Art, Chevron, EmptyNote, ErrorNote, ExternalNote, FolderTile, Layer, PosterCard, SkeletonCards, StackScreens,
-  typeName, useCatalog, usePreview, type CardFocus,
+  Art, Chevron, EmptyNote, ErrorNote, ExternalNote, FolderTile, FranchiseNote, Layer, PosterCard, SampleHero, SampleRow,
+  SkeletonCards, StackScreens, typeName, useCatalog, usePreview, type CardFocus,
 } from '@/features/setup/preview/PreviewScreens';
 
 // Nuvio TV's Home ("Modern" layout): an icon sidebar, a hero that shows the
@@ -55,7 +55,8 @@ function useDebounced<T>(value: T, ms: number): T {
   return out;
 }
 
-function TvHero({ shown }: { shown: Focused }) {
+function TvHero({ shown, sample }: { shown: Focused; sample: boolean }) {
+  if (!shown && sample) return <SampleHero className="npv-tv-hero" />;
   if (!shown) return <div className="npv-tv-hero is-loading"><span className="npv-art is-loading npv-tv-backdrop" aria-hidden="true" /></div>;
   if (shown.kind === 'folder') {
     const art = shown.collection.backdrop || shown.folder.cover;
@@ -81,6 +82,7 @@ function FolderFallbackHero() {
   const source = preview.hero[0];
   const { state } = useCatalog(source ? { type: source.type, catalogId: source.catalogId } : null, true);
   const first = state?.status === 'ready' ? state.metas[0] : undefined;
+  if (state?.status === 'sample') return <SampleHero className="npv-tv-hero" />;
   if (!first) return <div className="npv-tv-hero is-loading"><span className="npv-art is-loading npv-tv-backdrop" aria-hidden="true" /></div>;
   return <MetaHero meta={first} />;
 }
@@ -133,6 +135,7 @@ function TvCatalogRow({ row, index, focus, onFocusCard, onCount }: RowFocusProps
   if (row.external) body = <ExternalNote />;
   else if (!state || state.status === 'loading') body = <div className="npv-strip"><SkeletonCards count={8} /></div>;
   else if (state.status === 'error') body = <ErrorNote onRetry={retry} />;
+  else if (state.status === 'sample') body = <SampleRow reason={state.reason} count={8} />;
   else if (!metas.length) body = <EmptyNote />;
   else body = <div className="npv-strip">{metas.map((meta, col) => <PosterCard key={meta.id} meta={meta} focus={cardFocus(index, col, focus, onFocusCard)} />)}</div>;
   const more = rowHasMore(state);
@@ -182,7 +185,7 @@ function reveal(container: HTMLElement, el: HTMLElement, axis: 'x' | 'y', pad: n
 }
 
 export function NuvioTv({ stack }: { stack: PreviewScreen[] }) {
-  const { preview } = usePreview();
+  const { preview, loader } = usePreview();
   const entries = visibleEntries(preview);
   const byId = new Map(preview.collections.map((item) => [item.id, item]));
   const [counts, setCounts] = useState<Record<number, { count: number; metas: PreviewMeta[] }>>({});
@@ -241,7 +244,7 @@ export function NuvioTv({ stack }: { stack: PreviewScreen[] }) {
     <div className="npv-tv-home">
       <Layer top={atHome} className="is-home is-tv">
         <Sidebar />
-        <TvHero shown={shown} />
+        <TvHero shown={shown} sample={entry?.kind === 'row' && loader?.get({ type: entry.type, catalogId: entry.catalogId })?.status === 'sample'} />
         <div className="npv-tv-rows" ref={rowsRef} onKeyDown={onKeyDown}>
           {entries.length === 0 && <EmptyNote>Nothing shows on Home yet. Add Home rows or collections, then save.</EmptyNote>}
           {entries.map((item, index) => {
@@ -251,7 +254,7 @@ export function NuvioTv({ stack }: { stack: PreviewScreen[] }) {
             }
             return <TvCatalogRow key={`r-${item.key}`} row={item} index={index} focus={pos} onFocusCard={setFocus} onCount={onCount} />;
           })}
-          {preview.franchisePending && <EmptyNote>Movie Collections appears here once your library has finished building.</EmptyNote>}
+          {preview.franchisePending && <FranchiseNote />}
         </div>
       </Layer>
       <StackScreens stack={stack} />

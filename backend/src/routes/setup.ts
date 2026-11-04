@@ -26,13 +26,22 @@ const editSessionsModule = require('../setup/edit-sessions.ts') as EditSessionsA
 const oauth = require('../setup/oauth.ts') as OAuthApi;
 const selfhostAccess = require('../platform/selfhost-access.ts') as SelfhostAccessApi;
 const { rateLimit } = require('../middleware/rate-limit.ts') as {
-  rateLimit: (options?: { windowMs?: number; max?: number }) => any;
+  rateLimit: (options?: { windowMs?: number; max?: number; scope?: string }) => any;
 };
 
 const { getSetupStore, getSetupLimiter } = runtime;
 // One bucket set for the Preview (read-only, but it compiles a manifest and
 // the collection plan per call).
 const previewLimit = rateLimit({ windowMs: 60_000, max: 30 });
+// The live draft preview has no setup behind it, so it is open to anyone:
+// per-IP limits at module scope (one bucket set however often routes are
+// mounted), a small body limit, and never a key in or out.
+const DRAFT_PREVIEW_MAX = 30;
+const DRAFT_CATALOG_MAX = 120;
+const DRAFT_BODY_LIMIT = '256kb';
+const DRAFT_BODY_BYTES = 256 * 1024;
+const draftPreviewLimit = rateLimit({ windowMs: 60_000, max: DRAFT_PREVIEW_MAX, scope: 'preview-draft' });
+const draftCatalogLimit = rateLimit({ windowMs: 60_000, max: DRAFT_CATALOG_MAX, scope: 'preview-draft-catalog' });
 const { TIERS, DEFAULT_TIER } = configStore;
 const { isUuid, parseInstallToken } = token;
 const { createEditSessionStore, bearerToken, DEFAULT_TTL_MS } = editSessionsModule;
@@ -52,6 +61,7 @@ export interface SetupRoutesApi {
     opened: OpenedConfig,
     service: unknown,
   ) => { ok: true; key: string } | { ok: false; status: number; error: string };
+  DRAFT_LIMITS: { previewPerMinute: number; catalogPerMinute: number; body: string };
 }
 
 function clientIp(req: Request): string {
@@ -537,7 +547,65 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     res.json({ valid: true, uuid: opened.uuid, tier: opened.tier, hasPassword: opened.hasPassword });
   });
 
+  // Live draft preview: what this setup will show before it is saved. No
+  // setup, no edit token and no key: the body is the page's non-secret
+  // config (setup/preview.ts drops anything key-shaped before reading it)
+  // plus the NAMES of the keys it has filled in. Own router, mounted first,
+  // so its smaller body limit applies to these two paths only.
+  const draftRouter = express.Router();
+  // The website router may already have parsed the body with its larger
+  // limit, so the size is checked on the header and again on the result.
+  const draftJsonParser = express.json({ limit: DRAFT_BODY_LIMIT });
+  const draftJson = [
+    (req: Request, res: Response, next: () => void) => {
+      if (Number(req.headers['content-length'] || 0) > DRAFT_BODY_BYTES) { res.status(413).json({ error: 'Preview request too large' }); return; }
+      next();
+    },
+    draftJsonParser,
+    (req: Request, res: Response, next: () => void) => {
+      let size = 0;
+      try { size = Buffer.byteLength(JSON.stringify(req.body ?? {})); } catch { size = Infinity; }
+      if (size > DRAFT_BODY_BYTES) { res.status(413).json({ error: 'Preview request too large' }); return; }
+      next();
+    },
+  ];
+  draftRouter.post('/preview-draft', draftPreviewLimit, draftJson, async (req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
+    const { tier, platform } = body;
+    if (typeof tier !== 'string' || !TIERS.includes(tier as never)) { res.status(400).json({ error: `Tier must be one of: ${TIERS.join(', ')}` }); return; }
+    if (platform !== 'nuvio' && platform !== 'stremio') { res.status(400).json({ error: 'Unknown platform' }); return; }
+    if (!body['config'] || typeof body['config'] !== 'object' || Array.isArray(body['config'])) { res.status(400).json({ error: 'Config required' }); return; }
+    const origin = (process.env['BASE_URL'] || '').replace(/\/+$/, '') || `${req.protocol}://${req.get('host')}`;
+    try {
+      const { buildDraftPreview } = require('../setup/preview.ts') as PreviewApi;
+      res.json(await buildDraftPreview({ tier, platform, config: body['config'], keyServices: body['keyServices'], origin }, previewDeps));
+    } catch (err) {
+      console.warn(`[setup] draft preview failed: ${(err as Error).message}`);
+      res.status(502).json({ error: 'Could not build the preview' });
+    }
+  });
+  // One draft row: LeLibrary's own catalogue definitions only, built with
+  // the server's TMDB key into the shared caches. Library rows answer
+  // { sample: true }; any other id is a 400 (nothing is ever fetched from
+  // a link the browser sends).
+  draftRouter.post('/preview-draft/catalog', draftCatalogLimit, draftJson, async (req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
+    try {
+      const { buildDraftCatalog } = require('../setup/preview.ts') as PreviewApi;
+      const out = await buildDraftCatalog({ config: body['config'], type: body['type'], catalogId: body['catalogId'], genre: body['genre'] });
+      res.status(out.status).json(out.body);
+    } catch (err) {
+      console.warn(`[setup] draft catalogue failed: ${(err as Error).message}`);
+      res.status(502).json({ error: 'Could not load this row' });
+    }
+  });
+
+  app.use(basePath, draftRouter);
   app.use(basePath, router);
 }
 
-module.exports = { mountSetupRoutes, editorConfigView, resolveRevealKey } satisfies SetupRoutesApi;
+const DRAFT_LIMITS = { previewPerMinute: DRAFT_PREVIEW_MAX, catalogPerMinute: DRAFT_CATALOG_MAX, body: DRAFT_BODY_LIMIT };
+
+module.exports = { mountSetupRoutes, editorConfigView, resolveRevealKey, DRAFT_LIMITS } satisfies SetupRoutesApi;

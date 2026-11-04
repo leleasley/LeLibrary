@@ -16,6 +16,7 @@ import type { NuvioProfileRef, PlatformConnection } from '@/features/setup/full/
 import type { PartialDraft } from '@/features/setup/partial/partial-draft';
 import type { FullDraft } from '@/features/setup/full/full-draft';
 import { same } from '@/features/setup/shared/same';
+import type { TierPreviewSource } from '@/features/setup/shared/tier/TierPreview';
 
 export type TierId = 'quick' | 'partial' | 'full';
 
@@ -79,6 +80,11 @@ export interface EditMode {
   // The last step's content (save, publish, install link). The page passes the
   // desk body it wants inside the publish panel (Settle In's player login).
   renderFinish: (options: { deskBody?: ReactNode; name?: { value: string; onChange: (next: string) => void } }) => ReactNode;
+  // The one Preview: the container opens it (from the page's dock or its
+  // other views) and reads the page's current draft through previewSource,
+  // which the page keeps pointed at its own builder.
+  onPreview?: (() => void) | undefined;
+  previewSource?: { current: (() => TierPreviewSource) | null } | undefined;
 }
 
 // Saved config + revealed keys -> the snapshot a page starts from.

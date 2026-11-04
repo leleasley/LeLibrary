@@ -1,22 +1,28 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import {
-  createCatalogLoader, createMetaLoader, defaultMode, fetchSetupPreview, fitScale, gridColumns, platformFor, previewNav,
-  type CatalogLoader, type MetaLoader, type PreviewAction, type PreviewMode, type PreviewPlatform, type PreviewScreen,
-  type SetupPreview,
+  createCatalogLoader, createDraftCatalogLoader, createMetaLoader, defaultMode, fetchDraftPreview, fetchSetupPreview, fitScale,
+  gridColumns, platformFor, previewNav, previewSourceMode,
+  type CatalogLoader, type MetaLoader, type PreviewAction, type PreviewDraft, type PreviewMode, type PreviewPlatform,
+  type PreviewScreen, type PreviewSourceMode, type SetupPreview,
 } from '@/features/setup/preview/preview-model';
-import { PreviewContext, SkeletonCards, type PreviewContextValue } from '@/features/setup/preview/PreviewScreens';
+import { PreviewContext, SkeletonCards, type PreviewContextValue, type PreviewStreamStyle } from '@/features/setup/preview/PreviewScreens';
 import { NuvioMobile } from '@/features/setup/preview/NuvioMobile';
 import { NuvioTv, TV_HEIGHT, TV_WIDTH } from '@/features/setup/preview/NuvioTv';
 import { StremioBoard } from '@/features/setup/preview/StremioBoard';
 import './nuvio-preview.css';
 
 // The setup Preview: a full-screen modal that IS the player's screen for the
-// saved setup. Nuvio TV (scaled 1280x720 stage), Nuvio Mobile (a 390x844
-// phone on wide screens, the whole modal on a phone) or Stremio's board, with
-// the real Home order, posters, collections and folders. Read-only: it never
-// pushes, saves or writes a setting.
+// setup on the page. Nuvio TV (scaled 1280x720 stage), Nuvio Mobile (a
+// 390x844 phone on wide screens, the whole modal on a phone) or Stremio's
+// board, with the real Home order, posters, collections and folders. It is
+// the one Preview on every setup page (the dock's Preview button): live from
+// the draft while creating, the saved setup when nothing is unsaved, the
+// draft layout with the real library when there are unsaved edits.
+// Read-only: it never pushes, saves or writes a setting.
 
 export const PHONE_WIDTH = 390;
+// Nuvio's own wordmark (NuvioMedia/NuvioTV, GPL-3.0), white text on clear.
+export const NUVIO_WORDMARK = '/preview/nuvio-wordmark.png';
 export const PHONE_HEIGHT = 844;
 
 export interface PreviewModalInitial {
@@ -27,14 +33,26 @@ export interface PreviewModalInitial {
   size?: { width: number; height: number } | undefined;
 }
 
-export interface PreviewModalProps {
-  open: boolean;
-  onClose: () => void;
+export interface SavedPreviewSetup {
   uuid: string;
   editToken: string | null;
   installToken: string | null;
+}
+
+export interface PreviewModalProps {
+  open: boolean;
+  onClose: () => void;
+  // The player the setup is for (picks the first screen).
   savedPlatform: PreviewPlatform;
+  // Edit mode: the saved setup this page edits.
+  saved?: SavedPreviewSetup | null | undefined;
+  // The page's current non-secret draft (read once, when the modal opens).
+  draft?: PreviewDraft | null | undefined;
   dirty?: boolean | undefined;
+  // The page's stream style, for the sample streams in details.
+  streams?: PreviewStreamStyle | null | undefined;
+  // The chosen poster style; draft rows show plain TMDB posters instead.
+  posterStyle?: string | undefined;
   // Tests only: start from fixed data and fixed loaders.
   initial?: PreviewModalInitial | undefined;
   loader?: CatalogLoader | undefined;
@@ -121,7 +139,16 @@ export function PreviewModal({ open, ...rest }: PreviewModalProps) {
   return <PreviewDialog {...rest} />;
 }
 
-function PreviewDialog({ onClose, uuid, editToken, installToken, savedPlatform, dirty, initial, loader: givenLoader, metaLoader: givenMeta }: Omit<PreviewModalProps, 'open'>) {
+function PreviewDialog({
+  onClose, saved, draft: draftNow, savedPlatform, dirty, streams, posterStyle, initial, loader: givenLoader, metaLoader: givenMeta,
+}: Omit<PreviewModalProps, 'open'>) {
+  // The page sits behind the modal: what it holds when the modal opens is
+  // what the modal shows.
+  const [draft] = useState(draftNow ?? null);
+  const uuid = saved?.uuid ?? '';
+  const editToken = saved?.editToken ?? null;
+  const installToken = saved?.installToken ?? null;
+  const source: PreviewSourceMode = previewSourceMode({ saved: Boolean(uuid && editToken), dirty: dirty === true, hasDraft: draft !== null });
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [mode, setMode] = useState<PreviewMode>(() => initial?.mode ?? defaultMode(savedPlatform, typeof window !== 'undefined' ? window.innerWidth : 0));
   const [previews, setPreviews] = useState<Partial<Record<PreviewPlatform, SetupPreview>>>(initial?.previews ?? {});
@@ -129,8 +156,13 @@ function PreviewDialog({ onClose, uuid, editToken, installToken, savedPlatform, 
   const [attempt, setAttempt] = useState(0);
   const [stack, dispatch] = useReducer(previewNav, initial?.stack ?? [{ at: 'home' }]);
   const [bodyRef, size] = useSize<HTMLDivElement>(initial?.size ?? { width: 0, height: 0 });
-  const loader = useMemo(() => givenLoader ?? (installToken ? createCatalogLoader(installToken) : null), [givenLoader, installToken]);
-  const metas = useMemo(() => givenMeta ?? (installToken ? createMetaLoader(installToken) : null), [givenMeta, installToken]);
+  const loader = useMemo(() => {
+    if (givenLoader) return givenLoader;
+    if (source === 'saved') return installToken ? createCatalogLoader(installToken) : null;
+    return draft ? createDraftCatalogLoader(draft.config, { installToken: source === 'edited' ? installToken : null }) : null;
+  }, [givenLoader, source, installToken, draft]);
+  // Full metas come from the addon itself, so only with the install link.
+  const metas = useMemo(() => givenMeta ?? (installToken && source !== 'draft' ? createMetaLoader(installToken) : null), [givenMeta, installToken, source]);
   useTick(loader, metas);
 
   useEffect(() => {
@@ -145,15 +177,17 @@ function PreviewDialog({ onClose, uuid, editToken, installToken, savedPlatform, 
   const platform = platformFor(mode);
   const preview = previews[platform] ?? null;
   useEffect(() => {
-    if (preview || !editToken || initial?.previews) return undefined;
+    if (preview || initial?.previews) return undefined;
+    if (source === 'saved' ? !editToken : !draft) return undefined;
     let cancelled = false;
     setFailed((prev) => ({ ...prev, [platform]: false }));
-    fetchSetupPreview(uuid, platform, editToken)
+    const load = source === 'saved' && editToken ? fetchSetupPreview(uuid, platform, editToken) : fetchDraftPreview(draft as PreviewDraft, platform);
+    load
       .then((data) => { if (!cancelled) setPreviews((prev) => ({ ...prev, [platform]: data })); })
       .catch(() => { if (!cancelled) setFailed((prev) => ({ ...prev, [platform]: true })); });
     return () => { cancelled = true; };
     // `attempt` re-runs the load after an error.
-  }, [uuid, platform, editToken, preview, attempt, initial?.previews]);
+  }, [uuid, platform, editToken, preview, attempt, initial?.previews, source, draft]);
 
   const switchTo = useCallback((next: PreviewMode) => {
     setMode(next);
@@ -171,6 +205,7 @@ function PreviewDialog({ onClose, uuid, editToken, installToken, savedPlatform, 
 
   const context: PreviewContextValue | null = preview ? {
     preview, loader, metas, go, mode, columns: gridColumns(mode === 'stremio' ? Math.max(0, stageWidth - 96) : stageWidth),
+    source, streams: streams ?? null,
   } : null;
 
   let screen: ReactNode;
@@ -221,10 +256,14 @@ function PreviewDialog({ onClose, uuid, editToken, installToken, savedPlatform, 
       onCancel={cancelToClose(onClose)}
     >
       <header className="npv-topbar">
-        <span className={`npv-wordmark${mode === 'stremio' ? ' is-stremio' : ''}`} data-i18n-preserve>{mode === 'stremio' ? 'Stremio' : 'nuvio'}</span>
+        {mode === 'stremio'
+          ? <span className="npv-wordmark is-stremio" data-i18n-preserve>Stremio</span>
+          : <img className="npv-wordmark-img" src={NUVIO_WORDMARK} alt="Nuvio" height={22} draggable={false} data-i18n-preserve />}
         <span className="npv-topbar-note">
-          <span>Preview of your saved setup</span>
-          {dirty && <em>Save to see your latest changes.</em>}
+          <span>{source === 'saved' ? 'Preview of your saved setup' : source === 'edited' ? 'Preview of your setup' : 'Live preview of this setup'}</span>
+          {source === 'edited' && <em>Showing your unsaved changes.</em>}
+          {source === 'saved' && dirty && <em>Save to see your latest changes.</em>}
+          {source !== 'saved' && posterStyle ? <em>Posters show in your style once saved.</em> : null}
         </span>
         <div className="npv-modes" role="group" aria-label="Player">
           {(['tv', 'mobile', 'stremio'] as const).map((id) => (
@@ -238,7 +277,7 @@ function PreviewDialog({ onClose, uuid, editToken, installToken, savedPlatform, 
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
         </button>
       </header>
-      {!installToken && <p className="npv-banner">Posters need your install link. Unlock this setup again to load them.</p>}
+      {source !== 'draft' && !installToken && <p className="npv-banner">Posters need your install link. Unlock this setup again to load them.</p>}
       {/* On TV the first arrow key hands focus to the focused card. */}
       <div
         className={`npv-body is-${mode}${mode === 'mobile' && phoneFill ? ' is-phone' : ''}`} ref={bodyRef} tabIndex={-1}

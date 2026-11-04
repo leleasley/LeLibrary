@@ -4,8 +4,8 @@ import {
   type PreviewCollection, type PreviewRow, type PreviewScreen,
 } from '@/features/setup/preview/preview-model';
 import {
-  Art, Chevron, EmptyNote, ErrorNote, ExternalNote, FolderTile, Layer, PosterCard, SkeletonCards, StackScreens,
-  rowTitle, typeName, useCatalog, usePreview,
+  Art, Chevron, EmptyNote, ErrorNote, ExternalNote, FolderTile, Layer, PosterCard, SampleHero, SampleRow, SkeletonCards,
+  FranchiseNote, StackScreens, rowTitle, typeName, useCatalog, usePreview,
 } from '@/features/setup/preview/PreviewScreens';
 
 // Nuvio Mobile's Home: the hero carousel under the status bar, then the
@@ -72,6 +72,10 @@ export function MobileHero({ width, height }: { width: number; height: number })
 
   const height_ = heroHeight(width, height);
   const loading = sources.length > 0 && states.some((state) => !state || state.status === 'loading') && count === 0;
+  // Library hero sources in a draft: the hero's shape, saying what comes.
+  if (sources.length > 0 && states.every((state) => state?.status === 'sample')) {
+    return <>{sources.map((row) => <HeroSource key={row.key} row={row} />)}<SampleHero height={height_} /></>;
+  }
   if (!sources.length || (!loading && count === 0)) return <>{sources.map((row) => <HeroSource key={row.key} row={row} />)}</>;
 
   const onDown = (event: ReactPointerEvent<HTMLElement>) => {
@@ -167,6 +171,7 @@ function MobileCatalogRow({ row }: { row: PreviewRow }) {
   if (row.external) body = <ExternalNote />;
   else if (!state || state.status === 'loading') body = <div className="npv-strip"><SkeletonCards count={4} /></div>;
   else if (state.status === 'error') body = <ErrorNote onRetry={retry} />;
+  else if (state.status === 'sample') body = <SampleRow reason={state.reason} count={4} />;
   else if (!state.metas.length) body = <EmptyNote />;
   else body = <div className="npv-strip">{state.metas.slice(0, ROW_LIMIT).map((meta) => <PosterCard key={meta.id} meta={meta} />)}</div>;
   return (
@@ -239,7 +244,7 @@ export function NuvioMobile({ stack, width, height }: { stack: PreviewScreen[]; 
             }
             return <MobileCatalogRow key={`r-${entry.key}`} row={entry} />;
           })}
-          {preview.franchisePending && <EmptyNote>Movie Collections appears here once your library has finished building.</EmptyNote>}
+          {preview.franchisePending && <FranchiseNote />}
         </div>
       </Layer>
       <StackScreens stack={stack} />

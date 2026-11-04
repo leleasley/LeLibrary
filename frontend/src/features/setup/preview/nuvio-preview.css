@@ -826,6 +826,7 @@ html.npv-locked body {
   .npv-topbar { gap: 8px; padding: 0 6px 0 12px; }
   .npv-topbar-note { display: none; }
   .npv-wordmark { flex: 1; }
+  .npv-wordmark-img { margin-right: auto; }
   .npv-modes button { padding: 6px 10px; }
   .npv-stremio { grid-template-columns: 60px minmax(0, 1fr); }
   .npv-st-item { width: 52px; }
@@ -849,3 +850,61 @@ html.npv-locked body {
 /* Phone screens start below the status bar (the spec's 52px header top) */
 .npv-phone:not(.is-fill) .npv-catalog-head { padding-top: 52px; }
 .npv-phone:not(.is-fill) .npv-details-top { top: 52px; }
+
+/* Nuvio's own wordmark in the top bar (height-driven). */
+.npv-wordmark-img { display: block; flex: none; width: auto; height: 22px; user-select: none; }
+
+/* Draft samples: rows the preview cannot fill before the setup exists. */
+.npv-sample { display: grid; gap: 10px; }
+.npv-card.is-sample { cursor: default; }
+.npv-art.is-sample {
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02) 60%),
+    var(--npv-surface);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+}
+.npv-card.is-sample .npv-skel-line { width: 70%; margin-top: 8px; }
+.npv-sample-note { padding: 0 var(--npv-side); color: var(--npv-text-2); font-size: 13px; line-height: 18px; }
+.npv-hero.is-sample { height: 420px; }
+.npv-hero.is-sample .npv-sample-hero-art { position: absolute; inset: 0; border: 0; border-radius: 0 0 28px 28px; }
+.npv-sample-hero-text { padding-bottom: 40px; }
+.npv-sample-hero-text .npv-sample-note { padding: 0 24px; font-size: 15px; line-height: 22px; }
+.npv-tv-hero.is-sample .npv-sample-hero-art { position: absolute; top: 0; right: 0; width: 72%; height: 100%; border: 0; border-radius: 0; }
+.npv-tv-hero.is-sample .npv-sample-hero-text {
+  top: 160px; left: 132px; right: auto; bottom: auto; width: 42%;
+  padding: 0; align-items: flex-start; text-align: left;
+}
+.npv-tv-hero.is-sample .npv-sample-note { padding: 0; font-size: 20px; line-height: 28px; }
+
+/* Sample streams in details, styled like Nuvio's stream list. */
+.npv-streams { display: grid; gap: 10px; width: 100%; max-width: 620px; margin-top: 26px; text-align: left; }
+.npv-streams-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.npv-streams-head h3 { font-size: 18px; line-height: 24px; font-weight: 600; }
+.npv-streams-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(231, 196, 107, 0.4);
+  color: #e7c46b;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.npv-streams-note { color: var(--npv-muted); font-size: 12px; line-height: 17px; }
+.npv-stream-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.npv-stream {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--npv-surface);
+  cursor: not-allowed;
+}
+.npv-stream.is-loading { gap: 8px; }
+.npv-stream.is-loading .npv-skel-line { margin: 0; }
+.npv-stream-name { font-size: 14px; line-height: 20px; font-weight: 700; white-space: pre-line; overflow-wrap: anywhere; }
+.npv-stream-desc { color: var(--npv-text-2); font-size: 12px; line-height: 18px; white-space: pre-line; overflow-wrap: anywhere; }
+.npv-stream .fmt-badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 0; padding: 0; border: 0; background: none; }
+.npv-stream .fmt-badges img { height: 16px; width: auto; }
+.npv-tv .npv-streams { max-width: none; }

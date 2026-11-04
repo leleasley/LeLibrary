@@ -16,7 +16,7 @@ import { BADGE_PACKS, DEFAULT_BADGE_PACK } from '@/features/setup/shared/BadgePa
 import { TierProgress } from '@/features/setup/shared/tier/TierProgress';
 import { BadgePackStrip, StreamStylePicker, TierMetadata, usePresetPicker } from '@/features/setup/shared/tier/TierPickers';
 import { TierInstall } from '@/features/setup/shared/tier/TierInstall';
-import { TierDock, TierPreviewPanel } from '@/features/setup/shared/tier/TierPreview';
+import { TierDock, useTierPreview } from '@/features/setup/shared/tier/TierPreview';
 import { PosterWall, TierHero, TierStep } from '@/features/setup/shared/tier/TierChrome';
 import '@/features/setup/shared/tier/tier.css';
 import { useEditSnapshot, type EditMode } from '@/features/setup/shared/edit-mode';
@@ -98,7 +98,43 @@ type TierSnapshotMeta = EditMode['initial']['meta'];
 
 // One page, two modes: create (draft kept in this browser, ends in Create) and
 // edit (seeded from the saved setup at /{uuid}, ends in Save).
-export function QuickSetupPage({ edit }: { edit?: EditMode } = {}) {
+// The config a Quick Look setup is created with (never its keys): creation
+// and the Preview both build it here, so the Preview shows what is saved.
+export function quickCreateConfig(input: {
+  keys: SetupKeysDraft;
+  formatting: FormattingDraft;
+  posters: PostersDraft;
+  badgePack: { pack: string; url: string };
+  extras: QuickExtras;
+  libraryRows: LibraryRowsDraft;
+}): Record<string, unknown> {
+  const { keys, formatting, posters, badgePack, extras, libraryRows } = input;
+  return {
+    ...pruneConfig({
+      provider: providerSelection(keys),
+      streamPreset: formatting.preset,
+      streamNameTemplate: formatting.nameTemplate,
+      streamDescTemplate: formatting.descTemplate,
+      posterProvider: posters.provider,
+      pictoriumUrl: posters.pictoriumUrl,
+      pictoriumOptions: posters.pictoriumOptions,
+      customPosterTemplate: posters.customTemplate,
+      nuvioBadgePack: badgePack.pack,
+      nuvioBadgeUrl: badgePack.url,
+      searchScope: extras.searchScope,
+      lang: extras.lang,
+      libraryIdMode: 'torbox',
+      hideAnime: extras.hideAnime,
+      torboxSources: extras.torboxSources,
+      streamNotices: extras.notices ? 'on' : 'off',
+      streamNoticeTypes: extras.noticeTypes,
+    }),
+    ...libraryRowsToConfig(libraryRows),
+  };
+}
+
+// `previewOpen` starts with the Preview open (tests only).
+export function QuickSetupPage({ edit, previewOpen }: { edit?: EditMode; previewOpen?: boolean } = {}) {
   const [restored] = useState(() => (edit ? null : loadQuickDraft()));
   const seed = edit?.initial;
   const [name, setName] = useState(seed?.name ?? restored?.name ?? '');
@@ -147,31 +183,18 @@ export function QuickSetupPage({ edit }: { edit?: EditMode } = {}) {
   function submit() {
     void creation.create({
       name,
-      config: {
-        ...pruneConfig({
-        provider: providerSelection(keys),
-        streamPreset: formatting.preset,
-        streamNameTemplate: formatting.nameTemplate,
-        streamDescTemplate: formatting.descTemplate,
-        posterProvider: posters.provider,
-        pictoriumUrl: posters.pictoriumUrl,
-        pictoriumOptions: posters.pictoriumOptions,
-        customPosterTemplate: posters.customTemplate,
-        nuvioBadgePack: badgePack.pack,
-        nuvioBadgeUrl: badgePack.url,
-        searchScope: extras.searchScope,
-        lang: extras.lang,
-        libraryIdMode: 'torbox',
-        hideAnime: extras.hideAnime,
-        torboxSources: extras.torboxSources,
-        streamNotices: extras.notices ? 'on' : 'off',
-        streamNoticeTypes: extras.noticeTypes,
-        }),
-        ...libraryRowsToConfig(libraryRows),
-      },
+      config: quickCreateConfig({ keys, formatting, posters, badgePack, extras, libraryRows }),
       keys: cleanKeys(keys),
     }).then((ok) => { if (ok) clearQuickDraft(); });
   }
+
+  // Quick Look has no player choice: its library rows show the same on both.
+  const preview = useTierPreview(edit, {
+    tier: 'quick',
+    platform: edit?.initial.platform ?? 'nuvio',
+    config: () => quickCreateConfig({ keys, formatting, posters, badgePack, extras, libraryRows }),
+    keys, formatting, badgePack, posterStyle: posters.provider,
+  }, previewOpen);
 
   const pickPreset = usePresetPicker(formatting, setFormatting);
 
@@ -207,34 +230,8 @@ export function QuickSetupPage({ edit }: { edit?: EditMode } = {}) {
     );
   }
   const dirty = edit ? edit.dirty : isQuickDirty({ name, keys, formatting, posters, badgePack, extras, libraryRows });
-  const panel = (
-    <TierPreviewPanel
-      keys={keys} posters={posters} formatting={formatting} badgePack={badgePack}
-      rows={[
-        { label: 'Library', value: connected.length ? connected.join(' + ') : 'Not connected yet', ok: connected.length > 0 },
-        { label: 'Artwork', value: posterLabel },
-        { label: 'Streams', value: streamLabel },
-        { label: 'Nuvio badges', value: badgeLabel },
-      ]}
-      cta={edit ? (
-        <button type="button" className="setup-primary finish-cta" disabled={!edit.dirty || edit.saving} onClick={edit.onSave}>
-          {edit.saving ? 'Saving…' : edit.dirty ? 'Save changes' : 'Everything is saved'}
-        </button>
-      ) : passwordReady ? (
-        <button type="button" className="setup-primary finish-cta" disabled={creation.busy} onClick={submit}>
-          {creation.busy ? 'Creating…' : 'Create my manifest'}
-        </button>
-      ) : (
-        <p className="finish-password-hint">
-          Set a password below to protect your setup, then your manifest link will appear here.
-        </p>
-      )}
-      footer={<p className="finish-note">Your manifest link is private. Only paste it into a player you trust.</p>}
-    />
-  );
-
   return (
-    <section className="setup setup-wide qs">
+    <section className="setup setup-wide qs qs-tier">
       <TierProgress
         steps={steps} unsaved={dirty}
         save={edit && !edit.locked ? { onSave: edit.onSave, onSaveAndPush: edit.onSaveAndPush, pushTarget: edit.pushTarget, busy: edit.saving || edit.pushing } : null}
@@ -269,7 +266,7 @@ export function QuickSetupPage({ edit }: { edit?: EditMode } = {}) {
           </TierStep>
 
           <TierStep id="artwork" index={2} title="Posters" lede="Pick a look. The preview updates as you choose.">
-            <PostersSection draft={posters} keys={keys} onDraft={setPosters} onKeys={setKeys} hidePreview savedServices={edit?.savedServices} />
+            <PostersSection draft={posters} keys={keys} onDraft={setPosters} onKeys={setKeys} savedServices={edit?.savedServices} />
           </TierStep>
 
           <TierStep id="stream-look" index={3} title="Playback style" lede="Choose how your library files appear in the player.">
@@ -304,12 +301,10 @@ export function QuickSetupPage({ edit }: { edit?: EditMode } = {}) {
           )}
         </div>
 
-        <aside className="qs-aside">{panel}</aside>
       </div>
 
-      <TierDock hasArt={hasTmdb} label={hasTmdb ? `${posterLabel} · ${streamLabel}` : 'Add your TMDB key to see posters'}>
-        {panel}
-      </TierDock>
+      <TierDock hasArt={hasTmdb} label={hasTmdb ? `${posterLabel} · ${streamLabel}` : 'Add your TMDB key to see posters'} onPreview={preview.openPreview} />
+      {preview.modal}
 
       <ConfirmModal
         open={confirmReset}

@@ -2,7 +2,7 @@ import {
   ROW_LIMIT, rowHasMore, type PreviewRow, type PreviewScreen,
 } from '@/features/setup/preview/preview-model';
 import {
-  EmptyNote, ErrorNote, ExternalNote, Layer, PosterCard, SkeletonCards, StackScreens, rowTitle, useCatalog, usePreview,
+  EmptyNote, ErrorNote, ExternalNote, Layer, PosterCard, SampleRow, SkeletonCards, StackScreens, rowTitle, useCatalog, usePreview,
 } from '@/features/setup/preview/PreviewScreens';
 
 // Stremio's Board: its catalogue rows (Stremio shows no collections), each
@@ -22,6 +22,7 @@ function BoardRow({ row }: { row: PreviewRow }) {
   if (row.external) body = <ExternalNote />;
   else if (!state || state.status === 'loading') body = <div className="npv-strip"><SkeletonCards count={7} /></div>;
   else if (state.status === 'error') body = <ErrorNote onRetry={retry} />;
+  else if (state.status === 'sample') body = <SampleRow reason={state.reason} count={7} />;
   else if (!state.metas.length) body = <EmptyNote />;
   else body = <div className="npv-strip">{state.metas.slice(0, ROW_LIMIT).map((meta) => <PosterCard key={meta.id} meta={meta} />)}</div>;
   return (

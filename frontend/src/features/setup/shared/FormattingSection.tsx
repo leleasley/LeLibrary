@@ -5,8 +5,8 @@ import {
   STREAM_PRESETS,
   type StreamPresetId,
 } from '@/features/setup/shared/config-contract';
-import { loadFormatter, useLegacyLib } from '@/features/setup/shared/legacy-libs';
-import { LOCAL_BADGE_BASE, LOCAL_BADGE_SAMPLE, useBadgePreview } from '@/features/setup/shared/BadgePackPicker';
+import { loadFormatter, useLegacyLib, type FormatterLib } from '@/features/setup/shared/legacy-libs';
+import { LOCAL_BADGE_BASE, LOCAL_BADGE_SAMPLE, useBadgePreview, type BadgePreviewState } from '@/features/setup/shared/BadgePackPicker';
 
 export interface FormattingDraft {
   preset: StreamPresetId;
@@ -29,29 +29,10 @@ export function FormattingPreview({ draft, sampleIndex = 0, badgePack = 'lelibra
   badgeUrl?: string;
 }) {
   const formatter = useLegacyLib(loadFormatter);
-  const preset = formatter?.presets[draft.preset];
-  const badgeState = useBadgePreview(badgePack, badgeUrl);
-
-  const rendered = useMemo(() => {
-    if (!formatter) return null;
-    const sample = FORMAT_SAMPLES[sampleIndex] ?? FORMAT_SAMPLES[0];
-    if (!sample) return null;
-    const nameTemplate = draft.preset === 'custom' ? draft.nameTemplate : (preset?.name ?? '');
-    const descTemplate = draft.preset === 'custom' ? draft.descTemplate : (preset?.description ?? '');
-    if (!nameTemplate && !descTemplate) return null;
-    try {
-      return formatter.formatStream(
-        nameTemplate || '{addon.name}',
-        descTemplate || '',
-        sample.filename,
-        sample.source,
-        sample.size,
-        {},
-      );
-    } catch {
-      return null;
-    }
-  }, [formatter, draft.preset, draft.nameTemplate, draft.descTemplate, preset, sampleIndex]);
+  const rendered = useMemo(
+    () => (formatter ? formatSample(formatter, draft, FORMAT_SAMPLES[sampleIndex] ?? FORMAT_SAMPLES[0]) : null),
+    [formatter, draft, sampleIndex],
+  );
 
   if (!formatter) return <div className="fmt-preview is-loading">Loading the formatter…</div>;
   if (!rendered) return <div className="fmt-preview is-loading">Choose a preset to see the preview.</div>;
@@ -65,24 +46,54 @@ export function FormattingPreview({ draft, sampleIndex = 0, badgePack = 'lelibra
           <div className="fmt-desc">{rendered.description}</div>
         </div>
       </div>
-      {(badgeState.mode === 'local' || badgeState.mode === 'remote') && (
-        <div className="fmt-badges" aria-label="Badge preview">
-          {badgeState.mode === 'local'
-            ? LOCAL_BADGE_SAMPLE.map((id) => (
-                <img key={id} src={`${LOCAL_BADGE_BASE}/${id}.png`} alt="" loading="lazy" />
-              ))
-            : badgeState.badges.map((badge) => (
-                <i
-                  key={badge.imageURL}
-                  className={`badge-remote${badge.bordered ? ' is-bordered' : ''}`}
-                  style={{ '--badge-border': badge.borderColor, '--badge-fill': badge.tagColor } as React.CSSProperties}
-                  data-i18n-preserve title={badge.name}
-                >
-                  <img src={badge.imageURL} alt={badge.name} data-i18n-preserve loading="lazy" />
-                </i>
-              ))}
-        </div>
-      )}
+      <FormattingBadges badgePack={badgePack} badgeUrl={badgeUrl} />
+    </div>
+  );
+}
+
+// One stream card's name and description from the chosen style, run
+// through the same formatter engine the server uses. Null when the style
+// has no templates (or the formatter throws on a hand-written one).
+export function formatSample(
+  formatter: FormatterLib,
+  draft: FormattingDraft,
+  sample: (typeof FORMAT_SAMPLES)[number] | undefined,
+): { name: string; description: string } | null {
+  if (!sample) return null;
+  const preset = formatter.presets[draft.preset];
+  const nameTemplate = draft.preset === 'custom' ? draft.nameTemplate : (preset?.name ?? '');
+  const descTemplate = draft.preset === 'custom' ? draft.descTemplate : (preset?.description ?? '');
+  if (!nameTemplate && !descTemplate) return null;
+  try {
+    return formatter.formatStream(nameTemplate || '{addon.name}', descTemplate || '', sample.filename, sample.source, sample.size, {});
+  } catch {
+    return null;
+  }
+}
+
+// The badge pack's look, as it sits under a stream in Nuvio.
+export function FormattingBadges({ badgePack = 'lelibrary-premium', badgeUrl = '' }: { badgePack?: string; badgeUrl?: string }) {
+  return <BadgeStrip state={useBadgePreview(badgePack, badgeUrl)} />;
+}
+
+export function BadgeStrip({ state: badgeState }: { state: BadgePreviewState }) {
+  if (badgeState.mode !== 'local' && badgeState.mode !== 'remote') return null;
+  return (
+    <div className="fmt-badges" aria-label="Badge preview">
+      {badgeState.mode === 'local'
+        ? LOCAL_BADGE_SAMPLE.map((id) => (
+            <img key={id} src={`${LOCAL_BADGE_BASE}/${id}.png`} alt="" loading="lazy" />
+          ))
+        : badgeState.badges.map((badge) => (
+            <i
+              key={badge.imageURL}
+              className={`badge-remote${badge.bordered ? ' is-bordered' : ''}`}
+              style={{ '--badge-border': badge.borderColor, '--badge-fill': badge.tagColor } as React.CSSProperties}
+              data-i18n-preserve title={badge.name}
+            >
+              <img src={badge.imageURL} alt={badge.name} data-i18n-preserve loading="lazy" />
+            </i>
+          ))}
     </div>
   );
 }

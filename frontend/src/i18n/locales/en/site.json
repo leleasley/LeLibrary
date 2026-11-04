@@ -228,7 +228,8 @@
     "videos": {
       "eyebrow": "Watch it",
       "title": "See each setup, step by step",
-      "lede": "Short walkthroughs of the real pages. Pick a setup type to watch how it fills in.",
+      "lede": "Short narrated walkthroughs of the real pages. Pick a setup type, press play and turn the sound up.",
+      "subtitles": "Subtitles (English)",
       "tiers": {
         "quick": "Quick Look",
         "partial": "Settle In",

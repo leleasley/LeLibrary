@@ -228,7 +228,8 @@
     "videos": {
       "eyebrow": "Míralo",
       "title": "Cada configuración, paso a paso",
-      "lede": "Recorridos cortos por las páginas reales. Elige un tipo de configuración para ver cómo se rellena.",
+      "lede": "Recorridos cortos y narrados por las páginas reales. Elige un tipo de configuración, dale a reproducir y sube el volumen.",
+      "subtitles": "Subtítulos (inglés)",
       "tiers": {
         "quick": "Vista rápida",
         "partial": "Ajusta a tu gusto",

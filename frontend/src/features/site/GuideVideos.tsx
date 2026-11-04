@@ -9,6 +9,8 @@ export interface GuideVideo {
   src: string;
   poster?: string;
   duration?: string;
+  /** WebVTT of the narration (English), when the video is narrated. */
+  captions?: string;
 }
 
 const MANIFEST_URL = '/guide/videos/videos.json';
@@ -25,6 +27,7 @@ export function parseGuideVideos(data: unknown): GuideVideo[] {
     const video: GuideVideo = { tier, src };
     if (typeof item['poster'] === 'string' && item['poster'].startsWith('/guide/videos/')) video.poster = item['poster'];
     if (typeof item['duration'] === 'string') video.duration = item['duration'];
+    if (typeof item['captions'] === 'string' && item['captions'].startsWith('/guide/videos/')) video.captions = item['captions'];
     return [video];
   }).sort((a, b) => ORDER.indexOf(a.tier) - ORDER.indexOf(b.tier));
 }
@@ -95,11 +98,12 @@ export function GuideVideos() {
       <div className="gd-video-frame">
         <video
           key={current.src}
-          controls muted playsInline preload="none"
+          controls playsInline preload="none"
           {...(current.poster ? { poster: current.poster } : {})}
           aria-label={t(`guide.videos.tiers.${current.tier}`)}
         >
           <source src={current.src} type="video/mp4" />
+          {current.captions && <track kind="subtitles" src={current.captions} srcLang="en" label={t('guide.videos.subtitles')} />}
         </video>
       </div>
     </div>

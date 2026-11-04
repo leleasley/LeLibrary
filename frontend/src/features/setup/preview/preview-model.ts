@@ -25,6 +25,8 @@ export interface PreviewRow {
   name: string;
   custom?: boolean;
   external?: boolean;
+  // Client only: a folder source opened on its own "See all" keeps its genre.
+  genre?: string | undefined;
 }
 
 export interface PreviewSource {
@@ -186,6 +188,14 @@ export function platformFor(mode: PreviewMode): PreviewPlatform {
 export function defaultMode(platform: PreviewPlatform, viewportWidth: number): PreviewMode {
   if (platform === 'stremio') return 'stremio';
   return viewportWidth > 0 && viewportWidth < 600 ? 'mobile' : 'tv';
+}
+
+// TV mode in a narrow modal (a phone) is laid out at the modal's width
+// instead of shrinking the 1280x720 stage until nothing reads.
+export const PHONE_TV_MAX_WIDTH = 700;
+
+export function tvLayout(modalWidth: number): 'phone' | 'stage' {
+  return modalWidth > 0 && modalWidth < PHONE_TV_MAX_WIDTH ? 'phone' : 'stage';
 }
 
 // One catalogue the preview can load: a Home/board row or a folder source.

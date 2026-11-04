@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import {
   createCatalogLoader, createDraftCatalogLoader, createMetaLoader, defaultMode, fetchDraftPreview, fetchSetupPreview, fitScale,
-  gridColumns, platformFor, previewNav, previewSourceMode,
+  gridColumns, platformFor, previewNav, previewSourceMode, tvLayout,
   type CatalogLoader, type MetaLoader, type PreviewAction, type PreviewDraft, type PreviewMode, type PreviewPlatform,
   type PreviewScreen, type PreviewSourceMode, type SetupPreview,
 } from '@/features/setup/preview/preview-model';
 import { PreviewContext, SkeletonCards, type PreviewContextValue, type PreviewStreamStyle } from '@/features/setup/preview/PreviewScreens';
 import { NuvioMobile } from '@/features/setup/preview/NuvioMobile';
 import { NuvioTv, TV_HEIGHT, TV_WIDTH } from '@/features/setup/preview/NuvioTv';
+import { NuvioPhoneTv, phoneTvTitle } from '@/features/setup/preview/NuvioPhoneTv';
 import { StremioBoard } from '@/features/setup/preview/StremioBoard';
 import './nuvio-preview.css';
 
 // The setup Preview: a full-screen modal that IS the player's screen for the
-// setup on the page. Nuvio TV (scaled 1280x720 stage), Nuvio Mobile (a
+// setup on the page. Nuvio TV (scaled 1280x720 stage; laid out at phone
+// width in a narrow modal), Nuvio Mobile (a
 // 390x844 phone on wide screens, the whole modal on a phone) or Stremio's
 // board, with the real Home order, posters, collections and folders. It is
 // the one Preview on every setup page (the dock's Preview button): live from
@@ -92,7 +94,8 @@ const MODE_ICONS: Record<PreviewMode, ReactNode> = {
   mobile: <><rect x="7" y="3" width="10" height="18" rx="2.5" /><path d="M11 18h2" /></>,
   stremio: <path d="M12 3.5 20.5 12 12 20.5 3.5 12z" />,
 };
-const MODE_LABELS: Record<PreviewMode, string> = { tv: 'TV', mobile: 'Mobile', stremio: 'Stremio' };
+// The icon-only switch's accessible names.
+const MODE_LABELS: Record<PreviewMode, string> = { tv: 'Nuvio TV', mobile: 'Nuvio Mobile', stremio: 'Stremio' };
 
 function Loading({ mode }: { mode: PreviewMode }) {
   return (
@@ -198,9 +201,11 @@ function PreviewDialog({
   // Stage geometry: TV is a 1280x720 design scaled to fit; Mobile fills a
   // phone-sized modal and is a scaled 390x844 phone on anything wider.
   const phoneFill = size.width > 0 && size.width < 600;
+  // TV in a narrow modal: the TV home at the modal's width, not a tiny stage.
+  const phoneTv = mode === 'tv' && tvLayout(size.width) === 'phone';
   const tvScale = fitScale(size.width, size.height, TV_WIDTH, TV_HEIGHT);
   const phoneScale = Math.min(1, fitScale(size.width - 32, size.height - 32, PHONE_WIDTH, PHONE_HEIGHT));
-  const stageWidth = mode === 'tv' ? TV_WIDTH : mode === 'mobile' ? (phoneFill ? size.width : PHONE_WIDTH) : size.width;
+  const stageWidth = mode === 'tv' ? (phoneTv ? size.width : TV_WIDTH) : mode === 'mobile' ? (phoneFill ? size.width : PHONE_WIDTH) : size.width;
   const stageHeight = mode === 'mobile' && phoneFill ? size.height : PHONE_HEIGHT;
 
   const context: PreviewContextValue | null = preview ? {
@@ -215,7 +220,9 @@ function PreviewDialog({
         <span>The preview could not be loaded.</span>
         <button type="button" className="npv-chip-btn" onClick={() => setAttempt((n) => n + 1)}>Try again</button>
       </div>
-    ) : <Loading mode={mode} />;
+    ) : <Loading mode={phoneTv ? 'mobile' : mode} />;
+  } else if (phoneTv) {
+    screen = <NuvioPhoneTv stack={stack} />;
   } else if (mode === 'tv') {
     screen = <NuvioTv stack={stack} />;
   } else if (mode === 'mobile') {
@@ -223,10 +230,14 @@ function PreviewDialog({
   } else {
     screen = <StremioBoard stack={stack} />;
   }
+  // Phone-TV folder and "See all" screens: the top bar is their header.
+  const subTitle = phoneTv && preview ? phoneTvTitle(preview, stack) : null;
   if (context) screen = <PreviewContext.Provider value={context}>{screen}</PreviewContext.Provider>;
 
   let stage: ReactNode;
-  if (mode === 'tv') {
+  if (phoneTv) {
+    stage = <div className="npv-app npv-ptv is-fill">{screen}</div>;
+  } else if (mode === 'tv') {
     stage = (
       <div className="npv-tv-frame" style={{ width: TV_WIDTH * tvScale, height: TV_HEIGHT * tvScale }}>
         <div className="npv-app npv-tv" style={{ width: TV_WIDTH, height: TV_HEIGHT, transform: `scale(${tvScale})` }}>{screen}</div>
@@ -256,20 +267,29 @@ function PreviewDialog({
       onCancel={cancelToClose(onClose)}
     >
       <header className="npv-topbar">
-        {mode === 'stremio'
+        {subTitle !== null ? (
+          <div className="npv-topbar-title">
+            <button type="button" className="npv-topbar-back" aria-label="Back" onClick={() => go({ type: 'back' })}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+            </button>
+            <h2 data-i18n-preserve>{subTitle}</h2>
+          </div>
+        ) : mode === 'stremio'
           ? <span className="npv-wordmark is-stremio" data-i18n-preserve>Stremio</span>
           : <img className="npv-wordmark-img" src={NUVIO_WORDMARK} alt="Nuvio" height={22} draggable={false} data-i18n-preserve />}
-        <span className="npv-topbar-note">
+        {subTitle === null && <span className="npv-topbar-note">
           <span>{source === 'saved' ? 'Preview of your saved setup' : source === 'edited' ? 'Preview of your setup' : 'Live preview of this setup'}</span>
           {source === 'edited' && <em>Showing your unsaved changes.</em>}
           {source === 'saved' && dirty && <em>Save to see your latest changes.</em>}
           {source !== 'saved' && posterStyle ? <em>Posters show in your style once saved.</em> : null}
-        </span>
+        </span>}
         <div className="npv-modes" role="group" aria-label="Player">
           {(['tv', 'mobile', 'stremio'] as const).map((id) => (
-            <button key={id} type="button" aria-pressed={mode === id} className={mode === id ? 'is-active' : ''} onClick={() => switchTo(id)}>
+            <button
+              key={id} type="button" aria-pressed={mode === id} aria-label={MODE_LABELS[id]} title={MODE_LABELS[id]}
+              className={mode === id ? 'is-active' : ''} onClick={() => switchTo(id)}
+            >
               <svg viewBox="0 0 24 24" aria-hidden="true">{MODE_ICONS[id]}</svg>
-              <span>{MODE_LABELS[id]}</span>
             </button>
           ))}
         </div>
@@ -280,9 +300,9 @@ function PreviewDialog({
       {source !== 'draft' && !installToken && <p className="npv-banner">Posters need your install link. Unlock this setup again to load them.</p>}
       {/* On TV the first arrow key hands focus to the focused card. */}
       <div
-        className={`npv-body is-${mode}${mode === 'mobile' && phoneFill ? ' is-phone' : ''}`} ref={bodyRef} tabIndex={-1}
+        className={`npv-body is-${mode}${(mode === 'mobile' && phoneFill) || phoneTv ? ' is-phone' : ''}`} ref={bodyRef} tabIndex={-1}
         onKeyDown={(event) => {
-          if (mode !== 'tv' || event.target !== event.currentTarget || !event.key.startsWith('Arrow')) return;
+          if (mode !== 'tv' || phoneTv || event.target !== event.currentTarget || !event.key.startsWith('Arrow')) return;
           const card = event.currentTarget.querySelector<HTMLElement>('[data-pos][tabindex="0"]');
           if (card) { event.preventDefault(); card.focus({ preventScroll: true }); }
         }}

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   GRID_LIMIT, HERO_INTERVAL_MS, ROW_LIMIT, catalogUrl, createCatalogLoader, createMetaLoader, defaultMode, fitScale,
-  gridColumns, heroHeight, heroPicks, metaUrl, metasFrom, moveFocus, previewNav, shouldAutoAdvance, startAutoAdvance,
+  gridColumns, heroHeight, heroPicks, tvLayout, metaUrl, metasFrom, moveFocus, previewNav, shouldAutoAdvance, startAutoAdvance,
   tmdbSized, type CatalogLoader, type MetaLoader, type PreviewMeta, type PreviewMode, type PreviewScreen, type SetupPreview,
 } from '@/features/setup/preview/preview-model';
 
@@ -121,8 +121,10 @@ describe('Preview modal', () => {
     expect(html).toContain('<dialog');
     expect(html).toContain('class="npv-dialog is-tv"');
     expect(html).toContain('Preview of your saved setup');
-    for (const label of ['TV', 'Mobile', 'Stremio']) expect(html).toContain(`<span>${label}</span>`);
-    expect(html).toMatch(/aria-pressed="true" class="is-active"><svg[^]*?<span>TV<\/span>/);
+    // An icon-only switch: each segment has an accessible name, no text.
+    for (const label of ['Nuvio TV', 'Nuvio Mobile', 'Stremio']) expect(html).toContain(`aria-label="${label}" title="${label}"`);
+    expect(html).toMatch(/aria-pressed="true" aria-label="Nuvio TV"[^>]*class="is-active"/);
+    expect(html).not.toContain('<span>TV</span>');
     expect(html).toContain('aria-label="Close preview"');
     expect(html).not.toContain('synthetic-secret');
   });
@@ -341,6 +343,87 @@ describe('Preview modal', () => {
     expect(html).toContain('Save to see your latest changes.');
     expect(gridColumns(390)).toBe(3);
     expect(gridColumns(1280)).toBe(6);
+  });
+});
+
+describe('Nuvio TV on a phone', () => {
+  const phone = { width: 390, height: 760 };
+
+  it('lays TV out at the modal width under 700px, the scaled stage above', () => {
+    expect(tvLayout(390)).toBe('phone');
+    expect(tvLayout(699)).toBe('phone');
+    expect(tvLayout(700)).toBe('stage');
+    expect(tvLayout(0)).toBe('stage');
+    const narrow = render({ mode: 'tv', size: phone });
+    expect(narrow).toContain('npv-app npv-ptv is-fill');
+    expect(narrow).toContain('npv-body is-tv is-phone');
+    expect(narrow).not.toContain('npv-tv-frame');
+    expect(narrow).not.toContain('npv-tv-side');
+    const wide = render({ mode: 'tv', size: { width: 1024, height: 700 } });
+    expect(wide).toContain('npv-tv-frame');
+    expect(wide).not.toContain('npv-ptv');
+    // Mobile on a phone is untouched.
+    expect(render({ mode: 'mobile', size: phone })).toContain('npv-phone is-fill');
+  });
+
+  it('Home: a heading band, collection rows with a folder count, catalogue rows with View all', async () => {
+    const html = render({ mode: 'tv', size: phone, loader: await loadedLoader() });
+    expect(html).toContain('npv-ptv-hero');
+    expect(html).toContain('>LeLibrary</h2>');
+    expect(html).toContain('Live preview of your Nuvio home with this setup.');
+    // The top bar keeps the wordmark on Home.
+    expect(html).toContain('npv-wordmark-img');
+    expect(html).not.toContain('npv-topbar-back');
+    // Home order: the collection, then the rows.
+    const order = ['>The Hub<', '>My Shows - Series<', '>Film Night<', '>Popular Elsewhere - Movie<'].map((name) => html.indexOf(name));
+    expect(order.every((at) => at > 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(html).toContain('<span class="npv-ptv-count">2 folders</span>');
+    // Large cards: the cover carries the name, no title under it; a folder
+    // without a cover shows its title on the card.
+    expect(html).toContain('folder-4k.jpg');
+    expect(html).not.toContain('folder-4k.gif');
+    expect(html).toContain('<span class="npv-ptv-tile-name" data-i18n-preserve="true">Wide Folder</span>');
+    expect(html).not.toContain('>In 4K</span>');
+    // View all only for the row with more than one row's worth (30 items).
+    expect((html.match(/class="npv-viewall"/g) ?? []).length).toBe(1);
+    expect(html).toContain('>movie title 0<');
+    expect(html).toContain('>2000<');
+    // Touch layout: no roving focus.
+    expect(html).not.toContain('data-pos=');
+  });
+
+  it('folder: Back and the title in the top bar, a header card and one row per source', async () => {
+    const stack = previewNav([{ at: 'home' }], { type: 'folder', collectionId: 'collection-lelibrary-hub', folderId: 'folder-4k' });
+    const html = render({ mode: 'tv', size: phone, loader: await loadedLoader(), stack });
+    expect(html).toMatch(/npv-topbar-title"><button type="button" class="npv-topbar-back" aria-label="Back"/);
+    expect(html).toContain('>In 4K</h2></div>');
+    expect(html).not.toContain('npv-wordmark-img');
+    expect(html).toContain('<p class="npv-ptv-kicker" data-i18n-preserve="true">The Hub</p>');
+    expect(html).toContain('<p class="npv-ptv-sources">2 sources</p>');
+    // One row per source, no tabs.
+    expect(html).not.toContain('aria-label="Folder sources"');
+    expect(html).toContain('>Movies in 4K - Movie<');
+    expect(html).toContain('>Curated - Series · Shows in 4K<');
+    expect(html).toContain('uhd-0.jpg');
+    expect(html).toContain('curated-0.jpg');
+  });
+
+  it('See all: Back and the title in the top bar over a three-column grid', async () => {
+    const row = NUVIO.home[2] as Extract<SetupPreview['home'][number], { kind: 'row' }>;
+    const html = render({ mode: 'tv', size: phone, loader: await loadedLoader(), stack: previewNav([{ at: 'home' }], { type: 'catalog', row }) });
+    expect(html).toContain('>Film Night</h2></div>');
+    expect(html).toContain('npv-topbar-back');
+    expect(html).toContain('npv-ptv-catalog');
+    expect(html).not.toContain('npv-catalog-head');
+    expect(html).toContain('--npv-cols:3');
+    expect(html).toContain('movie-29.jpg');
+    // A details sheet over it keeps the screen's title in the top bar.
+    const meta = metasFrom({ metas: metas('movie', 1) }, 1).metas[0] as PreviewMeta;
+    const stack = previewNav(previewNav([{ at: 'home' }], { type: 'catalog', row }), { type: 'details', meta });
+    const details = render({ mode: 'tv', size: phone, loader: await loadedLoader(), stack });
+    expect(details).toContain('>Film Night</h2></div>');
+    expect(details).toContain('npv-details');
   });
 });
 

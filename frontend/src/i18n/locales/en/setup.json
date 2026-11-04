@@ -1752,6 +1752,10 @@
     "Movie Collections appears here once the setup is created and your library is built.": "Movie Collections appears here once the setup is created and your library is built.",
     "Sample streams": "Sample streams",
     "Shown in your stream style. Not real files: nothing here plays.": "Shown in your stream style. Not real files: nothing here plays.",
-    "Choose a stream style to see your streams here.": "Choose a stream style to see your streams here."
+    "Choose a stream style to see your streams here.": "Choose a stream style to see your streams here.",
+    "Nuvio TV": "Nuvio TV",
+    "Nuvio Mobile": "Nuvio Mobile",
+    "Your Nuvio home": "Your Nuvio home",
+    "Live preview of your Nuvio home with this setup.": "Live preview of your Nuvio home with this setup."
   }
 }

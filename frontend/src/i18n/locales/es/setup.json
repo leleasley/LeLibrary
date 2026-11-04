@@ -1752,6 +1752,10 @@
     "Movie Collections appears here once the setup is created and your library is built.": "Colecciones de películas aparecerá aquí cuando se cree la configuración y tu biblioteca esté lista.",
     "Sample streams": "Streams de ejemplo",
     "Shown in your stream style. Not real files: nothing here plays.": "Con tu estilo de streams. No son archivos reales: aquí no se reproduce nada.",
-    "Choose a stream style to see your streams here.": "Elige un estilo de streams para ver tus streams aquí."
+    "Choose a stream style to see your streams here.": "Elige un estilo de streams para ver tus streams aquí.",
+    "Nuvio TV": "Nuvio TV",
+    "Nuvio Mobile": "Nuvio móvil",
+    "Your Nuvio home": "Tu inicio de Nuvio",
+    "Live preview of your Nuvio home with this setup.": "Vista previa en directo de tu inicio de Nuvio con esta configuración."
   }
 }

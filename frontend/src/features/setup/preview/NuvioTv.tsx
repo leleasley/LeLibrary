@@ -21,7 +21,7 @@ const HERO_DEBOUNCE_MS = 450;
 
 type Focused = { kind: 'meta'; meta: PreviewMeta } | { kind: 'folder'; folder: PreviewFolder; collection: PreviewCollection } | null;
 
-function visibleEntries(preview: SetupPreview): PreviewHomeEntry[] {
+export function visibleEntries(preview: SetupPreview): PreviewHomeEntry[] {
   const byId = new Map(preview.collections.map((item) => [item.id, item]));
   return preview.home.filter((entry) => entry.kind === 'row' || (byId.get(entry.id)?.folders.length ?? 0) > 0);
 }

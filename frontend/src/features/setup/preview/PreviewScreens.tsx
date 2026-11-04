@@ -81,6 +81,12 @@ export function sourceLabel(source: { catalogName: string; type: string; genre: 
   return source.genre ? `${base} · ${source.genre}` : base;
 }
 
+// A folder source as its own row: "{catalogue} - {Type}" (and its genre).
+export function sourceRowTitle(source: { catalogName: string; type: string; genre: string }): string {
+  const base = `${source.catalogName} - ${typeName(source.type)}`;
+  return source.genre ? `${base} · ${source.genre}` : base;
+}
+
 // An image in a fixed box: the box holds its shape (and a shimmer) until the
 // picture arrives, so nothing on the screen jumps.
 export function Art({ src, className = '', eager = false }: { src: string; className?: string; eager?: boolean }) {
@@ -253,7 +259,7 @@ function Grid({ metas, loading }: { metas: PreviewMeta[]; loading: boolean }) {
   );
 }
 
-function GridState({ state, retry }: { state: RowState | undefined; retry: () => void }) {
+export function GridState({ state, retry }: { state: RowState | undefined; retry: () => void }) {
   if (!state || state.status === 'loading') return <Grid metas={[]} loading />;
   if (state.status === 'error') return <ErrorNote onRetry={retry} />;
   if (state.status === 'sample') return <SampleRow reason={state.reason} />;
@@ -330,7 +336,7 @@ export function FolderScreen({ screen }: { screen: Extract<PreviewScreen, { at: 
 
 export function CatalogScreen({ screen }: { screen: Extract<PreviewScreen, { at: 'catalog' }> }) {
   const { preview, go } = usePreview();
-  const { state, retry } = useCatalog({ type: screen.row.type, catalogId: screen.row.catalogId }, true);
+  const { state, retry } = useCatalog({ type: screen.row.type, catalogId: screen.row.catalogId, genre: screen.row.genre }, true);
   return (
     <div className="npv-catalog">
       <header className="npv-catalog-head">

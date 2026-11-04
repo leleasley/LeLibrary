@@ -18,7 +18,7 @@ import { isSetupUuid, rememberSetup } from '@/features/setup/shared/setup-histor
 import { setupCopy, setupCount } from '@/features/setup/shared/setup-copy';
 import { LibraryPanel } from '@/features/setup/library/LibraryPanel';
 import { NuvioPanel } from '@/features/setup/nuvio/NuvioPanel';
-import { PreviewPanel } from '@/features/setup/preview/PreviewPanel';
+import { PreviewModal } from '@/features/setup/preview/PreviewModal';
 import { fetchLibrarySummary } from '@/features/setup/library/library-api';
 import { forgetDeletedSetup } from '@/features/setup/shared/saved-setups';
 import { ErrorState } from '@/features/site/ErrorPage';
@@ -68,7 +68,7 @@ export function tierPageFor(tier: string | null | undefined): ComponentType<{ ed
 
 type SavedAccount = { user: string | null; profiles: NuvioProfileRef[]; selected: number | null };
 
-type EditView = 'edit' | 'library' | 'nuvio' | 'preview' | 'settings';
+type EditView = 'edit' | 'library' | 'nuvio' | 'settings';
 // Matches the .edit-stage fade in tier.css.
 const VIEW_FADE_MS = 170;
 
@@ -157,6 +157,8 @@ export function SetupEditPage() {
   // settings. The tier page stays mounted while another view is open so
   // unsaved edits (and its scroll position) survive the switch.
   const [view, setView] = useState<EditView>('edit');
+  // The Preview is a full-screen modal over whichever view is open.
+  const [previewOpen, setPreviewOpen] = useState(false);
   const dirtyRef = useRef(false);
   // The fade runs on the element directly: a React render of the tier page
   // takes long enough to swallow the fade-out.
@@ -606,6 +608,11 @@ export function SetupEditPage() {
         </div>
       )}
       <div className="edit-settings-block">
+        <h3>Preview</h3>
+        <p>See your saved setup the way your player shows it: Nuvio on a TV or a phone, or Stremio's board. Looking never pushes or changes anything.</p>
+        <button type="button" className="setup-secondary" onClick={() => setPreviewOpen(true)}>{`Preview in ${platformName}`}</button>
+      </div>
+      <div className="edit-settings-block">
         <h3>Settings backup</h3>
         <p>Download this setup's saved settings as a file. Keys, your password and player logins are never included. Start a new setup from it on the setup page, for example for someone else in your home.</p>
         <button type="button" className="setup-secondary" onClick={() => void downloadSettings()}>Download settings backup</button>
@@ -708,6 +715,9 @@ export function SetupEditPage() {
                 connectHint: `Sign in to ${platformName} on the Connect page to push from here.`,
               })}
               secondaryAction={{ label: 'Clear my edits', disabled: !dirty, onClick: clearEdits }}
+              actionsExtra={(
+                <button type="button" className="setup-secondary" onClick={() => setPreviewOpen(true)}>{`Preview in ${platformName}`}</button>
+              )}
               regenerate={regenerate}
               replaceOthers={pushAvailable ? { value: replaceOthers, onChange: setReplaceOthers } : null}
               profilePicker={platform === 'nuvio' && savedAccount?.profiles?.length ? {
@@ -722,7 +732,7 @@ export function SetupEditPage() {
     ),
   };
 
-  const railItems: { id: EditView; label: string; title: string; icon: ReactNode; badge?: number | null }[] = [
+  const railItems: { id: EditView | 'preview'; label: string; title: string; icon: ReactNode; badge?: number | null }[] = [
     { id: 'edit', label: 'Edit', title: 'Edit settings', icon: <path d="M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6" /> },
     { id: 'library', label: 'Library', title: 'Your library', icon: <path d="M5 4v16M9 4v16M13 5l4 15M18 4.5l2 .5" />, badge: libraryAttention },
     ...(nuvioAvailable ? [{
@@ -747,8 +757,9 @@ export function SetupEditPage() {
             <button
               key={item.id} type="button" title={item.title}
               aria-current={view === item.id ? 'page' : undefined}
-              className={`edit-rail-item${view === item.id ? ' is-active' : ''}`}
-              onClick={() => go(item.id)}
+              aria-haspopup={item.id === 'preview' ? 'dialog' : undefined}
+              className={`edit-rail-item${view === item.id || (item.id === 'preview' && previewOpen) ? ' is-active' : ''}`}
+              onClick={() => (item.id === 'preview' ? setPreviewOpen(true) : go(item.id))}
             >
               <svg aria-hidden="true" viewBox="0 0 24 24">{item.icon}</svg>
               <span className="edit-rail-label">{item.label}</span>
@@ -773,15 +784,6 @@ export function SetupEditPage() {
             <NuvioPanel uuid={uuid} editToken={getEditToken()} onEditSetup={() => go('edit')} />
           </div>
         )}
-        {unlocked && view === 'preview' && (
-          <div className="edit-view edit-view-library edit-view-preview">
-            {backToEditing}
-            <PreviewPanel
-              uuid={uuid} editToken={getEditToken()} installToken={installToken}
-              defaultPlatform={saved?.platform ?? platform} dirty={dirty}
-            />
-          </div>
-        )}
         {unlocked && view === 'settings' && (
           <div className="edit-view edit-view-settings">
             {backToEditing}
@@ -796,6 +798,11 @@ export function SetupEditPage() {
           password={password} onPassword={setPassword} onSubmit={() => void unlock()}
         />
       )}
+      <PreviewModal
+        open={unlocked && previewOpen} onClose={() => setPreviewOpen(false)}
+        uuid={uuid} editToken={getEditToken()} installToken={installToken}
+        savedPlatform={saved?.platform ?? platform} dirty={dirty}
+      />
       <ConfirmModal
         open={confirmDelete}
         title="Delete everything linked to this setup?"

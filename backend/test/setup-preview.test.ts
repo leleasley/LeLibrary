@@ -153,6 +153,39 @@ test('Nuvio preview: collections lead, rows follow in the push\'s Home order', a
   assert.deepEqual(mine.folders[1].sources.map((s) => [s.type, s.catalogId]), [['series', 'torbox-series']]);
 });
 
+test('Nuvio preview: hero sources, addon name, folder art and pinned collections', async () => {
+  const { buildSetupPreview } = require('../src/setup/preview.ts');
+  const origin = 'https://lelibrary.test';
+  const out = await buildSetupPreview({ opened: opened(), platform: 'nuvio', origin }, { fetchFranchise: async () => null });
+  assert.ok(out.addonName.length > 0, 'the addon name is carried for subtitles');
+  // The hero follows Home order: the first two Home catalogues.
+  assert.deepEqual(out.hero.map((row) => row.catalogId), ['torbox-series', 'torbox-movies']);
+  assert.equal(out.hero[0].custom, true, 'a renamed row is flagged custom');
+  const folder = out.collections[0].folders[1];
+  assert.equal(folder.focusGif, '', 'no animated cover unless enabled');
+  assert.equal(folder.sources[0].catalogName.length > 0, true, 'sources carry their catalogue name');
+  assert.equal(out.collections[0].pinToTop, false);
+
+  const pinned = {
+    ...CONFIG,
+    collections: [
+      CONFIG.collections[0],
+      {
+        id: 'collection-lelibrary-pinned', title: 'Pinned', pinToTop: true,
+        folders: [{
+          id: 'folder-gif', title: 'Gif', coverImageUrl: '/art/folder/gif.jpg', focusGifUrl: '/art/folder/gif.gif', focusGifEnabled: true,
+          catalogSources: [{ addonId: '', catalogId: 'torbox-movies', type: 'movie' }],
+        }],
+      },
+    ],
+  };
+  const second = await buildSetupPreview({ opened: opened(UUID, { config: pinned }), platform: 'nuvio', origin }, { fetchFranchise: async () => null });
+  assert.equal(second.home[0].kind, 'collection');
+  assert.equal(second.home[0].id, 'collection-lelibrary-pinned', 'a pinned collection leads Home');
+  const gif = second.collections.find((c) => c.id === 'collection-lelibrary-pinned').folders[0];
+  assert.equal(gif.focusGif, `${origin}/art/folder/gif.gif`);
+});
+
 test('Movie Collections lands at its slot; pending when the library is not built', async () => {
   const { buildSetupPreview } = require('../src/setup/preview.ts');
   const withFranchise = { ...CONFIG, collectionHomeRows: [...CONFIG.collectionHomeRows, { ...homeRow('torbox-collections', 'movie', 9), _nativeFranchiseCollection: true, collectionSlot: 1 }] };

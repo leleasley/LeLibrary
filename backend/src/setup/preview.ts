@@ -25,6 +25,9 @@ export interface PreviewRow {
   type: string;
   catalogId: string;
   name: string;
+  // The row's name is the user's own title (Nuvio shows it as is, without
+  // the "- Type" suffix it adds to catalogue names).
+  custom?: boolean;
   // From another addon: the preview cannot load it, the player can.
   external?: boolean;
 }
@@ -34,6 +37,8 @@ export interface PreviewSource {
   type: string;
   genre: string;
   name: string;
+  // The source catalogue's own name, for the folder's tab labels.
+  catalogName: string;
   external?: boolean;
 }
 
@@ -41,6 +46,8 @@ export interface PreviewFolder {
   id: string;
   title: string;
   cover: string;
+  // The animated cover Nuvio shows on focus (mobile: always), when enabled.
+  focusGif: string;
   shape: 'POSTER' | 'LANDSCAPE' | 'SQUARE';
   hideTitle: boolean;
   sources: PreviewSource[];
@@ -50,6 +57,7 @@ export interface PreviewCollection {
   id: string;
   title: string;
   backdrop: string;
+  pinToTop: boolean;
   folders: PreviewFolder[];
 }
 
@@ -57,10 +65,13 @@ export type PreviewHomeEntry = ({ kind: 'row' } & PreviewRow) | { kind: 'collect
 
 export interface SetupPreview {
   platform: PreviewPlatform;
+  // The addon's display name (manifest name), for "from ..." subtitles.
+  addonName: string;
   // Home in order: Nuvio = collections then rows (the push's order), Stremio
   // = board rows.
   home: PreviewHomeEntry[];
-  // Nuvio Mobile's hero: the first two catalogues without a required extra.
+  // Nuvio's hero sources: the first two Home catalogues (this addon's, no
+  // required extra); collections never feed the hero.
   hero: PreviewRow[];
   collections: PreviewCollection[];
   // Movie Collections is on but the library has not built it yet.
@@ -159,6 +170,7 @@ async function buildSetupPreview({ opened, platform, origin, port }: PreviewInpu
     || (require('../routes/manifest.ts') as import('../routes/manifest.ts').ManifestApi).buildConfiguredManifest;
   const manifest = await manifestFor(config, token, platform, origin);
   const manifestId = text(manifest['id']) || FALLBACK_ADDON_ID;
+  const addonName = text(manifest['name'], 80);
   const catalogs = (Array.isArray(manifest['catalogs']) ? manifest['catalogs'] : []) as Row[];
   const catalogName = new Map<string, string>();
   for (const catalog of catalogs) catalogName.set(`${catalog['type']}\u0000${catalog['id']}`, text(catalog['name']));
@@ -171,7 +183,7 @@ async function buildSetupPreview({ opened, platform, origin, port }: PreviewInpu
   const secrets = secretsOf(opened);
 
   if (platform === 'stremio') {
-    return scrubPreview({ platform, home: listed.map((row) => ({ kind: 'row' as const, ...row })), hero: [], collections: [], franchisePending: false }, secrets);
+    return scrubPreview({ platform, addonName, home: listed.map((row) => ({ kind: 'row' as const, ...row })), hero: [], collections: [], franchisePending: false }, secrets);
   }
 
   // Nuvio: the same inputs pushToNuvio compiles.
@@ -209,20 +221,24 @@ async function buildSetupPreview({ opened, platform, origin, port }: PreviewInpu
     id: text(collection['id']),
     title: text(collection['title'], 120),
     backdrop: artLink(collection['backdropImageUrl']),
+    pinToTop: collection['pinToTop'] === true,
     folders: (Array.isArray(collection['folders']) ? collection['folders'] as Row[] : []).map((folder) => ({
       id: text(folder['id']),
       title: text(folder['title'], 120),
       cover: artLink(folder['coverImageUrl']) || artLink(folder['heroBackdropUrl']),
+      focusGif: folder['focusGifEnabled'] === true ? artLink(folder['focusGifUrl']) : '',
       shape: shapeOf(folder['tileShape']),
       hideTitle: folder['hideTitle'] === true,
       sources: (Array.isArray(folder['sources']) ? folder['sources'] as Row[] : []).map((source) => {
         const own = !source['addonId'] || source['addonId'] === manifestId;
-        const name = text(source['genre']) || catalogName.get(`${source['type']}\u0000${source['catalogId']}`) || text(folder['title'], 120);
+        const ownName = catalogName.get(`${source['type']}\u0000${source['catalogId']}`) || '';
+        const name = text(source['genre']) || ownName || text(folder['title'], 120);
         return {
           catalogId: text(source['catalogId']),
           type: text(source['type']) || 'movie',
           genre: text(source['genre']),
           name,
+          catalogName: ownName || text(folder['title'], 120),
           ...(own ? {} : { external: true }),
         };
       }),
@@ -241,9 +257,11 @@ async function buildSetupPreview({ opened, platform, origin, port }: PreviewInpu
       const type = text(item['type']);
       const catalogId = text(item['catalog_id']);
       if (!type || !catalogId) return null;
-      const name = text(item['custom_title']) || catalogName.get(`${type}\u0000${catalogId}`) || catalogId;
+      const custom = text(item['custom_title']);
+      const name = custom || catalogName.get(`${type}\u0000${catalogId}`) || catalogId;
       return {
         kind: 'row', key: `${addonId}:${type}:${catalogId}`, type, catalogId, name,
+        ...(custom ? { custom: true } : {}),
         ...(addonId && addonId !== manifestId ? { external: true } : {}),
       };
     })
@@ -253,8 +271,22 @@ async function buildSetupPreview({ opened, platform, origin, port }: PreviewInpu
   if (!plan.homeRows.length && !home.some((entry) => entry.kind === 'row')) {
     home = [...home, ...listed.map((row) => ({ kind: 'row' as const, ...row }))];
   }
+  // Nuvio draws pinned collections first, ahead of everything else on Home.
+  const pinned = new Set(collections.filter((collection) => collection.pinToTop).map((collection) => collection.id));
+  if (pinned.size) {
+    const isPinned = (entry: PreviewHomeEntry) => entry.kind === 'collection' && pinned.has(entry.id);
+    home = [...home.filter(isPinned), ...home.filter((entry) => !isPinned(entry))];
+  }
+  // Hero sources: the first two Home catalogues the preview can load and
+  // that need no required extra (manifest order when Home has none).
+  const heroable = new Set(listed.map((row) => `${row.type}\u0000${row.catalogId}`));
+  const homeRows = home.filter((entry): entry is { kind: 'row' } & PreviewRow => entry.kind === 'row'
+    && !entry.external && heroable.has(`${entry.type}\u0000${entry.catalogId}`));
+  const hero = (homeRows.length ? homeRows : listed).slice(0, 2).map((row): PreviewRow => ({
+    key: row.key, type: row.type, catalogId: row.catalogId, name: row.name, ...(row.custom ? { custom: true } : {}),
+  }));
 
-  return scrubPreview({ platform, home, hero: listed.slice(0, 2), collections, franchisePending }, secrets);
+  return scrubPreview({ platform, addonName, home, hero, collections, franchisePending }, secrets);
 }
 
 module.exports = { buildSetupPreview, secretsOf, scrubPreview } satisfies PreviewApi;

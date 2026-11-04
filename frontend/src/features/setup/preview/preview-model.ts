@@ -1,18 +1,22 @@
 import { apiClient } from '@/api/client';
 
-// Setup Preview data. The layout (rows, order, collections, folders, covers)
-// comes from GET /api/setup/:uuid/preview, which never carries a key, token or
-// link. Row contents are loaded here, from the addon itself, with the install
-// token the unlocked page already holds: exactly the catalogue request the
-// player makes, first page only.
+// Setup Preview data and the pure rules behind the Nuvio replica. The layout
+// (rows, order, collections, folders, covers) comes from
+// GET /api/setup/:uuid/preview, which never carries a key, token or link. Row
+// contents and item details load here, from the addon itself, with the
+// install token the unlocked page already holds: exactly the catalogue and
+// meta requests the player makes, first page only. Nothing here writes.
 
 export type PreviewPlatform = 'nuvio' | 'stremio';
+// The replica's three screens: Nuvio TV, Nuvio Mobile, Stremio's board.
+export type PreviewMode = 'tv' | 'mobile' | 'stremio';
 
 export interface PreviewRow {
   key: string;
   type: string;
   catalogId: string;
   name: string;
+  custom?: boolean;
   external?: boolean;
 }
 
@@ -21,6 +25,7 @@ export interface PreviewSource {
   type: string;
   genre: string;
   name: string;
+  catalogName: string;
   external?: boolean;
 }
 
@@ -28,6 +33,7 @@ export interface PreviewFolder {
   id: string;
   title: string;
   cover: string;
+  focusGif: string;
   shape: 'POSTER' | 'LANDSCAPE' | 'SQUARE';
   hideTitle: boolean;
   sources: PreviewSource[];
@@ -37,6 +43,7 @@ export interface PreviewCollection {
   id: string;
   title: string;
   backdrop: string;
+  pinToTop: boolean;
   folders: PreviewFolder[];
 }
 
@@ -44,6 +51,7 @@ export type PreviewHomeEntry = ({ kind: 'row' } & PreviewRow) | { kind: 'collect
 
 export interface SetupPreview {
   platform: PreviewPlatform;
+  addonName: string;
   home: PreviewHomeEntry[];
   hero: PreviewRow[];
   collections: PreviewCollection[];
@@ -52,19 +60,39 @@ export interface SetupPreview {
 
 export interface PreviewMeta {
   id: string;
+  type: string;
   name: string;
   poster: string;
   background: string;
+  logo: string;
+  year: string;
+  genres: string[];
+  description: string;
 }
 
-export const ROW_LIMIT = 12;
-export const GRID_LIMIT = 24;
+// Nuvio: a Home row shows at most 18 items; "See all" and folder grids show
+// the first page.
+export const ROW_LIMIT = 18;
+export const GRID_LIMIT = 60;
+export const HERO_LIMIT = 8;
+export const HERO_INTERVAL_MS = 8000;
 export const CONCURRENCY = 3;
 
 export function fetchSetupPreview(uuid: string, platform: PreviewPlatform, editToken: string): Promise<SetupPreview> {
   return apiClient.get<SetupPreview>(`/api/setup/${encodeURIComponent(uuid)}/preview?platform=${platform}`, {
     headers: { Authorization: `Bearer ${editToken}` },
   });
+}
+
+export function platformFor(mode: PreviewMode): PreviewPlatform {
+  return mode === 'stremio' ? 'stremio' : 'nuvio';
+}
+
+// Saved player Stremio opens on Stremio; Nuvio opens on Mobile on a phone
+// and on TV on anything wider.
+export function defaultMode(platform: PreviewPlatform, viewportWidth: number): PreviewMode {
+  if (platform === 'stremio') return 'stremio';
+  return viewportWidth > 0 && viewportWidth < 600 ? 'mobile' : 'tv';
 }
 
 // One catalogue the preview can load: a Home/board row or a folder source.
@@ -85,32 +113,72 @@ export function catalogUrl(installToken: string, ref: CatalogRef): string {
   return ref.genre ? `${base}/genre=${encodeURIComponent(ref.genre)}.json` : `${base}.json`;
 }
 
-// Display fields only, posters first; anything without an image is dropped.
-export function metasFrom(body: unknown, limit: number): PreviewMeta[] {
+export function metaUrl(installToken: string, type: string, id: string): string {
+  return `/${encodeURIComponent(installToken)}/meta/${encodeURIComponent(type)}/${encodeURIComponent(id)}.json`;
+}
+
+// TMDB art at a size that suits where it is drawn; other hosts untouched.
+export function tmdbSized(url: string, size: 'w185' | 'w342' | 'w500' | 'w780' | 'w1280'): string {
+  return url.replace(/^(https?:\/\/image\.tmdb\.org\/t\/p\/)(?:w\d+|original)(\/)/i, `$1${size}$2`);
+}
+
+function str(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function yearOf(meta: Record<string, unknown>): string {
+  const info = str(meta['releaseInfo']) || str(meta['year']) || (typeof meta['year'] === 'number' ? String(meta['year']) : '');
+  if (info) return info.slice(0, 12);
+  const released = str(meta['released']);
+  return /^\d{4}/.test(released) ? released.slice(0, 4) : '';
+}
+
+// Display fields of one Stremio meta (catalogue item or full meta).
+export function previewMetaFrom(raw: unknown, fallbackId = ''): PreviewMeta | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const meta = raw as Record<string, unknown>;
+  const genres = Array.isArray(meta['genres']) ? (meta['genres'] as unknown[]).filter((g): g is string => typeof g === 'string') : [];
+  return {
+    id: String(meta['id'] ?? fallbackId),
+    type: str(meta['type']),
+    name: str(meta['name']),
+    poster: str(meta['poster']),
+    background: str(meta['background']),
+    logo: str(meta['logo']),
+    year: yearOf(meta),
+    genres: genres.slice(0, 4),
+    description: str(meta['description']).slice(0, 1200),
+  };
+}
+
+// Catalogue items with a poster, capped; `total` counts every item the page
+// returned, so a row knows whether there is more to see.
+export function metasFrom(body: unknown, limit: number): { metas: PreviewMeta[]; total: number } {
   const metas = body && typeof body === 'object' && Array.isArray((body as { metas?: unknown }).metas)
     ? (body as { metas: unknown[] }).metas
     : [];
   const out: PreviewMeta[] = [];
+  const seen = new Set<string>();
   for (const raw of metas) {
     if (out.length >= limit) break;
-    if (!raw || typeof raw !== 'object') continue;
-    const meta = raw as Record<string, unknown>;
-    const poster = typeof meta['poster'] === 'string' ? meta['poster'] : '';
-    if (!poster) continue;
-    out.push({
-      id: String(meta['id'] ?? out.length),
-      name: typeof meta['name'] === 'string' ? meta['name'] : '',
-      poster,
-      background: typeof meta['background'] === 'string' ? meta['background'] : '',
-    });
+    const meta = previewMetaFrom(raw, String(out.length));
+    if (!meta || !meta.poster || seen.has(meta.id)) continue;
+    seen.add(meta.id);
+    out.push(meta);
   }
-  return out;
+  return { metas: out, total: metas.length };
 }
 
 export type RowState =
   | { status: 'loading' }
-  | { status: 'ready'; metas: PreviewMeta[] }
+  | { status: 'ready'; metas: PreviewMeta[]; total: number }
   | { status: 'error' };
+
+// Nuvio shows a row's "see all" button only when it has more than one row's
+// worth of items.
+export function rowHasMore(state: RowState | undefined): boolean {
+  return state?.status === 'ready' && state.total > ROW_LIMIT;
+}
 
 export interface CatalogLoader {
   get: (ref: CatalogRef) => RowState | undefined;
@@ -121,7 +189,7 @@ export interface CatalogLoader {
   subscribe: (listener: () => void) => () => void;
 }
 
-type FetchJson = (url: string) => Promise<unknown>;
+export type FetchJson = (url: string) => Promise<unknown>;
 
 const defaultFetch: FetchJson = async (url) => {
   const res = await fetch(url, { headers: { Accept: 'application/json' } });
@@ -129,36 +197,37 @@ const defaultFetch: FetchJson = async (url) => {
   return res.json();
 };
 
-// Shared by every row of one preview: each catalogue is requested at most
-// once (rows and the hero share it), at most `concurrency` at a time.
-export function createCatalogLoader(installToken: string, options: { fetchJson?: FetchJson; concurrency?: number; limit?: number } = {}): CatalogLoader {
-  const fetchJson = options.fetchJson ?? defaultFetch;
-  const concurrency = Math.max(1, options.concurrency ?? CONCURRENCY);
-  const limit = options.limit ?? GRID_LIMIT;
-  const states = new Map<string, RowState>();
-  const queue: CatalogRef[] = [];
-  const listeners = new Set<() => void>();
+// A small queue: at most `concurrency` requests at a time, each key once.
+function createQueue<T>(run: (job: T) => Promise<void>, concurrency: number) {
+  const queue: T[] = [];
   let active = 0;
-
-  const notify = () => { for (const listener of listeners) listener(); };
   const pump = () => {
     while (active < concurrency && queue.length) {
-      const ref = queue.shift() as CatalogRef;
-      const key = catalogKey(ref);
+      const job = queue.shift() as T;
       active += 1;
-      fetchJson(catalogUrl(installToken, ref))
-        .then((body) => { states.set(key, { status: 'ready', metas: metasFrom(body, limit) }); })
-        .catch(() => { states.set(key, { status: 'error' }); })
-        .finally(() => { active -= 1; notify(); pump(); });
+      run(job).finally(() => { active -= 1; pump(); });
     }
   };
+  return (job: T) => { queue.push(job); pump(); };
+}
+
+// Shared by every row of one preview: each catalogue is requested at most
+// once (rows, folders and the hero share it), at most `concurrency` at a time.
+export function createCatalogLoader(installToken: string, options: { fetchJson?: FetchJson; concurrency?: number; limit?: number } = {}): CatalogLoader {
+  const fetchJson = options.fetchJson ?? defaultFetch;
+  const limit = options.limit ?? GRID_LIMIT;
+  const states = new Map<string, RowState>();
+  const listeners = new Set<() => void>();
+  const notify = () => { for (const listener of listeners) listener(); };
+  const push = createQueue<CatalogRef>((ref) => fetchJson(catalogUrl(installToken, ref))
+    .then((body) => { states.set(catalogKey(ref), { status: 'ready', ...metasFrom(body, limit) }); })
+    .catch(() => { states.set(catalogKey(ref), { status: 'error' }); })
+    .finally(notify), Math.max(1, options.concurrency ?? CONCURRENCY));
   const enqueue = (ref: CatalogRef) => {
     states.set(catalogKey(ref), { status: 'loading' });
-    queue.push(ref);
     notify();
-    pump();
+    push(ref);
   };
-
   return {
     get: (ref) => states.get(catalogKey(ref)),
     load: (ref) => { if (!states.has(catalogKey(ref))) enqueue(ref); },
@@ -167,30 +236,161 @@ export function createCatalogLoader(installToken: string, options: { fetchJson?:
   };
 }
 
-// Where the preview is: Home (or Stremio's board), one collection's folders,
-// or one folder's poster grid on one of its source tabs.
-export type PreviewPlace =
+// Full metas (logo, backdrop, genres, description) for the few items that
+// need them: the hero's picks, the focused TV card, an open details sheet.
+export interface MetaLoader {
+  get: (meta: Pick<PreviewMeta, 'type' | 'id'>) => PreviewMeta | undefined;
+  load: (meta: Pick<PreviewMeta, 'type' | 'id'>) => void;
+  subscribe: (listener: () => void) => () => void;
+}
+
+export function createMetaLoader(installToken: string, options: { fetchJson?: FetchJson; concurrency?: number } = {}): MetaLoader {
+  const fetchJson = options.fetchJson ?? defaultFetch;
+  const states = new Map<string, PreviewMeta | null>();
+  const listeners = new Set<() => void>();
+  const keyOf = (meta: Pick<PreviewMeta, 'type' | 'id'>) => `${meta.type}\u0000${meta.id}`;
+  const push = createQueue<Pick<PreviewMeta, 'type' | 'id'>>((meta) => fetchJson(metaUrl(installToken, meta.type, meta.id))
+    .then((body) => {
+      const full = previewMetaFrom((body as { meta?: unknown } | null)?.meta, meta.id);
+      states.set(keyOf(meta), full);
+    })
+    .catch(() => { states.set(keyOf(meta), null); })
+    .finally(() => { for (const listener of listeners) listener(); }), Math.max(1, options.concurrency ?? 2));
+  return {
+    get: (meta) => states.get(keyOf(meta)) ?? undefined,
+    load: (meta) => {
+      if (!meta.type || !meta.id || states.has(keyOf(meta))) return;
+      states.set(keyOf(meta), null);
+      push(meta);
+    },
+    subscribe: (listener) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
+  };
+}
+
+// A catalogue item with its full meta laid over it (full meta wins where it
+// has a value).
+export function enrich(meta: PreviewMeta, full: PreviewMeta | undefined): PreviewMeta {
+  if (!full) return meta;
+  return {
+    ...meta,
+    name: full.name || meta.name,
+    poster: meta.poster || full.poster,
+    background: full.background || meta.background,
+    logo: full.logo || meta.logo,
+    year: full.year || meta.year,
+    genres: full.genres.length ? full.genres : meta.genres,
+    description: full.description || meta.description,
+  };
+}
+
+// The hero's picks: up to 8 items from its source rows, taken in turn from
+// each row and never the same title twice.
+export function heroPicks(rows: { metas: PreviewMeta[]; type: string }[], max = HERO_LIMIT): PreviewMeta[] {
+  const out: PreviewMeta[] = [];
+  const seen = new Set<string>();
+  const longest = Math.max(0, ...rows.map((row) => row.metas.length));
+  for (let n = 0; n < longest && out.length < max; n += 1) {
+    for (const row of rows) {
+      const meta = row.metas[n];
+      if (!meta || seen.has(meta.id) || out.length >= max) continue;
+      seen.add(meta.id);
+      out.push(meta.type ? meta : { ...meta, type: row.type });
+    }
+  }
+  return out;
+}
+
+// Nuvio Mobile's hero height for a screen of `width` x `height`.
+export function heroHeight(width: number, height: number): number {
+  const clamp = (value: number, min: number, max: number) => Math.round(Math.min(max, Math.max(min, value)));
+  if (width >= 1200) return clamp(width * 0.42, 360, 440);
+  if (width >= 840) return clamp(width * 0.46, 340, 420);
+  if (width >= 600) return clamp(width * 0.58, 320, 380);
+  return clamp(Math.min(height * 0.82, width * 1.16), 360, 760);
+}
+
+// The carousel only moves by itself with more than one slide, while visible,
+// not hovered, and never for people who asked for reduced motion.
+export function shouldAutoAdvance(state: { count: number; reducedMotion: boolean; hidden: boolean; hovered: boolean }): boolean {
+  return state.count > 1 && !state.reducedMotion && !state.hidden && !state.hovered;
+}
+
+// Ticks every `interval` ms while `canRun()` says so; returns a stop.
+export function startAutoAdvance(canRun: () => boolean, onAdvance: () => void, interval = HERO_INTERVAL_MS): () => void {
+  const timer = setInterval(() => { if (canRun()) onAdvance(); }, interval);
+  return () => clearInterval(timer);
+}
+
+export function wrapIndex(index: number, count: number): number {
+  if (count <= 0) return 0;
+  return ((index % count) + count) % count;
+}
+
+// Scale that fits a `dw` x `dh` design into a `cw` x `ch` box.
+export function fitScale(cw: number, ch: number, dw: number, dh: number): number {
+  if (cw <= 0 || ch <= 0) return 1;
+  return Math.min(cw / dw, ch / dh);
+}
+
+// Nuvio's grid columns for a screen width (folders and "See all").
+export function gridColumns(width: number): number {
+  if (width >= 1400) return 7;
+  if (width >= 1200) return 6;
+  if (width >= 1000) return 5;
+  if (width >= 840) return 4;
+  return 3;
+}
+
+// TV focus: a grid of rows of `lengths[row]` cards. Arrow keys move; up and
+// down keep the column where the next row allows it.
+export interface FocusPos { row: number; col: number }
+
+export function moveFocus(lengths: number[], pos: FocusPos, key: string): FocusPos {
+  if (!lengths.length) return pos;
+  const clampCol = (row: number, col: number) => Math.max(0, Math.min(col, Math.max(0, (lengths[row] ?? 1) - 1)));
+  const step = (from: number, dir: 1 | -1) => {
+    for (let row = from + dir; row >= 0 && row < lengths.length; row += dir) if ((lengths[row] ?? 0) > 0) return row;
+    return from;
+  };
+  switch (key) {
+    case 'ArrowRight': return { row: pos.row, col: clampCol(pos.row, pos.col + 1) };
+    case 'ArrowLeft': return { row: pos.row, col: clampCol(pos.row, pos.col - 1) };
+    case 'ArrowDown': { const row = step(pos.row, 1); return { row, col: clampCol(row, pos.col) }; }
+    case 'ArrowUp': { const row = step(pos.row, -1); return { row, col: clampCol(row, pos.col) }; }
+    default: return pos;
+  }
+}
+
+// Where the replica is. Home is the bottom of the stack; a folder, a "See
+// all" grid or a details sheet go on top, Back pops.
+export type PreviewScreen =
   | { at: 'home' }
-  | { at: 'collection'; collectionId: string }
-  | { at: 'folder'; collectionId: string; folderId: string; tab: number };
+  | { at: 'folder'; collectionId: string; folderId: string; tab: number }
+  | { at: 'catalog'; row: PreviewRow }
+  | { at: 'details'; meta: PreviewMeta };
 
 export type PreviewAction =
   | { type: 'home' }
-  | { type: 'collection'; collectionId: string }
   | { type: 'folder'; collectionId: string; folderId: string }
+  | { type: 'catalog'; row: PreviewRow }
+  | { type: 'details'; meta: PreviewMeta }
   | { type: 'tab'; tab: number }
   | { type: 'back' };
 
-export function previewPlace(place: PreviewPlace, action: PreviewAction): PreviewPlace {
+export function previewNav(stack: PreviewScreen[], action: PreviewAction): PreviewScreen[] {
+  const base: PreviewScreen[] = stack.length ? stack : [{ at: 'home' }];
   switch (action.type) {
-    case 'home': return { at: 'home' };
-    case 'collection': return { at: 'collection', collectionId: action.collectionId };
-    case 'folder': return { at: 'folder', collectionId: action.collectionId, folderId: action.folderId, tab: 0 };
-    case 'tab': return place.at === 'folder' ? { ...place, tab: Math.max(0, action.tab) } : place;
-    case 'back':
-      if (place.at === 'folder') return { at: 'collection', collectionId: place.collectionId };
-      return { at: 'home' };
-    default: return place;
+    case 'home': return [{ at: 'home' }];
+    case 'folder': return [...base, { at: 'folder', collectionId: action.collectionId, folderId: action.folderId, tab: 0 }];
+    case 'catalog': return [...base, { at: 'catalog', row: action.row }];
+    case 'details': return [...base, { at: 'details', meta: action.meta }];
+    case 'tab': {
+      const top = base[base.length - 1];
+      if (top?.at !== 'folder') return base;
+      return [...base.slice(0, -1), { ...top, tab: Math.max(0, action.tab) }];
+    }
+    case 'back': return base.length > 1 ? base.slice(0, -1) : base;
+    default: return base;
   }
 }
 
@@ -206,5 +406,25 @@ export function typeLabel(type: string): string {
   if (type === 'movie') return 'Movie';
   if (type === 'series') return 'Series';
   if (type === 'anime') return 'Anime';
+  if (type === 'tv') return 'TV';
   return type;
+}
+
+// A folder's tabs: "All" (only with more than one source), then one per
+// source. Index 0 is "All" when it exists.
+export function folderTabs(folder: PreviewFolder): { all: boolean; sources: PreviewSource[] } {
+  return { all: folder.sources.length > 1, sources: folder.sources };
+}
+
+// "All": every source's items in turn, each title once.
+export function mergeSources(lists: PreviewMeta[][], max = GRID_LIMIT): PreviewMeta[] {
+  return heroPicks(lists.map((metas) => ({ metas, type: '' })), max);
+}
+
+// A collection that cannot show a cover shows two letters of its title.
+export function initials(title: string): string {
+  const letters = title.replace(/[^\p{L}\p{N} ]/gu, '').trim().split(/\s+/).filter(Boolean);
+  if (!letters.length) return '?';
+  const first = letters[0] ?? '';
+  return (letters.length > 1 ? `${first.charAt(0)}${letters[1]?.charAt(0) ?? ''}` : first.slice(0, 2)).toUpperCase();
 }

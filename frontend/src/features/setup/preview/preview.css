@@ -1,0 +1,76 @@
+/* Preview tab of the setup edit page. Phone first: every column is
+   minmax(0, 1fr) so the sideways poster strips never widen the page. */
+.pv { box-sizing: border-box; width: min(980px, 100%); margin: 0 auto; padding: 8px 20px 80px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.pv .lib-note { margin: 0; }
+.pv-hero-head h1 { margin: 0 0 10px; font-size: clamp(1.6rem, 3.4vw, 2.3rem); letter-spacing: -0.03em; line-height: 1.1; }
+.pv-hero-head .setup-lede { max-width: 640px; margin: 0; }
+.pv-switch { justify-self: start; }
+
+.pv-screen { box-sizing: border-box; min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 18px; background: #08080a; box-shadow: 0 24px 60px -30px rgba(0, 0, 0, 0.9); }
+.pv-screen-body, .pv-loading { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+
+.pv-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
+.pv-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; }
+.pv-row-head h3 { margin: 0; min-width: 0; overflow: hidden; font-size: 0.95rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.pv-row-head.is-blank { width: 40%; height: 14px; border-radius: 6px; background: var(--surface); animation: pv-pulse 1.4s ease-in-out infinite; }
+.pv-row-note { box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 0; padding: 12px 14px; border: 1px dashed var(--border); border-radius: 12px; color: var(--muted); font-size: 0.82rem; line-height: 1.5; }
+.pv-row-note.is-error { border-color: rgba(239, 68, 68, 0.4); }
+.pv-retry { padding: 6px 12px; font-size: 0.78rem; }
+.pv-chip { flex: none; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); color: var(--muted); font-size: 0.7rem; font-weight: 600; }
+.pv-link { flex: none; padding: 0; border: 0; background: none; color: var(--amber); font: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
+.pv-link:hover { text-decoration: underline; }
+
+/* Sideways rows: posters and folder tiles. */
+.pv-strip { display: grid; grid-auto-flow: column; grid-auto-columns: 104px; gap: 10px; overflow-x: auto; overscroll-behavior-x: contain; padding-bottom: 6px; scroll-snap-type: x proximity; scrollbar-width: thin; }
+.pv-strip.is-tiles { grid-auto-columns: max-content; align-items: start; }
+.pv-strip > * { scroll-snap-align: start; }
+.pv-poster { box-sizing: border-box; margin: 0; min-width: 0; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 9px; background: var(--surface); border: 1px solid rgba(255, 255, 255, 0.06); }
+.pv-poster img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.pv-poster.is-blank { animation: pv-pulse 1.4s ease-in-out infinite; }
+.pv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(96px, 100%), 1fr)); gap: 10px; }
+
+.pv-tile { box-sizing: border-box; position: relative; display: block; width: 104px; aspect-ratio: 2 / 3; padding: 0; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; background: linear-gradient(160deg, #1d1d24, #0f0f13); color: var(--text); font: inherit; cursor: pointer; transition: transform 0.15s, border-color 0.15s; }
+.pv-tile.is-landscape { width: 184px; aspect-ratio: 16 / 9; }
+.pv-tile.is-square { width: 124px; aspect-ratio: 1 / 1; }
+.pv-tile:hover, .pv-tile:focus-visible { transform: translateY(-2px); border-color: rgba(245, 158, 11, 0.5); outline: none; }
+.pv-tile img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.pv-tile-blank { position: absolute; inset: 0; }
+.pv-tile-title { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 8px 7px; background: linear-gradient(transparent, rgba(0, 0, 0, 0.82)); font-size: 0.72rem; font-weight: 650; line-height: 1.25; text-align: left; overflow-wrap: anywhere; }
+.pv-folders { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(104px, 100%), 1fr)); gap: 12px; }
+.pv-folders .pv-tile { width: 100%; }
+.pv-folders .pv-tile.is-landscape { grid-column: span 2; }
+
+/* Nuvio's hero and a collection's backdrop. */
+.pv-hero, .pv-backdrop { box-sizing: border-box; position: relative; overflow: hidden; border-radius: 14px; background: linear-gradient(150deg, #1c1c22, #0c0c0f); aspect-ratio: 16 / 8; max-height: 300px; }
+.pv-hero img, .pv-backdrop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.pv-hero::after { content: ''; position: absolute; inset: 0; background: linear-gradient(transparent 35%, rgba(0, 0, 0, 0.85)); }
+.pv-hero.is-blank { animation: pv-pulse 1.4s ease-in-out infinite; }
+.pv-hero-text { position: absolute; z-index: 1; left: 14px; right: 14px; bottom: 12px; display: grid; gap: 6px; justify-items: start; min-width: 0; }
+.pv-hero-text strong { max-width: 100%; overflow: hidden; font-size: 1.15rem; text-overflow: ellipsis; white-space: nowrap; }
+.pv-title { margin: 0; font-size: 1.1rem; }
+.pv-back { justify-self: start; margin: 0; }
+
+.pv-tabs { display: flex; gap: 6px; min-width: 0; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.pv-tabs button { flex: none; max-width: 70vw; overflow: hidden; padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; background: none; color: var(--muted); font: inherit; font-size: 0.78rem; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.pv-tabs button.is-active { border-color: rgba(245, 158, 11, 0.5); background: rgba(245, 158, 11, 0.12); color: var(--text); }
+
+/* Stremio's board: lighter frame, the same rows. */
+.pv-screen.is-stremio { background: #0d0b16; }
+
+@keyframes pv-pulse { 50% { opacity: 0.5; } }
+@media (prefers-reduced-motion: reduce) {
+  .pv-poster.is-blank, .pv-hero.is-blank, .pv-row-head.is-blank { animation: none; }
+  .pv-tile { transition: none; }
+}
+
+@media (max-width: 520px) {
+  .pv { padding: 4px 14px 60px; }
+  .pv-screen { padding: 12px; border-radius: 14px; }
+  .pv-strip { grid-auto-columns: 88px; gap: 8px; }
+  .pv-tile { width: 88px; }
+  .pv-tile.is-landscape { width: 152px; }
+  .pv-tile.is-square { width: 104px; }
+  /* A wide tile keeps to one column on a phone: spanning two in a
+     one-column grid would add a column and widen the page. */
+  .pv-folders .pv-tile.is-landscape { grid-column: auto; }
+}

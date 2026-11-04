@@ -18,6 +18,7 @@ import { isSetupUuid, rememberSetup } from '@/features/setup/shared/setup-histor
 import { setupCopy, setupCount } from '@/features/setup/shared/setup-copy';
 import { LibraryPanel } from '@/features/setup/library/LibraryPanel';
 import { NuvioPanel } from '@/features/setup/nuvio/NuvioPanel';
+import { PreviewPanel } from '@/features/setup/preview/PreviewPanel';
 import { fetchLibrarySummary } from '@/features/setup/library/library-api';
 import { forgetDeletedSetup } from '@/features/setup/shared/saved-setups';
 import { ErrorState } from '@/features/site/ErrorPage';
@@ -67,7 +68,7 @@ export function tierPageFor(tier: string | null | undefined): ComponentType<{ ed
 
 type SavedAccount = { user: string | null; profiles: NuvioProfileRef[]; selected: number | null };
 
-type EditView = 'edit' | 'library' | 'nuvio' | 'settings';
+type EditView = 'edit' | 'library' | 'nuvio' | 'preview' | 'settings';
 // Matches the .edit-stage fade in tier.css.
 const VIEW_FADE_MS = 170;
 
@@ -729,6 +730,10 @@ export function SetupEditPage() {
       icon: <><rect x="3.5" y="3.5" width="17" height="17" rx="4.5" /><path d="M10 8.6v6.8l5.4-3.4z" /></>,
     }] : []),
     {
+      id: 'preview', label: 'Preview', title: 'Preview in your player',
+      icon: <><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z" /><circle cx="12" cy="12" r="2.8" /></>,
+    },
+    {
       id: 'settings', label: 'Settings', title: 'Setup settings',
       icon: <><circle cx="12" cy="12" r="3" /><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" /></>,
     },
@@ -766,6 +771,15 @@ export function SetupEditPage() {
           <div className="edit-view edit-view-library edit-view-nuvio">
             {backToEditing}
             <NuvioPanel uuid={uuid} editToken={getEditToken()} onEditSetup={() => go('edit')} />
+          </div>
+        )}
+        {unlocked && view === 'preview' && (
+          <div className="edit-view edit-view-library edit-view-preview">
+            {backToEditing}
+            <PreviewPanel
+              uuid={uuid} editToken={getEditToken()} installToken={installToken}
+              defaultPlatform={saved?.platform ?? platform} dirty={dirty}
+            />
           </div>
         )}
         {unlocked && view === 'settings' && (

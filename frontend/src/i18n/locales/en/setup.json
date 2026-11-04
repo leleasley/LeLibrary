@@ -1720,6 +1720,22 @@
     "Where this setup gets installed.": "Where this setup gets installed.",
     "Where this setup gets installed. Sign in now and your Home rows can be pushed straight to your player at the end.": "Where this setup gets installed. Sign in now and your Home rows can be pushed straight to your player at the end.",
     "Anyone with this setup's install link can open this page. Set a password in the setup settings to keep your file names private.": "Anyone with this setup's install link can open this page. Set a password in the setup settings to keep your file names private.",
-    "Your saved settings could not be loaded. Try again.": "Your saved settings could not be loaded. Try again."
+    "Your saved settings could not be loaded. Try again.": "Your saved settings could not be loaded. Try again.",
+    "Folder sources": "Folder sources",
+    "From another addon: your player loads it, the preview cannot.": "From another addon: your player loads it, the preview cannot.",
+    "Movie Collections appears here once your library has finished building.": "Movie Collections appears here once your library has finished building.",
+    "Nothing shows on Home yet. Add Home rows or collections, then save.": "Nothing shows on Home yet. Add Home rows or collections, then save.",
+    "Player": "Player",
+    "Posters need your install link. Unlock this setup again to load them.": "Posters need your install link. Unlock this setup again to load them.",
+    "PREVIEW": "PREVIEW",
+    "See all": "See all",
+    "The preview could not be loaded.": "The preview could not be loaded.",
+    "This row did not load.": "This row did not load.",
+    "This row is empty.": "This row is empty.",
+    "This shows your saved settings. Save to see your latest changes here.": "This shows your saved settings. Save to see your latest changes here.",
+    "What your player will show": "What your player will show",
+    "Your saved setup as it looks in the player, in the same order. Looking here never pushes or changes anything.": "Your saved setup as it looks in the player, in the same order. Looking here never pushes or changes anything.",
+    "Movie": "Movie",
+    "Preview in your player": "Preview in your player"
   }
 }

@@ -16,6 +16,7 @@ import type { ErrorHandlerApi } from '../middleware/error-handler.ts';
 import type { OAuthApi } from '../setup/oauth.ts';
 import type { ConfigStore } from '../setup/config-store.ts';
 import type { SelfhostAccessApi } from '../platform/selfhost-access.ts';
+import type { PreviewApi, PreviewDeps } from '../setup/preview.ts';
 
 const express = require('express') as typeof import('express');
 const runtime = require('../setup/runtime.ts') as RuntimeApi;
@@ -29,6 +30,9 @@ const { rateLimit } = require('../middleware/rate-limit.ts') as {
 };
 
 const { getSetupStore, getSetupLimiter } = runtime;
+// One bucket set for the Preview (read-only, but it compiles a manifest and
+// the collection plan per call).
+const previewLimit = rateLimit({ windowMs: 60_000, max: 30 });
 const { TIERS, DEFAULT_TIER } = configStore;
 const { isUuid, parseInstallToken } = token;
 const { createEditSessionStore, bearerToken, DEFAULT_TTL_MS } = editSessionsModule;
@@ -37,6 +41,8 @@ export interface SetupRoutesOptions {
   editSessions?: EditSessionStore;
   // Test seam only: production resolves the lazy Postgres store.
   getStore?: () => Promise<ConfigStore | null>;
+  // Test seam only: the Preview's manifest and Movie Collections loaders.
+  previewDeps?: PreviewDeps;
 }
 
 export interface SetupRoutesApi {
@@ -113,7 +119,7 @@ function editorConfigView(opened: OpenedConfig) {
   return { config: withLegacyWatchlistRows(opened.config ?? {}, opened.tier, connectedWatchlistIds(opened)) };
 }
 
-function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions, getStore }: SetupRoutesOptions = {}): void {
+function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions, getStore, previewDeps }: SetupRoutesOptions = {}): void {
   const router = express.Router();
   router.use(express.json({ limit: '1mb' }));
   const sessions: EditSessionStore = editSessions || createEditSessionStore();
@@ -356,6 +362,35 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
       };
     }
     res.json(view);
+  });
+
+  // Preview: what Nuvio or Stremio will show for the saved setup (Home rows in
+  // order, Nuvio collections and folders, Stremio's board). Same authority as
+  // the config above; read-only; display data only (setup/preview.ts), never a
+  // key, token or link carrying one. Row contents are loaded by the browser
+  // from the addon itself.
+  router.get('/:uuid/preview', previewLimit, async (req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const store = await withStore(res);
+    if (!store) return;
+    const uuid = String(req.params.uuid || '').toLowerCase();
+    if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
+    const opened = await store.resolveByUuid(uuid);
+    if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
+    if (!(await authorizeEdit(req, uuid, store, opened))) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
+    const platform = req.query['platform'];
+    if (platform !== 'nuvio' && platform !== 'stremio') { res.status(400).json({ error: 'Unknown platform' }); return; }
+    const origin = (process.env['BASE_URL'] || '').replace(/\/+$/, '') || `${req.protocol}://${req.get('host')}`;
+    try {
+      const { buildSetupPreview } = require('../setup/preview.ts') as PreviewApi;
+      res.json(await buildSetupPreview({
+        opened, platform, origin,
+        port: parseInt(process.env['PORT'] || '', 10) || undefined,
+      }, previewDeps));
+    } catch (err) {
+      console.warn(`[setup] preview failed: uuid=${uuid.slice(0, 8)} ${(err as Error).message}`);
+      res.status(502).json({ error: 'Could not build the preview' });
+    }
   });
 
   // Reveal one saved key value to an unlocked editor so the UI can prefill

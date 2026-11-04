@@ -639,6 +639,84 @@ function franchiseRowName(name: string): string {
 // which NuvioTV resolves directly. The catalog is owned-only; TMDB is used
 // solely to group the existing debrid items.
 
+// The configured manifest for one resolved config and integration, exactly
+// as /:token/manifest.json serves it (before any client facade projection).
+// The setup Preview reads its rows through this same function.
+async function buildConfiguredManifest(config: LooseConfig, token: string, requestedIntegration: string, baseUrl: string, profileId = 'default'): Promise<LooseConfig> {
+  // Resolve which watchlist services this token's owner has connected so the
+  // manifest can advertise their catalogs. Legacy tokens have no connections.
+  let watchlist = [];
+  let collectionRefs = [];
+  let qualityRefs: string[] = [];
+  let homeRows = [];
+  let importedTypes = [];
+  // The collections document this token installs. v5.5 setups keep it in their
+  // own config row; the hosted account area kept it beside the token. Either
+  // way the SAME plan drives the manifest and the Nuvio push, so a folder can
+  // never point at a catalogue this manifest forgot to advertise.
+  let collectionDocument: { collections: unknown[]; homeRows: unknown[]; sources: unknown[]; externalSources: unknown[] } = {
+    collections: Array.isArray(config.collections) ? config.collections : [],
+    homeRows: Array.isArray(config.collectionHomeRows) ? config.collectionHomeRows : [],
+    sources: importedSourceDefinitionsFor(config),
+    externalSources: Array.isArray(config.externalSources) ? config.externalSources : [],
+  };
+  try {
+    // v5.5 setups keep watchlist connections in the config row itself.
+    try {
+      const { getSetupStore } = require('../setup/runtime.ts') as {
+        getSetupStore: () => Promise<{
+          resolveByToken: (token: unknown) => Promise<{ keys?: Record<string, unknown> } | null>;
+        } | null>;
+      };
+      const setupStore = await getSetupStore().catch(() => null);
+      if (setupStore) {
+        const { setupWatchlistConn } = require('../setup/connections.ts') as {
+          setupWatchlistConn: (store: unknown, token: string, provider: string) => Promise<{ access_token?: string } | null>;
+        };
+        const simklSetup = await setupWatchlistConn(setupStore, String(token), 'simkl').catch(() => null);
+        if (simklSetup) watchlist.push({ provider: 'simkl', type: 'movie', name: '🎬 Simkl Watchlist' }, { provider: 'simkl', type: 'series', name: '📺 Simkl Watchlist' });
+        const traktSetup = await setupWatchlistConn(setupStore, String(token), 'trakt').catch(() => null);
+        if (traktSetup) watchlist.push({ provider: 'trakt', type: 'movie', name: '🎬 Trakt Watchlist' }, { provider: 'trakt', type: 'series', name: '📺 Trakt Watchlist' });
+      }
+    } catch {
+      // No setup store, no setup watchlists; legacy path below still applies.
+    }
+    const plan = compileCollectionPlan({
+      collections: collectionDocument.collections,
+      homeRows: collectionDocument.homeRows,
+      sources: collectionDocument.sources,
+      externalSources: collectionDocument.externalSources,
+      manifestId: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
+      integration: requestedIntegration,
+      hideAnime: config.hideAnime === true,
+    });
+    homeRows = plan.homeRows;
+    collectionRefs = plan.folderLibraryIds;
+    qualityRefs = qualityRefsFrom(collectionDocument.collections);
+    importedTypes = plan.importedTypes;
+  } catch (err: any) {
+    console.warn('[watchlist] manifest resolve failed:', err.message);
+  }
+  // Anime auto-omit: ask the local index whether this scope holds any anime
+  // at all (ingest-level counts, so pending matches count too). Only when the
+  // scope provably synced with zero anime do we drop the row; on any doubt
+  // (no database, never synced, query failure) the row stays, preserving
+  // current behavior. An explicitly enabled row is kept by the builder below.
+  let omitAnime = false;
+  try {
+    if (libraryEngine.isIndexed() && config.catalogAnime !== true && !config.hideAnime) {
+      const store = require('../library/store.ts');
+      const scopeId = providers.getUserKey(config);
+      const scopeRow = await store.getScope(scopeId).catch(() => null);
+      if (scopeRow && scopeRow.last_sync_at) {
+        const mediaTypes = await store.mediaTypeCounts(scopeId).catch(() => null);
+        if (mediaTypes && (Number(mediaTypes.anime) || 0) === 0) omitAnime = true;
+      }
+    }
+  } catch { /* keep the row on any doubt */ }
+  return getConfiguredManifest(baseUrl, config, { watchlist, collectionRefs, qualityRefs, homeRows, importedTypes, token, integration: requestedIntegration, omitAnime });
+}
+
 async function handleConfiguredManifest(req: Request, res: Response, deps: ManifestDeps): Promise<void> {
   const { resolveConfig } = deps;
   const tokenParam = String(req.params.token || '');
@@ -678,80 +756,9 @@ async function handleConfiguredManifest(req: Request, res: Response, deps: Manif
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  // Resolve which watchlist services this token's owner has connected so the
-  // manifest can advertise their catalogs. Legacy tokens have no connections.
-  let watchlist = [];
-  let collectionRefs = [];
-  let qualityRefs: string[] = [];
-  let homeRows = [];
-  let importedTypes = [];
   const requestedIntegration = resolveIntegration(req, config);
-  // The collections document this token installs. v5.5 setups keep it in their
-  // own config row; the hosted account area kept it beside the token. Either
-  // way the SAME plan drives the manifest and the Nuvio push, so a folder can
-  // never point at a catalogue this manifest forgot to advertise.
-  let collectionDocument: { collections: unknown[]; homeRows: unknown[]; sources: unknown[]; externalSources: unknown[] } = {
-    collections: Array.isArray(config.collections) ? config.collections : [],
-    homeRows: Array.isArray(config.collectionHomeRows) ? config.collectionHomeRows : [],
-    sources: importedSourceDefinitionsFor(config),
-    externalSources: Array.isArray(config.externalSources) ? config.externalSources : [],
-  };
-  try {
-    // v5.5 setups keep watchlist connections in the config row itself.
-    try {
-      const { getSetupStore } = require('../setup/runtime.ts') as {
-        getSetupStore: () => Promise<{
-          resolveByToken: (token: unknown) => Promise<{ keys?: Record<string, unknown> } | null>;
-        } | null>;
-      };
-      const setupStore = await getSetupStore().catch(() => null);
-      if (setupStore) {
-        const { setupWatchlistConn } = require('../setup/connections.ts') as {
-          setupWatchlistConn: (store: unknown, token: string, provider: string) => Promise<{ access_token?: string } | null>;
-        };
-        const simklSetup = await setupWatchlistConn(setupStore, String(req.params.token), 'simkl').catch(() => null);
-        if (simklSetup) watchlist.push({ provider: 'simkl', type: 'movie', name: '🎬 Simkl Watchlist' }, { provider: 'simkl', type: 'series', name: '📺 Simkl Watchlist' });
-        const traktSetup = await setupWatchlistConn(setupStore, String(req.params.token), 'trakt').catch(() => null);
-        if (traktSetup) watchlist.push({ provider: 'trakt', type: 'movie', name: '🎬 Trakt Watchlist' }, { provider: 'trakt', type: 'series', name: '📺 Trakt Watchlist' });
-      }
-    } catch {
-      // No setup store, no setup watchlists; legacy path below still applies.
-    }
-    const plan = compileCollectionPlan({
-      collections: collectionDocument.collections,
-      homeRows: collectionDocument.homeRows,
-      sources: collectionDocument.sources,
-      externalSources: collectionDocument.externalSources,
-      manifestId: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
-      integration: requestedIntegration,
-      hideAnime: config.hideAnime === true,
-    });
-    homeRows = plan.homeRows;
-    collectionRefs = plan.folderLibraryIds;
-    qualityRefs = qualityRefsFrom(collectionDocument.collections);
-    importedTypes = plan.importedTypes;
-  } catch (err: any) {
-    console.warn('[watchlist] manifest resolve failed:', err.message);
-  }
-  // Anime auto-omit: ask the local index whether this scope holds any anime
-  // at all (ingest-level counts, so pending matches count too). Only when the
-  // scope provably synced with zero anime do we drop the row; on any doubt
-  // (no database, never synced, query failure) the row stays, preserving
-  // current behavior. An explicitly enabled row is kept by the builder below.
-  let omitAnime = false;
-  try {
-    if (libraryEngine.isIndexed() && config.catalogAnime !== true && !config.hideAnime) {
-      const store = require('../library/store.ts');
-      const scopeId = providers.getUserKey(config);
-      const scopeRow = await store.getScope(scopeId).catch(() => null);
-      if (scopeRow && scopeRow.last_sync_at) {
-        const mediaTypes = await store.mediaTypeCounts(scopeId).catch(() => null);
-        if (mediaTypes && (Number(mediaTypes.anime) || 0) === 0) omitAnime = true;
-      }
-    }
-  } catch { /* keep the row on any doubt */ }
+  const manifest = await buildConfiguredManifest(config, String(req.params.token), requestedIntegration, req.protocol + '://' + req.get('host'), typeof req.query.profile_id === 'string' ? req.query.profile_id : 'default');
   markClientIntegrationStage(req, 'account-context');
-  const manifest = getConfiguredManifest(req.protocol + '://' + req.get('host'), config, { watchlist, collectionRefs, qualityRefs, homeRows, importedTypes, token: req.params.token, integration: requestedIntegration, omitAnime });
   markClientIntegrationStage(req, 'projection');
   res.json((req as any).clientIntegration ? (req as any).clientIntegration.manifest({ manifest, context: { token: req.params.token } }) : manifest);
 }
@@ -790,6 +797,7 @@ export interface ManifestApi {
   franchiseRowName: (name: string) => string;
   resolveIntegration: (req: Request, config?: LooseConfig) => string;
   getConfiguredManifest: (baseUrl: string, config?: LooseConfig, options?: LooseOptions) => LooseConfig;
+  buildConfiguredManifest: (config: LooseConfig, token: string, integration: string, baseUrl: string, profileId?: string) => Promise<LooseConfig>;
 }
 
 function mountManifestRoutes(app: Express, deps: ManifestDeps): void {
@@ -813,4 +821,4 @@ function mountManifestRoutes(app: Express, deps: ManifestDeps): void {
   // names render cleanly too.
 }
 
-module.exports = { mountManifestRoutes, getConfiguredManifest, handleConfiguredManifest, franchiseRowName, resolveIntegration } satisfies ManifestApi;
+module.exports = { mountManifestRoutes, getConfiguredManifest, buildConfiguredManifest, handleConfiguredManifest, franchiseRowName, resolveIntegration } satisfies ManifestApi;

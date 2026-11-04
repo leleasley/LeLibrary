@@ -22,6 +22,12 @@ function tagConfig(config: Record<string, unknown>, scope: Record<string, unknow
   return config;
 }
 
+// The engine config of one opened v5.5 setup, tagged the way every addon
+// route sees it (the tier gates Home-managed manifest rules).
+function setupEngineConfig(engine: Record<string, unknown>, opened: { uuid: string; tier: string }, token: string): Record<string, unknown> {
+  return tagConfig(engine, { type: 'config', uuid: opened.uuid, tier: opened.tier }, token);
+}
+
 async function resolveConfig(token: unknown, trace?: unknown): Promise<Record<string, unknown> | null> {
   // v5.5 setup: "<uuid>.<secret>". The install URL is the capability, so this
   // path never asks for a password; the store opens the row with the server key.
@@ -33,10 +39,7 @@ async function resolveConfig(token: unknown, trace?: unknown): Promise<Record<st
         // tell secret resolution apart from database latency.
         const opened = await timeSpan(trace, 'pg:setup-resolve', () =>
           store.resolveByToken(typeof token === 'string' ? token : ''));
-        if (opened) {
-          const engine = store.toEngineConfig(opened);
-          return tagConfig(engine, { type: 'config', uuid: opened.uuid, tier: opened.tier }, typeof token === 'string' ? token : '');
-        }
+        if (opened) return setupEngineConfig(store.toEngineConfig(opened), opened, typeof token === 'string' ? token : '');
       }
     } catch (err: any) {
       console.error('[token] setup resolve failed:', err.message);
@@ -60,9 +63,8 @@ async function resolveConfig(token: unknown, trace?: unknown): Promise<Record<st
 
 }
 
-module.exports = { resolveConfig };
-
 export interface ResolveConfigApi {
   resolveConfig: (token: unknown, trace?: unknown) => Promise<Record<string, unknown> | null>;
+  setupEngineConfig: (engine: Record<string, unknown>, opened: { uuid: string; tier: string }, token: string) => Record<string, unknown>;
 }
-module.exports = { resolveConfig } satisfies ResolveConfigApi;
+module.exports = { resolveConfig, setupEngineConfig } satisfies ResolveConfigApi;

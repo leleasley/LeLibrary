@@ -507,6 +507,193 @@ async function syncNuvioPlaybackSettings(
   await syncNuvioProfileSettings(token, profileIndex, [playbackSettingsStep(settings)], uuidKey, deps);
 }
 
+// The Home item list one push would send, from the profile's current items
+// (`items`, already cleaned of malformed entries; [] for a fresh profile), the
+// manifest, the planned Home rows and the collections being pushed. Pure: the
+// push writes the result, the setup Preview shows it.
+export interface NuvioHomeItemsInput {
+  items: Record<string, unknown>[];
+  manifest: { id?: string; catalogs?: { type?: string; id?: string; showInHome?: boolean }[] };
+  homeRows?: HomeRowDoc[];
+  collections?: { id?: string }[];
+  franchiseSlot?: number | null;
+}
+
+function planNuvioHomeItems({ items, manifest, homeRows = [], collections = [], franchiseSlot = null }: NuvioHomeItemsInput): Record<string, unknown>[] {
+  // Nuvio collection Home entries do not have addon/type/catalog fields.
+  // Canonicalise them separately so an older, pinned collection record can
+  // be replaced instead of surviving under the empty-catalogue key.
+  const homeKey = (item: Record<string, unknown> | undefined): string => {
+    if (item?.['is_collection'] === true || item?.['isCollection'] === true || item?.['collection_id'] || item?.['collectionId']) {
+      return `collection_${item['collection_id'] || item['collectionId']}`;
+    }
+    return nuvioHomeKey(item?.['addon_id'], item?.['type'], item?.['catalog_id']);
+  };
+  const byKey = new Map(items.map((item) => [homeKey(item), item]));
+
+  const orderedHomeRows = (homeRows || [])
+    .filter((r) => r?.enabled !== false && r?.source)
+    .slice()
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+  const selectedRowsByCatalog = new Map<string, HomeRowDoc>();
+  const selectedOrderByKey = new Map<string, number>();
+  orderedHomeRows.forEach((r, index) => {
+    const source = r.source || {};
+    const addonId = source.addonId || manifest.id;
+    const catalogId = source.catalogId || source.id;
+    if (!catalogId || !source.type) return;
+    const key = nuvioHomeKey(addonId, source.type, catalogId);
+    selectedOrderByKey.set(key, index);
+    if (addonId === manifest.id && catalogId) selectedRowsByCatalog.set(catalogId, r);
+  });
+
+  const selectedRows = new Set(selectedRowsByCatalog.keys());
+  const selectedCount = selectedOrderByKey.size;
+  for (let manifestIndex = 0; manifestIndex < (manifest.catalogs || []).length; manifestIndex += 1) {
+    const catalog = (manifest.catalogs || [])[manifestIndex] as { type?: string; id?: string; showInHome?: boolean };
+    if (!catalog) continue;
+    const key = nuvioHomeKey(manifest.id, catalog.type, catalog.id);
+    const existing = byKey.get(key) || {};
+    const isFranchise = String(catalog.id || '') === 'torbox-collections' ||
+      String(catalog.id || '').startsWith('torbox-collection-');
+    const hiddenFromHome = catalog.showInHome === false;
+    if (hiddenFromHome || isFranchise) {
+      byKey.delete(key);
+      continue;
+    }
+    const selectedOrder = selectedOrderByKey.get(key);
+    const currentOrder = selectedOrder == null ? selectedCount + manifestIndex : selectedOrder;
+    byKey.set(key, {
+      ...existing,
+      addon_id: manifest.id,
+      type: catalog.type,
+      catalog_id: catalog.id,
+      enabled: selectedRows.has(String(catalog.id)),
+      order: currentOrder,
+      custom_title: selectedRowsByCatalog.get(String(catalog.id))?.customTitle === true
+        ? selectedRowsByCatalog.get(String(catalog.id))?.title
+        : (existing['custom_title'] || ''),
+      is_collection: false,
+      collection_id: existing['collection_id'] || '',
+      key: nuvioItemKey(manifest.id, catalog.type, catalog.id),
+    });
+  }
+
+  for (const homeRow of orderedHomeRows) {
+    const source = homeRow?.source;
+    const catalogId = source?.catalogId || source?.id;
+    if (!source?.addonId || source.addonId === manifest.id || !catalogId || !source.type) continue;
+    const key = nuvioHomeKey(source.addonId, source.type, catalogId);
+    const existing = byKey.get(key) || {};
+    byKey.set(key, {
+      ...existing,
+      addon_id: source.addonId,
+      type: source.type,
+      catalog_id: catalogId,
+      enabled: homeRow.enabled !== false,
+      order: selectedOrderByKey.get(key) ?? selectedCount,
+      custom_title: existing['custom_title'] || homeRow.title || '',
+      is_collection: false,
+      collection_id: existing['collection_id'] || '',
+      key: nuvioItemKey(source.addonId, source.type, catalogId),
+    });
+  }
+
+  const manifestCatalogKeys = new Set((manifest.catalogs || []).map((c) => nuvioHomeKey(manifest.id, c?.type, c?.id)));
+  for (const [key, item] of byKey) {
+    if (item && item['addon_id'] === manifest.id && !manifestCatalogKeys.has(key) && item['is_collection'] !== true) {
+      byKey.delete(key);
+    }
+    // Drop any flat torbox-collections Home catalog row from any LeLibrary addon namespace
+    if (item && (item['catalog_id'] === 'torbox-collections' || String(item['catalog_id'] || '').startsWith('torbox-collection-')) && item['is_collection'] !== true) {
+      byKey.delete(key);
+    }
+  }
+
+  // Every LeLibrary collection gets its own Home item: without one, both
+  // Nuvio apps drop a collection to the bottom (see setup/home-layout.ts).
+  // Collections lead Home in the order of the Collections page, Movie
+  // Collections at its own slot among them; the Home rows follow.
+  const franchiseKey = `collection_${libraryCollections.LIBRARY_COLLECTION_ID}`;
+  const pushedIds = (collections || []).map((c) => String(c?.id || '')).filter(Boolean);
+  const hasFranchise = pushedIds.includes(libraryCollections.LIBRARY_COLLECTION_ID);
+  const collectionKeys: string[] = [];
+  for (const id of pushedIds) {
+    const key = `collection_${id}`;
+    const existing = byKey.get(key) || {};
+    byKey.set(key, {
+      ...existing,
+      // Nuvio mobile/desktop decode every Home item with addon_id, type and
+      // catalog_id REQUIRED (no defaults): one item without them fails the
+      // whole list and the app keeps its old local order. The apps write
+      // them as "" for collections; so do we.
+      addon_id: '',
+      type: '',
+      catalog_id: '',
+      is_collection: true,
+      collection_id: id,
+      enabled: true,
+      // Both apps show a collection's own title; a custom title would only
+      // confuse the settings list, so it is cleared.
+      custom_title: '',
+      key,
+    });
+    if (id !== libraryCollections.LIBRARY_COLLECTION_ID) collectionKeys.push(key);
+  }
+  // LeLibrary collections this push no longer sends: their items go too.
+  for (const key of [...byKey.keys()]) {
+    if (key.startsWith('collection_collection-lelibrary') && !pushedIds.includes(key.slice('collection_'.length))) byKey.delete(key);
+  }
+  if (!hasFranchise) byKey.delete(franchiseKey);
+
+  const rowKeys = orderedHomeRows.map((r) => {
+    const source = r.source || {};
+    const catalogId = source.catalogId || source.id;
+    return { key: nuvioHomeKey(source.addonId || manifest.id, source.type, catalogId), order: Number(r.order || 0) };
+  }).filter((row) => byKey.has(row.key));
+  const wanted = homeLayout.desiredHomeKeys({
+    rows: rowKeys,
+    franchise: hasFranchise ? { key: franchiseKey, slot: franchiseSlot } : null,
+    collectionKeys,
+  });
+  // Collections always lead Home: LeLibrary's in the setup's order, then any
+  // other collection on the profile in the order it has now.
+  const existingKeys = items.map(homeKey).filter((key) => byKey.has(key));
+  const otherCollections = existingKeys.filter((key) => byKey.get(key)?.['is_collection'] === true && !wanted.lead.includes(key));
+  const lead = [...wanted.lead, ...otherCollections];
+  const desired = wanted.rows;
+  // Owned: this manifest's catalogues, the setup's Home rows (any addon) and
+  // its collections. Everything else keeps its place.
+  const managed = new Set<string>([...desired, ...wanted.lead]);
+  for (const [key, item] of byKey) {
+    if (item && item['addon_id'] === manifest.id) managed.add(key);
+  }
+
+  return (() => {
+    const allKeys = homeLayout.layoutHomeKeys({ existingKeys, desired, managed, lead });
+    for (const key of byKey.keys()) if (!allKeys.includes(key)) allKeys.push(key);
+    // Each item keeps the key set above (the mobile format for catalogues,
+    // collection_<id> for collections); the map key is only for matching.
+    return allKeys.map((key: string, order: number) => {
+      const item = byKey.get(key) || {};
+      const own = typeof item['key'] === 'string' && item['key'] ? item['key'] : null;
+      const catalogKey = !item['is_collection'] && item['addon_id'] && item['type'] && item['catalog_id']
+        ? nuvioItemKey(item['addon_id'], item['type'], item['catalog_id'])
+        : null;
+      // Every item carries the three fields the apps require (see above),
+      // including entries other addons or older pushes left without them.
+      return {
+        ...item,
+        addon_id: typeof item['addon_id'] === 'string' ? item['addon_id'] : '',
+        type: typeof item['type'] === 'string' ? item['type'] : '',
+        catalog_id: typeof item['catalog_id'] === 'string' ? item['catalog_id'] : '',
+        key: catalogKey || own || key,
+        order,
+      };
+    });
+  })();
+}
+
 // Order Nuvio's Home rows to match the manifest catalogue order.
 async function syncNuvioHomeOrder(token: string, profileIndex: number, manifest: { id?: string; catalogs?: { type?: string; id?: string; showInHome?: boolean }[] }, homeRows: HomeRowDoc[] = [], collections: { id?: string }[] = [], uuidKey = 'setup', hideUnreleased: boolean | null = null, franchiseSlot: number | null = null): Promise<void> {
   try {
@@ -519,178 +706,7 @@ async function syncNuvioHomeOrder(token: string, profileIndex: number, manifest:
     const row = (Array.isArray(pulled) ? pulled[0] : pulled) as { settings_json?: unknown };
     const settings = parseNuvioJson(row?.settings_json, {}) as { show_catalog_type?: boolean; hide_unreleased_content?: boolean; items?: Record<string, unknown>[] };
     const items = homeSettings.dropMalformedHomeItems(Array.isArray(settings.items) ? settings.items.slice() : []);
-    // Nuvio collection Home entries do not have addon/type/catalog fields.
-    // Canonicalise them separately so an older, pinned collection record can
-    // be replaced instead of surviving under the empty-catalogue key.
-    const homeKey = (item: Record<string, unknown> | undefined): string => {
-      if (item?.['is_collection'] === true || item?.['isCollection'] === true || item?.['collection_id'] || item?.['collectionId']) {
-        return `collection_${item['collection_id'] || item['collectionId']}`;
-      }
-      return nuvioHomeKey(item?.['addon_id'], item?.['type'], item?.['catalog_id']);
-    };
-    const byKey = new Map(items.map((item) => [homeKey(item), item]));
-
-    const orderedHomeRows = (homeRows || [])
-      .filter((r) => r?.enabled !== false && r?.source)
-      .slice()
-      .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
-    const selectedRowsByCatalog = new Map<string, HomeRowDoc>();
-    const selectedOrderByKey = new Map<string, number>();
-    orderedHomeRows.forEach((r, index) => {
-      const source = r.source || {};
-      const addonId = source.addonId || manifest.id;
-      const catalogId = source.catalogId || source.id;
-      if (!catalogId || !source.type) return;
-      const key = nuvioHomeKey(addonId, source.type, catalogId);
-      selectedOrderByKey.set(key, index);
-      if (addonId === manifest.id && catalogId) selectedRowsByCatalog.set(catalogId, r);
-    });
-
-    const selectedRows = new Set(selectedRowsByCatalog.keys());
-    const selectedCount = selectedOrderByKey.size;
-    for (let manifestIndex = 0; manifestIndex < (manifest.catalogs || []).length; manifestIndex += 1) {
-      const catalog = (manifest.catalogs || [])[manifestIndex] as { type?: string; id?: string; showInHome?: boolean };
-      if (!catalog) continue;
-      const key = nuvioHomeKey(manifest.id, catalog.type, catalog.id);
-      const existing = byKey.get(key) || {};
-      const isFranchise = String(catalog.id || '') === 'torbox-collections' ||
-        String(catalog.id || '').startsWith('torbox-collection-');
-      const hiddenFromHome = catalog.showInHome === false;
-      if (hiddenFromHome || isFranchise) {
-        byKey.delete(key);
-        continue;
-      }
-      const selectedOrder = selectedOrderByKey.get(key);
-      const currentOrder = selectedOrder == null ? selectedCount + manifestIndex : selectedOrder;
-      byKey.set(key, {
-        ...existing,
-        addon_id: manifest.id,
-        type: catalog.type,
-        catalog_id: catalog.id,
-        enabled: selectedRows.has(String(catalog.id)),
-        order: currentOrder,
-        custom_title: selectedRowsByCatalog.get(String(catalog.id))?.customTitle === true
-          ? selectedRowsByCatalog.get(String(catalog.id))?.title
-          : (existing['custom_title'] || ''),
-        is_collection: false,
-        collection_id: existing['collection_id'] || '',
-        key: nuvioItemKey(manifest.id, catalog.type, catalog.id),
-      });
-    }
-
-    for (const homeRow of orderedHomeRows) {
-      const source = homeRow?.source;
-      const catalogId = source?.catalogId || source?.id;
-      if (!source?.addonId || source.addonId === manifest.id || !catalogId || !source.type) continue;
-      const key = nuvioHomeKey(source.addonId, source.type, catalogId);
-      const existing = byKey.get(key) || {};
-      byKey.set(key, {
-        ...existing,
-        addon_id: source.addonId,
-        type: source.type,
-        catalog_id: catalogId,
-        enabled: homeRow.enabled !== false,
-        order: selectedOrderByKey.get(key) ?? selectedCount,
-        custom_title: existing['custom_title'] || homeRow.title || '',
-        is_collection: false,
-        collection_id: existing['collection_id'] || '',
-        key: nuvioItemKey(source.addonId, source.type, catalogId),
-      });
-    }
-
-    const manifestCatalogKeys = new Set((manifest.catalogs || []).map((c) => nuvioHomeKey(manifest.id, c?.type, c?.id)));
-    for (const [key, item] of byKey) {
-      if (item && item['addon_id'] === manifest.id && !manifestCatalogKeys.has(key) && item['is_collection'] !== true) {
-        byKey.delete(key);
-      }
-      // Drop any flat torbox-collections Home catalog row from any LeLibrary addon namespace
-      if (item && (item['catalog_id'] === 'torbox-collections' || String(item['catalog_id'] || '').startsWith('torbox-collection-')) && item['is_collection'] !== true) {
-        byKey.delete(key);
-      }
-    }
-
-    // Every LeLibrary collection gets its own Home item: without one, both
-    // Nuvio apps drop a collection to the bottom (see setup/home-layout.ts).
-    // Collections lead Home in the order of the Collections page, Movie
-    // Collections at its own slot among them; the Home rows follow.
-    const franchiseKey = `collection_${libraryCollections.LIBRARY_COLLECTION_ID}`;
-    const pushedIds = (collections || []).map((c) => String(c?.id || '')).filter(Boolean);
-    const hasFranchise = pushedIds.includes(libraryCollections.LIBRARY_COLLECTION_ID);
-    const collectionKeys: string[] = [];
-    for (const id of pushedIds) {
-      const key = `collection_${id}`;
-      const existing = byKey.get(key) || {};
-      byKey.set(key, {
-        ...existing,
-        // Nuvio mobile/desktop decode every Home item with addon_id, type and
-        // catalog_id REQUIRED (no defaults): one item without them fails the
-        // whole list and the app keeps its old local order. The apps write
-        // them as "" for collections; so do we.
-        addon_id: '',
-        type: '',
-        catalog_id: '',
-        is_collection: true,
-        collection_id: id,
-        enabled: true,
-        // Both apps show a collection's own title; a custom title would only
-        // confuse the settings list, so it is cleared.
-        custom_title: '',
-        key,
-      });
-      if (id !== libraryCollections.LIBRARY_COLLECTION_ID) collectionKeys.push(key);
-    }
-    // LeLibrary collections this push no longer sends: their items go too.
-    for (const key of [...byKey.keys()]) {
-      if (key.startsWith('collection_collection-lelibrary') && !pushedIds.includes(key.slice('collection_'.length))) byKey.delete(key);
-    }
-    if (!hasFranchise) byKey.delete(franchiseKey);
-
-    const rowKeys = orderedHomeRows.map((r) => {
-      const source = r.source || {};
-      const catalogId = source.catalogId || source.id;
-      return { key: nuvioHomeKey(source.addonId || manifest.id, source.type, catalogId), order: Number(r.order || 0) };
-    }).filter((row) => byKey.has(row.key));
-    const wanted = homeLayout.desiredHomeKeys({
-      rows: rowKeys,
-      franchise: hasFranchise ? { key: franchiseKey, slot: franchiseSlot } : null,
-      collectionKeys,
-    });
-    // Collections always lead Home: LeLibrary's in the setup's order, then any
-    // other collection on the profile in the order it has now.
-    const existingKeys = items.map(homeKey).filter((key) => byKey.has(key));
-    const otherCollections = existingKeys.filter((key) => byKey.get(key)?.['is_collection'] === true && !wanted.lead.includes(key));
-    const lead = [...wanted.lead, ...otherCollections];
-    const desired = wanted.rows;
-    // Owned: this manifest's catalogues, the setup's Home rows (any addon) and
-    // its collections. Everything else keeps its place.
-    const managed = new Set<string>([...desired, ...wanted.lead]);
-    for (const [key, item] of byKey) {
-      if (item && item['addon_id'] === manifest.id) managed.add(key);
-    }
-
-    const finalItems = (() => {
-      const allKeys = homeLayout.layoutHomeKeys({ existingKeys, desired, managed, lead });
-      for (const key of byKey.keys()) if (!allKeys.includes(key)) allKeys.push(key);
-      // Each item keeps the key set above (the mobile format for catalogues,
-      // collection_<id> for collections); the map key is only for matching.
-      return allKeys.map((key: string, order: number) => {
-        const item = byKey.get(key) || {};
-        const own = typeof item['key'] === 'string' && item['key'] ? item['key'] : null;
-        const catalogKey = !item['is_collection'] && item['addon_id'] && item['type'] && item['catalog_id']
-          ? nuvioItemKey(item['addon_id'], item['type'], item['catalog_id'])
-          : null;
-        // Every item carries the three fields the apps require (see above),
-        // including entries other addons or older pushes left without them.
-        return {
-          ...item,
-          addon_id: typeof item['addon_id'] === 'string' ? item['addon_id'] : '',
-          type: typeof item['type'] === 'string' ? item['type'] : '',
-          catalog_id: typeof item['catalog_id'] === 'string' ? item['catalog_id'] : '',
-          key: catalogKey || own || key,
-          order,
-        };
-      });
-    })();
+    const finalItems = planNuvioHomeItems({ items, manifest, homeRows, collections, franchiseSlot });
 
     await nuvioRpc(token, '/rest/v1/rpc/sync_push_home_catalog_settings', {
       p_profile_id: profileIndex,
@@ -817,6 +833,83 @@ async function withHubGenreTabs(collections: unknown[], installToken: string, hi
   }
 }
 
+// The collections document one Nuvio push sends, from the compiled plan's
+// collections: folder sources become addon sources, art links become full
+// links on `origin`, empty folders and collections are dropped (Nuvio TV drops
+// a whole push over one). Pure: the push sends it, the setup Preview shows it.
+function nuvioCollectionsFromPlan(plannedCollections: unknown, addonId: string, origin: string): Record<string, unknown>[] {
+  return (Array.isArray(plannedCollections) ? plannedCollections as Record<string, unknown>[] : []).map((c, ci) => {
+    const folders = (Array.isArray(c['folders']) ? c['folders'] : []).map((f, fi) => {
+      const raw = f as Record<string, unknown>;
+      const rawSources = Array.isArray(raw['catalogSources']) ? raw['catalogSources'] : [];
+      const sources = rawSources.length
+        ? (rawSources as Record<string, unknown>[]).map((s) => ({
+          provider: 'addon',
+          addonId: s['addonId'] || addonId,
+          catalogId: s['catalogId'],
+          type: s['type'] || 'movie',
+          genre: s['genre'] || '',
+        }))
+        : [];
+      if (!sources.length) return null;
+      return {
+        id: raw['id'] || `folder-${ci}-${fi}`,
+        title: raw['title'] || 'Collection',
+        tileShape: artwork.nuvioTileShape(raw['tileShape']),
+        hideTitle: !!raw['hideTitle'],
+        heroBackdropUrl: artwork.absoluteLocalArtwork(raw['heroBackdropUrl'], origin),
+        heroVideoUrl: artwork.absoluteLocalArtwork(raw['heroVideoUrl'], origin),
+        titleLogoUrl: artwork.absoluteLocalArtwork(raw['titleLogoUrl'], origin),
+        ...artwork.normaliseNuvioArtwork(f, origin),
+        sources,
+      };
+    }).filter(Boolean);
+    if (!folders.length) return null;
+    // Nuvio's collection image (backdropImageUrl; Nuvio TV's Modern layout
+    // shows it behind the collection): its own backdrop, else the first
+    // folder's backdrop or cover, so no collection is ever blank.
+    const firstArt = (folders as Record<string, unknown>[]).map((f) => String(f['heroBackdropUrl'] || f['coverImageUrl'] || '')).find(Boolean) || '';
+    const backdrop = artwork.absoluteLocalArtwork(c['backdropUrl'], origin) || firstArt;
+    return {
+      ...(backdrop ? { backdropImageUrl: backdrop } : {}),
+      focusGlowEnabled: (c as Record<string, unknown>)['focusGlowEnabled'] !== false,
+      id: String(c['id'] || '').startsWith('collection-lelibrary')
+        ? c['id']
+        : `collection-lelibrary-${c['id'] || ci}`,
+      title: (c['title'] as string) || 'LeLibrary Collections',
+      pinToTop: (c as Record<string, unknown>)['pinToTop'] === true,
+      showAllTab: (c as Record<string, unknown>)['showAllTab'] !== false,
+      viewMode: (c as Record<string, unknown>)['viewMode'] || 'TABBED_GRID',
+      folders,
+    };
+  }).filter(Boolean) as Record<string, unknown>[];
+}
+
+// Movie Collections (the owned franchise collection) goes to its slot among
+// the setup's collections (absent: first), under its custom title if renamed.
+function withFranchiseCollection(
+  list: Record<string, unknown>[],
+  franchise: Record<string, unknown> | null,
+  native: { enabled?: boolean; slot?: number | null; title?: string | null } | undefined,
+): Record<string, unknown>[] {
+  if (native?.enabled !== true || !(franchise?.['folders'] as unknown[] | undefined)?.length) return list;
+  const out = list.slice();
+  const slot = native.slot;
+  const at = Number.isFinite(slot) ? Math.max(0, Math.min(out.length, Number(slot))) : 0;
+  out.splice(at, 0, { ...franchise, ...(native.title ? { title: native.title } : {}) });
+  return out;
+}
+
+// The owned franchise collection as the addon serves it to Nuvio
+// (collections.json, owned folders only), over loopback. Null when the
+// library is not built yet or the request fails.
+async function fetchOwnedFranchiseCollection(loopback: string, tokenId: string, timeout = 60000): Promise<Record<string, unknown> | null> {
+  const generated = await axios.get(`${loopback}/${encodeURIComponent(tokenId)}/collections.json?owned_only=1`, { timeout });
+  return Array.isArray(generated.data)
+    ? (generated.data as Record<string, unknown>[]).find((collection) => collection?.['id'] === libraryCollections.LIBRARY_COLLECTION_ID) || null
+    : null;
+}
+
 async function pushToNuvio(
   conn: PushConnection,
   manifestUrl: string,
@@ -865,10 +958,7 @@ async function pushToNuvio(
       // slice for a cold build, so this never holds the push open for minutes;
       // when the library is still building the push publishes everything else
       // and reports it as pending.
-      const generated = await axios.get(`${loopback}/${encodeURIComponent(tokenId)}/collections.json?owned_only=1`, { timeout: 60000 });
-      franchiseCollection = Array.isArray(generated.data)
-        ? (generated.data as Record<string, unknown>[]).find((collection) => collection?.['id'] === libraryCollections.LIBRARY_COLLECTION_ID) || null
-        : null;
+      franchiseCollection = await fetchOwnedFranchiseCollection(loopback, tokenId);
     }
   } catch (err) {
     log('Could not build owned Nuvio franchise folders:', (err as Error).message);
@@ -943,65 +1033,14 @@ async function pushToNuvio(
 
   // Build the collection structure from the stored config.
   const addonId = manifest?.id || 'community.lelibrary.selfhosted';
-  const nuvioCollections = (plannedCollections as Record<string, unknown>[]).map((c, ci) => {
-    const folders = (Array.isArray(c['folders']) ? c['folders'] : []).map((f, fi) => {
-      const raw = f as Record<string, unknown>;
-      const rawSources = Array.isArray(raw['catalogSources']) ? raw['catalogSources'] : [];
-      const sources = rawSources.length
-        ? (rawSources as Record<string, unknown>[]).map((s) => ({
-          provider: 'addon',
-          addonId: s['addonId'] || addonId,
-          catalogId: s['catalogId'],
-          type: s['type'] || 'movie',
-          genre: s['genre'] || '',
-        }))
-        : [];
-      if (!sources.length) return null;
-      return {
-        id: raw['id'] || `folder-${ci}-${fi}`,
-        title: raw['title'] || 'Collection',
-        tileShape: artwork.nuvioTileShape(raw['tileShape']),
-        hideTitle: !!raw['hideTitle'],
-        heroBackdropUrl: artwork.absoluteLocalArtwork(raw['heroBackdropUrl'], options.origin),
-        heroVideoUrl: artwork.absoluteLocalArtwork(raw['heroVideoUrl'], options.origin),
-        titleLogoUrl: artwork.absoluteLocalArtwork(raw['titleLogoUrl'], options.origin),
-        ...artwork.normaliseNuvioArtwork(f, options.origin),
-        sources,
-      };
-    }).filter(Boolean);
-    if (!folders.length) return null;
-    // Nuvio's collection image (backdropImageUrl; Nuvio TV's Modern layout
-    // shows it behind the collection): its own backdrop, else the first
-    // folder's backdrop or cover, so no collection is ever blank.
-    const firstArt = (folders as Record<string, unknown>[]).map((f) => String(f['heroBackdropUrl'] || f['coverImageUrl'] || '')).find(Boolean) || '';
-    const backdrop = artwork.absoluteLocalArtwork(c['backdropUrl'], options.origin) || firstArt;
-    return {
-      ...(backdrop ? { backdropImageUrl: backdrop } : {}),
-      focusGlowEnabled: (c as Record<string, unknown>)['focusGlowEnabled'] !== false,
-      id: String(c['id'] || '').startsWith('collection-lelibrary')
-        ? c['id']
-        : `collection-lelibrary-${c['id'] || ci}`,
-      title: (c['title'] as string) || 'LeLibrary Collections',
-      pinToTop: (c as Record<string, unknown>)['pinToTop'] === true,
-      showAllTab: (c as Record<string, unknown>)['showAllTab'] !== false,
-      viewMode: (c as Record<string, unknown>)['viewMode'] || 'TABBED_GRID',
-      folders,
-    };
-  }).filter(Boolean);
+  let nuvioCollections = nuvioCollectionsFromPlan(plannedCollections, addonId, options.origin);
 
   // Nuvio does not support nesting a collection inside another collection.
   // The Hub keeps one "Movie Collections" folder backed by torbox-collections;
   // do not flatten every franchise folder into the Hub.
   // mergeCollectionsInPlace forces pinToTop off for the Hub and Movie
   // Collections, so a stale value cannot float either above its slot.
-  if (franchiseCollectionEnabled && (franchiseCollection?.['folders'] as unknown[] | undefined)?.length) {
-    const renamed = (collectionPlan.nativeFranchiseCollection as { title?: string | null } | undefined)?.title;
-    // Movie Collections goes to its slot on the Collections page (absent: first).
-    const list = nuvioCollections as Record<string, unknown>[];
-    const slot = (collectionPlan.nativeFranchiseCollection as { slot?: number | null } | undefined)?.slot;
-    const at = Number.isFinite(slot) ? Math.max(0, Math.min(list.length, Number(slot))) : 0;
-    list.splice(at, 0, { ...franchiseCollection, ...(renamed ? { title: renamed } : {}) });
-  }
+  nuvioCollections = withFranchiseCollection(nuvioCollections, franchiseCollection, collectionPlan.nativeFranchiseCollection as { enabled?: boolean; slot?: number | null; title?: string | null } | undefined);
 
   await pushNuvioCollections(token, profileIndex, nuvioCollections, options.uuidKey, options.replaceOtherCollections === true);
   // Remember what this push sent, so the background update only acts on a
@@ -1116,6 +1155,12 @@ export interface PushApi {
   resolveNuvioProfile: (profiles: NuvioProfile[], selected: unknown) =>
     { ok: true; profile: NuvioProfile } | { ok: false; error: string };
   installSetup: (input: InstallSetupInput) => Promise<InstallSetupResult>;
+  internalOrigin: (port?: number) => string;
+  planNuvioHomeItems: (input: NuvioHomeItemsInput) => Record<string, unknown>[];
+  nuvioCollectionsFromPlan: (plannedCollections: unknown, addonId: string, origin: string) => Record<string, unknown>[];
+  withFranchiseCollection: typeof withFranchiseCollection;
+  fetchOwnedFranchiseCollection: (loopback: string, tokenId: string, timeout?: number) => Promise<Record<string, unknown> | null>;
+  withHubGenreTabs: (collections: unknown[], installToken: string, hideAnime: boolean) => Promise<unknown[]>;
   pullNuvioCollections: (token: string, profileIndex: number) => Promise<Record<string, unknown>[]>;
   writeNuvioCollections: (token: string, profileIndex: number, collections: unknown[], uuidKey: string) => Promise<void>;
   pushOptionsFromConfig: (config: Record<string, unknown> | null | undefined) => PushOptions;
@@ -1148,6 +1193,12 @@ module.exports = {
   pullNuvioProfiles,
   resolveNuvioProfile,
   installSetup,
+  internalOrigin,
+  planNuvioHomeItems,
+  nuvioCollectionsFromPlan,
+  withFranchiseCollection,
+  fetchOwnedFranchiseCollection,
+  withHubGenreTabs,
   pullNuvioCollections,
   writeNuvioCollections,
   pushOptionsFromConfig,

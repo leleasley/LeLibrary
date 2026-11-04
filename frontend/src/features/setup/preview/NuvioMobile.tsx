@@ -236,7 +236,7 @@ export function NuvioMobile({ stack, width, height }: { stack: PreviewScreen[]; 
       <Layer top={atHome} className="is-home" onScroll={(top) => setCompact(top > 60)}>
         <MobileHero width={width} height={height} />
         <div className="npv-rows">
-          {preview.home.length === 0 && <EmptyNote>Nothing shows on Home yet. Add Home rows or collections, then save.</EmptyNote>}
+          {preview.home.length === 0 && <EmptyNote>Nothing shows on Home yet. Add Home rows or collections to see them here.</EmptyNote>}
           {preview.home.map((entry) => {
             if (entry.kind === 'collection') {
               const collection = byId.get(entry.id);

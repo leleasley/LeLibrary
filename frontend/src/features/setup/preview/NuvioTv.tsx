@@ -244,9 +244,9 @@ export function NuvioTv({ stack }: { stack: PreviewScreen[] }) {
     <div className="npv-tv-home">
       <Layer top={atHome} className="is-home is-tv">
         <Sidebar />
-        <TvHero shown={shown} sample={entry?.kind === 'row' && loader?.get({ type: entry.type, catalogId: entry.catalogId })?.status === 'sample'} />
+        {entries.length > 0 && <TvHero shown={shown} sample={entry?.kind === 'row' && loader?.get({ type: entry.type, catalogId: entry.catalogId })?.status === 'sample'} />}
         <div className="npv-tv-rows" ref={rowsRef} onKeyDown={onKeyDown}>
-          {entries.length === 0 && <EmptyNote>Nothing shows on Home yet. Add Home rows or collections, then save.</EmptyNote>}
+          {entries.length === 0 && <EmptyNote>Nothing shows on Home yet. Add Home rows or collections to see them here.</EmptyNote>}
           {entries.map((item, index) => {
             if (item.kind === 'collection') {
               const collection = byId.get(item.id);

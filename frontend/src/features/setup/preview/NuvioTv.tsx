@@ -56,12 +56,12 @@ function useDebounced<T>(value: T, ms: number): T {
 }
 
 function TvHero({ shown }: { shown: Focused }) {
-  const { metas } = usePreview();
-  const meta = shown?.kind === 'meta' ? shown.meta : null;
-  useEffect(() => { if (meta) metas?.load(meta); }, [metas, meta]);
   if (!shown) return <div className="npv-tv-hero is-loading"><span className="npv-art is-loading npv-tv-backdrop" aria-hidden="true" /></div>;
   if (shown.kind === 'folder') {
     const art = shown.collection.backdrop || shown.folder.cover;
+    // A folder with no art of its own would leave the hero empty: show the
+    // first title of the first hero row behind it instead.
+    if (!art) return <FolderFallbackHero />;
     return (
       <div className="npv-tv-hero">
         <Art src={tmdbSized(art, 'w1280')} className="npv-tv-backdrop" eager />
@@ -73,7 +73,22 @@ function TvHero({ shown }: { shown: Focused }) {
       </div>
     );
   }
-  const full = enrich(shown.meta, metas?.get(shown.meta));
+  return <MetaHero meta={shown.meta} />;
+}
+
+function FolderFallbackHero() {
+  const { preview } = usePreview();
+  const source = preview.hero[0];
+  const { state } = useCatalog(source ? { type: source.type, catalogId: source.catalogId } : null, true);
+  const first = state?.status === 'ready' ? state.metas[0] : undefined;
+  if (!first) return <div className="npv-tv-hero is-loading"><span className="npv-art is-loading npv-tv-backdrop" aria-hidden="true" /></div>;
+  return <MetaHero meta={first} />;
+}
+
+function MetaHero({ meta }: { meta: PreviewMeta }) {
+  const { metas } = usePreview();
+  useEffect(() => { metas?.load(meta); }, [metas, meta]);
+  const full = enrich(meta, metas?.get(meta));
   const facts = [typeName(full.type), full.genres[0] ?? '', full.year].filter(Boolean);
   return (
     <div className="npv-tv-hero">

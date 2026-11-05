@@ -250,7 +250,7 @@ export function KeyCardTile({ logo, monogram, invert }: { logo?: string | undefi
 // key link, verify on blur and saved/reveal handling. `identity` is the
 // account name to show ("Connected as ..."); `onIdentity` hears the name a
 // verify returned (null when the key changed or failed).
-export function KeyCard({ spec, value, onChange, onClear, saved, onReveal, identity, onIdentity, children }: {
+export function KeyCard({ spec, value, onChange, onClear, saved, onReveal, identity, onIdentity, defaultOpen, children }: {
   spec: KeyCardSpec;
   value: string;
   onChange: (value: string) => void;
@@ -261,10 +261,12 @@ export function KeyCard({ spec, value, onChange, onClear, saved, onReveal, ident
   onReveal?: (() => Promise<string | null>) | undefined;
   identity?: string | null | undefined;
   onIdentity?: ((name: string | null) => void) | undefined;
+  // Tests only: every card starts closed for people.
+  defaultOpen?: boolean | undefined;
   children?: ReactNode;
 }) {
   const required = spec.required === true;
-  const [open, setOpen] = useState(required);
+  const [open, setOpen] = useState(defaultOpen === true);
   const [verified, setVerified] = useState(false);
   // Switched on before a key exists: the thumb slides immediately and the
   // card opens for the key. Closing the card without one switches it back
@@ -274,7 +276,7 @@ export function KeyCard({ spec, value, onChange, onClear, saved, onReveal, ident
   // first: the switch used to delete a saved key silently.
   const [confirmClear, setConfirmClear] = useState(false);
   const filled = Boolean(value.trim());
-  const isOpen = required || open;
+  const isOpen = open;
   const switchOn = filled || armed;
   const state = verified ? 'verified' : filled ? 'added' : 'idle';
 
@@ -305,7 +307,7 @@ export function KeyCard({ spec, value, onChange, onClear, saved, onReveal, ident
     clear(false);
   }
 
-  const headProps = required ? {} : {
+  const headProps = {
     role: 'button',
     tabIndex: 0,
     'aria-expanded': isOpen,
@@ -337,19 +339,17 @@ export function KeyCard({ spec, value, onChange, onClear, saved, onReveal, ident
           <span className="pc-pill is-verified" aria-label="Key saved on the server">{CHECK_ICON}Saved</span>
         )}
         {!filled && !saved && required && <span className="pc-pill is-warn">Required</span>}
-        {!required && (
-          <span className="pc-switch">
-            <input
-              type="checkbox"
-              className="pc-toggle"
-              checked={switchOn}
-              aria-label={`Use ${spec.name}`}
-              onClick={(event) => event.stopPropagation()}
-              onChange={(event) => onSwitch(event.target.checked)}
-            />
-            <span className="pc-switch-track" aria-hidden="true"><span className="pc-switch-thumb" /></span>
-          </span>
-        )}
+        <span className="pc-switch">
+          <input
+            type="checkbox"
+            className="pc-toggle"
+            checked={switchOn}
+            aria-label={`Use ${spec.name}`}
+            onClick={(event) => event.stopPropagation()}
+            onChange={(event) => onSwitch(event.target.checked)}
+          />
+          <span className="pc-switch-track" aria-hidden="true"><span className="pc-switch-thumb" /></span>
+        </span>
       </div>
       {isOpen && (
         <div className="pc-body">

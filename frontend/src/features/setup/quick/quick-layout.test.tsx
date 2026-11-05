@@ -66,15 +66,15 @@ describe('quick look reference layout', () => {
 
   it('offers TVDB as optional and TMDB as required', () => {
     const html = render();
-    // The shared key cards: TMDB is open and required, TVDB and OMDb are
-    // optional cards with a switch (OMDb has no logo: a monogram tile).
+    // The shared key cards: TMDB is a card like the rest (closed, with a
+    // switch) marked Required; TVDB and OMDb are optional (OMDb has no logo:
+    // a monogram tile).
     expect(html).toContain('aria-label="Use TVDB"');
     expect(html).toContain('aria-label="Use OMDb"');
     expect(html).toContain('class="pc-mono"');
-    expect(html).not.toContain('aria-label="Use TMDB"');
-    expect(html).toContain('Get key');
-    expect(html).toMatch(/TMDB API key<span class="req"> \*<\/span>/);
-    expect(html).toContain('provider-card is-open is-required');
+    expect(html).toContain('aria-label="Use TMDB"');
+    expect(html).toContain('provider-card is-required');
+    expect(html).toContain('pc-pill is-warn');
     // The old metadata layout is gone.
     expect(html).not.toContain('qs-key');
     expect(html).not.toContain('qs-meta-optional');
@@ -85,7 +85,6 @@ describe('quick look reference layout', () => {
     // One of them is needed, not each of them: no asterisk on any provider key.
     expect(html).not.toMatch(/TorBox API key<span class="req"/);
     expect(html).not.toMatch(/Real-Debrid API key<span class="req"/);
-    expect(html).toContain('Get key');
   });
 
   it('ticks provider boxes and clears the key when unticked', () => {

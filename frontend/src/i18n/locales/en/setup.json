@@ -1808,6 +1808,9 @@
     "Your Simkl rows show here once the setup is saved": "Your Simkl rows show here once the setup is saved",
     "Your MDBList rows show here once the setup is saved": "Your MDBList rows show here once the setup is saved",
     "Your AniList rows show here once the setup is saved": "Your AniList rows show here once the setup is saved",
-    "Your list shows here once the setup is saved": "Your list shows here once the setup is saved"
+    "Your list shows here once the setup is saved": "Your list shows here once the setup is saved",
+    "Optional. Connect an account to add its personal rows (Up Next, Watching, Plan to Watch and more) to Home rows and folders.": "Optional. Connect an account to add its personal rows (Up Next, Watching, Plan to Watch and more) to Home rows and folders.",
+    "Nothing connected": "Nothing connected",
+    "Integrations": "Integrations"
   }
 }

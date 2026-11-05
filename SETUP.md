@@ -45,9 +45,12 @@ Every setup ends with one thing: an install link. Keep it.
   LeLibrary push your Home rows and collections for you) and name the setup.
 - **Setup**: one page of sections. Each starts closed and shows a one-line
   summary of what you picked; open only what you want to change.
-  - **API keys**: your debrid keys (Library providers), TMDB, TVDB, OMDb and
-    MDBList (Metadata and lists), and Connected accounts: Simkl, and AniList
-    by public username or a connect for private lists.
+  - **API keys**: your debrid keys (Library providers), then TMDB (required),
+    TVDB, OMDb and MDBList (Metadata and lists). Once an MDBList key is
+    checked, the card shows which MDBList account it belongs to.
+  - **Integrations** (optional): Simkl, and AniList by public username or a
+    connect for private lists. Each adds its personal rows (Up Next, Watching,
+    Plan to Watch and more) to the Home rows and folder pickers.
   - **Streams**: playback filters (presets such as Best quality or Save
     space, resolutions you can tap and reorder, size limits), extra stream
     sources and your own addons.

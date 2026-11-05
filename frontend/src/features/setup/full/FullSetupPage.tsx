@@ -6,7 +6,7 @@ import { Accordion } from '@/features/setup/shared/Accordion';
 import { ConfirmModal } from '@/features/setup/shared/Modal';
 import { useWizardStep } from '@/features/setup/shared/WizardStepper';
 import { RdCatalogSelect } from '@/features/setup/shared/sections';
-import { ApiKeysAccordion, useSetupConnections } from '@/features/setup/shared/ApiKeysSection';
+import { ApiKeysAccordion, IntegrationsAccordion, useSetupConnections } from '@/features/setup/shared/ApiKeysSection';
 import { TierProgress } from '@/features/setup/shared/tier/TierProgress';
 import { BadgePackStrip, StreamStylePicker, usePresetPicker } from '@/features/setup/shared/tier/TierPickers';
 import { TierDock, useTierPreview } from '@/features/setup/shared/tier/TierPreview';
@@ -421,13 +421,13 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
           </TierStep>
           <TierStep id="setup" index={2} title="Setup" hidden={wizard.step !== 1} lede="Everything about your library in one place. Open a section to change it; each one shows where it stands.">
             <div className="qs-accordions qs-setup-page">
-              <ApiKeysAccordion
-                keys={keys} onKeys={setKeys} edit={edit} revealSaved={revealEdit}
-                connections={connections}
-                anilistUser={meta.anilistUser} onAnilistUser={(anilistUser) => setMeta({ ...meta, anilistUser })}
-              >
+              <ApiKeysAccordion keys={keys} onKeys={setKeys} edit={edit} revealSaved={revealEdit}>
                 <div className="qs-catalogs"><RdCatalogSelect value={rdCatalog} onChange={setRdCatalog} /></div>
               </ApiKeysAccordion>
+              <IntegrationsAccordion
+                edit={edit} connections={connections}
+                anilistUser={meta.anilistUser} onAnilistUser={(anilistUser) => setMeta({ ...meta, anilistUser })}
+              />
               <Accordion title="Streams" icon="🎚️"
                 summary={[...filterSummaryParts(filterSets).slice(0, 2), addons.length + customAddons.length > 0 ? 'Extra sources on' : 'Library only']}>
                 <h3 className="qs-sub"><strong>Library playback filters</strong><span>Resolutions, qualities and files</span></h3>

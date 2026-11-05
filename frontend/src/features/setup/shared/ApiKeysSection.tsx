@@ -48,7 +48,6 @@ export const MDBLIST_CARD_SPEC: KeyCardSpec = {
   logo: '/logos/mdblist.svg',
   brand: '66, 132, 202',
   docsUrl: 'https://mdblist.com/preferences/',
-  wide: true,
 };
 
 // The MDBList account name to show: what a verify in this session returned
@@ -246,8 +245,6 @@ export function apiKeysSummary(options: {
   keys: SetupKeysDraft;
   savedServices?: readonly string[] | undefined;
   mdblistName?: string | null | undefined;
-  connected?: readonly WatchlistProvider[] | undefined;
-  anilistUser?: string | undefined;
 }): string[] {
   const { keys, savedServices = [] } = options;
   const has = (field: keyof SetupKeysDraft) => Boolean((keys[field] ?? '').trim()) || savedServices.includes(field);
@@ -258,13 +255,22 @@ export function apiKeysSummary(options: {
   ];
   if (options.mdblistName && has('mdblistKey')) parts.push(`MDBList · ${options.mdblistName}`);
   else if (has('mdblistKey')) parts.push('MDBList key added');
+  return parts;
+}
+
+// The Integrations accordion's one-line state: what is connected.
+export function integrationsSummary(options: {
+  connected?: readonly WatchlistProvider[] | undefined;
+  anilistUser?: string | undefined;
+}): string[] {
+  const parts: string[] = [];
   const connected = options.connected ?? [];
   for (const provider of ['simkl', 'anilist', 'trakt'] as const) {
     if (connected.includes(provider)) parts.push(`${WATCHLIST_PROVIDER_NAMES[provider]} connected`);
   }
   const anilistUser = (options.anilistUser ?? '').trim();
   if (!connected.includes('anilist') && isValidAnilistUser(anilistUser)) parts.push(`AniList · ${anilistUser}`);
-  return parts;
+  return parts.length ? parts : ['Nothing connected'];
 }
 
 // The page's Simkl / AniList / Trakt connections: edit mode seals into the
@@ -279,14 +285,10 @@ export function useSetupConnections(edit: EditMode | undefined, watchlist: Watch
 
 // Settle In and Move In's "API keys" accordion. `children` sits under the
 // provider cards (Move In's catalogue organization).
-export function ApiKeysAccordion({ keys, onKeys, edit, connections, anilistUser, onAnilistUser, revealSaved, children }: {
+export function ApiKeysAccordion({ keys, onKeys, edit, revealSaved, children }: {
   keys: SetupKeysDraft;
   onKeys: (next: SetupKeysDraft) => void;
   edit?: EditMode | undefined;
-  // From useSetupConnections on the page.
-  connections: WatchlistConnections;
-  anilistUser: string;
-  onAnilistUser: (next: string) => void;
   revealSaved?: ((field: keyof SetupKeysDraft) => Promise<string | null>) | undefined;
   children?: ReactNode;
 }) {
@@ -294,13 +296,7 @@ export function ApiKeysAccordion({ keys, onKeys, edit, connections, anilistUser,
   const [mdblistSession, setMdblistSession] = useState<string | null | undefined>(undefined);
   const mdblistName = resolveMdblistIdentity(mdblistSession, edit?.identities?.mdblist);
   const reveal = edit ? { savedServices: edit.savedServices, revealSaved, onRemove: edit.onRemoveKey } : {};
-  const summary = apiKeysSummary({
-    keys,
-    savedServices: edit?.savedServices,
-    mdblistName,
-    connected: (['simkl', 'anilist', 'trakt'] as const).filter((provider) => connections.connected(provider)),
-    anilistUser,
-  });
+  const summary = apiKeysSummary({ keys, savedServices: edit?.savedServices, mdblistName });
   return (
     <Accordion title="API keys" icon="🔑" summary={summary}>
       <h3 className="qs-sub"><strong>Library providers</strong><span>Debrid</span></h3>
@@ -311,7 +307,26 @@ export function ApiKeysAccordion({ keys, onKeys, edit, connections, anilistUser,
         values={keys} onChange={onKeys} {...reveal}
         mdblist={{ identity: mdblistName, onIdentity: setMdblistSession }}
       />
-      <h3 className="qs-sub"><strong>Connected accounts</strong><span>Optional</span></h3>
+    </Accordion>
+  );
+}
+
+// Settle In and Move In's "Integrations" accordion: the accounts that add
+// personal rows (Simkl, AniList; Trakt only where it is already connected).
+export function IntegrationsAccordion({ edit, connections, anilistUser, onAnilistUser }: {
+  edit?: EditMode | undefined;
+  // From useSetupConnections on the page.
+  connections: WatchlistConnections;
+  anilistUser: string;
+  onAnilistUser: (next: string) => void;
+}) {
+  const summary = integrationsSummary({
+    connected: (['simkl', 'anilist', 'trakt'] as const).filter((provider) => connections.connected(provider)),
+    anilistUser,
+  });
+  return (
+    <Accordion title="Integrations" icon="🔗" summary={summary}>
+      <p className="setup-hint qs-note">Optional. Connect an account to add its personal rows (Up Next, Watching, Plan to Watch and more) to Home rows and folders.</p>
       <ConnectedAccounts
         connections={connections} identities={edit?.identities}
         anilistUser={{ value: anilistUser, onChange: onAnilistUser }}

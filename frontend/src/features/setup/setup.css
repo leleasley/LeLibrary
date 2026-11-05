@@ -111,6 +111,55 @@ p.setup-note-pill { width: fit-content; max-width: 100%; box-sizing: border-box;
 .pictorium-studio-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
 .pictorium-summary { margin: 0; flex: 1; min-width: 180px; }
 
+/* Stream notices dropdown: master switch plus a checkbox dropdown. */
+.notice-dropdown { border: 1px solid var(--border); border-radius: 12px; margin: 2px 0 14px; background: rgba(255, 255, 255, 0.015); }
+.notice-dropdown summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; cursor: pointer; font-size: 0.82rem; font-weight: 700; list-style: none; }
+.notice-dropdown summary::-webkit-details-marker { display: none; }
+.notice-dropdown summary::after { content: '▸'; color: var(--amber); font-size: 0.8rem; }
+.notice-dropdown[open] summary::after { content: '▾'; }
+.notice-count { padding: 2px 10px; border-radius: 999px; background: rgba(245, 158, 11, 0.14); color: var(--amber); font-size: 0.68rem; font-weight: 800; }
+.notice-list { display: grid; gap: 8px; padding: 2px 14px 14px; }
+.source-list { display: grid; gap: 8px; }
+.notice-check { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; font-size: 0.82rem; cursor: pointer; }
+.notice-check:has(input:disabled) { opacity: 0.55; cursor: default; }
+.notice-check input { accent-color: var(--amber); width: 16px; height: 16px; margin-top: 2px; flex: none; }
+.notice-check strong { display: block; font-size: 0.82rem; }
+.notice-check small { display: block; margin-top: 2px; color: var(--muted); font-size: 0.72rem; line-height: 1.5; }
+
+/* Step accordions (cg-accordion), on the site palette. */
+.cg-accordion { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); margin-top: 12px; }
+.cg-accordion-body { overflow: visible; padding: 0 18px 18px; border-top: 1px solid var(--border); }
+.cg-accordion-head { display: flex; align-items: center; gap: 12px; list-style: none; cursor: pointer; padding: 16px 18px; user-select: none; }
+.cg-accordion-head::-webkit-details-marker { display: none; }
+.cg-accordion-head > div { min-width: 0; }
+.cg-accordion-head strong { display: block; font-size: 0.92rem; color: var(--text); }
+.cg-accordion-head small { display: block; font-size: 0.78rem; color: var(--muted); margin-top: 2px; font-weight: 400; }
+.cg-accordion-head::after { content: '▸'; margin-left: 10px; color: var(--muted); font-size: 0.85rem; transition: transform 0.15s; flex-shrink: 0; }
+.cg-accordion[open] > .cg-accordion-head::after { transform: rotate(90deg); color: var(--amber); }
+.cg-section-icon { font-size: 1.3rem; flex-shrink: 0; }
+.cg-accordion-count { margin-left: auto; margin-right: 0; padding: 4px 10px; border: 1px solid rgba(245, 158, 11, 0.34); border-radius: 999px; background: rgba(245, 158, 11, 0.12); color: var(--amber); font-size: 0.72rem; font-weight: 600; line-height: 1.2; letter-spacing: 0.01em; white-space: nowrap; }
+.cg-accordion-count:empty { display: none; }
+
+/* Flat filter tables: inside an accordion the filter groups drop their inner
+   card chrome and read as one divided table instead of cards in cards. */
+.cg-accordion-body > .stream-config-section,
+.cg-accordion-body > .stream-config-block { border: none; border-radius: 0; background: transparent; padding: 0; margin: 0; overflow: visible; }
+.cg-accordion-body > .stream-config-section + .stream-config-section,
+.cg-accordion-body > .stream-config-block + .stream-config-block,
+.cg-accordion-body > .stream-config-section + .stream-config-block,
+.cg-accordion-body > .stream-config-block + .stream-config-section { border-top: 1px solid var(--border); padding-top: 6px; margin-top: 6px; }
+.cg-accordion-body .stream-config-section > summary { padding: 12px 2px; }
+.cg-accordion-body .stream-config-body { padding: 0 2px 16px; border-top: none; }
+
+/* Wizard navigation, sidebar key/value rows and the Ready page's connected
+   accounts list (restored: removed with the old key cards by mistake). */
+.wizard-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; }
+.wizard-nav-right { display: flex; align-items: center; gap: 10px; }
+.setup-kv { display: grid; min-width: 0; }
+.integration-list { display: grid; }
+.integration-title { display: flex; align-items: center; gap: 8px; }
+.integration-title strong { font-size: 0.85rem; }
+
 /* ── Provider tiles: brand-tinted selectable cards ─────────────────────────
    Each tile carries its provider's brand tint (--pc-brand-rgb, set inline in
    sections.tsx from the shipped logo assets). Idle tiles sit desaturated; the
@@ -215,7 +264,7 @@ p.setup-note-pill { width: fit-content; max-width: 100%; box-sizing: border-box;
 /* Key and connect cards (API keys section) on the same frame. A service with
    no logo gets a monogram in the logo slot; required (TMDB) and wide (MDBList)
    cards span the grid; connect cards open by their head (chevron, no switch). */
-.provider-card.is-required, .provider-card.is-wide { grid-column: 1 / -1; }
+.provider-card.is-wide { grid-column: 1 / -1; }
 .pc-head .pc-mono {
   display: grid; place-items: center;
   width: 38px; height: 38px; flex: none;

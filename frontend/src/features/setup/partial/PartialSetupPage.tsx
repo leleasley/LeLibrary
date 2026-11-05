@@ -9,7 +9,7 @@ import { CreatingSetup } from '@/features/setup/shared/CreatingSetup';
 import { PublishPanel } from '@/features/setup/shared/PublishPanel';
 import { ConfirmModal } from '@/features/setup/shared/Modal';
 import { useWizardStep } from '@/features/setup/shared/WizardStepper';
-import { ApiKeysAccordion, useSetupConnections } from '@/features/setup/shared/ApiKeysSection';
+import { ApiKeysAccordion, IntegrationsAccordion, useSetupConnections } from '@/features/setup/shared/ApiKeysSection';
 import { TierProgress } from '@/features/setup/shared/tier/TierProgress';
 import { BadgePackStrip, StreamStylePicker, usePresetPicker } from '@/features/setup/shared/tier/TierPickers';
 import { TierInstall } from '@/features/setup/shared/tier/TierInstall';
@@ -442,9 +442,9 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
           </TierStep>
           <TierStep id="setup" index={2} title="Setup" hidden={wizard.step !== 1} lede="Everything about your library in one place. Open a section to change it; each one shows where it stands.">
             <div className="qs-accordions qs-setup-page">
-              <ApiKeysAccordion
-                keys={keys} onKeys={setKeys} edit={edit} revealSaved={revealEdit}
-                connections={connections}
+              <ApiKeysAccordion keys={keys} onKeys={setKeys} edit={edit} revealSaved={revealEdit} />
+              <IntegrationsAccordion
+                edit={edit} connections={connections}
                 anilistUser={meta.anilistUser} onAnilistUser={(anilistUser) => setMeta({ ...meta, anilistUser })}
               />
               <Accordion title="Streams" icon="🎚️"

@@ -14,7 +14,7 @@ const api = vi.hoisted(() => ({
 vi.mock('@/api/client', () => ({ apiClient: api }));
 
 const {
-  ApiKeysAccordion, ConnectedAccounts, MetadataKeyCards, apiKeysSummary, resolveMdblistIdentity, useSetupConnections,
+  ApiKeysAccordion, ConnectedAccounts, IntegrationsAccordion, MetadataKeyCards, apiKeysSummary, integrationsSummary, resolveMdblistIdentity, useSetupConnections,
 } = await import('@/features/setup/shared/ApiKeysSection');
 const { KeyCard } = await import('@/features/setup/shared/sections');
 const { anilistUserForConfig, isValidAnilistUser, pruneConfig } = await import('@/features/setup/shared/config-contract');
@@ -44,21 +44,26 @@ function editMode(overrides: Partial<EditMode> = {}): EditMode {
 }
 
 type AccordionProps = Parameters<typeof ApiKeysAccordion>[0];
+type IntegrationsProps = Parameters<typeof IntegrationsAccordion>[0];
+
+function accordion(props: Partial<AccordionProps> = {}) {
+  return render(<ApiKeysAccordion keys={{}} onKeys={() => {}} {...props} />);
+}
 
 // The page owns the connections (useSetupConnections); the harness does too.
-function AccordionHarness(props: Partial<AccordionProps>) {
+function IntegrationsHarness(props: Partial<IntegrationsProps>) {
   const live = useSetupConnections(props.edit, {}, () => {});
   return (
-    <ApiKeysAccordion
-      keys={{}} onKeys={() => {}} anilistUser="" onAnilistUser={() => {}}
+    <IntegrationsAccordion
+      anilistUser="" onAnilistUser={() => {}}
       {...props}
       connections={props.connections ?? live}
     />
   );
 }
 
-function accordion(props: Partial<AccordionProps> = {}) {
-  return render(<AccordionHarness {...props} />);
+function integrations(props: Partial<IntegrationsProps> = {}) {
+  return render(<IntegrationsHarness {...props} />);
 }
 
 function connections(options: {
@@ -82,11 +87,10 @@ function connections(options: {
 }
 
 describe('API keys accordion', () => {
-  it('replaces Integrations with three groups of the same card', () => {
+  it('holds the library providers and the metadata and list keys on the same card', () => {
     const html = accordion();
     expect(html).toContain('<strong>API keys</strong>');
-    expect(html).not.toContain('Integrations');
-    const groups = ['Library providers', 'Metadata and lists', 'Connected accounts'];
+    const groups = ['Library providers', 'Metadata and lists'];
     let cursor = -1;
     for (const group of groups) {
       const at = html.indexOf(`<strong>${group}</strong>`);
@@ -97,26 +101,44 @@ describe('API keys accordion', () => {
     for (const field of ['torboxApiKey', 'tmdbApiKey', 'tvdbApiKey', 'omdbKey', 'mdblistKey']) {
       expect(html).toContain(`data-field="${field}"`);
     }
-    expect(html).toContain('data-provider="simkl"');
-    expect(html).toContain('data-provider="anilist"');
-    // Old layouts are gone.
+    // Accounts live in their own Integrations section now.
+    expect(html).not.toContain('Connected accounts');
+    expect(html).not.toContain('data-provider="simkl"');
+    // TMDB is a card like the rest: closed, with a switch, marked Required.
+    expect(html).toContain('aria-label="Use TMDB"');
+    expect(html).toContain('pc-pill is-warn');
+    expect(html).not.toContain('is-open');
     for (const old of ['qs-key', 'qs-meta', 'key-card-list', 'meta-key', 'integration-card']) expect(html).not.toContain(old);
   });
 
-  it('summarises providers, TMDB, MDBList and connected accounts', () => {
+  it('summarises providers, TMDB and MDBList', () => {
     expect(accordion()).toContain('<span>No library yet</span><span>TMDB key needed</span>');
-    expect(apiKeysSummary({ keys: { torboxApiKey: 'a', rdApiKey: 'b', tmdbApiKey: 'c', mdblistKey: 'd' }, mdblistName: 'lewis', connected: ['simkl'] }))
-      .toEqual(['TorBox + Real-Debrid', 'TMDB key added', 'MDBList · lewis', 'Simkl connected']);
-    expect(apiKeysSummary({ keys: {}, savedServices: ['tmdbApiKey', 'mdblistKey'], anilistUser: 'lewis_1' }))
-      .toEqual(['No library yet', 'TMDB key added', 'MDBList key added', 'AniList · lewis_1']);
+    expect(apiKeysSummary({ keys: { torboxApiKey: 'a', rdApiKey: 'b', tmdbApiKey: 'c', mdblistKey: 'd' }, mdblistName: 'lewis' }))
+      .toEqual(['TorBox + Real-Debrid', 'TMDB key added', 'MDBList · lewis']);
+    expect(apiKeysSummary({ keys: {}, savedServices: ['tmdbApiKey', 'mdblistKey'] }))
+      .toEqual(['No library yet', 'TMDB key added', 'MDBList key added']);
   });
 
-  it('is on both Settle In and Move In, and nothing else says Integrations', () => {
+  it('is on both Settle In and Move In, followed by Integrations', () => {
     for (const page of [<PartialSetupPage />, <FullSetupPage />]) {
       const html = render(page);
-      expect(html).toContain('<strong>API keys</strong>');
-      expect(html).not.toContain('<strong>Integrations</strong>');
+      const keys = html.indexOf('<strong>API keys</strong>');
+      const integ = html.indexOf('<strong>Integrations</strong>');
+      expect(keys).toBeGreaterThan(-1);
+      expect(integ).toBeGreaterThan(keys);
     }
+  });
+});
+
+describe('Integrations accordion', () => {
+  it('holds Simkl and AniList and says what is connected', () => {
+    const html = integrations({ connections: connections({ connected: ['simkl'] }) });
+    expect(html).toContain('<strong>Integrations</strong>');
+    expect(html).toContain('data-provider="simkl"');
+    expect(html).toContain('data-provider="anilist"');
+    expect(html).toContain('<span>Simkl connected</span>');
+    expect(integrationsSummary({ connected: [], anilistUser: 'lewis_1' })).toEqual(['AniList · lewis_1']);
+    expect(integrationsSummary({})).toEqual(['Nothing connected']);
   });
 });
 
@@ -146,7 +168,7 @@ describe('MDBList card', () => {
   it('keeps the Nuvio scrobbling hint inside the open card', () => {
     // Static render: cards start closed, so open the one card directly.
     const html = render(
-      <KeyCard spec={{ field: 'mdblistKey', name: 'MDBList', label: 'MDBList API key', required: true }} value="" onChange={() => {}} onClear={() => {}}>
+      <KeyCard spec={{ field: 'mdblistKey', name: 'MDBList', label: 'MDBList API key' }} value="" onChange={() => {}} onClear={() => {}} defaultOpen>
         <p className="pc-note" data-i18n-preserve>Scrobble note</p>
       </KeyCard>,
     );

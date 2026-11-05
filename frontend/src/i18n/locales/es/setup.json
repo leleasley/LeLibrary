@@ -1808,6 +1808,9 @@
     "Your Simkl rows show here once the setup is saved": "Tus filas de Simkl aparecen aquí cuando guardes la configuración",
     "Your MDBList rows show here once the setup is saved": "Tus filas de MDBList aparecen aquí cuando guardes la configuración",
     "Your AniList rows show here once the setup is saved": "Tus filas de AniList aparecen aquí cuando guardes la configuración",
-    "Your list shows here once the setup is saved": "Tu lista aparece aquí cuando guardes la configuración"
+    "Your list shows here once the setup is saved": "Tu lista aparece aquí cuando guardes la configuración",
+    "Optional. Connect an account to add its personal rows (Up Next, Watching, Plan to Watch and more) to Home rows and folders.": "Opcional. Conecta una cuenta para añadir sus filas personales (Siguiente, Viendo, Pendientes y más) a las filas de Inicio y a las carpetas.",
+    "Nothing connected": "Nada conectado",
+    "Integrations": "Integraciones"
   }
 }

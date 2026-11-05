@@ -23,7 +23,7 @@ test('pending states are single-use and expire', () => {
   const now = 1_000_000;
   const { state } = createPendingOAuth('uuid-1', 'simkl', now);
   assert.ok(typeof state === 'string' && state.length > 10);
-  assert.deepEqual(consumePendingOAuth(state, now + 1000), { uuid: 'uuid-1', provider: 'simkl' });
+  assert.deepEqual(consumePendingOAuth(state, now + 1000), { uuid: 'uuid-1', provider: 'simkl', sessionHash: null });
   assert.equal(consumePendingOAuth(state, now + 1000), null);
   const late = createPendingOAuth('uuid-2', 'trakt', now);
   assert.equal(consumePendingOAuth(late.state, now + 11 * 60 * 1000), null);
@@ -53,7 +53,7 @@ test('popup page signals the opener and closes itself', () => {
 test('pre-creation pendings bind no UUID and the token page posts tokens', () => {
   const now = 2_000_000;
   const { state } = createPendingOAuth(null, 'trakt', now);
-  assert.deepEqual(consumePendingOAuth(state, now + 1000), { uuid: null, provider: 'trakt' });
+  assert.deepEqual(consumePendingOAuth(state, now + 1000), { uuid: null, provider: 'trakt', sessionHash: null });
   assert.equal(consumePendingOAuth(state, now + 1000), null);
   const page = popupPageWithTokens('trakt', { access_token: 'tok<123>', refresh_token: 'ref', client_id: 'cid' });
   assert.ok(page.includes('lelibraryWatchlistTokens'));

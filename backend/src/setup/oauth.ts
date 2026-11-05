@@ -6,7 +6,9 @@
 // the callback hands the tokens to the opener instead of sealing them. The
 // callback consumes the state exactly once, exchanges the code (verbatim
 // provider calls), and renders a self-closing popup page that signals the
-// opener, as the old flow did.
+// opener, as the old flow did. An edit-page flow (v6, `sessionHash` set)
+// neither seals nor posts tokens: the callback stages the connection in
+// setup/pending-connections.ts and the edit save commits it.
 import type { WatchlistConn } from './connections.ts';
 
 const axios = require('axios');
@@ -33,6 +35,9 @@ interface PendingOAuth {
   uuid: string | null;
   provider: WatchlistOAuthProvider;
   expiresAt: number;
+  // Edit page (v6): the sign-in is staged, not sealed. The hash of the edit
+  // session that started it (setup/pending-connections.ts), never the token.
+  sessionHash?: string | null;
 }
 
 const pending = new Map<string, PendingOAuth>();
@@ -72,19 +77,24 @@ function pendingOAuthCount(): number {
   return pending.size;
 }
 
-function createPendingOAuth(uuid: string | null, provider: WatchlistOAuthProvider, nowMs: number = Date.now()): { state: string; expiresAt: number } {
+function createPendingOAuth(
+  uuid: string | null,
+  provider: WatchlistOAuthProvider,
+  nowMs: number = Date.now(),
+  sessionHash: string | null = null,
+): { state: string; expiresAt: number } {
   const state = randomState();
   const expiresAt = nowMs + PENDING_TTL_MS;
-  boundedSet(pending, state, { uuid, provider, expiresAt }, PENDING_MAX, (entry) => entry.expiresAt <= nowMs);
+  boundedSet(pending, state, { uuid, provider, expiresAt, sessionHash: uuid ? sessionHash : null }, PENDING_MAX, (entry) => entry.expiresAt <= nowMs);
   return { state, expiresAt };
 }
 
-function consumePendingOAuth(state: unknown, nowMs: number = Date.now()): { uuid: string | null; provider: WatchlistOAuthProvider } | null {
+function consumePendingOAuth(state: unknown, nowMs: number = Date.now()): { uuid: string | null; provider: WatchlistOAuthProvider; sessionHash: string | null } | null {
   if (typeof state !== 'string' || !state) return null;
   const found = pending.get(state);
   pending.delete(state);
   if (!found || found.expiresAt <= nowMs) return null;
-  return { uuid: found.uuid, provider: found.provider };
+  return { uuid: found.uuid, provider: found.provider, sessionHash: found.sessionHash ?? null };
 }
 
 async function exchangeCode(provider: WatchlistOAuthProvider, code: string, baseUrl: string): Promise<WatchlistConn> {
@@ -190,17 +200,40 @@ setTimeout(function () { window.close(); }, 1200);
 </body></html>`;
 }
 
+// Edit-page variant (v6): the connection waits server-side until the page
+// saves. The opener gets only the opaque pending id and the account name,
+// never a token.
+function popupPageWithPending(provider: string, pendingId: string, username: string | null): string {
+  const payload = JSON.stringify({ lelibraryWatchlistPending: { provider, pendingId, username: username || null } }).replace(/</g, '\\u003c');
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><title>LeLibrary</title></head>
+<body style="background:#111;color:#eee;font-family:sans-serif;display:grid;place-items:center;min-height:90vh">
+<main style="text-align:center">
+<h1>Connected</h1>
+<p>Save your changes on the setup page to keep this connection.</p>
+<p><button type="button" onclick="window.close()">Close this window</button></p>
+</main>
+<script>
+try {
+  if (window.opener) window.opener.postMessage(${payload}, window.location.origin);
+} catch (e) {}
+setTimeout(function () { window.close(); }, 1200);
+<\/script>
+</body></html>`;
+}
+
 export interface OAuthApi {
   oauthConfigured: (provider: string) => boolean;
   callbackUrl: (provider: string, baseUrl: string) => string;
   authorizeUrl: (provider: WatchlistOAuthProvider, state: string, baseUrl: string) => string;
-  createPendingOAuth: (uuid: string | null, provider: WatchlistOAuthProvider, nowMs?: number) => { state: string; expiresAt: number };
-  consumePendingOAuth: (state: unknown, nowMs?: number) => { uuid: string | null; provider: WatchlistOAuthProvider } | null;
+  createPendingOAuth: (uuid: string | null, provider: WatchlistOAuthProvider, nowMs?: number, sessionHash?: string | null) => { state: string; expiresAt: number };
+  consumePendingOAuth: (state: unknown, nowMs?: number) => { uuid: string | null; provider: WatchlistOAuthProvider; sessionHash: string | null } | null;
   pendingOAuthCount: () => number;
   PENDING_MAX: number;
   exchangeCode: (provider: WatchlistOAuthProvider, code: string, baseUrl: string) => Promise<WatchlistConn>;
   popupPage: (provider: string, ok: boolean, message: string) => string;
   popupPageWithTokens: (provider: string, connection: WatchlistConn) => string;
+  popupPageWithPending: (provider: string, pendingId: string, username: string | null) => string;
 }
 
 module.exports = {
@@ -214,4 +247,5 @@ module.exports = {
   exchangeCode,
   popupPage,
   popupPageWithTokens,
+  popupPageWithPending,
 } satisfies OAuthApi;

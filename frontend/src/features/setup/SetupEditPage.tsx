@@ -5,8 +5,9 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
-  deleteSetup, fetchSetup, fetchSetupConfig, pushProfiles, pushSetup, pushStatus, revealSetupKey,
+  deleteSetup, discardPendingWatchlist, fetchSetup, fetchSetupConfig, pushProfiles, pushSetup, pushStatus, revealSetupKey,
   saveSetup, sealPushConnection, setNuvioProfile, unlockSetup, type SetupIdentities, type SetupSummary,
+  type StagedConnection, type StagedConnections, type WatchlistProvider,
 } from '@/features/setup/resolver/api';
 import { clearEditToken, getEditToken, setEditToken } from '@/features/setup/resolver/edit-session';
 import { installUrl } from '@/features/setup/resolver/validation';
@@ -26,7 +27,7 @@ import { ErrorState } from '@/features/site/ErrorPage';
 import { PublishPanel, publishActionFor } from '@/features/setup/shared/PublishPanel';
 import { RegenerateLink, type RegenerateLinkProps } from '@/features/setup/shared/RegenerateLink';
 import {
-  editSaveBody, emptySnapshot, snapshotFromSaved,
+  editSaveBody, emptySnapshot, snapshotFromSaved, stageConnectionChange, stagedPendingIds,
   type EditMode, type TierId, type TierSnapshot,
 } from '@/features/setup/shared/edit-mode';
 import type { SetupKeysDraft } from '@/features/setup/shared/config-contract';
@@ -156,6 +157,11 @@ export function SetupEditPage() {
   const [pageKey, setPageKey] = useState(0);
   const clearKeys = useRef(new Set<string>());
   const [clearCount, setClearCount] = useState(0);
+  // Simkl / AniList / Trakt connects and disconnects made on the page, held
+  // until Save like every other edit (v6). A connect is a server-side pending
+  // id plus the account name; no token ever reaches the page.
+  const [stagedConnections, setStagedConnections] = useState<StagedConnections>({});
+  const [connectionsRevision, setConnectionsRevision] = useState(0);
 
   const [saving, setSaving] = useState(false);
   const [pushing, setPushing] = useState<string | null>(null);
@@ -360,9 +366,10 @@ export function SetupEditPage() {
       savedTier, tier: activeTier,
       providerServices: summary.keyServices ?? [],
       clearKeys: [...clearKeys.current],
+      connections: stagedConnections,
     });
     // clearCount tracks the ref's contents.
-  }, [current, saved, summary, savedTier, activeTier, clearCount]);
+  }, [current, saved, summary, savedTier, activeTier, clearCount, stagedConnections]);
   const newConnection = Boolean(current?.connection) && !same(current?.connection, saved?.connection);
   const dirty = body !== null || newConnection;
   dirtyRef.current = dirty;
@@ -391,6 +398,12 @@ export function SetupEditPage() {
       setSavedTier(activeTier);
       clearKeys.current.clear();
       setClearCount(0);
+      // Staged connects are sealed and disconnects removed: read the saved
+      // status again.
+      if (Object.keys(stagedConnections).length > 0) {
+        setStagedConnections({});
+        setConnectionsRevision((value) => value + 1);
+      }
       if (activeTier !== savedTier) toast(`Now a ${TIER_LABELS[activeTier]} setup. Same link, same id.`);
       else toast('Saved ✓');
       // The save already succeeded; a failed summary refresh keeps the last
@@ -447,9 +460,25 @@ export function SetupEditPage() {
     setActiveTier(savedTier);
     clearKeys.current.clear();
     setClearCount(0);
+    // A staged sign-in is dropped on the server too (else it expires).
+    discardStaged(stagedPendingIds(stagedConnections));
+    setStagedConnections({});
     setSaveError(null);
     setPageKey((key) => key + 1);
     toast('Edits cleared');
+  }
+
+  // Best effort: a sign-in left behind expires on its own after 30 minutes.
+  function discardStaged(pendingIds: readonly string[]) {
+    const token = getEditToken();
+    if (!token) return;
+    for (const pendingId of pendingIds) discardPendingWatchlist(uuid, pendingId, token).catch(() => undefined);
+  }
+
+  function stageConnection(provider: WatchlistProvider, change: StagedConnection | null) {
+    const { next, discard } = stageConnectionChange(stagedConnections, provider, change);
+    discardStaged(discard);
+    setStagedConnections(next);
   }
 
   async function deleteAll() {
@@ -690,6 +719,9 @@ export function SetupEditPage() {
     },
     onPreview: openPreview,
     previewSource,
+    stagedConnections,
+    onStageConnection: stageConnection,
+    connectionsRevision,
     renderFinish: ({ deskBody, name }) => (
       <div className="edit-finish">
         {name && (

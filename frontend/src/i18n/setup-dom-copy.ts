@@ -8,7 +8,7 @@ function normalize(value: string): string {
   return value.trim().replace(/\s+/g, ' ');
 }
 
-function translatePhrase(source: string, phrases: Record<string, string>): string | undefined {
+export function translatePhrase(source: string, phrases: Record<string, string>): string | undefined {
   const normalized = normalize(source);
   if (phrases[normalized]) return phrases[normalized];
 
@@ -24,7 +24,10 @@ function translatePhrase(source: string, phrases: Record<string, string>): strin
         }
         return part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       }).join('');
-      if (names.length) templates.push({ names, expression: new RegExp(`^${expression}$`), translation });
+      // A bare placeholder ("{{date}}") would match every phrase and shadow
+      // each template after it: it only ever passes text through, so skip it.
+      const literal = pattern.replace(/\{\{[a-zA-Z][a-zA-Z0-9]*\}\}/g, '').trim();
+      if (names.length && literal) templates.push({ names, expression: new RegExp(`^${expression}$`), translation });
     }
     compiledTemplates.set(phrases, templates);
   }

@@ -17,6 +17,7 @@ import type { OAuthApi } from '../setup/oauth.ts';
 import type { ConfigStore } from '../setup/config-store.ts';
 import type { SelfhostAccessApi } from '../platform/selfhost-access.ts';
 import type { PreviewApi, PreviewDeps } from '../setup/preview.ts';
+import type { PendingConnectionsApi } from '../setup/pending-connections.ts';
 
 const express = require('express') as typeof import('express');
 const runtime = require('../setup/runtime.ts') as RuntimeApi;
@@ -25,6 +26,7 @@ const token = require('../setup/token.ts') as TokenApi;
 const editSessionsModule = require('../setup/edit-sessions.ts') as EditSessionsApi;
 const oauth = require('../setup/oauth.ts') as OAuthApi;
 const selfhostAccess = require('../platform/selfhost-access.ts') as SelfhostAccessApi;
+const pendingConnections = require('../setup/pending-connections.ts') as PendingConnectionsApi;
 const { rateLimit } = require('../middleware/rate-limit.ts') as {
   rateLimit: (options?: { windowMs?: number; max?: number; scope?: string }) => any;
 };
@@ -544,17 +546,42 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     const anilist = anilistChecked(config);
     if (!anilist.ok) { res.status(400).json({ error: anilist.error }); return; }
     limiter.succeed(clientIp(req), uuid);
+    // Watchlist connects and disconnects staged on the edit page (v6): a
+    // pending connect commits only for the edit session that signed in
+    // (setup/pending-connections.ts); a removal needs any edit authority.
+    // Checked before anything is written, so an expired sign-in saves nothing.
+    const staged = pendingConnections.parseStagedConnections((req.body ?? {})['connections']);
+    if (!staged.ok) { res.status(400).json({ error: staged.error }); return; }
+    let saveKeys = keys as Record<string, unknown> | undefined;
+    let saveClearConfig = clearConfig as string[] | undefined;
+    let consumed: string[] = [];
+    if (Object.keys(staged.changes).length > 0) {
+      const openedKeys = (opened.keys ?? {}) as Record<string, unknown>;
+      const currentWatchlist = (openedKeys['watchlist'] && typeof openedKeys['watchlist'] === 'object' ? openedKeys['watchlist'] : {}) as Record<string, unknown>;
+      const applied = pendingConnections.applyStagedConnections({
+        uuid, editToken: bearerToken(req), currentWatchlist, changes: staged.changes,
+      });
+      if (!applied.ok) { res.status(applied.status).json({ error: applied.error }); return; }
+      saveKeys = { ...((keys && typeof keys === 'object' ? keys : {}) as Record<string, unknown>), watchlist: applied.watchlist };
+      // An AniList login or disconnect replaces an older setup's public name.
+      const configRecord = (opened.config ?? {}) as Record<string, unknown>;
+      if (applied.anilistTouched && typeof configRecord['anilistUser'] === 'string' && configRecord['anilistUser']) {
+        saveClearConfig = [...new Set([...(Array.isArray(clearConfig) ? clearConfig as string[] : []), 'anilistUser'])];
+      }
+      consumed = applied.consumed;
+    }
     const { normaliseSetupConfigCollections } = require('../setup/collections.ts') as {
       normaliseSetupConfigCollections: <T>(config: T) => T;
     };
     const saved = await store.save(uuid, {
       config: config === undefined ? undefined : normaliseSetupConfigCollections((anilist.config ?? config) as Record<string, unknown>),
-      keys: keys as Record<string, unknown> | undefined,
+      keys: saveKeys,
       tier: tier as string | undefined,
       name,
       clearKeys: clearKeys as string[] | undefined,
-      clearConfig: clearConfig as string[] | undefined,
+      clearConfig: saveClearConfig,
     });
+    pendingConnections.dropPendingConnections(consumed);
     // A save can change the provider keys or the language, so re-warm the
     // library from the stored values instead of waiting for the next request.
     try {

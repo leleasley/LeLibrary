@@ -15,6 +15,7 @@ import type { MediaSetsDraft } from '@/features/setup/partial/FilterMediaSets';
 import type { CollectionDoc, HomeRowDoc } from '@/features/setup/shared/collection-doc';
 import { nuvioPlaybackForConfig, type NuvioPlaybackDraft } from '@/features/setup/shared/nuvio-playback';
 import { nuvioHideUnreleasedForConfig, type NuvioHideUnreleased } from '@/features/setup/shared/nuvio-library';
+import type { StagedConnections } from '@/features/setup/resolver/api';
 
 // One save for the whole edit flow, shaped exactly like the create pages write
 // it so an edited setup is indistinguishable from a created one. Blind key
@@ -63,6 +64,21 @@ export interface EditSaveInput {
   libraryRowsConfig?: Record<string, unknown>;
   customAddons?: { id: string; name: string }[];
   customAddonsTouched?: boolean;
+  // Simkl / AniList / Trakt connects and disconnects made on the page (v6):
+  // the server commits them inside this save.
+  connections?: StagedConnections;
+}
+
+// The save's `connections` field: a pending id per staged connect, or
+// `{ remove: true }`. The display name stays on the page. Pure.
+export function stagedConnectionsBody(staged: StagedConnections | undefined): Record<string, { pendingId: string } | { remove: true }> | null {
+  const out: Record<string, { pendingId: string } | { remove: true }> = {};
+  for (const [provider, change] of Object.entries(staged ?? {})) {
+    if (!change) continue;
+    if ('remove' in change) out[provider] = { remove: true };
+    else if (change.pendingId) out[provider] = { pendingId: change.pendingId };
+  }
+  return Object.keys(out).length > 0 ? out : null;
 }
 
 function parseGb(value: string): number {
@@ -200,6 +216,8 @@ export function buildEditSaveBody(input: EditSaveInput): Record<string, unknown>
 
   if (Object.keys(config).length > 0) body.config = config;
   if (clearConfig.length > 0) body.clearConfig = clearConfig;
+  const connections = stagedConnectionsBody(input.connections);
+  if (connections) body.connections = connections;
 
   return Object.keys(body).length > 0 ? body : null;
 }

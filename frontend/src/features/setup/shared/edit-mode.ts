@@ -17,7 +17,7 @@ import type { PartialDraft } from '@/features/setup/partial/partial-draft';
 import type { FullDraft } from '@/features/setup/full/full-draft';
 import { same } from '@/features/setup/shared/same';
 import type { TierPreviewSource } from '@/features/setup/shared/tier/TierPreview';
-import type { SetupIdentities } from '@/features/setup/resolver/api';
+import type { SetupIdentities, StagedConnection, StagedConnections, WatchlistProvider } from '@/features/setup/resolver/api';
 
 export type TierId = 'quick' | 'partial' | 'full';
 
@@ -88,6 +88,35 @@ export interface EditMode {
   // which the page keeps pointed at its own builder.
   onPreview?: (() => void) | undefined;
   previewSource?: { current: (() => TierPreviewSource) | null } | undefined;
+  // Simkl / AniList / Trakt connects and disconnects waiting for Save (v6).
+  // The container owns them (they survive a tier switch, Clear my edits
+  // drops them, Save commits them); `connectionsRevision` moves after each
+  // save so the page reads the saved status again.
+  stagedConnections?: StagedConnections | undefined;
+  onStageConnection?: ((provider: WatchlistProvider, change: StagedConnection | null) => void) | undefined;
+  connectionsRevision?: number | undefined;
+}
+
+// One staged connect or disconnect applied to the page's set (null undoes
+// it), with the pending sign-ins it makes obsolete (to drop server-side). A
+// newer connect replaces an earlier one for the same provider. Pure.
+export function stageConnectionChange(
+  prev: StagedConnections,
+  provider: WatchlistProvider,
+  change: StagedConnection | null,
+): { next: StagedConnections; discard: string[] } {
+  const before = prev[provider];
+  const discard = before && 'pendingId' in before && !(change && 'pendingId' in change && change.pendingId === before.pendingId)
+    ? [before.pendingId]
+    : [];
+  const next = { ...prev };
+  if (change) next[provider] = change; else delete next[provider];
+  return { next, discard };
+}
+
+// Clear my edits: every staged sign-in to drop server-side. Pure.
+export function stagedPendingIds(staged: StagedConnections): string[] {
+  return Object.values(staged).flatMap((change) => (change && 'pendingId' in change ? [change.pendingId] : []));
 }
 
 // Saved config + revealed keys -> the snapshot a page starts from.
@@ -132,6 +161,7 @@ export function editSaveBody(input: {
   tier: TierId;
   providerServices: string[];
   clearKeys: string[];
+  connections?: StagedConnections;
 }): Record<string, unknown> | null {
   const { current, saved } = input;
   const savedKeys = saved.keys as Record<string, string | undefined>;
@@ -177,6 +207,7 @@ export function editSaveBody(input: {
     libraryRowsConfig: libraryRowsEditConfig(current.libraryRows, saved.libraryRows),
     customAddons: current.customAddons,
     customAddonsTouched: !same(current.customAddons, saved.customAddons),
+    ...(input.connections ? { connections: input.connections } : {}),
   });
   if (input.tier === input.savedTier) return body;
   return { ...(body ?? {}), tier: input.tier };

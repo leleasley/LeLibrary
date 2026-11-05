@@ -107,7 +107,7 @@ test('expired OAuth states are pruned on insert and the map stays capped', () =>
   const later = start + 11 * 60 * 1000;
   const fresh = createPendingOAuth('uuid-x', 'trakt', later);
   assert.equal(pendingOAuthCount(), 1);
-  assert.deepEqual(consumePendingOAuth(fresh.state, later + 1), { uuid: 'uuid-x', provider: 'trakt' });
+  assert.deepEqual(consumePendingOAuth(fresh.state, later + 1), { uuid: 'uuid-x', provider: 'trakt', sessionHash: null });
 
   const burst = later + 1000;
   let first = null;

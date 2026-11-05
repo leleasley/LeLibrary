@@ -227,13 +227,30 @@ export function disconnectWatchlist(uuid: string, provider: string, editToken: s
 }
 
 // OAuth starts in a popup (which cannot send headers), so the endpoint
-// returns the provider URL as JSON instead of redirecting.
-export function startWatchlistOAuth(uuid: string, provider: string, editToken: string): Promise<{ url: string }> {
+// returns the provider URL as JSON instead of redirecting. `stage` (the edit
+// page, v6): the sign-in waits server-side for the edit save instead of
+// sealing at once; the popup posts back only a pending id and the name.
+export function startWatchlistOAuth(uuid: string, provider: string, editToken: string, options: { stage?: boolean } = {}): Promise<{ url: string }> {
   return apiClient.get<{ url: string }>(
-    `/api/setup/${encodeURIComponent(uuid)}/oauth/${encodeURIComponent(provider)}`,
+    `/api/setup/${encodeURIComponent(uuid)}/oauth/${encodeURIComponent(provider)}${options.stage ? '?stage=1' : ''}`,
     bearer(editToken),
   );
 }
+
+// Drop a staged edit-page sign-in (Clear my edits, or a newer connect).
+export function discardPendingWatchlist(uuid: string, pendingId: string, editToken: string): Promise<{ ok: boolean }> {
+  return apiClient.delete<{ ok: boolean }>(
+    `/api/setup/${encodeURIComponent(uuid)}/watchlist/pending/${encodeURIComponent(pendingId)}`,
+    undefined,
+    bearer(editToken),
+  );
+}
+
+// A connect or disconnect made on the edit page, waiting for Save (v6). A
+// connect is an opaque server-side pending id plus the account name (display
+// only); the tokens never reach the browser.
+export type StagedConnection = { pendingId: string; username: string | null } | { remove: true };
+export type StagedConnections = Partial<Record<WatchlistProvider, StagedConnection>>;
 
 export interface WatchlistDraftConn {
   access_token: string;

@@ -93,10 +93,12 @@ const CONNECT_CARDS: Record<WatchlistProvider, { blurb: string; logo?: string; m
   trakt: { blurb: 'Sync your personal lists and watch history', logo: '/logos/trakt.svg', brand: '237, 34, 36' },
 };
 
-function ConnectCard({ provider, connected, identity, publicLists, defaultOpen, children }: {
+function ConnectCard({ provider, connected, identity, publicLists, staged, defaultOpen, children }: {
   provider: WatchlistProvider;
   connected: boolean;
   identity?: string | null | undefined;
+  // Edit page: a connect or disconnect waiting for Save.
+  staged?: 'connect' | 'remove' | null | undefined;
   // An older setup's saved public AniList name (no login): `identity` is
   // that name and the line says so.
   publicLists?: boolean | undefined;
@@ -114,6 +116,7 @@ function ConnectCard({ provider, connected, identity, publicLists, defaultOpen, 
       style={{ '--pc-brand-rgb': card.brand } as CSSProperties}
       data-state={connected ? 'connected' : publicLists ? 'public' : 'idle'}
       data-provider={provider}
+      {...(staged ? { 'data-staged': staged } : {})}
     >
       <div
         className="pc-head"
@@ -129,11 +132,15 @@ function ConnectCard({ provider, connected, identity, publicLists, defaultOpen, 
         <div className="pc-title">
           <strong data-i18n-preserve>{name}</strong>
           <small>{card.blurb}</small>
-          {identity && (publicLists
-            ? <small className="pc-identity">{`Connected as ${identity} (public lists)`}</small>
-            : <small className="pc-identity">{`Connected as ${identity}`}</small>)}
+          {staged === 'remove'
+            ? <small className="pc-identity">Disconnected · not saved yet</small>
+            : staged === 'connect'
+              ? <small className="pc-identity">{identity ? `Connected as ${identity} · not saved yet` : 'Connected · not saved yet'}</small>
+              : identity && (publicLists
+                ? <small className="pc-identity">{`Connected as ${identity} (public lists)`}</small>
+                : <small className="pc-identity">{`Connected as ${identity}`}</small>)}
         </div>
-        {connected && !identity && <span className="pc-pill is-verified">Connected</span>}
+        {connected && !identity && !staged && <span className="pc-pill is-verified">Connected</span>}
         <span className="pc-chevron" aria-hidden="true">▸</span>
       </div>
       {open && <div className="pc-body">{children}</div>}
@@ -149,10 +156,26 @@ function ConnectAction({ provider, connections, connected, unavailable, label }:
   unavailable: boolean;
   label?: string;
 }) {
+  const staged = connections.staged?.(provider) ?? null;
+  if (staged === 'remove') {
+    // Undo puts the saved connection back; Connect (where offered) signs in
+    // again instead.
+    return (
+      <div className="pc-connect">
+        <p className="setup-hint">Disconnected - removed when you save your changes.</p>
+        <button type="button" className="setup-secondary" disabled={!connections.canConnect} onClick={() => connections.undo?.(provider)}>Undo</button>
+        {!unavailable && provider !== 'trakt' && (
+          <button type="button" className="setup-secondary" disabled={!connections.canConnect} onClick={() => void connections.connect(provider)}>{label ?? 'Connect'}</button>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="pc-connect">
       <p className="setup-hint">
-        {unavailable
+        {staged === 'connect'
+          ? 'Connected - saved when you save your changes.'
+          : unavailable
           ? 'Not configured on this server'
           : connections.precreation && connected
             ? 'Connected - seals into the setup when you create it.'
@@ -199,11 +222,12 @@ export function ConnectedAccounts({ connections, identities, defaultOpen }: {
         const connected = connections.connected(provider);
         const identity = provider === 'trakt' ? null : connections.identity(provider, identities?.[provider]);
         const unavailable = !connected && connections.configured(provider) === false;
+        const staged = connections.staged?.(provider) ?? null;
         if (provider === 'anilist') {
           const publicUser = connected ? null : connections.publicUser();
           return (
             <ConnectCard
-              key={provider} provider={provider} connected={connected}
+              key={provider} provider={provider} connected={connected} staged={staged}
               identity={publicUser ?? identity} publicLists={publicUser !== null}
               defaultOpen={defaultOpen === provider}
             >
@@ -215,7 +239,7 @@ export function ConnectedAccounts({ connections, identities, defaultOpen }: {
           );
         }
         return (
-          <ConnectCard key={provider} provider={provider} connected={connected} identity={identity} defaultOpen={defaultOpen === provider}>
+          <ConnectCard key={provider} provider={provider} connected={connected} staged={staged} identity={identity} defaultOpen={defaultOpen === provider}>
             {provider === 'trakt' && connections.config?.traktLegacy && (
               <p className="setup-hint">Kept for setups already connected. New setups cannot connect Trakt.</p>
             )}
@@ -254,25 +278,36 @@ export function integrationsSummary(options: {
   names?: Partial<Record<WatchlistProvider, string | null | undefined>> | undefined;
   // An older setup's saved public AniList name (no login).
   anilistPublic?: string | null | undefined;
+  // Edit page: connects and disconnects waiting for Save.
+  staged?: Partial<Record<WatchlistProvider, 'connect' | 'remove' | null>> | undefined;
 }): string[] {
   const parts: string[] = [];
   const connected = options.connected ?? [];
   for (const provider of ['simkl', 'anilist', 'trakt'] as const) {
     const name = (options.names?.[provider] ?? '').trim();
-    if (connected.includes(provider)) parts.push(name ? `${WATCHLIST_PROVIDER_NAMES[provider]} · ${name}` : `${WATCHLIST_PROVIDER_NAMES[provider]} connected`);
+    const staged = options.staged?.[provider] ?? null;
+    const label = WATCHLIST_PROVIDER_NAMES[provider];
+    if (staged === 'remove') { parts.push(`${label} · disconnected, not saved yet`); continue; }
+    if (!connected.includes(provider)) continue;
+    if (staged === 'connect') parts.push(name ? `${label} · ${name} · not saved yet` : `${label} connected · not saved yet`);
+    else parts.push(name ? `${label} · ${name}` : `${label} connected`);
   }
   const anilistPublic = (options.anilistPublic ?? '').trim();
   if (!connected.includes('anilist') && anilistPublic) parts.push(`AniList · ${anilistPublic}`);
   return parts.length ? parts : ['Nothing connected'];
 }
 
-// The page's Simkl / AniList / Trakt connections: edit mode seals into the
-// saved setup, create mode keeps the popup's tokens in the page's draft
-// (memory only). One per page: the API keys cards and the "Your lists"
-// shelves read the same state, so a connect shows its rows at once.
+// The page's Simkl / AniList / Trakt connections: edit mode stages connects
+// and disconnects for Save (the container holds them), create mode keeps
+// the popup's tokens in the page's draft (memory only). One per page: the
+// API keys cards and the "Your lists" shelves read the same state, so a
+// connect shows its rows at once.
 export function useSetupConnections(edit: EditMode | undefined, watchlist: WatchlistDraftMap, onWatchlist: (next: WatchlistDraftMap) => void): WatchlistConnections {
   return useWatchlistConnections(edit
-    ? { uuid: edit.uuid, editToken: edit.editToken }
+    ? {
+      uuid: edit.uuid, editToken: edit.editToken,
+      ...(edit.onStageConnection ? { staged: edit.stagedConnections ?? {}, onStage: edit.onStageConnection, revision: edit.connectionsRevision ?? 0 } : {}),
+    }
     : { uuid: null, editToken: null, draft: watchlist, onDraft: onWatchlist });
 }
 
@@ -319,6 +354,7 @@ export function IntegrationsAccordion({ edit, connections }: {
       anilist: connections.identity('anilist', edit?.identities?.anilist),
     },
     anilistPublic: connections.publicUser(),
+    staged: Object.fromEntries(providers.map((provider) => [provider, connections.staged?.(provider) ?? null])),
   });
   return (
     <Accordion title="Integrations" icon="🔗" summary={summary}>

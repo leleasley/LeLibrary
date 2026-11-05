@@ -7,6 +7,8 @@ import {
   startWatchlistOAuthPublic,
   watchlistConfig,
   watchlistStatus,
+  type StagedConnection,
+  type StagedConnections,
   type WatchlistDraftConn,
   type WatchlistDraftMap,
   type WatchlistProvider,
@@ -52,9 +54,13 @@ export function visibleConnectCards(options: {
   connected: (provider: WatchlistProvider) => boolean;
   // An older setup's saved public AniList name (the hook's publicUser).
   publicUser?: (() => string | null) | undefined;
+  // A connect or disconnect waiting for Save keeps its card in sight (a
+  // staged Trakt disconnect must stay undoable).
+  staged?: ((provider: WatchlistProvider) => 'connect' | 'remove' | null) | undefined;
 }): WatchlistProvider[] {
   return PROVIDERS.filter((provider) => {
     if (options.connected(provider)) return true;
+    if (options.staged?.(provider)) return true;
     if (provider === 'anilist' && options.publicUser?.()) return true;
     if (provider === 'trakt' && (options.config?.traktLegacy === true || options.status?.trakt?.legacy === true)) return false;
     return providerConfigured(provider, options) !== false;
@@ -105,6 +111,38 @@ export function draftFromPopupTokens(
   return { next: { ...(draft ?? {}), [key]: conn }, provider: key };
 }
 
+// An edit-page popup's message (`lelibraryWatchlistPending`, v6): the
+// provider, the server-side pending id and the account name, or null for
+// any other message. Never a token. Pure for tests.
+export function pendingFromPopup(data: unknown): { provider: WatchlistProvider; pendingId: string; username: string | null } | null {
+  if (!data || typeof data !== 'object') return null;
+  const pending = (data as { lelibraryWatchlistPending?: { provider?: unknown; pendingId?: unknown; username?: unknown } }).lelibraryWatchlistPending;
+  const provider = pending?.provider;
+  if (!pending || typeof provider !== 'string' || !(PROVIDERS as readonly string[]).includes(provider)) return null;
+  const pendingId = typeof pending.pendingId === 'string' ? pending.pendingId.trim() : '';
+  if (!/^[A-Za-z0-9_-]{8,100}$/.test(pendingId)) return null;
+  return { provider: provider as WatchlistProvider, pendingId, username: cleanAccountName(pending.username) };
+}
+
+// The saved status with the page's staged connects and disconnects laid
+// over it, so every reader (cards, summary, "Your lists" shelves, Preview)
+// follows what Save will write. A staged AniList change also drops an older
+// setup's public name (the save clears it). Pure for tests.
+export function effectiveWatchlistStatus(status: WatchlistState | null, staged: StagedConnections | null | undefined): WatchlistState | null {
+  const changes = Object.entries(staged ?? {}).filter(([, change]) => Boolean(change)) as [WatchlistProvider, StagedConnection][];
+  if (!changes.length) return status;
+  const base: WatchlistState = status ?? { simkl: { connected: false, configured: true }, trakt: { connected: false, configured: true } };
+  const next: WatchlistState = { ...base, simkl: { ...base.simkl }, trakt: { ...base.trakt }, ...(base.anilist ? { anilist: { ...base.anilist } } : {}) };
+  for (const [provider, change] of changes) {
+    const entry = { ...(next[provider] ?? { configured: true }), connected: !('remove' in change) } as { connected: boolean; configured: boolean; username?: string; publicUser?: string };
+    delete entry.username;
+    if (!('remove' in change) && change.username) entry.username = change.username;
+    if (provider === 'anilist') delete entry.publicUser;
+    (next as unknown as Record<string, unknown>)[provider] = entry;
+  }
+  return next;
+}
+
 // "Connected as {name}" for one provider. Create mode: the name the popup
 // sent (held in the draft next to the token). Edit mode: the name the
 // status read reports (stored at connect time, so it shows as soon as the
@@ -146,20 +184,32 @@ export interface WatchlistConnections {
   canConnect: boolean;
   connect: (provider: WatchlistProvider) => Promise<void>;
   disconnect: (provider: WatchlistProvider) => Promise<void>;
+  // Edit page (v6): a connect or disconnect waiting for Save, and undoing
+  // one. Absent elsewhere (create mode, the Ready page).
+  staged?: ((provider: WatchlistProvider) => 'connect' | 'remove' | null) | undefined;
+  undo?: ((provider: WatchlistProvider) => void) | undefined;
 }
 
-// Simkl / AniList / Trakt connects. After creation (UUID + edit token) OAuth
-// seals straight into the setup row. Before creation the connects run on a
+// Simkl / AniList / Trakt connects. Before creation the connects run on a
 // draft: tokens arrive over postMessage, live in page state (module memory,
-// never Web Storage) and seal at creation.
-export function useWatchlistConnections({ uuid, editToken, draft, onDraft }: {
+// never Web Storage) and seal at creation. On the edit page (`onStage`, v6)
+// they are staged like every other edit: the sign-in waits server-side as a
+// pending id, a disconnect is a `{ remove: true }`, and Save commits both.
+// The Move In Ready page (UUID + edit token, no `onStage`) seals at once.
+export function useWatchlistConnections({ uuid, editToken, draft, onDraft, staged, onStage, revision }: {
   uuid: string | null;
   editToken: string | null;
   draft?: WatchlistDraftMap | null | undefined;
   onDraft?: ((next: WatchlistDraftMap) => void) | undefined;
+  staged?: StagedConnections | undefined;
+  onStage?: ((provider: WatchlistProvider, change: StagedConnection | null) => void) | undefined;
+  // Moves after an edit save: the saved status is read again.
+  revision?: number | undefined;
 }): WatchlistConnections {
   const precreation = uuid === null;
-  const [status, setStatus] = useState<WatchlistState | null>(null);
+  const staging = !precreation && Boolean(onStage);
+  const [savedStatus, setStatus] = useState<WatchlistState | null>(null);
+  const status = staging ? effectiveWatchlistStatus(savedStatus, staged) : savedStatus;
   const [config, setConfig] = useState<WatchlistServerConfig | null>(null);
   // Providers connected or disconnected on this page: their names come from
   // the fresh status only, never the config read's older identities.
@@ -187,6 +237,11 @@ export function useWatchlistConnections({ uuid, editToken, draft, onDraft }: {
     if (!precreation) refresh();
   }, [refresh, precreation]);
 
+  // After a save the staged changes are on the server: read it again.
+  useEffect(() => {
+    if (revision) refresh();
+  }, [revision, refresh]);
+
   useEffect(() => {
     function onMessage(event: MessageEvent) {
       if (event.origin !== window.location.origin) return;
@@ -196,6 +251,15 @@ export function useWatchlistConnections({ uuid, editToken, draft, onDraft }: {
         lelibraryWatchlistTokens?: { provider?: unknown; connection?: unknown; username?: unknown };
       } | null;
       if (!data) return;
+      if (staging) {
+        const pending = pendingFromPopup(data);
+        if (pending) {
+          markChanged(pending.provider);
+          onStage?.(pending.provider, { pendingId: pending.pendingId, username: pending.username });
+          toast(`${WATCHLIST_PROVIDER_NAMES[pending.provider]} connected - save to keep it`);
+          return;
+        }
+      }
       if (typeof data.lelibraryWatchlist === 'string') {
         // The popup sealed a connection (with its account name): read the
         // status again so the card says "Connected as ..." at once.
@@ -216,7 +280,7 @@ export function useWatchlistConnections({ uuid, editToken, draft, onDraft }: {
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [refresh, precreation, draft, onDraft, markChanged]);
+  }, [refresh, precreation, draft, onDraft, markChanged, staging, onStage]);
 
   const connected = (provider: WatchlistProvider) => (precreation
     ? Boolean(draft?.[provider]?.access_token)
@@ -227,12 +291,13 @@ export function useWatchlistConnections({ uuid, editToken, draft, onDraft }: {
     try {
       const { url } = precreation
         ? await startWatchlistOAuthPublic(provider)
-        : await startWatchlistOAuth(uuid as string, provider, editToken as string);
+        : await startWatchlistOAuth(uuid as string, provider, editToken as string, staging ? { stage: true } : {});
       if (!url) return;
       window.open(url, '_blank', 'width=560,height=640');
       toast('Complete sign-in in the popup');
-      // Fallback for popups that never message back.
-      if (!precreation) setTimeout(refresh, 3000);
+      // Fallback for popups that never message back (a staged connect
+      // changes nothing saved, so there is nothing to read).
+      if (!precreation && !staging) setTimeout(refresh, 3000);
     } catch (error) {
       toast(apiErrorCopy(error, 'Could not start sign-in'), 'error');
     }
@@ -251,6 +316,16 @@ export function useWatchlistConnections({ uuid, editToken, draft, onDraft }: {
       return;
     }
     if (!uuid || !editToken) return;
+    if (staging) {
+      // Staged: a sign-in made on this page is simply dropped; a saved
+      // connection (or an older setup's public AniList name) is removed on
+      // Save.
+      const savedLinked = savedStatus?.[provider]?.connected === true || (provider === 'anilist' && Boolean(cleanAccountName(savedStatus?.anilist?.publicUser)));
+      markChanged(provider);
+      onStage?.(provider, savedLinked ? { remove: true } : null);
+      toast(savedLinked ? 'Disconnected - save to apply' : 'Disconnected');
+      return;
+    }
     try {
       await disconnectWatchlist(uuid, provider, editToken);
       markChanged(provider);
@@ -275,5 +350,12 @@ export function useWatchlistConnections({ uuid, editToken, draft, onDraft }: {
     canConnect: precreation || Boolean(uuid && editToken),
     connect,
     disconnect,
+    ...(staging ? {
+      staged: (provider: WatchlistProvider) => {
+        const change = staged?.[provider];
+        return change ? ('remove' in change ? 'remove' as const : 'connect' as const) : null;
+      },
+      undo: (provider: WatchlistProvider) => { onStage?.(provider, null); },
+    } : {}),
   };
 }

@@ -14,6 +14,7 @@ import type { ConnectionsApi, SetupStoreLike } from '../setup/connections.ts';
 import type { PushApi, PushConnection } from '../setup/push.ts';
 import type { OAuthApi, WatchlistOAuthProvider } from '../setup/oauth.ts';
 import type { RateLimitApi } from '../middleware/rate-limit.ts';
+import type { PendingConnectionsApi } from '../setup/pending-connections.ts';
 
 const express = require('express') as typeof import('express');
 const runtime = require('../setup/runtime.ts') as RuntimeApi;
@@ -22,6 +23,7 @@ const conns = require('../setup/connections.ts') as ConnectionsApi;
 const push = require('../setup/push.ts') as PushApi;
 const oauth = require('../setup/oauth.ts') as OAuthApi;
 const tokenModule = require('../setup/token.ts') as TokenApi;
+const pendingConnections = require('../setup/pending-connections.ts') as PendingConnectionsApi;
 const { rateLimit } = require('../middleware/rate-limit.ts') as RateLimitApi;
 const community = require('../catalog/nuvio-community.ts') as {
   MAX_UPSTREAM_BYTES: number;
@@ -350,7 +352,11 @@ function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', edi
 
   // Start a watchlist OAuth flow. Returns the provider URL as JSON (a popup
   // cannot send an Authorization header, so a redirect would lose the bearer).
-  router.get('/:uuid/oauth/:provider', rateLimited(60_000, 10), async (req: Request, res: Response) => {    const store = await withStore(res);
+  // `?stage=1` (the edit page, v6): the callback stages the connection
+  // server-side for this edit session instead of sealing it, and the edit
+  // save commits it. Without it (the Move In Ready page) it seals at once.
+  router.get('/:uuid/oauth/:provider', rateLimited(60_000, 10), async (req: Request, res: Response) => {
+    const store = await withStore(res);
     if (!store) return;
     const uuid = String(req.params['uuid'] || '').toLowerCase();
     const provider = String(req.params['provider'] || '');
@@ -359,8 +365,21 @@ function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', edi
     if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
     if (!authorizeBearer(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
     if (!oauth.oauthConfigured(provider)) { res.status(503).json({ error: `${provider} connections are not enabled on this server` }); return; }
-    const { state } = oauth.createPendingOAuth(uuid, provider as WatchlistOAuthProvider);
+    const staged = req.query['stage'] === '1';
+    const sessionHash = staged ? pendingConnections.editSessionHash(bearerToken(req) as string) : null;
+    const { state } = oauth.createPendingOAuth(uuid, provider as WatchlistOAuthProvider, Date.now(), sessionHash);
     res.json({ url: oauth.authorizeUrl(provider as WatchlistOAuthProvider, state, publicOrigin(req)) });
+  });
+
+  // Discard a staged edit-page connect (Clear my edits, or a second connect
+  // replacing it). Bearer required and bound to the session that staged it;
+  // an unknown or foreign id answers the same, so ids cannot be probed.
+  router.delete('/:uuid/watchlist/pending/:pendingId', rateLimited(60_000, 30), async (req: Request, res: Response) => {
+    const uuid = String(req.params['uuid'] || '').toLowerCase();
+    if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
+    if (!authorizeBearer(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
+    pendingConnections.discardPendingConnection({ pendingId: req.params['pendingId'], uuid, editToken: bearerToken(req) as string });
+    res.json({ ok: true });
   });
 
   // OAuth callback: no bearer here (the provider redirects), so the
@@ -403,6 +422,15 @@ function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', edi
       }
       const opened = await store.resolveByUuid(pending.uuid);
       if (!opened) throw new Error('Setup not found');
+      // Edit page: park it for the edit save; only an opaque id and the
+      // account name go back to the page.
+      if (pending.sessionHash) {
+        const { pendingId } = pendingConnections.stagePendingConnection({
+          uuid: pending.uuid, sessionHash: pending.sessionHash, provider: provider as WatchlistOAuthProvider, connection: conn,
+        });
+        res.type('html').send(oauth.popupPageWithPending(provider, pendingId, typeof conn.username === 'string' ? conn.username : null));
+        return;
+      }
       // An AniList login replaces an older setup's public name.
       await store.save(pending.uuid, {
         keys: conns.mergeWatchlistKeys(asRecord(opened.keys), provider, conn as Record<string, unknown>),

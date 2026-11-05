@@ -19,6 +19,7 @@ import { regionForLang } from '@/features/setup/full/collections/region';
 import { setupCopy } from '@/features/setup/shared/setup-copy';
 import { NO_USER_LISTS, useMdblistLists, userListPickerRows, type UserListsContext } from '@/features/setup/shared/user-lists';
 import { MdblistListsStatus } from '@/features/setup/shared/MdblistListsStatus';
+import { commitHomeLayoutRows, homeLayoutRows, moveHomeLayoutRow } from '@/features/setup/shared/home-layout';
 
 // Group rank for the Home catalogue browser: the shared rank first, except
 // actor shelves always sink to the bottom no matter what else is installed.
@@ -121,15 +122,12 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
   // On Nuvio Movie Collections is a collection, not a Home row: its marker
   // (and any stray franchise row) is kept out of the list and every list edit
   // works on the shown rows only.
-  const displayRows = platform === 'nuvio'
-    ? rows.filter((row) => row._nativeFranchiseCollection !== true && String(row.source?.catalogId || '') !== 'torbox-collections')
-    : rows;
-  const keptRows = rows.filter((row) => !displayRows.includes(row));
+  const displayRows = homeLayoutRows(rows, platform);
   const ownedOn = rows.some((row) => row._nativeFranchiseCollection === true);
   const showOwnedSwitch = !(ownedInCollections && platform === 'nuvio');
 
   function commit(next: HomeRowDoc[]) {
-    onChange(normalizeHomeOrder([...next, ...keptRows], platform));
+    onChange(commitHomeLayoutRows(rows, next, platform));
   }
 
   function toggleByKey(key: string) {
@@ -143,24 +141,12 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
     }
   }
 
-  function move(index: number, delta: -1 | 1) {
-    const target = index + delta;
-    if (target < 0 || target >= displayRows.length) return;
-    const next = displayRows.slice();
-    const [moved] = next.splice(index, 1);
-    if (!moved) return;
-    next.splice(target, 0, moved);
-    commit(next);
-  }
-
+  // The same reorder the Home layout sheet uses (shared/home-layout.ts).
   function drop(from: number, to: number) {
-    if (from === to || from < 0 || to < 0 || from >= displayRows.length || to >= displayRows.length) return;
-    const next = displayRows.slice();
-    const [moved] = next.splice(from, 1);
-    if (!moved) return;
-    next.splice(to, 0, moved);
-    commit(next);
+    const next = moveHomeLayoutRow(rows, platform, from, to);
+    if (next !== rows) onChange(next);
   }
+  const move = (index: number, delta: -1 | 1) => drop(index, index + delta);
 
   function remove(index: number) {
     commit(displayRows.filter((_, at) => at !== index));

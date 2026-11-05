@@ -15,12 +15,10 @@ import type { PlatformConnection } from '@/features/setup/full/platform-login';
 // panel Move In's edit flow and Settle In end on). The setup is created first
 // because sealing and pushing need a row; the edit token comes from an
 // immediate unlock with the just-typed password, which never touches storage.
-export function ReviewStep({ password, confirmation, busy, error, backTo, onPassword, onConfirmation, onSubmit, created, onRotated, name, platform, onPlatform, pushConn, onPushConn, counts, collections, onImportCollections, submitLabel }: {
+export function ReviewStep({ password, confirmation, error, onPassword, onConfirmation, onSubmit, created, onRotated, name, platform, onPlatform, pushConn, onPushConn, counts, collections, onImportCollections }: {
   password: string;
   confirmation: string;
-  busy: boolean;
   error: string | null;
-  backTo: string;
   onPassword: (value: string) => void;
   onConfirmation: (value: string) => void;
   onSubmit: () => void;
@@ -36,7 +34,6 @@ export function ReviewStep({ password, confirmation, busy, error, backTo, onPass
   counts?: PublishCounts | undefined;
   collections: CollectionDoc[];
   onImportCollections: (cols: CollectionDoc[]) => void;
-  submitLabel?: string | undefined;
 }) {
   const [publicOpen, setPublicOpen] = useState(false);
   // "Not you?": the sign-in form replaces the account line until a login lands.
@@ -58,10 +55,9 @@ export function ReviewStep({ password, confirmation, busy, error, backTo, onPass
     return (
       <>
         <TierInstall
-          password={password} confirmation={confirmation}
-          busy={busy} error={error}
+          password={password} confirmation={confirmation} error={error}
           onPassword={onPassword} onConfirmation={onConfirmation}
-          onSubmit={onSubmit} submitLabel={submitLabel ?? 'Create my setup'}
+          onSubmit={onSubmit}
         >
           {activeConn && (
             <p className="setup-note">Push to {platformName} is armed - creating the setup pushes straight after.</p>

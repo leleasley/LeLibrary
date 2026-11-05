@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { TierProgress } from '@/features/setup/shared/tier/TierProgress';
+import { ShellSidebar } from '@/features/setup/shared/tier/TierShell';
 import { isQuickDirty, quickDraftHasContent } from '@/features/setup/quick/QuickSetupPage';
 import { isPartialDirty, partialDraftHasContent } from '@/features/setup/partial/PartialSetupPage';
 import { isFullDirty, fullDraftHasContent } from '@/features/setup/full/FullSetupPage';
@@ -109,18 +109,22 @@ describe('home browser grouping', () => {
 });
 
 describe('unsaved notice', () => {
-  // The notice lives in the progress rail: always visible, never on top of the
-  // preview or the mobile dock (the floating banner it replaced was both).
-  const steps = [{ id: 'providers', label: 'Library' }, { id: 'artwork', label: 'Artwork' }];
+  // The notice is the shell sidebar's status pill: "Draft" while creating,
+  // "Saved" / "Unsaved changes" while editing (never a floating banner).
+  const render = (status: 'draft' | 'saved' | 'unsaved') => renderToStaticMarkup(
+    <ShellSidebar status={status} onPreview={() => {}} completion={{ percent: 0, complete: false }} required={[]} optional={[]} />,
+  );
 
-  it('shows in the rail while there are unsaved changes', () => {
-    const html = renderToStaticMarkup(<TierProgress steps={steps} unsaved />);
+  it('shows while there are unsaved changes', () => {
+    const html = render('unsaved');
     expect(html).toContain('Unsaved changes');
     expect(html).toContain('role="status"');
+    expect(html).toContain('qs-unsaved');
   });
 
-  it('stays silent when there is nothing unsaved', () => {
-    const html = renderToStaticMarkup(<TierProgress steps={steps} unsaved={false} />);
-    expect(html).not.toContain('Unsaved changes');
+  it('says Saved when nothing is unsaved, and Draft while creating', () => {
+    expect(render('saved')).toContain('>Saved<');
+    expect(render('saved')).not.toContain('Unsaved changes');
+    expect(render('draft')).toContain('>Draft<');
   });
 });

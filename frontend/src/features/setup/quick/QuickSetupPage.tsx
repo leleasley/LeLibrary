@@ -14,11 +14,12 @@ import {
   type PostersDraft,
 } from '@/features/setup/shared/PostersSection';
 import { BADGE_PACKS, DEFAULT_BADGE_PACK } from '@/features/setup/shared/BadgePackPicker';
-import { TierProgress } from '@/features/setup/shared/tier/TierProgress';
 import { BadgePackStrip, StreamStylePicker, usePresetPicker } from '@/features/setup/shared/tier/TierPickers';
-import { TierInstall } from '@/features/setup/shared/tier/TierInstall';
-import { TierDock, useTierPreview } from '@/features/setup/shared/tier/TierPreview';
-import { PosterWall, TierHero, TierStep } from '@/features/setup/shared/tier/TierChrome';
+import { INSTALL_FORM_ID, TierInstall } from '@/features/setup/shared/tier/TierInstall';
+import { useTierPreview } from '@/features/setup/shared/tier/TierPreview';
+import { TierStep } from '@/features/setup/shared/tier/TierChrome';
+import { ShellSidebar, TierShell } from '@/features/setup/shared/tier/TierShell';
+import { createBlocker, optionalChecks, posterFacts, preferenceFacts, requiredChecks, setupCompletion } from '@/features/setup/shared/tier/shell-model';
 import '@/features/setup/shared/tier/tier.css';
 import { useEditSnapshot, type EditMode } from '@/features/setup/shared/edit-mode';
 import { EMPTY_QUICK_EXTRAS, QuickExtrasFields, type QuickExtras, quickExtrasChips } from '@/features/setup/full/MetadataExtras';
@@ -204,6 +205,7 @@ export function QuickSetupPage({ edit, previewOpen }: { edit?: EditMode; preview
     .map(({ field }) => PROVIDER_NAMES[field] ?? field);
   const hasTmdb = Boolean((keys.tmdbApiKey ?? '').trim());
   const passwordReady = creation.password.length > 0 && creation.password === creation.confirmation;
+  const keyState = { keys, savedServices: edit?.savedServices };
 
   const steps = useMemo(() => [
     { id: 'providers', label: 'Library', done: connected.length > 0 && hasTmdb },
@@ -230,82 +232,84 @@ export function QuickSetupPage({ edit, previewOpen }: { edit?: EditMode; preview
       </section>
     );
   }
-  const dirty = edit ? edit.dirty : isQuickDirty({ name, keys, formatting, posters, badgePack, extras, libraryRows });
+  const required = requiredChecks(keyState);
+  const optional = optionalChecks('quick', keyState);
+  const blocked = edit ? null : createBlocker(keyState, { value: creation.password, confirmation: creation.confirmation });
   return (
-    <section className="setup setup-wide qs qs-tier">
-      <TierProgress
-        steps={steps} unsaved={dirty}
-        save={edit && !edit.locked ? { onSave: edit.onSave, onSaveAndPush: edit.onSaveAndPush, pushTarget: edit.pushTarget, busy: edit.saving || edit.pushing } : null}
-      />
-      <PosterWall />
-      {edit ? (
-        <TierHero
-          eyebrow="Quick Look · Editing" title="Your library." accent="Same page you started on."
-          lede="Your saved settings and keys are filled in below. Change anything, then save."
-          facts={['Saved keys stay hidden', 'Nothing changes until you save', 'Same install link']}
-        />
-      ) : (
-        <TierHero
-          eyebrow="Quick Setup" title="Your library." accent="Ready in a few fields."
-          lede="Connect the debrid account that holds your library, choose your artwork and you’re ready to play."
-          facts={['Four short steps', 'No account needed', 'Keys sealed on the server']}
-        />
-      )}
+    <section className="setup qs qs-tier ts-page">
+      <TierShell
+        tierLabel="Quick Look" name={name} editing={Boolean(edit)}
+        steps={steps}
+        onPreview={preview.openPreview}
+        sidebar={(
+          <ShellSidebar
+            status={edit ? (edit.dirty ? 'unsaved' : 'saved') : 'draft'}
+            onPreview={preview.openPreview}
+            completion={setupCompletion(required, optional)} required={required} optional={optional}
+            posters={posterFacts(posterLabel, streamLabel, badgeLabel)}
+            preferences={preferenceFacts({ lang: extras.lang, hideAnime: extras.hideAnime })}
+          />
+        )}
+        footer={{
+          reset: edit
+            ? { label: 'Clear my edits', onClick: edit.onClearEdits, disabled: !edit.dirty }
+            : { label: 'Start over', onClick: () => setConfirmReset(true) },
+          finish: edit
+            ? { label: edit.saving ? 'Saving…' : edit.dirty ? 'Save changes' : 'Everything is saved', disabled: !edit.dirty || edit.locked, busy: edit.saving, onClick: edit.onSave }
+            : { label: creation.busy ? 'Creating…' : 'Create my setup', busy: creation.busy, form: INSTALL_FORM_ID },
+          blocked,
+          save: edit && !edit.locked && edit.dirty
+            ? { onSave: edit.onSave, onSaveAndPush: edit.onSaveAndPush, pushTarget: edit.pushTarget, busy: edit.saving || edit.pushing }
+            : null,
+        }}
+      >
+        <TierStep id="providers" title="Connect your library" lede="Choose the debrid service where your files are saved. You can connect more than one.">
+          <ProviderKeys
+            values={keys} onChange={setKeys}
+            {...(edit ? { savedServices: edit.savedServices, revealSaved: revealEdit, onRemove: edit.onRemoveKey } : {})}
+          />
+          <h3 className="qs-sub"><strong>Match titles and artwork</strong><span>TMDB required · TVDB and OMDb optional</span></h3>
+          <MetadataKeyCards
+            values={keys} onChange={setKeys}
+            {...(edit ? { savedServices: edit.savedServices, revealSaved: revealEdit, onRemove: edit.onRemoveKey } : {})}
+          />
+          <LibraryRowsCard value={libraryRows} onChange={setLibraryRows} hideAnime={extras.hideAnime} />
+        </TierStep>
 
-      <div className="qs-grid">
-        <div className="qs-flow">
-          <TierStep id="providers" index={1} title="Connect your library" lede="Choose the debrid service where your files are saved. You can connect more than one." done={steps[0]?.done === true}>
-            <ProviderKeys
-              values={keys} onChange={setKeys}
-              {...(edit ? { savedServices: edit.savedServices, revealSaved: revealEdit, onRemove: edit.onRemoveKey } : {})}
-            />
-            <h3 className="qs-sub"><strong>Match titles and artwork</strong><span>TMDB required · TVDB and OMDb optional</span></h3>
-            <MetadataKeyCards
-              values={keys} onChange={setKeys}
-              {...(edit ? { savedServices: edit.savedServices, revealSaved: revealEdit, onRemove: edit.onRemoveKey } : {})}
-            />
-            <LibraryRowsCard value={libraryRows} onChange={setLibraryRows} hideAnime={extras.hideAnime} />
+        <TierStep id="artwork" title="Posters" lede="Pick a look. The preview updates as you choose.">
+          <PostersSection draft={posters} keys={keys} onDraft={setPosters} onKeys={setKeys} savedServices={edit?.savedServices} />
+        </TierStep>
+
+        <TierStep id="stream-look" title="Playback style" lede="Choose how your library files appear in the player.">
+          <h3 className="qs-sub"><strong>Badge packs</strong><span>Nuvio</span></h3>
+          <BadgePackStrip
+            pack={badgePack.pack}
+            customUrl={badgePack.url}
+            onChange={(next) => setBadgePack(next.pack === 'custom' ? next : { pack: next.pack, url: badgePack.url })}
+          />
+          <h3 className="qs-sub"><strong>Stream display style</strong><span>Stremio and Nuvio</span></h3>
+          <StreamStylePicker draft={formatting} onPick={pickPreset}>
+            <FormattingSection draft={formatting} onChange={setFormatting} templatesOnly />
+          </StreamStylePicker>
+          <OptionsCard label="Library options" chips={quickExtrasChips(extras)}>
+            <QuickExtrasFields draft={extras} onChange={setExtras} />
+          </OptionsCard>
+        </TierStep>
+
+        {edit ? (
+          <TierStep id="password" title="Save your changes" lede="Nothing changes until you save. Your install link stays the same.">
+            {edit.renderFinish({ name: { value: name, onChange: setName } })}
           </TierStep>
-
-          <TierStep id="artwork" index={2} title="Posters" lede="Pick a look. The preview updates as you choose.">
-            <PostersSection draft={posters} keys={keys} onDraft={setPosters} onKeys={setKeys} savedServices={edit?.savedServices} />
-          </TierStep>
-
-          <TierStep id="stream-look" index={3} title="Playback style" lede="Choose how your library files appear in the player.">
-            <h3 className="qs-sub"><strong>Badge packs</strong><span>Nuvio</span></h3>
-            <BadgePackStrip
-              pack={badgePack.pack}
-              customUrl={badgePack.url}
-              onChange={(next) => setBadgePack(next.pack === 'custom' ? next : { pack: next.pack, url: badgePack.url })}
-            />
-            <h3 className="qs-sub"><strong>Stream display style</strong><span>Stremio and Nuvio</span></h3>
-            <StreamStylePicker draft={formatting} onPick={pickPreset}>
-              <FormattingSection draft={formatting} onChange={setFormatting} templatesOnly />
-            </StreamStylePicker>
-            <OptionsCard label="Library options" chips={quickExtrasChips(extras)}>
-              <QuickExtrasFields draft={extras} onChange={setExtras} />
-            </OptionsCard>
-          </TierStep>
-
-          {edit ? (
-            <TierStep id="password" index={4} title="Save your changes" lede="Nothing changes until you save. Your install link stays the same.">
-              {edit.renderFinish({ name: { value: name, onChange: setName } })}
-            </TierStep>
-          ) : (
-          <TierStep id="password" index={4} title="Create your install link" lede="Set a password to protect future edits. Your player won’t ask for it when you watch." done={passwordReady}>
-            <TierInstall
-              password={creation.password} confirmation={creation.confirmation}
-              busy={creation.busy} error={creation.error}
-              onPassword={creation.setPassword} onConfirmation={creation.setConfirmation}
-              onSubmit={submit} onReset={() => setConfirmReset(true)}
-            />
-          </TierStep>
-          )}
-        </div>
-
-      </div>
-
-      <TierDock hasArt={hasTmdb} label={hasTmdb ? `${posterLabel} · ${streamLabel}` : 'Add your TMDB key to see posters'} onPreview={preview.openPreview} />
+        ) : (
+        <TierStep id="password" title="Create your install link" lede="Set a password to protect future edits. Your player won’t ask for it when you watch.">
+          <TierInstall
+            password={creation.password} confirmation={creation.confirmation} error={creation.error}
+            onPassword={creation.setPassword} onConfirmation={creation.setConfirmation}
+            onSubmit={submit}
+          />
+        </TierStep>
+        )}
+      </TierShell>
       {preview.modal}
 
       <ConfirmModal

@@ -1,5 +1,8 @@
 import { useState, type ReactNode } from 'react';
 
+// The password form's id: the shell footer's finish button submits it.
+export const INSTALL_FORM_ID = 'tier-install-form';
+
 // Same scale as the shared PasswordFields, split into four segments so the
 // meter fills in visible steps rather than one stretching bar.
 export function passwordStrength(password: string): 0 | 1 | 2 | 3 | 4 {
@@ -14,36 +17,33 @@ export function passwordStrength(password: string): 0 | 1 | 2 | 3 | 4 {
 const STRENGTH_LABEL = ['', 'Too short', 'Okay', 'Good', 'Strong'] as const;
 
 // Step 4: lock the setup and create the install link. The password only ever
-// guards editing; the player never asks for it.
+// guards editing; the player never asks for it. The submit button is the
+// shell footer's finish action (form={INSTALL_FORM_ID}).
 // The setup password is not a site login: tell the common password managers
 // not to pop their fill and generate menus over it (they also stole focus and
 // Escape presses from the end screen).
 const QUIET_FIELD = { 'data-1p-ignore': 'true', 'data-lpignore': 'true', 'data-bwignore': 'true', 'data-form-type': 'other' } as const;
 
-export function TierInstall({ password, confirmation, busy, error, onPassword, onConfirmation, onSubmit, onReset, submitLabel = 'Create my manifest', children }: {
+export function TierInstall({ password, confirmation, error, onPassword, onConfirmation, onSubmit, children }: {
   password: string;
   confirmation: string;
-  busy: boolean;
   error: string | null;
   onPassword: (value: string) => void;
   onConfirmation: (value: string) => void;
   onSubmit: () => void;
-  onReset?: () => void;
-  submitLabel?: string;
   children?: ReactNode;
 }) {
   const [show, setShow] = useState(false);
   const strength = passwordStrength(password);
   const match = confirmation.length > 0 && password === confirmation;
   const mismatch = confirmation.length > 0 && password !== confirmation;
-  const ready = password.length > 0 && match;
   const status = !password ? 'Choose a password to lock your setup'
     : mismatch ? 'Passwords do not match'
     : match ? 'Passwords match - ready to create'
     : 'Confirm your password';
 
   return (
-    <form className="qs-install" onSubmit={(event) => { event.preventDefault(); onSubmit(); }}>
+    <form className="qs-install" id={INSTALL_FORM_ID} onSubmit={(event) => { event.preventDefault(); onSubmit(); }}>
       <div className="qs-pw-grid">
         <label className="qs-pw">
           <span className="qs-pw-label">Password</span>
@@ -93,14 +93,6 @@ export function TierInstall({ password, confirmation, busy, error, onPassword, o
       {children}
       {error && <p className="setup-error" role="alert">{error}</p>}
 
-      <button type="submit" className={`qs-cta${ready ? ' is-ready' : ''}`} disabled={busy || !ready}>
-        <span className="qs-cta-text">{busy ? 'Creating…' : submitLabel}</span>
-        <span className="qs-cta-apps" aria-hidden="true">
-          <img src="/stremio.svg" alt="" />
-          <img src="/nuvio.png" alt="" />
-        </span>
-      </button>
-      {onReset && <button type="button" className="pw-reset-link" onClick={onReset}>Start over</button>}
     </form>
   );
 }

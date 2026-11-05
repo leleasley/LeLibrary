@@ -28,20 +28,6 @@
 }
 .qs-progress-in { display: flex; align-items: flex-end; gap: 18px; max-width: 1180px; margin: 0 auto; padding: 10px 0 9px; }
 .qs-progress-in .qs-rail { flex: 1; min-width: 0; }
-.qs-unsaved {
-  flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
-  border: 1px solid rgba(245, 158, 11, 0.35); background: rgba(245, 158, 11, 0.08); color: var(--amber);
-  font: 500 0.68rem var(--font, inherit); white-space: nowrap; animation: qs-rise 0.35s var(--qs-ease);
-}
-.qs-unsaved::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); }
-.qs-unsaved-group { flex: none; display: inline-flex; align-items: center; gap: 6px; }
-.qs-unsaved-save {
-  padding: 4px 11px; border-radius: 999px; border: 1px solid var(--amber); background: var(--amber); color: #120c02;
-  font: 600 0.68rem var(--font, inherit); white-space: nowrap; cursor: pointer; animation: qs-rise 0.35s var(--qs-ease);
-}
-.qs-unsaved-save.is-push { background: transparent; color: var(--amber); }
-.qs-unsaved-save:disabled { opacity: 0.55; cursor: progress; }
-.qs-save-short { display: none; }
 .qs-rail { --qs-progress: 0; position: relative; }
 .qs-rail-track {
   position: absolute; left: 0; right: 0; top: 0; height: 3px; border-radius: 3px;
@@ -102,22 +88,8 @@
 /* No z-index here: it would trap the setup modals (z 100) under the sticky rail. */
 .qs-grid { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; }
 .qs-flow { min-width: 0; }
-/* One column: the Preview is the full-screen modal from the bottom dock
-   (no sidebar since v6), so a tier page is as wide as its flow was. */
-.setup-wide.qs-tier { max-width: 1060px; }
-.qs-tier { padding-bottom: 110px; }
-
-/* ── Steps: hairlines and a big outlined numeral, no card around each ── */
-.qs-step { position: relative; padding: 34px 0 38px 76px; border-top: 1px solid var(--qs-line); scroll-margin-top: calc(var(--qs-top) + 60px); }
-.qs-step-head { margin-bottom: 22px; }
-.qs .qs-num {
-  position: absolute; left: 0; top: 30px; width: auto; height: auto; border: 0; background: none; border-radius: 0;
-  font: 700 3.2rem/1 var(--font, inherit); letter-spacing: -0.06em; font-variant-numeric: tabular-nums;
-  color: transparent; -webkit-text-stroke: 1.25px rgba(245, 158, 11, 0.5); transition: color 0.4s, -webkit-text-stroke-color 0.4s;
-}
-.qs .qs-step.is-done .qs-num { color: rgba(245, 158, 11, 0.16); -webkit-text-stroke-color: rgba(245, 158, 11, 0.7); }
-.qs-step-head h2 { margin: 0; font-size: 1.32rem; letter-spacing: -0.025em; }
-.qs-step-head p { margin: 6px 0 0; max-width: 540px; color: var(--muted); font-size: 0.86rem; line-height: 1.55; }
+/* ── Steps (the shell, shell.css, lays them out) ── */
+.qs-step { position: relative; }
 
 .qs-sub { display: flex; align-items: baseline; gap: 10px; margin: 28px 0 12px; font-size: 0.9rem; font-weight: 600; }
 .qs-sub:first-child { margin-top: 0; }
@@ -262,30 +234,7 @@
 }
 .qs-cta.is-ready { background: var(--amber); color: #1a1203; cursor: pointer; box-shadow: 0 18px 36px -18px rgba(245, 158, 11, 0.75); }
 .qs-cta.is-ready:hover:not(:disabled) { transform: translateY(-2px); }
-.qs-cta-apps { display: flex; gap: 6px; }
-.qs-cta-apps img { width: 28px; height: 28px; padding: 4px; border-radius: 8px; background: rgba(0, 0, 0, 0.18); object-fit: contain; opacity: 0.55; transition: opacity 0.3s; }
-.qs-cta.is-ready .qs-cta-apps img { opacity: 1; background: rgba(0, 0, 0, 0.14); }
-.qs .pw-reset-link { justify-self: start; }
 
-/* ── Stepped tiers (Settle In, Move In) ── */
-.qs-hero.is-compact { padding: 26px 0 6px; }
-.qs-hero.is-compact h1 { font-size: clamp(1.25rem, 2.4vw, 1.6rem); letter-spacing: -0.03em; margin: 0; }
-.qs-wizard .qs-step { border-top: 0; padding-top: 22px; }
-.qs-wizard .qs-step .qs-num { top: 18px; }
-.qs-wizard-nav {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  margin: 8px 0 0 76px; padding: 18px 0 0; border-top: 1px solid var(--qs-line);
-}
-.qs-nav-right { display: flex; align-items: center; gap: 16px; }
-.qs-nav-back { padding: 11px 16px; border: 1px solid var(--qs-line-2); border-radius: 12px; background: transparent; color: var(--text); font: 600 0.84rem var(--font, inherit); cursor: pointer; }
-.qs-nav-back:hover { border-color: rgba(245, 158, 11, 0.45); }
-.qs-nav-next {
-  display: grid; justify-items: start; gap: 1px; padding: 10px 20px; border: 0; border-radius: 13px;
-  background: var(--amber); color: #1a1203; font: 700 0.9rem var(--font, inherit); cursor: pointer;
-  box-shadow: 0 14px 30px -16px rgba(245, 158, 11, 0.75); transition: transform 0.25s var(--qs-ease);
-}
-.qs-nav-next:hover { transform: translateY(-2px); }
-.qs-nav-next small { font-weight: 500; font-size: 0.68rem; opacity: 0.7; }
 .qs-name { max-width: 420px; margin-bottom: 18px; }
 .qs-catalogs { margin-top: 18px; max-width: 420px; }
 
@@ -342,47 +291,6 @@
 .folder-add-tile small { font-size: 0.7rem; }
 .folder-add-tile:hover { border-color: rgba(245, 158, 11, 0.55); background: rgba(245, 158, 11, 0.05); }
 
-/* ── The dock: the one Preview, on every setup page and every width ── */
-.qs-dock {
-  position: fixed; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 60;
-  display: flex; align-items: center; gap: 11px; box-sizing: border-box;
-  width: max-content; max-width: min(480px, calc(100vw - 20px));
-  padding: 9px 9px 9px 11px; border-radius: 18px; transform: translateX(-50%);
-  border: 1px solid var(--qs-line-2); background: rgba(20, 20, 24, 0.88);
-  backdrop-filter: blur(18px) saturate(1.3); -webkit-backdrop-filter: blur(18px) saturate(1.3);
-  box-shadow: 0 18px 44px -10px rgba(0, 0, 0, 0.85);
-}
-.qs-dock-stack { display: flex; flex: none; padding: 0; border: 0; background: none; cursor: pointer; }
-.qs-dock-poster { width: 26px; aspect-ratio: 2 / 3; margin-left: -10px; border-radius: 5px; overflow: hidden; background: linear-gradient(160deg, #1d1d22, #121215); box-shadow: -3px 0 8px rgba(0, 0, 0, 0.6); }
-.qs-dock-poster:first-child { margin-left: 0; }
-.qs-dock-poster img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.qs-dock-copy { display: grid; flex: 1; min-width: 0; line-height: 1.25; }
-.qs-dock-copy small { color: var(--qs-ok); font: 500 0.6rem var(--mono, monospace); letter-spacing: 0.1em; text-transform: uppercase; }
-.qs-dock-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.82rem; }
-.qs-dock-btn { flex: none; padding: 11px 15px; border: 0; border-radius: 13px; background: var(--amber); color: #1a1203; font: 700 0.82rem var(--font, inherit); cursor: pointer; }
-.qs-dock-btn.is-ghost { background: rgba(255, 255, 255, 0.08); color: var(--text); }
-.qs-dock-btn:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
-/* The edit page's other views sit above the same dock. */
-.edit-view { padding-bottom: 110px; }
-/* Wide screens keep the page's own Continue: there the dock is Preview only. */
-@media (min-width: 981px) {
-  .qs-dock-next { display: none; }
-  .qs-dock.has-next .qs-dock-preview.is-ghost { background: var(--amber); color: #1a1203; }
-}
-
-@media (max-width: 980px) {
-  .qs-dock { left: 10px; right: 10px; width: auto; max-width: none; bottom: calc(10px + env(safe-area-inset-bottom)); transform: none; }
-  /* Narrow phones with both buttons: the label was squeezed to "Add y...".
-     The poster stack already says "preview", so drop the label and let
-     Continue take the width. */
-  @media (max-width: 440px) {
-    .qs-dock.has-next .qs-dock-copy { display: none; }
-    .qs-dock.has-next .qs-dock-btn:not(.is-ghost) { flex: 1; text-align: center; }
-  }
-  /* With Continue in the dock, the in-page Continue would be a duplicate. */
-  .qs-wizard .qs-nav-next { display: none; }
-  /* Toasts sit at the top on phones (setup.css), clear of this dock. */
-}
 
 @media (max-width: 640px) {
   .qs-progress-in { padding: 8px 0 7px; }
@@ -394,9 +302,6 @@
   .qs-wall { height: 360px; }
   .qs-wall-track { grid-template-columns: repeat(10, 84px); }
   .qs-wall-track img { width: 84px; }
-  .qs-step { padding: 26px 0 30px; }
-  .qs .qs-num { position: static; display: block; margin-bottom: 8px; font-size: 2.3rem; }
-  .qs-wizard-nav { margin-left: 0; }
   .qs-progress.is-wizard .qs-rail-label { display: none; }
   .qs-progress.is-wizard .qs-rail-step.is-active .qs-rail-label { display: inline; }
   /* Many steps on a phone: the others shrink to dots, the active one gets the room. */
@@ -411,11 +316,6 @@
   .qs .collection-switches { padding-left: 0; border-left: 0; }
   .qs .collection-hero-content { flex-direction: column; align-items: stretch; }
   .qs .folder-grid { grid-template-columns: 1fr 1fr; }
-  .qs-unsaved { font-size: 0; gap: 0; padding: 5px; }
-  .qs-unsaved-save { padding: 4px 9px; }
-  .qs-save-long { display: none; }
-  .qs-save-short { display: inline; }
-  .qs-step-head h2 { font-size: 1.18rem; }
   .qs .provider-grid { grid-template-columns: 1fr; }
   .qs-pw-grid, .qs-facts { grid-template-columns: 1fr; }
   /* Stream styles swipe sideways on phones (the next card peeks in) instead
@@ -472,7 +372,7 @@
   position: relative; display: grid; gap: 18px; margin: 34px 0 0; padding: 24px; border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.08); background: #111114;
 }
-.qs-wizard .edit-settings, .qs .edit-settings { max-width: calc(100% - 340px - 48px); }
+.qs .edit-settings { max-width: calc(100% - 340px - 48px); }
 .edit-settings-head h2 { margin: 2px 0 2px; font-size: 1.15rem; letter-spacing: -0.02em; }
 .edit-settings-id { margin: 0; color: #6b6b75; font: 500 0.72rem var(--mono, monospace); }
 .edit-settings-block { display: grid; gap: 8px; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.07); }
@@ -495,7 +395,7 @@
 .edit-settings-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.07); }
 
 @media (max-width: 980px) {
-  .qs-wizard .edit-settings, .qs .edit-settings { max-width: none; }
+  .qs .edit-settings { max-width: none; }
 }
 @media (max-width: 640px) {
   .edit-tiers { grid-template-columns: 1fr; }
@@ -897,12 +797,10 @@
     margin: -24px calc(50% - 50vw) 0; padding: 6px 12px; border: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.07);
     border-radius: 0; box-shadow: none; animation: none;
   }
-  .edit-root.has-rail .qs > .qs-progress:first-child { margin-top: 0; }
   .edit-rail-item { display: flex; align-items: center; width: auto; gap: 7px; padding: 7px 14px; border-radius: 999px; font-size: 0.78rem; }
   .edit-rail-item svg { width: 17px; height: 17px; }
   .edit-rail-badge { position: static; margin-left: 2px; }
-  /* The tier page's own progress bar sticks just under this bar. */
-  .edit-root.has-rail .qs-progress { top: calc(var(--qs-top, 58px) + 49px); }
+  /* The tier page's shell sticks just under this bar (shell.css). */
 }
 
 /* Phones: five views do not fit with labels. Tighter items, and under 430px

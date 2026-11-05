@@ -20,7 +20,7 @@ import { setupCopy, setupCount } from '@/features/setup/shared/setup-copy';
 import { LibraryPanel } from '@/features/setup/library/LibraryPanel';
 import { NuvioPanel } from '@/features/setup/nuvio/NuvioPanel';
 import { PreviewModal } from '@/features/setup/preview/PreviewModal';
-import { TierDock, type TierPreviewSource } from '@/features/setup/shared/tier/TierPreview';
+import type { TierPreviewSource } from '@/features/setup/shared/tier/TierPreview';
 import { fetchLibrarySummary } from '@/features/setup/library/library-api';
 import { forgetDeletedSetup } from '@/features/setup/shared/saved-setups';
 import { ErrorState } from '@/features/site/ErrorPage';
@@ -196,6 +196,22 @@ export function SetupEditPage() {
     if (stage) requestAnimationFrame(() => stage.classList.remove('is-fading'));
   }, [view]);
   useEffect(() => () => { if (fadeTimer.current) window.clearTimeout(fadeTimer.current); }, []);
+  // Under 1380px the rail is a sticky bar and the tier page's shell sticks
+  // right under it: its height (44px on phones, 49px wider) is measured, not
+  // guessed, so no sliver of the page shows between the two bars.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const railRef = useRef<HTMLElement>(null);
+  const railShown = saved !== null && seed !== null;
+  useLayoutEffect(() => {
+    const rail = railRef.current;
+    const root = rootRef.current;
+    if (!rail || !root || typeof ResizeObserver === 'undefined') return undefined;
+    const write = () => root.style.setProperty('--edit-rail-h', `${Math.round(rail.getBoundingClientRect().height)}px`);
+    write();
+    const observer = new ResizeObserver(write);
+    observer.observe(rail);
+    return () => observer.disconnect();
+  }, [railShown]);
   // How many files need attention, for the switch. Loaded once after unlock;
   // a setup without the library index or a debrid key simply shows no count.
   const [libraryAttention, setLibraryAttention] = useState<number | null>(null);
@@ -603,11 +619,19 @@ export function SetupEditPage() {
     fadeTimer.current = window.setTimeout(swap, VIEW_FADE_MS);
   }
 
+  // The other views' top line: back to the tier page, and the same Preview
+  // the tier page's shell opens.
   const backToEditing = (
-    <button type="button" className="edit-back" onClick={() => go('edit')}>
-      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" /></svg>
-      <span>Back to editing</span>
-    </button>
+    <div className="edit-view-bar">
+      <button type="button" className="edit-back" onClick={() => go('edit')}>
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" /></svg>
+        <span>Back to editing</span>
+      </button>
+      <button type="button" className="edit-back edit-preview" aria-haspopup="dialog" onClick={() => openPreview()}>
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" /></svg>
+        <span>Preview</span>
+      </button>
+    </div>
   );
 
   const settings = (
@@ -737,10 +761,9 @@ export function SetupEditPage() {
           <p className="edit-tier-note">{`Saving moves this setup to ${TIER_LABELS[activeTier]}. Same link, same id.`}</p>
         )}
         {activeTier === 'quick' || !manifest ? (
+          // The shell footer's finish button saves; this step only explains.
           <>
-            <button type="button" className={`qs-cta${dirty ? ' is-ready' : ''}`} disabled={!dirty || saving} onClick={() => void saveAll()}>
-              <span className="qs-cta-text">{saving ? 'Saving…' : dirty ? 'Save changes' : 'Everything is saved'}</span>
-            </button>
+            <p className="edit-finish-note">{dirty ? 'Save from the bar below. Your install link stays the same.' : 'Everything is saved.'}</p>
             {saveError && <p className="setup-error" role="alert">{saveError}</p>}
           </>
         ) : (
@@ -798,9 +821,9 @@ export function SetupEditPage() {
   ];
 
   return (
-    <div className={`edit-root${unlocked ? ' has-rail' : ''}`}>
+    <div className={`edit-root${unlocked ? ' has-rail' : ''}`} ref={rootRef}>
       {unlocked && (
-        <nav className="edit-rail" aria-label="Setup sections">
+        <nav className="edit-rail" aria-label="Setup sections" ref={railRef}>
           {railItems.map((item) => (
             <button
               key={item.id} type="button" title={item.title}
@@ -843,14 +866,6 @@ export function SetupEditPage() {
           uuid={uuid} tier={savedTier}
           busy={unlocking} loading={loadingSettings} error={unlockError} leaving={leaving}
           password={password} onPassword={setPassword} onSubmit={() => void unlock()}
-        />
-      )}
-      {/* The other views keep the same dock and the same Preview. */}
-      {unlocked && view !== 'edit' && (
-        <TierDock
-          hasArt={Boolean((current?.keys.tmdbApiKey ?? '').trim())}
-          label={`${TIER_LABELS[activeTier]} · ${platformName}`}
-          onPreview={openPreview}
         />
       )}
       <PreviewModal

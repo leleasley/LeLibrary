@@ -783,9 +783,13 @@ export function collectionEntries(count: number, slot: number | null): Collectio
 // Move one entry of that list up or down; Movie Collections and the
 // collections swap places like any two cards.
 export function moveCollectionEntry<T>(collections: T[], slot: number | null, at: number, delta: -1 | 1): { collections: T[]; slot: number | null } {
+  return moveCollectionEntryTo(collections, slot, at, at + delta);
+}
+
+// The same move to any place in the list (the Home layout sheet's drag).
+export function moveCollectionEntryTo<T>(collections: T[], slot: number | null, at: number, target: number): { collections: T[]; slot: number | null } {
   const entries = collectionEntries(collections.length, slot);
-  const target = at + delta;
-  if (at < 0 || target < 0 || at >= entries.length || target >= entries.length) return { collections, slot };
+  if (at === target || at < 0 || target < 0 || at >= entries.length || target >= entries.length) return { collections, slot };
   const next = entries.slice();
   const [moved] = next.splice(at, 1);
   if (!moved) return { collections, slot };

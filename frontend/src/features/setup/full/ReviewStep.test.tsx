@@ -10,7 +10,7 @@ function render(created: { uuid: string; installToken: string } | null) {
   return renderToStaticMarkup(
     <MemoryRouter>
       <ReviewStep
-        password="secret-pass" confirmation="secret-pass" busy={false} error={null} backTo="/configure"
+        password="secret-pass" confirmation="secret-pass" error={null}
         onPassword={() => {}} onConfirmation={() => {}} onSubmit={() => {}}
         created={created} name="TV" platform="nuvio" pushConn={null}
         collections={[]} onImportCollections={() => {}}
@@ -31,7 +31,9 @@ describe('Move In after creating', () => {
     expect(html).not.toContain('Save and push to Nuvio</');
   });
 
-  it('before creating, it is the password step', () => {
-    expect(render(null)).toContain('Create my setup');
+  it('before creating, it is the password step (the shell footer submits it)', () => {
+    const html = render(null);
+    expect(html).toContain('id="tier-install-form"');
+    expect(html).toContain('Confirm password');
   });
 });

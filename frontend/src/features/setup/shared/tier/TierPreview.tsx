@@ -5,10 +5,10 @@ import type { PreviewStreamStyle } from '@/features/setup/preview/PreviewScreens
 import { cleanKeys, type SetupKeysDraft } from '@/features/setup/shared/config-contract';
 import type { FormattingDraft } from '@/features/setup/shared/FormattingSection';
 import type { EditMode, TierId } from '@/features/setup/shared/edit-mode';
-import { samplePoster } from '@/features/setup/shared/tier/TierPickers';
 
-// The one Preview on every setup page: the bottom dock's Preview button (and
-// its poster stack) opens the full-screen player replica. Creating, the page
+// The one Preview on every setup page: the shell's Preview (the sidebar's
+// "Open preview", the phone top bar's play button) opens the full-screen
+// player replica. Creating, the page
 // owns the modal and it shows the live draft; editing, the edit container
 // owns it (so the Library, Nuvio and Settings views open the same one) and
 // asks the page for its draft when it opens.
@@ -57,7 +57,7 @@ export function tierPreviewSource(input: TierPreviewInput, savedServices: readon
 }
 
 // Wires a tier page to the Preview. Edit mode: the page registers how to read
-// its draft and the dock asks the container to open. Create mode: the page
+// its draft and the shell asks the container to open. Create mode: the page
 // renders the modal itself. `initialOpen` is for tests.
 export function useTierPreview(edit: EditMode | undefined, input: TierPreviewInput, initialOpen = false) {
   const [open, setOpen] = useState(initialOpen);
@@ -76,34 +76,4 @@ export function useTierPreview(edit: EditMode | undefined, input: TierPreviewInp
     />
   ) : null;
   return { openPreview, modal };
-}
-
-// The floating bottom dock: a tiny poster stack, the current choices, the
-// Preview button and, on stepped tiers, Continue (phones only: wider screens
-// keep the page's own Continue).
-export function TierDock({ hasArt, label, next, onPreview }: {
-  hasArt: boolean;
-  label: string;
-  next?: { onClick: () => void } | undefined;
-  onPreview: () => void;
-}) {
-  return (
-    <div className={`qs-dock${next ? ' has-next' : ''}`}>
-      {/* The poster stack opens the Preview too (pointer only: the button
-          next to it is the one keyboards and screen readers use). */}
-      <button type="button" className="qs-dock-stack" aria-hidden="true" tabIndex={-1} onClick={onPreview}>
-        {[0, 1, 2].map((index) => (
-          <span key={index} className="qs-dock-poster">
-            {hasArt && <img src={samplePoster(index, 'w185')} alt="" loading="lazy" />}
-          </span>
-        ))}
-      </button>
-      <span className="qs-dock-copy">
-        <small>Live preview</small>
-        <strong>{label}</strong>
-      </span>
-      <button type="button" className={`qs-dock-btn qs-dock-preview${next ? ' is-ghost' : ''}`} aria-haspopup="dialog" onClick={onPreview}>Preview</button>
-      {next && <button type="button" className="qs-dock-btn qs-dock-next" onClick={next.onClick}>Continue →</button>}
-    </div>
-  );
 }

@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// The one live Preview: the dock opens it on every tier, its data source
+// The one live Preview: the setup shell opens it on every tier, its data source
 // follows create / saved / unsaved edits, drafts never carry a key, and the
 // details sheet lists sample streams in the page's current style. No
 // network: every API call is a spy and the formatter is a stand-in that
@@ -25,7 +25,8 @@ vi.mock('@/features/setup/shared/legacy-libs', async (importOriginal) => {
 
 const { PreviewModal } = await import('@/features/setup/preview/PreviewModal');
 const model = await import('@/features/setup/preview/preview-model');
-const { TierDock, tierPreviewSource } = await import('@/features/setup/shared/tier/TierPreview');
+const { tierPreviewSource } = await import('@/features/setup/shared/tier/TierPreview');
+const { ShellSidebar } = await import('@/features/setup/shared/tier/TierShell');
 const { QuickSetupPage } = await import('@/features/setup/quick/QuickSetupPage');
 const { PartialSetupPage } = await import('@/features/setup/partial/PartialSetupPage');
 const { FullSetupPage } = await import('@/features/setup/full/FullSetupPage');
@@ -73,7 +74,7 @@ function editStub(tier: TierId, onPreview: () => void): EditMode {
   };
 }
 
-// Finds elements in a rendered element tree (TierDock has no hooks).
+// Finds elements in a rendered element tree (ShellSidebar has no hooks).
 function findAll(node: ReactNode, match: (el: ReactElement<Record<string, unknown>>) => boolean): ReactElement<Record<string, unknown>>[] {
   const out: ReactElement<Record<string, unknown>>[] = [];
   const walk = (child: ReactNode) => {
@@ -90,20 +91,22 @@ function findAll(node: ReactNode, match: (el: ReactElement<Record<string, unknow
 const PAGES = { quick: QuickSetupPage, partial: PartialSetupPage, full: FullSetupPage } as const;
 
 describe('one Preview on every tier', () => {
-  it('the dock Preview button and its poster stack open the Preview', () => {
+  it('the sidebar Open preview button opens the Preview', () => {
     const onPreview = vi.fn();
-    const dock = TierDock({ hasArt: true, label: 'x', next: { onClick: () => {} }, onPreview });
-    const buttons = findAll(dock, (el) => el.type === 'button' && /qs-dock-(preview|stack)/.test(String(el.props['className'])));
-    expect(buttons).toHaveLength(2);
-    for (const button of buttons) (button.props['onClick'] as () => void)();
-    expect(onPreview).toHaveBeenCalledTimes(2);
+    const side = ShellSidebar({ status: 'draft', onPreview, completion: { percent: 0, complete: false }, required: [], optional: [] });
+    const buttons = findAll(side, (el) => el.type === 'button' && String(el.props['className']).includes('ts-live-btn'));
+    expect(buttons).toHaveLength(1);
+    (buttons[0]?.props['onClick'] as () => void)();
+    expect(onPreview).toHaveBeenCalledTimes(1);
   });
 
   for (const tier of ['quick', 'partial', 'full'] as const) {
-    it(`${tier}: creating, the dock opens the live Preview; the old panel is gone`, () => {
+    it(`${tier}: creating, the shell opens the live Preview; the old panel and dock are gone`, () => {
       const Page = PAGES[tier];
       const closed = renderPage(<Page />);
-      expect(closed).toContain('qs-dock-preview');
+      expect(closed).toContain('ts-live-btn');
+      expect(closed).toContain('aria-label="Open preview"');
+      expect(closed).not.toContain('qs-dock');
       expect(closed).not.toContain('<dialog');
       for (const gone of ['qs-aside', 'qs-panel', 'qs-sheet', 'YOUR LIBRARY PREVIEW']) expect(closed).not.toContain(gone);
       const open = renderPage(<Page previewOpen />);
@@ -111,12 +114,12 @@ describe('one Preview on every tier', () => {
       expect(open).toContain('Live preview of this setup');
     });
 
-    it(`${tier}: editing, the dock asks the edit page, which reads the page's draft`, () => {
+    it(`${tier}: editing, the shell asks the edit page, which reads the page's draft`, () => {
       const Page = PAGES[tier];
       const onPreview = vi.fn();
       const edit = editStub(tier, onPreview);
       const html = renderPage(<Page edit={edit} previewOpen />);
-      expect(html).toContain('qs-dock-preview');
+      expect(html).toContain('ts-live-btn');
       expect(html).not.toContain('<dialog');
       const source = edit.previewSource?.current?.();
       expect(source?.draft.tier).toBe(tier);

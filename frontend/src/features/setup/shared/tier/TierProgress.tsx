@@ -6,29 +6,22 @@ export interface ProgressStep {
   done?: boolean;
 }
 
-// Sticky progress rail under the site banner, shared by every tier.
+// The step tabs of the setup shell, shared by every tier.
 // - scroll mode (Quick Look, one long page): the amber fill slides with the
 //   scroll position; each section contributes its own 0..1 share, written to a
 //   CSS variable from a rAF loop so scrolling never re-renders React.
+//   `onActive` reports the section in view (the shell's footer follows it).
 // - wizard mode (Settle In, Move In, one step at a time): the fill glides to
 //   the active step and every label jumps straight to its step.
-// Edit mode: Save (and Save and push, when a player is connected) sit next to
-// the unsaved notice, so a change on any step can be saved from that step.
-export interface ProgressSave {
-  onSave: () => void;
-  onSaveAndPush: (() => void) | null;
-  pushTarget: string;
-  busy: boolean;
-}
-
-export function TierProgress({ steps, unsaved, wizard, save }: {
+export function TierProgress({ steps, wizard, onActive }: {
   steps: ProgressStep[];
-  unsaved: boolean;
   wizard?: { active: number; onStep: (index: number) => void };
-  save?: ProgressSave | null;
+  onActive?: (index: number) => void;
 }) {
   const railRef = useRef<HTMLDivElement>(null);
   const [scrollActive, setScrollActive] = useState(0);
+  const onActiveRef = useRef(onActive);
+  onActiveRef.current = onActive;
   const active = wizard ? wizard.active : scrollActive;
 
   useEffect(() => {
@@ -51,7 +44,9 @@ export function TierProgress({ steps, unsaved, wizard, save }: {
       const atEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
       const value = atEnd ? steps.length : progress;
       railRef.current?.style.setProperty('--qs-progress', String(value / steps.length));
-      setScrollActive(Math.min(steps.length - 1, Math.floor(value)));
+      const next = Math.min(steps.length - 1, Math.floor(value));
+      setScrollActive(next);
+      onActiveRef.current?.(next);
     };
     const schedule = () => { if (!frame) frame = window.requestAnimationFrame(measure); };
     measure();
@@ -101,24 +96,6 @@ export function TierProgress({ steps, unsaved, wizard, save }: {
             })}
           </ol>
         </div>
-        {/* The floating banner collided with the dock and the preview, so the
-            same notice lives in the rail: always visible, never on top. */}
-        {unsaved && (
-          <span className="qs-unsaved-group">
-            <span className="qs-unsaved" role="status">Unsaved changes</span>
-            {save && (
-              <>
-                <button type="button" className="qs-unsaved-save" disabled={save.busy} onClick={save.onSave}>Save</button>
-                {save.onSaveAndPush && (
-                  <button type="button" className="qs-unsaved-save is-push" disabled={save.busy} onClick={save.onSaveAndPush}>
-                    <span className="qs-save-long">{`Save and push to ${save.pushTarget}`}</span>
-                    <span className="qs-save-short">Save and push</span>
-                  </button>
-                )}
-              </>
-            )}
-          </span>
-        )}
       </div>
     </nav>
   );

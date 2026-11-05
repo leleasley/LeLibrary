@@ -17,18 +17,28 @@ function render() {
 }
 
 describe('quick look reference layout', () => {
-  it('renders the redesigned flow: hero, progress rail, numbered steps, live preview', () => {
+  it('renders the shell: top bar, step tabs, titled steps, sidebar, footer', () => {
     const html = render();
-    // Header block
-    expect(html).toContain('Quick Setup');
-    expect(html).toContain('Ready in a few fields.');
+    // Top bar: back to the setup types, the name placeholder, Step N of M.
+    expect(html).toContain('class="ts-top"');
+    expect(html).toContain('New setup');
+    expect(html).toContain('<span>Quick Look</span> · Step 1 of 4');
+    expect(html).toContain('aria-label="All setup types"');
     expect(html).not.toContain('Open full editor');
-    // Sticky progress rail with one stop per step, numbered steps
+    // Step tabs (scroll mode) with one stop per step; no hero, no numerals.
     expect(html).toContain('qs-progress');
     expect(html).not.toContain('setup-rail');
     expect(html.match(/class="qs-rail-step( |")/g)?.length ?? 0).toBe(4);
-    expect(html).toContain('flow-num');
-    for (const n of ['01', '02', '03', '04']) expect(html).toContain(n);
+    expect(html).not.toContain('qs-hero');
+    expect(html).not.toContain('flow-num');
+    expect(html).toContain('aria-label="About this page"');
+    // Footer: Continue to the next section; the sidebar has no Home layout.
+    expect(html).toContain('class="ts-foot"');
+    expect(html).toContain('Step 2: Artwork');
+    expect(html).toContain('ts-foot-next');
+    expect(html).not.toContain('Arrange home');
+    expect(html).toContain('Setup completion');
+    expect(html).toContain('>Draft<');
     // Lists moved out of Quick Look entirely.
     expect(html).not.toContain('MDBList API key');
     expect(html).not.toContain('section-lists');
@@ -46,12 +56,13 @@ describe('quick look reference layout', () => {
     expect(html).toContain('Add your TMDB key above to see TMDB posters.');
     expect(html).toContain('poster-pair-empty');
     expect(html).toContain('poster-stage');
-    // The old sidebar panel is gone: the dock's Preview opens the full Preview.
+    // The old preview panel and dock are gone: the sidebar's Open preview opens the full Preview.
     expect(html).not.toContain('qs-aside');
     expect(html).not.toContain('qs-panel');
-    expect(html).toContain('class="qs-dock-btn qs-dock-preview"');
-    // The step's own create button stays disabled until a password matches.
-    expect(html).toMatch(/<button type="submit" class="qs-cta" disabled="">/);
+    expect(html).not.toContain('qs-dock');
+    expect(html).toContain('class="ts-live-btn"');
+    // The password form is submitted by the footer's finish button.
+    expect(html).toContain('id="tier-install-form"');
   });
 
   it('keeps posters on the real dropdown; badge packs and stream styles are cards', () => {

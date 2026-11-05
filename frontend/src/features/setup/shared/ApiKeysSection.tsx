@@ -91,7 +91,7 @@ export function MetadataKeyCards({ values, onChange, onRemove, savedServices, re
 
 const CONNECT_CARDS: Record<WatchlistProvider, { blurb: string; logo?: string; monogram?: string; invert?: boolean; brand: string }> = {
   simkl: { blurb: 'Unlocks Up Next, Airing Next, Plan to Watch, Watching and Completed rows.', logo: '/logos/simkl.svg', invert: true, brand: '200, 200, 210' },
-  anilist: { blurb: 'Optional. Adds your AniList anime lists (Watching, Plan to Watch, Completed) as rows.', monogram: 'AL', brand: '2, 169, 255' },
+  anilist: { blurb: 'Optional. Adds your AniList anime lists (Watching, Plan to Watch, Completed) as rows.', logo: '/logos/anilist.svg', brand: '2, 169, 255' },
   trakt: { blurb: 'Sync your personal lists and watch history', logo: '/logos/trakt.svg', brand: '237, 34, 36' },
 };
 

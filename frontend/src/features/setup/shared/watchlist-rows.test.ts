@@ -6,7 +6,7 @@ import {
   mdblistListRows,
   userListBrowserRows,
 } from '@/features/setup/shared/collection-doc';
-import { normalizeAnilistUser, pruneConfig } from '@/features/setup/shared/config-contract';
+import { pruneConfig } from '@/features/setup/shared/config-contract';
 import { mdblistSourceFrom, userListPickerRows, userListServicesFrom } from '@/features/setup/shared/user-lists';
 
 const none = { simkl: false, mdblist: false, anilist: false };
@@ -58,9 +58,9 @@ describe('"Your lists" rows in the pickers', () => {
 
   it('services come from the draft (create) or the saved setup (edit)', () => {
     expect(userListServicesFrom({}, null)).toEqual({ simkl: false, mdblist: false, anilist: false, trakt: false });
-    expect(userListServicesFrom({ watchlistDraft: { simkl: { access_token: 'synthetic' } }, mdblistKey: ' typed ', anilistUser: 'Neo_99' }, null))
+    expect(userListServicesFrom({ mdblistKey: ' typed ', watchlistDraft: { simkl: { access_token: 'synthetic' }, anilist: { access_token: 'synthetic-ani' } } }, null))
       .toEqual({ simkl: true, mdblist: true, anilist: true, trakt: false });
-    expect(userListServicesFrom({ savedServices: ['mdblistKey'], anilistUser: 'bad name!' }, {
+    expect(userListServicesFrom({ savedServices: ['mdblistKey'] }, {
       simkl: { connected: true, configured: true }, trakt: { connected: true, configured: true, legacy: true }, anilist: { connected: false, configured: true },
     })).toEqual({ simkl: true, mdblist: true, anilist: false, trakt: true });
   });
@@ -72,10 +72,10 @@ describe('"Your lists" rows in the pickers', () => {
     expect(mdblistSourceFrom({ savedSetup: { uuid: 'u', editToken: null }, savedServices: ['mdblistKey'] })).toBeNull();
   });
 
-  it('anilistUser follows the server rule and is saved trimmed', () => {
-    expect(normalizeAnilistUser(' Neo_99 ')).toBe('Neo_99');
-    for (const bad of ['a', 'x'.repeat(21), 'has space', 'semi;colon', 42, null]) expect(normalizeAnilistUser(bad)).toBeNull();
-    expect(pruneConfig({ anilistUser: ' Neo_99 ' }).anilistUser).toBe('Neo_99');
-    expect(pruneConfig({ anilistUser: 'bad name!' })).not.toHaveProperty('anilistUser');
+  it('an older setup\'s saved public AniList name keeps its shelf; the pages never write one', () => {
+    expect(userListServicesFrom({}, {
+      simkl: { connected: false, configured: true }, trakt: { connected: false, configured: true }, anilist: { connected: false, configured: false, publicUser: 'Neo_99' },
+    }).anilist).toBe(true);
+    expect(pruneConfig({ anilistUser: ' Neo_99 ' } as Record<string, unknown>)).not.toHaveProperty('anilistUser');
   });
 });

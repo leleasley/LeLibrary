@@ -168,9 +168,11 @@ setTimeout(function () { window.close(); }, ${ok ? '1200' : '6000'});
 // Pre-creation variant: instead of sealing into a row, the tokens ride to
 // the opener over postMessage so the setup page can hold them in its draft
 // (and seal them at creation). Same self-closing behaviour; the payload is
-// the user's own freshly-minted tokens.
+// the user's own freshly-minted tokens plus the account name when the
+// callback could read it (`username`, display only).
 function popupPageWithTokens(provider: string, connection: WatchlistConn): string {
-  const payload = JSON.stringify({ lelibraryWatchlistTokens: { provider, connection } }).replace(/</g, '\\u003c');
+  const username = typeof connection.username === 'string' && connection.username ? connection.username : null;
+  const payload = JSON.stringify({ lelibraryWatchlistTokens: { provider, connection, username } }).replace(/</g, '\\u003c');
   return `<!doctype html>
 <html><head><meta charset="utf-8"><title>LeLibrary</title></head>
 <body style="background:#111;color:#eee;font-family:sans-serif;display:grid;place-items:center;min-height:90vh">

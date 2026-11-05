@@ -39,6 +39,10 @@ type Store = SetupStoreLike;
 export interface SetupConnectionRoutesOptions {
   basePath?: string;
   editSessions?: EditSessionStore;
+  // Test seams: the setup store, and the connect-time account name lookup
+  // (tests never reach Simkl or AniList).
+  getStore?: () => Promise<Store | null>;
+  accountName?: (provider: string, token: string) => Promise<string | null>;
 }
 
 export interface SetupConnectionRoutesApi {
@@ -70,13 +74,28 @@ function displayUser(conn: PushConnection | null, platform: string): string | nu
   return null;
 }
 
-function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', editSessions }: SetupConnectionRoutesOptions = {}): void {
+// The live connect-time name lookup (user-lists), or none under the test
+// runner: tests pass the `accountName` seam instead.
+function liveAccountName(provider: string, token: string): Promise<string | null> {
+  if (process.env['NODE_TEST_CONTEXT'] || process.argv.some((arg) => arg.includes('--test'))) return Promise.resolve(null);
+  const { connectionUsername } = require('../user-lists/index.ts') as { connectionUsername: (p: string, t: string) => Promise<string | null> };
+  return connectionUsername(provider, token);
+}
+
+// The public AniList name an older setup saved (config.anilistUser, no
+// login): still read for its rows, shown on the card, cleared on disconnect.
+function savedAnilistUser(config: unknown): string | null {
+  const { normaliseAnilistUser } = require('../user-lists/rows.ts') as { normaliseAnilistUser: (v: unknown) => string | null };
+  return normaliseAnilistUser(asRecord(config)['anilistUser']);
+}
+
+function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', editSessions, getStore = getSetupStore as unknown as () => Promise<Store | null>, accountName = liveAccountName }: SetupConnectionRoutesOptions = {}): void {
   const router = express.Router();
   router.use(express.json({ limit: '1mb' }));
   const sessions: EditSessionStore = editSessions || createEditSessionStore();
 
   const withStore = async (res: Response): Promise<Store | null> => {
-    const store = await getSetupStore();
+    const store = await getStore();
     if (!store) res.status(503).json({ error: 'Setup storage is unavailable on this instance' });
     return (store as unknown as Store) || null;
   };
@@ -282,13 +301,19 @@ function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', edi
     const opened = await store.resolveByUuid(uuid);
     if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
     if (!authorizeBearer(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
-    const status: Record<string, { connected: boolean; configured: boolean; legacy?: boolean }> = {};
+    const status: Record<string, { connected: boolean; configured: boolean; legacy?: boolean; username?: string; publicUser?: string }> = {};
     for (const provider of WATCHLIST_PROVIDERS) {
+      const conn = conns.readWatchlist(opened, provider);
       status[provider] = {
-        connected: conns.readWatchlist(opened, provider) !== null,
+        connected: conn !== null,
         configured: oauth.oauthConfigured(provider),
       };
+      // The account name stored at connect time (display only).
+      if (conn && typeof conn.username === 'string' && conn.username) status[provider].username = conn.username;
     }
+    // An older setup's saved public AniList name, with no login.
+    const publicUser = status['anilist'] && !status['anilist'].connected ? savedAnilistUser(opened.config) : null;
+    if (publicUser && status['anilist']) status['anilist'].publicUser = publicUser;
     // Trakt is kept only for setups already connected (new ones are not
     // offered it): `legacy` tells the page to hide the card otherwise.
     if (status['trakt']) status['trakt'].legacy = true;
@@ -304,7 +329,11 @@ function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', edi
     const opened = await store.resolveByUuid(uuid);
     if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
     if (!authorizeBearer(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
-    await store.save(uuid, { keys: conns.dropEnvelopeKey(asRecord(opened.keys), 'watchlist', provider) });
+    // AniList's disconnect also forgets an older setup's saved public name.
+    await store.save(uuid, {
+      keys: conns.dropEnvelopeKey(asRecord(opened.keys), 'watchlist', provider),
+      ...(provider === 'anilist' && savedAnilistUser(opened.config) ? { clearConfig: ['anilistUser'] } : {}),
+    });
     res.json({ ok: true });
   });
 
@@ -352,7 +381,7 @@ function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', edi
       res.status(400).type('html').send(oauth.popupPage(provider, false, 'Missing sign-in code.'));
       return;
     }
-    const store = await getSetupStore();
+    const store = await getStore();
     if (!store) {
       res.status(503).type('html').send(oauth.popupPage(provider, false, 'Setup storage is unavailable.'));
       return;
@@ -361,14 +390,23 @@ function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', edi
       const conn = await oauth.exchangeCode(
         provider as WatchlistOAuthProvider, code, publicOrigin(req),
       );
+      // The account name, asked once so the card can say "Connected as ..."
+      // at once. A failed lookup still connects (the name stays unknown).
+      if (provider !== 'trakt' && conn.access_token) {
+        const { cleanAccountName } = require('../user-lists/index.ts') as { cleanAccountName: (v: unknown) => string | null };
+        const username = cleanAccountName(await accountName(provider, conn.access_token).catch(() => null));
+        if (username) conn.username = username;
+      }
       if (!pending.uuid) {
         res.type('html').send(oauth.popupPageWithTokens(provider, conn));
         return;
       }
       const opened = await store.resolveByUuid(pending.uuid);
       if (!opened) throw new Error('Setup not found');
+      // An AniList login replaces an older setup's public name.
       await store.save(pending.uuid, {
         keys: conns.mergeWatchlistKeys(asRecord(opened.keys), provider, conn as Record<string, unknown>),
+        ...(provider === 'anilist' && savedAnilistUser(opened.config) ? { clearConfig: ['anilistUser'] } : {}),
       });
       res.type('html').send(oauth.popupPage(provider, true, `${PROVIDER_NAMES[provider] || provider} connected. This window closes itself.`));
     } catch (err) {

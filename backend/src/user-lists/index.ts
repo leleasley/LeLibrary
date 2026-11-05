@@ -6,7 +6,9 @@
 // - buildUserListCatalog: one catalogue request (routes/catalog.ts), the
 //   setup resolved from its install token like every other catalogue.
 // - userListIdentities: "Connected as ..." names for the edit page.
-// - checkAnilistUser: the setup config's `anilistUser` rule.
+// - connectionUsername: the account name asked once at OAuth connect.
+// - checkAnilistUser: the setup config's `anilistUser` rule (an older
+//   setup's public AniList name; the pages no longer write it).
 // Errors become an empty row plus a log line without secrets.
 import type { UserListContext, UserListRuntimeApi } from './runtime.ts';
 import type { UserListRowsApi } from './rows.ts';
@@ -72,8 +74,43 @@ async function buildUserListCatalog(input: UserListCatalogInput, ctxIn?: Partial
 
 export interface UserListIdentities { mdblist?: string; simkl?: string; anilist?: string }
 
-// Display names per connected service (never a key). Each lookup is cached
-// (a day) and bounded by a short timeout, so the edit page never waits long.
+// A display name as stored or shown: trimmed, no control characters,
+// at most 80 characters; anything else is no name.
+function cleanAccountName(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  // eslint-disable-next-line no-control-regex
+  const name = value.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 80);
+  return name || null;
+}
+
+// The account name stored with a live OAuth connection at connect time
+// (`keys.watchlist.{provider}.username`, v6), or null for older ones.
+function storedUsername(config: Config, provider: 'simkl' | 'anilist'): string | null {
+  if (!rows.watchlistToken(config, provider)) return null;
+  const conn = config['watchlist'] && typeof config['watchlist'] === 'object' ? (config['watchlist'] as Config)[provider] : null;
+  return conn && typeof conn === 'object' ? cleanAccountName((conn as Config)['username']) : null;
+}
+
+// The account name behind a freshly exchanged token, asked once at connect
+// time (OAuth callback) and stored with the connection. Simkl: GET
+// /users/settings `user.name`; AniList: `Viewer { name }`. Never throws and
+// never waits long: a missing name must not fail the connect.
+async function connectionUsername(provider: string, token: string, ctxIn?: Partial<UserListContext>, timeoutMs = 5000): Promise<string | null> {
+  if (!token || (provider !== 'simkl' && provider !== 'anilist')) return null;
+  const ctx = rt.withContext(ctxIn);
+  const work = provider === 'simkl'
+    ? simkl.simklUsername(ctx, { token, clientId: String(process.env['SIMKL_CLIENT_ID'] || '') })
+    : anilist.anilistName(ctx, { user: '', token });
+  const name = await Promise.race([
+    work.catch(() => null),
+    new Promise<null>((resolve) => { const timer = setTimeout(() => resolve(null), timeoutMs); (timer as { unref?: () => void }).unref?.(); }),
+  ]);
+  return cleanAccountName(name);
+}
+
+// Display names per connected service (never a key). A name stored with the
+// connection wins (no call); older connections fall back to a lookup cached
+// a day and bounded by a short timeout, so the edit page never waits long.
 async function userListIdentities(config: Config, ctxIn?: Partial<UserListContext>, timeoutMs = 4000): Promise<UserListIdentities> {
   const ctx = rt.withContext(ctxIn);
   const services = rows.userListServices(config);
@@ -83,8 +120,8 @@ async function userListIdentities(config: Config, ctxIn?: Partial<UserListContex
   ]);
   const [mdb, sim, ani] = await Promise.all([
     services.mdblist ? within(mdblist.mdblistUsername(ctx, String(config['mdblistKey'] || '').trim())) : null,
-    services.simkl ? within(simkl.simklUsername(ctx, simklAuth(config))) : null,
-    services.anilist ? within(anilist.anilistName(ctx, anilistAuth(config))) : null,
+    services.simkl ? (storedUsername(config, 'simkl') || within(simkl.simklUsername(ctx, simklAuth(config)))) : null,
+    services.anilist ? (storedUsername(config, 'anilist') || within(anilist.anilistName(ctx, anilistAuth(config)))) : null,
   ]);
   const out: UserListIdentities = {};
   if (mdb) out.mdblist = mdb;
@@ -110,6 +147,8 @@ function checkAnilistUser(config: Config): { ok: true; config: Config } | { ok: 
 export interface UserListsApi {
   buildUserListCatalog: typeof buildUserListCatalog;
   userListIdentities: typeof userListIdentities;
+  connectionUsername: typeof connectionUsername;
+  cleanAccountName: typeof cleanAccountName;
   checkAnilistUser: typeof checkAnilistUser;
   parseUserListId: UserListRowsApi['parseUserListId'];
   isUserListCatalogId: UserListRowsApi['isUserListCatalogId'];
@@ -119,7 +158,7 @@ export interface UserListsApi {
 }
 
 module.exports = {
-  buildUserListCatalog, userListIdentities, checkAnilistUser,
+  buildUserListCatalog, userListIdentities, connectionUsername, cleanAccountName, checkAnilistUser,
   parseUserListId: rows.parseUserListId,
   isUserListCatalogId: rows.isUserListCatalogId,
   userListServices: rows.userListServices,

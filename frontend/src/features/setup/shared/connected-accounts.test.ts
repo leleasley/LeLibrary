@@ -9,7 +9,8 @@ const only = (...providers: WatchlistProvider[]) => (provider: WatchlistProvider
 describe('connect card visibility', () => {
   it('blanks out providers the server has not configured (pre-creation)', () => {
     const visible = visibleConnectCards({ precreation: true, config: { ...CONFIG, trakt: false }, status: null, connected: none });
-    expect(visible).toEqual(['simkl', 'anilist']);
+    expect(visible).toEqual(['simkl']);
+    expect(visibleConnectCards({ precreation: true, config: { ...CONFIG, anilist: true }, status: null, connected: none })).toContain('anilist');
   });
 
   it('keeps everything while the capability check is in flight', () => {
@@ -51,8 +52,10 @@ describe('connect card visibility', () => {
     expect(visibleConnectCards({ precreation: true, config: legacy, status: null, connected: only('trakt') })).toContain('trakt');
   });
 
-  it('always shows AniList: the username needs no server app', () => {
-    expect(visibleConnectCards({ precreation: true, config: CONFIG, status: null, connected: none })).toContain('anilist');
+  it('AniList is Connect-only: shown with a server app, when connected, or for a saved public name', () => {
+    expect(visibleConnectCards({ precreation: true, config: CONFIG, status: null, connected: none })).not.toContain('anilist');
+    expect(visibleConnectCards({ precreation: false, config: CONFIG, status: null, connected: only('anilist') })).toContain('anilist');
+    expect(visibleConnectCards({ precreation: false, config: CONFIG, status: null, connected: none, publicUser: () => 'Neo_99' })).toContain('anilist');
   });
 });
 

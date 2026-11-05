@@ -17,9 +17,8 @@ const {
   ApiKeysAccordion, ConnectedAccounts, IntegrationsAccordion, MetadataKeyCards, apiKeysSummary, integrationsSummary, resolveMdblistIdentity, useSetupConnections,
 } = await import('@/features/setup/shared/ApiKeysSection');
 const { KeyCard } = await import('@/features/setup/shared/sections');
-const { anilistUserForConfig, isValidAnilistUser, pruneConfig } = await import('@/features/setup/shared/config-contract');
-const { editSaveBody, emptySnapshot, snapshotFromSaved } = await import('@/features/setup/shared/edit-mode');
-const { EMPTY_METADATA_EXTRAS } = await import('@/features/setup/full/MetadataExtras');
+const { pruneConfig } = await import('@/features/setup/shared/config-contract');
+const { editSaveBody, snapshotFromSaved, emptySnapshot } = await import('@/features/setup/shared/edit-mode');
 const { PartialSetupPage } = await import('@/features/setup/partial/PartialSetupPage');
 const { FullSetupPage } = await import('@/features/setup/full/FullSetupPage');
 type EditMode = import('@/features/setup/shared/edit-mode').EditMode;
@@ -55,7 +54,6 @@ function IntegrationsHarness(props: Partial<IntegrationsProps>) {
   const live = useSetupConnections(props.edit, {}, () => {});
   return (
     <IntegrationsAccordion
-      anilistUser="" onAnilistUser={() => {}}
       {...props}
       connections={props.connections ?? live}
     />
@@ -71,14 +69,22 @@ function connections(options: {
   traktLegacy?: boolean;
   anilist?: boolean;
   precreation?: boolean;
+  // Account names the hook knows (popup or stored at connect time).
+  names?: Partial<Record<WatchlistProvider, string>>;
+  // An older setup's saved public AniList name.
+  publicUser?: string;
 } = {}): WatchlistConnections {
   const connected = options.connected ?? [];
   const config = { simkl: true, trakt: true, anilist: options.anilist === true, traktLegacy: options.traktLegacy === true };
+  const isConnected = (provider: WatchlistProvider) => connected.includes(provider);
   return {
     precreation: options.precreation ?? true,
     config,
     status: null,
-    connected: (provider) => connected.includes(provider),
+    connected: isConnected,
+    linked: (provider) => isConnected(provider) || (provider === 'anilist' && Boolean(options.publicUser)),
+    identity: (provider, saved) => (isConnected(provider) ? options.names?.[provider] ?? saved ?? null : null),
+    publicUser: () => options.publicUser ?? null,
     configured: (provider) => config[provider],
     canConnect: true,
     connect: async () => {},
@@ -132,13 +138,21 @@ describe('API keys accordion', () => {
 
 describe('Integrations accordion', () => {
   it('holds Simkl and AniList and says what is connected', () => {
-    const html = integrations({ connections: connections({ connected: ['simkl'] }) });
+    const html = integrations({ connections: connections({ connected: ['simkl'], anilist: true }) });
     expect(html).toContain('<strong>Integrations</strong>');
     expect(html).toContain('data-provider="simkl"');
     expect(html).toContain('data-provider="anilist"');
     expect(html).toContain('<span>Simkl connected</span>');
-    expect(integrationsSummary({ connected: [], anilistUser: 'lewis_1' })).toEqual(['AniList · lewis_1']);
+    expect(integrationsSummary({ connected: [], anilistPublic: 'lewis_1' })).toEqual(['AniList · lewis_1']);
     expect(integrationsSummary({})).toEqual(['Nothing connected']);
+  });
+
+  it('names the accounts once known', () => {
+    expect(integrationsSummary({ connected: ['simkl', 'anilist'], names: { simkl: 'lewis', anilist: null } }))
+      .toEqual(['Simkl · lewis', 'AniList connected']);
+    const html = integrations({ connections: connections({ connected: ['simkl'], names: { simkl: 'lewis' } }) });
+    expect(html).toContain('<span>Simkl · lewis</span>');
+    expect(html).toContain('Connected as lewis');
   });
 });
 
@@ -179,7 +193,7 @@ describe('MDBList card', () => {
 
 describe('connected accounts', () => {
   it('hides Trakt for new setups once the server marks it legacy', () => {
-    const html = render(<ConnectedAccounts connections={connections({ traktLegacy: true })} anilistUser={{ value: '', onChange: () => {} }} />);
+    const html = render(<ConnectedAccounts connections={connections({ traktLegacy: true })} />);
     expect(html).not.toContain('data-provider="trakt"');
     expect(html).toContain('data-provider="simkl"');
   });
@@ -195,66 +209,61 @@ describe('connected accounts', () => {
     expect(html).toContain('Unlocks Up Next, Airing Next, Plan to Watch, Watching and Completed rows.');
   });
 
-  it('validates the AniList username inline', () => {
-    const open = (value: string, anilist = false) => render(
-      <ConnectedAccounts connections={connections({ anilist })} anilistUser={{ value, onChange: () => {} }} defaultOpen="anilist" />,
-    );
-    expect(open('x')).toContain('2 to 20 letters, numbers or underscores.');
-    expect(open('bad name!')).toContain('aria-invalid="true"');
-    const ok = open('lewis_99');
-    expect(ok).not.toContain('2 to 20 letters');
-    expect(ok).toContain('Username added');
-    expect(ok).toContain('Not affiliated with AniList.');
-    // The private-list connect only where the server has an AniList app.
-    expect(ok).not.toContain('Connect AniList');
-    expect(open('lewis_99', true)).toContain('Connect AniList');
+  it('shows the name the connect returned, with no save or reload (create and edit)', () => {
+    // Create mode: the popup's name rides in the draft next to the token.
+    const created = render(<ConnectedAccounts connections={connections({ connected: ['simkl', 'anilist'], names: { simkl: 'lewis', anilist: 'Neo_99' } })} />);
+    expect(created).toContain('Connected as lewis');
+    expect(created).toContain('Connected as Neo_99');
+    // Edit mode: the stored name wins over the config read's older identity.
+    const edited = render(<ConnectedAccounts connections={connections({ connected: ['simkl'], precreation: false, names: { simkl: 'fresh' } })} identities={{ simkl: 'old' }} />);
+    expect(edited).toContain('Connected as fresh');
+    expect(edited).not.toContain('Connected as old');
+    // No name known: the plain pill.
+    const plain = render(<ConnectedAccounts connections={connections({ connected: ['simkl'] })} />);
+    expect(plain).toContain('pc-pill is-verified">Connected</span>');
   });
 
-  it('accepts only real AniList usernames', () => {
-    for (const name of ['ab', 'Lewis_99', 'a'.repeat(20)]) expect(isValidAnilistUser(name), name).toBe(true);
-    for (const name of ['', 'a', 'a'.repeat(21), 'bad name', 'lewis!', 'é_name']) expect(isValidAnilistUser(name), name).toBe(false);
-    expect(anilistUserForConfig('  lewis  ')).toBe('lewis');
-    expect(anilistUserForConfig('no way')).toBe('');
+  it('AniList is Connect-only: no username field', () => {
+    const html = render(<ConnectedAccounts connections={connections({ anilist: true })} defaultOpen="anilist" />);
+    expect(html).toContain('data-provider="anilist"');
+    expect(html).toContain('Connect AniList');
+    expect(html).toContain('Not affiliated with AniList.');
+    for (const gone of ['AniList username', 'Your public AniList name', '2 to 20 letters', 'Username added', 'Public lists only', '<input']) {
+      expect(html, gone).not.toContain(gone);
+    }
+    // Without an AniList app on the server there is nothing to offer.
+    expect(render(<ConnectedAccounts connections={connections({ anilist: false })} />)).not.toContain('data-provider="anilist"');
+  });
+
+  it('an older setup\'s saved AniList name shows as public lists, with Connect and Disconnect', () => {
+    const html = render(<ConnectedAccounts connections={connections({ anilist: true, precreation: false, publicUser: 'lewis_99' })} defaultOpen="anilist" />);
+    expect(html).toContain('Connected as lewis_99 (public lists)');
+    expect(html).toContain('data-state="public"');
+    expect(html).toContain('Connect AniList');
+    expect(html).toContain('>Disconnect</button>');
+    // Shown even where the server has no AniList app (Disconnect only).
+    const noApp = render(<ConnectedAccounts connections={connections({ anilist: false, precreation: false, publicUser: 'lewis_99' })} defaultOpen="anilist" />);
+    expect(noApp).toContain('Connected as lewis_99 (public lists)');
+    expect(noApp).not.toContain('>Connect AniList</button>');
+    expect(noApp).toContain('>Disconnect</button>');
   });
 });
 
-describe('anilistUser round-trips', () => {
-  it('is written by create and read back by edit', () => {
-    expect(pruneConfig({ anilistUser: 'lewis_99' })).toEqual({ anilistUser: 'lewis_99' });
-    expect(pruneConfig({ anilistUser: 'not valid' })).toEqual({});
-    expect(snapshotFromSaved({ anilistUser: 'lewis_99' }, {}, null).meta.anilistUser).toBe('lewis_99');
+describe('anilistUser is no longer written by the pages', () => {
+  it('create drops it, edit neither reads nor saves it (the server keeps a saved one)', () => {
+    expect(pruneConfig({ anilistUser: 'lewis_99' } as Record<string, unknown>)).toEqual({});
+    const saved = snapshotFromSaved({ anilistUser: 'lewis_99' }, {}, null);
+    expect('anilistUser' in saved.meta).toBe(false);
+    expect(editSaveBody({
+      current: saved, saved, savedName: null, savedTier: 'partial', tier: 'partial', providerServices: [], clearKeys: [],
+    })).toBe(null);
+    expect(emptySnapshot().meta).not.toHaveProperty('anilistUser');
   });
 
-  it('saves only the username when only it changed', () => {
-    const saved = snapshotFromSaved({}, {}, null);
-    const body = (anilistUser: string, from = saved) => editSaveBody({
-      current: { ...from, meta: { ...from.meta, anilistUser } }, saved: from,
-      savedName: null, savedTier: 'partial', tier: 'partial', providerServices: [], clearKeys: [],
-    });
-    expect(body('lewis_99')).toEqual({ config: { anilistUser: 'lewis_99' } });
-    // Half-typed: nothing to save yet, the saved name stays.
-    expect(body('le wis')).toBe(null);
-    const withName = snapshotFromSaved({ anilistUser: 'lewis_99' }, {}, null);
-    expect(body('', withName)).toEqual({ clearConfig: ['anilistUser'] });
-  });
-
-  it('persists in the Settle In draft (not a secret)', async () => {
-    const store: Record<string, string> = {};
-    (globalThis as any).localStorage = {
-      getItem: (key: string) => store[key] ?? null,
-      setItem: (key: string, value: string) => { store[key] = value; },
-      removeItem: (key: string) => { delete store[key]; },
-    };
-    try {
-      const { savePartialDraft, loadPartialDraft, clearPartialDraft } = await import('@/features/setup/partial/partial-draft');
-      const { snapshotToPartialDraft } = await import('@/features/setup/shared/edit-mode');
-      const draft = snapshotToPartialDraft(emptySnapshot());
-      savePartialDraft({ ...draft, meta: { ...EMPTY_METADATA_EXTRAS, anilistUser: 'lewis_99' } });
-      expect(Object.values(store).join('')).toContain('"anilistUser":"lewis_99"');
-      expect(loadPartialDraft()?.meta.anilistUser).toBe('lewis_99');
-      clearPartialDraft();
-    } finally {
-      delete (globalThis as any).localStorage;
+  it('leaves no AniList username plumbing in the pages', () => {
+    const read = (file: string) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+    for (const file of ['partial/PartialSetupPage.tsx', 'full/FullSetupPage.tsx', 'shared/edit-save.ts', 'shared/edit-mode.ts', 'shared/saved-config.ts', 'full/MetadataExtras.tsx', 'shared/ApiKeysSection.tsx']) {
+      expect(read(file), file).not.toMatch(/anilistUser/);
     }
   });
 });

@@ -18,6 +18,9 @@ export interface WatchlistConn {
   refresh_token?: string | null;
   expires_at?: number | null;
   client_id?: string;
+  // The account's display name, read once at connect time (v6; absent on
+  // older connections). Never a credential.
+  username?: string;
   [key: string]: unknown;
 }
 
@@ -31,7 +34,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 export interface SetupStoreLike {
   resolveByToken: (token: unknown) => Promise<OpenedConfig | null>;
   resolveByUuid: (uuid: unknown) => Promise<OpenedConfig | null>;
-  save: (uuid: unknown, input: { keys?: Record<string, unknown> }) => Promise<unknown>;
+  save: (uuid: unknown, input: { keys?: Record<string, unknown>; clearConfig?: string[] }) => Promise<unknown>;
 }
 
 function readPush(opened: OpenedConfig | null, platform: string): PushConnection | null {

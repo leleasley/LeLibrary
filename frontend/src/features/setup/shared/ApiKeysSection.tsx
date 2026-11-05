@@ -10,7 +10,6 @@ import {
 import {
   METADATA_KEY_FIELDS,
   PROVIDER_KEY_FIELDS,
-  isValidAnilistUser,
   type SetupKeysDraft,
 } from '@/features/setup/shared/config-contract';
 import {
@@ -94,12 +93,13 @@ const CONNECT_CARDS: Record<WatchlistProvider, { blurb: string; logo?: string; m
   trakt: { blurb: 'Sync your personal lists and watch history', logo: '/logos/trakt.svg', brand: '237, 34, 36' },
 };
 
-function ConnectCard({ provider, connected, identity, pill, defaultOpen, children }: {
+function ConnectCard({ provider, connected, identity, publicLists, defaultOpen, children }: {
   provider: WatchlistProvider;
   connected: boolean;
   identity?: string | null | undefined;
-  // A quieter state pill when not connected (AniList's username).
-  pill?: string | null | undefined;
+  // An older setup's saved public AniList name (no login): `identity` is
+  // that name and the line says so.
+  publicLists?: boolean | undefined;
   // Tests only: every card starts closed for people.
   defaultOpen?: boolean | undefined;
   children: ReactNode;
@@ -112,7 +112,7 @@ function ConnectCard({ provider, connected, identity, pill, defaultOpen, childre
     <div
       className={`provider-card connect-card${open ? ' is-open' : ''}${connected ? ' filled is-verified' : ''}`}
       style={{ '--pc-brand-rgb': card.brand } as CSSProperties}
-      data-state={connected ? 'connected' : 'idle'}
+      data-state={connected ? 'connected' : publicLists ? 'public' : 'idle'}
       data-provider={provider}
     >
       <div
@@ -129,10 +129,11 @@ function ConnectCard({ provider, connected, identity, pill, defaultOpen, childre
         <div className="pc-title">
           <strong data-i18n-preserve>{name}</strong>
           <small>{card.blurb}</small>
-          {identity && <small className="pc-identity">{`Connected as ${identity}`}</small>}
+          {identity && (publicLists
+            ? <small className="pc-identity">{`Connected as ${identity} (public lists)`}</small>
+            : <small className="pc-identity">{`Connected as ${identity}`}</small>)}
         </div>
         {connected && !identity && <span className="pc-pill is-verified">Connected</span>}
-        {!connected && pill && <span className="pc-pill is-added">{pill}</span>}
         <span className="pc-chevron" aria-hidden="true">▸</span>
       </div>
       {open && <div className="pc-body">{children}</div>}
@@ -168,63 +169,51 @@ function ConnectAction({ provider, connections, connected, unavailable, label }:
   );
 }
 
-export function ConnectedAccounts({ connections, identities, anilistUser, defaultOpen }: {
+// An older setup's saved public AniList name (v6 pages no longer ask for
+// one): its rows keep working; Connect switches to a login, Disconnect
+// removes the name.
+function AnilistPublicLists({ connections, unavailable }: { connections: WatchlistConnections; unavailable: boolean }) {
+  return (
+    <div className="pc-connect">
+      <p className="setup-hint">Your public AniList lists, read by name. Connect AniList to sign in instead, or disconnect to remove the name.</p>
+      {!unavailable && (
+        <button type="button" className="setup-secondary" disabled={!connections.canConnect} onClick={() => void connections.connect('anilist')}>Connect AniList</button>
+      )}
+      <button type="button" className="setup-secondary" disabled={!connections.canConnect} onClick={() => void connections.disconnect('anilist')}>Disconnect</button>
+    </div>
+  );
+}
+
+export function ConnectedAccounts({ connections, identities, defaultOpen }: {
   connections: WatchlistConnections;
+  // The config read's names (edit mode): the fallback for connections made
+  // before names were stored with them.
   identities?: SetupIdentities | undefined;
-  // The AniList username field; absent = connects only (the Ready page,
-  // where the setup's settings are already saved).
-  anilistUser?: { value: string; onChange: (next: string) => void } | undefined;
   // Tests only: the one card rendered open.
   defaultOpen?: WatchlistProvider | undefined;
 }) {
-  const visible = visibleConnectCards(connections).filter((provider) => (
-    provider !== 'anilist' || anilistUser !== undefined || connections.connected('anilist') || connections.configured('anilist') === true
-  ));
-  const trimmed = (anilistUser?.value ?? '').trim();
-  const anilistInvalid = trimmed !== '' && !isValidAnilistUser(trimmed);
+  const visible = visibleConnectCards(connections);
   return (
     <div className="provider-grid connect-grid">
       {visible.map((provider) => {
         const connected = connections.connected(provider);
-        const identity = connected && !connections.precreation && provider !== 'trakt' ? identities?.[provider] ?? null : null;
+        const identity = provider === 'trakt' ? null : connections.identity(provider, identities?.[provider]);
+        const unavailable = !connected && connections.configured(provider) === false;
         if (provider === 'anilist') {
-          // The connect is for private lists only, and only where the server
-          // has an AniList app; public lists need just the username.
-          const offerConnect = connected || connections.configured('anilist') === true;
+          const publicUser = connected ? null : connections.publicUser();
           return (
             <ConnectCard
-              key={provider} provider={provider} connected={connected} identity={identity}
+              key={provider} provider={provider} connected={connected}
+              identity={publicUser ?? identity} publicLists={publicUser !== null}
               defaultOpen={defaultOpen === provider}
-              pill={!connected && trimmed && !anilistInvalid ? 'Username added' : null}
             >
-              {anilistUser && (
-                <label className="setup-field">
-                  <span>AniList username</span>
-                  <input
-                    type="text" autoComplete="off" spellCheck={false} maxLength={20}
-                    placeholder="Your public AniList name"
-                    value={anilistUser.value}
-                    aria-invalid={anilistInvalid}
-                    className={anilistInvalid ? 'invalid' : undefined}
-                    onChange={(event) => anilistUser.onChange(event.target.value)}
-                  />
-                  {anilistInvalid
-                    ? <small className="setup-hint pc-error">2 to 20 letters, numbers or underscores.</small>
-                    : <small className="setup-hint">Public lists only. No sign-in needed.</small>}
-                </label>
-              )}
-              {offerConnect && (
-                <ConnectAction
-                  provider={provider} connections={connections} connected={connected}
-                  unavailable={false} label="Connect AniList"
-                />
-              )}
-              {offerConnect && !connected && <p className="setup-hint">Connect only if your lists are private.</p>}
+              {publicUser
+                ? <AnilistPublicLists connections={connections} unavailable={unavailable} />
+                : <ConnectAction provider={provider} connections={connections} connected={connected} unavailable={unavailable} label="Connect AniList" />}
               <p className="setup-hint pc-note">Not affiliated with AniList.</p>
             </ConnectCard>
           );
         }
-        const unavailable = !connected && connections.configured(provider) === false;
         return (
           <ConnectCard key={provider} provider={provider} connected={connected} identity={identity} defaultOpen={defaultOpen === provider}>
             {provider === 'trakt' && connections.config?.traktLegacy && (
@@ -258,18 +247,22 @@ export function apiKeysSummary(options: {
   return parts;
 }
 
-// The Integrations accordion's one-line state: what is connected.
+// The Integrations accordion's one-line state: what is connected, with the
+// account name when known ("Simkl · name"). Pure for unit tests.
 export function integrationsSummary(options: {
   connected?: readonly WatchlistProvider[] | undefined;
-  anilistUser?: string | undefined;
+  names?: Partial<Record<WatchlistProvider, string | null | undefined>> | undefined;
+  // An older setup's saved public AniList name (no login).
+  anilistPublic?: string | null | undefined;
 }): string[] {
   const parts: string[] = [];
   const connected = options.connected ?? [];
   for (const provider of ['simkl', 'anilist', 'trakt'] as const) {
-    if (connected.includes(provider)) parts.push(`${WATCHLIST_PROVIDER_NAMES[provider]} connected`);
+    const name = (options.names?.[provider] ?? '').trim();
+    if (connected.includes(provider)) parts.push(name ? `${WATCHLIST_PROVIDER_NAMES[provider]} · ${name}` : `${WATCHLIST_PROVIDER_NAMES[provider]} connected`);
   }
-  const anilistUser = (options.anilistUser ?? '').trim();
-  if (!connected.includes('anilist') && isValidAnilistUser(anilistUser)) parts.push(`AniList · ${anilistUser}`);
+  const anilistPublic = (options.anilistPublic ?? '').trim();
+  if (!connected.includes('anilist') && anilistPublic) parts.push(`AniList · ${anilistPublic}`);
   return parts.length ? parts : ['Nothing connected'];
 }
 
@@ -313,30 +306,29 @@ export function ApiKeysAccordion({ keys, onKeys, edit, revealSaved, children }: 
 
 // Settle In and Move In's "Integrations" accordion: the accounts that add
 // personal rows (Simkl, AniList; Trakt only where it is already connected).
-export function IntegrationsAccordion({ edit, connections, anilistUser, onAnilistUser }: {
+export function IntegrationsAccordion({ edit, connections }: {
   edit?: EditMode | undefined;
   // From useSetupConnections on the page.
   connections: WatchlistConnections;
-  anilistUser: string;
-  onAnilistUser: (next: string) => void;
 }) {
+  const providers = ['simkl', 'anilist', 'trakt'] as const;
   const summary = integrationsSummary({
-    connected: (['simkl', 'anilist', 'trakt'] as const).filter((provider) => connections.connected(provider)),
-    anilistUser,
+    connected: providers.filter((provider) => connections.connected(provider)),
+    names: {
+      simkl: connections.identity('simkl', edit?.identities?.simkl),
+      anilist: connections.identity('anilist', edit?.identities?.anilist),
+    },
+    anilistPublic: connections.publicUser(),
   });
   return (
     <Accordion title="Integrations" icon="🔗" summary={summary}>
       <p className="setup-hint qs-note">Optional. Connect an account to add its personal rows (Up Next, Watching, Plan to Watch and more) to Home rows and folders.</p>
-      <ConnectedAccounts
-        connections={connections} identities={edit?.identities}
-        anilistUser={{ value: anilistUser, onChange: onAnilistUser }}
-      />
+      <ConnectedAccounts connections={connections} identities={edit?.identities} />
     </Accordion>
   );
 }
 
-// The Move In Ready page: connects for the setup just created (no username
-// field: its settings are saved already).
+// The Move In Ready page: connects for the setup just created.
 export function ReadyConnections({ uuid, editToken }: { uuid: string; editToken: string | null }) {
   const connections = useWatchlistConnections({ uuid, editToken });
   return <ConnectedAccounts connections={connections} />;

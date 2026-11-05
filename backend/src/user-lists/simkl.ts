@@ -257,7 +257,8 @@ async function simklUsername(ctx: UserListContext, auth: SimklAuth): Promise<str
   const fp = fpOf(auth);
   try {
     return await rt.cachedValue(ctx, rt.cacheKey('simkl', 'user', fp), rt.cacheKey('simkl', 'backoff', fp), USER_TTL_S, async () => {
-      const res = await ctx.http.post(`${API}/users/settings`, {}, { headers: headers(auth, auth.clientId), params: appParams(auth.clientId), timeout: 8000 });
+      // GET per the current OpenAPI spec (api.simkl.org/openapi.json).
+      const res = await ctx.http.get(`${API}/users/settings`, { headers: headers(auth, auth.clientId), params: appParams(auth.clientId), timeout: 8000 });
       const user = asRecord(asRecord(res?.data)['user']);
       const name = typeof user['name'] === 'string' ? (user['name'] as string).trim().slice(0, 80) : '';
       return name || null;

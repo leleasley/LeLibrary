@@ -200,12 +200,15 @@ export function pushSetup(
 
 export type WatchlistProvider = 'simkl' | 'trakt' | 'anilist';
 
+// `username`: the account name stored at connect time (v6, display only;
+// absent on older connections and servers).
 export interface WatchlistState {
-  simkl: { connected: boolean; configured: boolean };
+  simkl: { connected: boolean; configured: boolean; username?: string };
   // `legacy`: Trakt is kept only for setups already connected (v6).
-  trakt: { connected: boolean; configured: boolean; legacy?: boolean };
-  // AniList (v6): optional, for private lists; absent on older servers.
-  anilist?: { connected: boolean; configured: boolean };
+  trakt: { connected: boolean; configured: boolean; legacy?: boolean; username?: string };
+  // AniList (v6): absent on older servers. `publicUser`: an older setup's
+  // saved public AniList name (no login), still serving its rows.
+  anilist?: { connected: boolean; configured: boolean; username?: string; publicUser?: string };
 }
 
 export function watchlistStatus(uuid: string, editToken: string): Promise<WatchlistState> {
@@ -237,6 +240,8 @@ export interface WatchlistDraftConn {
   refresh_token?: string | null;
   expires_at?: number | null;
   client_id?: string | null;
+  // The account name the OAuth callback read (display only, not a secret).
+  username?: string;
 }
 
 export type WatchlistDraftMap = Partial<Record<WatchlistProvider, WatchlistDraftConn>>;

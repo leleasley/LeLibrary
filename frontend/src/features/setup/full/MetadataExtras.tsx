@@ -15,9 +15,6 @@ export interface MetadataExtrasDraft {
   searchOptions: SearchOptionsDraft;
   notices: boolean;
   noticeTypes: string[];
-  // AniList username for the public anime list rows (API keys section,
-  // config.anilistUser). Empty = none.
-  anilistUser: string;
 }
 
 export const DEFAULT_NOTICE_TYPES = ['none', 'rateLimit', 'digitalRelease'];
@@ -32,7 +29,6 @@ export const EMPTY_METADATA_EXTRAS: MetadataExtrasDraft = {
   searchOptions: { ...DEFAULT_SEARCH_OPTIONS, names: {} },
   notices: true,
   noticeTypes: [...DEFAULT_NOTICE_TYPES],
-  anilistUser: '',
 };
 
 export const LANGS: { id: string; name: string }[] = [

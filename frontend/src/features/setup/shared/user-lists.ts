@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiClient } from '@/api/client';
 import type { WatchlistDraftMap, WatchlistState } from '@/features/setup/resolver/api';
-import { normalizeAnilistUser } from '@/features/setup/shared/config-contract';
 import {
   mdblistListRows,
   userListBrowserRows,
@@ -28,8 +27,6 @@ export interface UserListsInput {
   status?: Partial<WatchlistState> | null;
   // The MDBList key typed on the page ('' when none).
   mdblistKey?: string;
-  // The page's AniList username, when it has one.
-  anilistUser?: string | null;
 }
 
 export interface UserListsContext {
@@ -49,7 +46,8 @@ export function userListServicesFrom(input: UserListsInput, status: Partial<Watc
   return {
     simkl: draftConn('simkl') || status?.simkl?.connected === true,
     mdblist: Boolean(typedKey) || Boolean(input.savedServices?.includes('mdblistKey')),
-    anilist: Boolean(normalizeAnilistUser(input.anilistUser)) || draftConn('anilist') || status?.anilist?.connected === true,
+    // An older setup's saved public AniList name still serves its rows.
+    anilist: draftConn('anilist') || status?.anilist?.connected === true || Boolean(status?.anilist?.publicUser),
     trakt: status?.trakt?.connected === true,
   };
 }

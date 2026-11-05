@@ -184,8 +184,7 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
   const [watchlist, setWatchlist] = useState<WatchlistDraftMap>(restored?.watchlist ?? {});
   // "Your lists" (v6) for the Home rows and folder pickers: the services this
   // setup has (draft connects, typed MDBList key, saved connections) and
-  // where its MDBList lists come from. `anilistUser` lives in the page's
-  // metadata draft (meta.anilistUser -> config.anilistUser).
+  // where its MDBList lists come from.
   const connections = useSetupConnections(edit, watchlist, setWatchlist);
   const userLists = useUserLists({
     savedSetup: edit ? { uuid: edit.uuid, editToken: edit.editToken } : null,
@@ -193,7 +192,6 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
     savedServices: edit?.savedServices ?? [],
     watchlistDraft: watchlist,
     mdblistKey: keys.mdblistKey ?? '',
-    anilistUser: meta.anilistUser,
   });
   const [confirmReset, setConfirmReset] = useState(false);
   const wizard = useWizardStep(FULL_SECTIONS.length);
@@ -292,7 +290,6 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
         searchOptions: searchOptionsForConfig(meta.searchOptions) ?? undefined,
         streamNotices: meta.notices ? 'on' : 'off',
         streamNoticeTypes: meta.noticeTypes,
-        anilistUser: meta.anilistUser,
         filterResolutions: filterSets.resolutions,
         filterResOrder: filterSets.resolutionOrder,
         filterQualities: filterSets.qualities,
@@ -313,7 +310,7 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
   // The Preview reads the same draft creation saves (its config, never its keys).
   const preview = useTierPreview(edit, {
     tier: 'full', platform, config: () => buildDraft().config, keys, formatting,
-    connected: (['simkl', 'anilist'] as const).filter((provider) => connections.connected(provider)),
+    connected: (['simkl', 'anilist'] as const).filter((provider) => connections.linked(provider)),
     badgePack: { pack: badgePack, url: badgeUrl }, posterStyle: posters.provider, name,
   }, previewOpen);
 
@@ -424,10 +421,7 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
               <ApiKeysAccordion keys={keys} onKeys={setKeys} edit={edit} revealSaved={revealEdit}>
                 <div className="qs-catalogs"><RdCatalogSelect value={rdCatalog} onChange={setRdCatalog} /></div>
               </ApiKeysAccordion>
-              <IntegrationsAccordion
-                edit={edit} connections={connections}
-                anilistUser={meta.anilistUser} onAnilistUser={(anilistUser) => setMeta({ ...meta, anilistUser })}
-              />
+              <IntegrationsAccordion edit={edit} connections={connections} />
               <Accordion title="Streams" icon="🎚️"
                 summary={[...filterSummaryParts(filterSets).slice(0, 2), addons.length + customAddons.length > 0 ? 'Extra sources on' : 'Library only']}>
                 <h3 className="qs-sub"><strong>Library playback filters</strong><span>Resolutions, qualities and files</span></h3>

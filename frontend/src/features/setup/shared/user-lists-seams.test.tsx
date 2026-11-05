@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 // The seams between the API keys cards and the personal list rows (v6): one
-// home for the AniList name, identities from the authenticated config read,
+// AniList is Connect-only, identities from the authenticated config read,
 // the real Trakt legacy fields, the AniList connect before creation, and the
 // "Your lists" shelves following the cards. No network: the client is a spy.
 const api = vi.hoisted(() => ({
@@ -12,7 +12,7 @@ const api = vi.hoisted(() => ({
 vi.mock('@/api/client', () => ({ apiClient: api }));
 
 const { fetchSetupConfig, parseWatchlistConfig, cleanWatchlistDraft } = await import('@/features/setup/resolver/api');
-const { draftFromPopupTokens, visibleConnectCards } = await import('@/features/setup/shared/connected-accounts');
+const { accountIdentity, draftFromPopupTokens, visibleConnectCards } = await import('@/features/setup/shared/connected-accounts');
 const { ConnectedAccounts } = await import('@/features/setup/shared/ApiKeysSection');
 const { pruneConfig } = await import('@/features/setup/shared/config-contract');
 const { snapshotFromSaved, editSaveBody } = await import('@/features/setup/shared/edit-mode');
@@ -24,17 +24,15 @@ type WatchlistProvider = import('@/features/setup/resolver/api').WatchlistProvid
 
 const ANILIST_CONN = { access_token: 'synthetic-anilist-token', refresh_token: null, expires_at: 1_900_000_000_000, client_id: 'synthetic-client' };
 
-describe('anilistUser: one path, config.anilistUser <-> meta.anilistUser', () => {
-  it('create writes it, edit reads it back, the shelf and the save diff use the same field', () => {
-    const config = pruneConfig({ anilistUser: ' Neo_99 ' });
-    expect(config).toEqual({ anilistUser: 'Neo_99' });
-    const snapshot = snapshotFromSaved(config, {}, null);
-    expect(snapshot.meta.anilistUser).toBe('Neo_99');
-    expect(userListServicesFrom({ anilistUser: snapshot.meta.anilistUser }, null).anilist).toBe(true);
-    const renamed = { ...snapshot, meta: { ...snapshot.meta, anilistUser: 'Trinity' } };
+describe('AniList is Connect-only (v6): the pages never write anilistUser', () => {
+  it('create drops it, edit does not read it, the shelf needs a connection or a saved public name', () => {
+    expect(pruneConfig({ anilistUser: ' Neo_99 ' } as Record<string, unknown>)).toEqual({});
+    const snapshot = snapshotFromSaved({ anilistUser: 'Neo_99' }, {}, null);
+    expect(snapshot.meta).not.toHaveProperty('anilistUser');
     expect(editSaveBody({
-      current: renamed, saved: snapshot, savedName: null, savedTier: 'partial', tier: 'partial', providerServices: [], clearKeys: [],
-    })).toEqual({ config: { anilistUser: 'Trinity' } });
+      current: snapshot, saved: snapshot, savedName: null, savedTier: 'partial', tier: 'partial', providerServices: [], clearKeys: [],
+    })).toBe(null);
+    expect(userListServicesFrom({}, null).anilist).toBe(false);
   });
 });
 
@@ -91,6 +89,18 @@ describe('AniList connect before creation', () => {
     expect(draftFromPopupTokens({ lelibraryWatchlist: 'anilist' }, {})).toBeNull();
   });
 
+  it('keeps the account name the popup sent next to the tokens', () => {
+    const top = draftFromPopupTokens({ lelibraryWatchlistTokens: { provider: 'simkl', connection: { access_token: 'synthetic-simkl' }, username: ' neo ' } }, {});
+    expect((top as Exclude<typeof top, null | 'no-tokens'>).next.simkl).toEqual({ access_token: 'synthetic-simkl', username: 'neo' });
+    const inside = draftFromPopupTokens({ lelibraryWatchlistTokens: { provider: 'anilist', connection: { ...ANILIST_CONN, username: 'Neo_99' }, username: null } }, {});
+    expect((inside as Exclude<typeof inside, null | 'no-tokens'>).next.anilist?.username).toBe('Neo_99');
+    // Creation stores it with the connection.
+    expect(cleanWatchlistDraft((inside as Exclude<typeof inside, null | 'no-tokens'>).next).anilist?.username).toBe('Neo_99');
+    // Junk is not a name.
+    const junk = draftFromPopupTokens({ lelibraryWatchlistTokens: { provider: 'simkl', connection: { access_token: 'synthetic-simkl', username: 42 }, username: 'x'.repeat(200) } }, {});
+    expect((junk as Exclude<typeof junk, null | 'no-tokens'>).next.simkl).toEqual({ access_token: 'synthetic-simkl' });
+  });
+
   it('keeps it in memory only and sends it on create as keys.watchlist.anilist', async () => {
     const accepted = draftFromPopupTokens({ lelibraryWatchlistTokens: { provider: 'anilist', connection: ANILIST_CONN } }, {});
     const watchlist = (accepted as Exclude<typeof accepted, null | 'no-tokens'>).next;
@@ -120,16 +130,36 @@ describe('AniList connect before creation', () => {
   });
 });
 
+describe('"Connected as" right after a connect', () => {
+  const status = (simkl: { connected: boolean; username?: string }) => ({ simkl: { configured: true, ...simkl }, trakt: { connected: false, configured: true } });
+
+  it('create mode: the popup\'s name from the draft, no save needed', () => {
+    const draft = { simkl: { access_token: 'synthetic-simkl', username: 'neo' } };
+    expect(accountIdentity('simkl', { precreation: true, draft, status: null, connected: true, changed: false })).toBe('neo');
+    expect(accountIdentity('simkl', { precreation: true, draft: { simkl: { access_token: 'synthetic-simkl' } }, status: null, connected: true, changed: false, saved: 'x' })).toBe(null);
+  });
+
+  it('edit mode: the refreshed status carries the stored name, which wins over the config read', () => {
+    expect(accountIdentity('simkl', { precreation: false, draft: null, status: status({ connected: true, username: 'fresh' }), connected: true, changed: true, saved: 'old' })).toBe('fresh');
+    // Older connection, untouched on this page: the config read's name.
+    expect(accountIdentity('simkl', { precreation: false, draft: null, status: status({ connected: true }), connected: true, changed: false, saved: 'old' })).toBe('old');
+    // Reconnected here but no name came back: never another account's name.
+    expect(accountIdentity('simkl', { precreation: false, draft: null, status: status({ connected: true }), connected: true, changed: true, saved: 'old' })).toBe(null);
+    // Disconnected: no name.
+    expect(accountIdentity('simkl', { precreation: false, draft: null, status: status({ connected: false, username: 'fresh' }), connected: false, changed: true, saved: 'old' })).toBe(null);
+  });
+});
+
 describe('draft Preview declares connected list services', () => {
   it('adds simkl / anilist by name to the key services, never a token', () => {
     const source = tierPreviewSource({
       tier: 'partial', platform: 'nuvio', keys: { tmdbApiKey: 'synthetic-tmdb' },
-      config: () => ({ lang: 'en-US', anilistUser: 'Neo_99' }),
+      config: () => ({ lang: 'en-US' }),
       formatting: { preset: 'lelibrary', nameTemplate: '', descTemplate: '' }, badgePack: { pack: 'lelibrary-premium', url: '' }, posterStyle: '',
       connected: ['simkl', 'anilist'],
     });
     expect(source.draft.keyServices).toEqual(['anilist', 'simkl', 'tmdbApiKey']);
-    expect(source.draft.config).toEqual({ lang: 'en-US', anilistUser: 'Neo_99' });
+    expect(source.draft.config).toEqual({ lang: 'en-US' });
     expect(JSON.stringify(source)).not.toContain('synthetic-tmdb');
   });
 });
@@ -139,7 +169,6 @@ describe('"Your lists" shelves follow the cards', () => {
     expect(userListServicesFrom({}, null)).toEqual({ simkl: false, mdblist: false, anilist: false, trakt: false });
     expect(userListServicesFrom({ mdblistKey: 'synthetic-mdb' }, null).mdblist).toBe(true);
     expect(userListServicesFrom({ savedServices: ['mdblistKey'] }, null).mdblist).toBe(true);
-    expect(userListServicesFrom({ anilistUser: 'half typed!' }, null).anilist).toBe(false);
     // Edit mode: the page's one connections status (a connect on the card shows its shelf).
     const status = { simkl: { connected: true, configured: true }, trakt: { connected: false, configured: true, legacy: true } };
     expect(userListServicesFrom({}, status)).toMatchObject({ simkl: true, trakt: false });
@@ -154,6 +183,9 @@ function connections(options: { connected?: WatchlistProvider[]; anilist?: boole
     config,
     status: null,
     connected: (provider) => connected.includes(provider),
+    linked: (provider) => connected.includes(provider),
+    identity: (provider, saved) => (connected.includes(provider) ? saved ?? null : null),
+    publicUser: () => null,
     configured: (provider) => config[provider],
     canConnect: true,
     connect: async () => {},

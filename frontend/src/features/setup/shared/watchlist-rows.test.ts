@@ -72,9 +72,12 @@ describe('"Your lists" rows in the pickers', () => {
     expect(mdblistSourceFrom({ savedSetup: { uuid: 'u', editToken: null }, savedServices: ['mdblistKey'] })).toBeNull();
   });
 
-  it('an older setup\'s saved public AniList name keeps its shelf; the pages never write one', () => {
+  it('AniList shelves need a connection; a legacy username never turns one on', () => {
     expect(userListServicesFrom({}, {
-      simkl: { connected: false, configured: true }, trakt: { connected: false, configured: true }, anilist: { connected: false, configured: false, publicUser: 'Neo_99' },
+      simkl: { connected: false, configured: true }, trakt: { connected: false, configured: true }, anilist: { connected: false, configured: true },
+    }).anilist).toBe(false);
+    expect(userListServicesFrom({}, {
+      simkl: { connected: false, configured: true }, trakt: { connected: false, configured: true }, anilist: { connected: true, configured: true },
     }).anilist).toBe(true);
     expect(pruneConfig({ anilistUser: ' Neo_99 ' } as Record<string, unknown>)).not.toHaveProperty('anilistUser');
   });

@@ -46,8 +46,8 @@ export function userListServicesFrom(input: UserListsInput, status: Partial<Watc
   return {
     simkl: draftConn('simkl') || status?.simkl?.connected === true,
     mdblist: Boolean(typedKey) || Boolean(input.savedServices?.includes('mdblistKey')),
-    // An older setup's saved public AniList name still serves its rows.
-    anilist: draftConn('anilist') || status?.anilist?.connected === true || Boolean(status?.anilist?.publicUser),
+    // AniList rows need a connection: there is no username path (v6).
+    anilist: draftConn('anilist') || status?.anilist?.connected === true,
     trakt: status?.trakt?.connected === true,
   };
 }

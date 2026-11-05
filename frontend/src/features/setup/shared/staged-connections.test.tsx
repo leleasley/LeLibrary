@@ -102,14 +102,13 @@ describe('the staged state is what every reader sees', () => {
   const saved: WatchlistState = {
     simkl: { connected: false, configured: true },
     trakt: { connected: true, configured: true, legacy: true },
-    anilist: { connected: false, configured: true, publicUser: 'Neo_99' },
+    anilist: { connected: false, configured: true },
   };
 
   it('connects show as connected with the name, disconnects as gone', () => {
     const next = effectiveWatchlistStatus(saved, { simkl: { pendingId: PENDING, username: 'lewis' }, trakt: { remove: true }, anilist: { remove: true } });
     expect(next?.simkl).toEqual({ connected: true, configured: true, username: 'lewis' });
     expect(next?.trakt.connected).toBe(false);
-    expect(next?.anilist?.publicUser).toBeUndefined();
     expect(effectiveWatchlistStatus(saved, {})).toBe(saved);
     // The "Your lists" shelves (and the Preview's connected list) follow.
     expect(userListServicesFrom({}, next)).toMatchObject({ simkl: true, trakt: false, anilist: false });
@@ -141,7 +140,7 @@ describe('the staged state is what every reader sees', () => {
     expect(removed).toContain('>Undo</button>');
     expect(removed).toContain('<span>Simkl · disconnected, not saved yet</span>');
 
-    expect(integrationsSummary({ connected: [], staged: { anilist: 'remove' }, anilistPublic: null })).toEqual(['AniList · disconnected, not saved yet']);
+    expect(integrationsSummary({ connected: [], staged: { anilist: 'remove' } })).toEqual(['AniList · disconnected, not saved yet']);
   });
 
   it('create mode and the Ready page are unchanged (no staging)', () => {

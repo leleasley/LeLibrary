@@ -94,22 +94,20 @@ test('row ids: the v6 ids, the old watchlist aliases, and nothing else', () => {
   assert.equal(rows.parseUserListId('lib-something'), null);
 });
 
-test('anilistUser: 2-20 letters, digits or _; empty is dropped; anything else is refused', () => {
-  assert.equal(rows.normaliseAnilistUser('  Some_User1 '), 'Some_User1');
-  for (const bad of ['a', 'x'.repeat(21), 'has space', 'semi;colon', 'émile', 42, null]) assert.equal(rows.normaliseAnilistUser(bad), null, String(bad));
-  assert.deepEqual(userLists.checkAnilistUser({ lang: 'en-US', anilistUser: ' Neo_99 ' }), { ok: true, config: { lang: 'en-US', anilistUser: 'Neo_99' } });
-  assert.deepEqual(userLists.checkAnilistUser({ lang: 'en-US', anilistUser: '  ' }), { ok: true, config: { lang: 'en-US' } });
-  assert.deepEqual(userLists.checkAnilistUser({ lang: 'en-US' }), { ok: true, config: { lang: 'en-US' } });
-  assert.equal(userLists.checkAnilistUser({ anilistUser: 'bad name!' }).ok, false);
+test('AniList is Connect only: there is no username rule or normaliser left', () => {
+  assert.equal('normaliseAnilistUser' in rows, false);
+  assert.equal('checkAnilistUser' in userLists, false);
 });
 
-test('services: a Simkl connection, an MDBList key, an AniList name or live connection', () => {
+test('services: a Simkl connection, an MDBList key and a live AniList connection', () => {
   assert.deepEqual(rows.userListServices({}), { simkl: false, mdblist: false, anilist: false });
   assert.deepEqual(rows.userListServices({
-    watchlist: { simkl: { access_token: SIMKL_TOKEN } }, mdblistKey: MDB_KEY, anilistUser: 'Neo_99',
+    watchlist: { simkl: { access_token: SIMKL_TOKEN }, anilist: { access_token: ANILIST_TOKEN } },
+    mdblistKey: MDB_KEY,
   }), { simkl: true, mdblist: true, anilist: true });
   assert.equal(rows.userListServices({ watchlist: { anilist: { access_token: ANILIST_TOKEN, expires_at: Date.now() - 1000 } } }).anilist, false, 'expired AniList token');
-  assert.equal(rows.userListServices({ anilistUser: 'no spaces allowed' }).anilist, false);
+  // A saved username from before v6.1 powers nothing.
+  assert.equal(rows.userListServices({ anilistUser: 'Neo_99' }).anilist, false);
 });
 
 // ── Simkl ─────────────────────────────────────────────────────────────────
@@ -381,15 +379,17 @@ const ANILIST_COLLECTION = { data: { MediaListCollection: { lists: [
 ] } } };
 const ID_MAP = { 1: { imdb: 'tt0000101', tv: 101 }, 2: { tv: 202 }, 3: { movie: 303 }, 4: { imdb: 'tt0000404' }, 6: { imdb: 'tt0000606' } };
 
-test('anilist: one call for all lists, mapped through the anime id map, adult and unmapped left out', async () => {
+test('anilist: a connection reads every list, mapped through the anime id map, adult and unmapped left out', async () => {
   const http = fakeHttp((method, url, options, body) => {
     assert.equal(url, 'https://graphql.anilist.co');
-    assert.equal(body.variables.userName, 'Neo_99');
-    assert.equal(options.headers.Authorization, undefined, 'public read');
+    assert.equal(options.headers.Authorization, `Bearer ${ANILIST_TOKEN}`);
+    if (/Viewer/.test(body.query)) return { data: { data: { Viewer: { id: 77, name: 'ViewerName' } } } };
+    assert.deepEqual(body.variables, { userId: 77 });
+    assert.equal('userName' in body.variables, false, 'no username read');
     return { data: ANILIST_COLLECTION };
   });
   const { ctx } = context(http);
-  const auth = { user: 'Neo_99', token: '' };
+  const auth = { token: ANILIST_TOKEN };
   const idMap = async () => ID_MAP;
   const series = await anilist.anilistRowItems(ctx, auth, 'current', 'series', { idMap });
   assert.deepEqual(series.map((i) => [i.title, i.imdb, i.tmdb]), [['Show One', 'tt0000101', 101], ['Show Two', null, 202]]);
@@ -397,7 +397,9 @@ test('anilist: one call for all lists, mapped through the anime id map, adult an
   assert.deepEqual(films.map((i) => [i.title, i.tmdb]), [['Film Three', 303]]);
   const planned = await anilist.anilistRowItems(ctx, auth, 'planning', 'series', { idMap });
   assert.deepEqual(planned.map((i) => i.title), ['Planned']);
-  assert.equal(http.calls.length, 1, 'one GraphQL call serves every list');
+  assert.equal(http.calls.length, 2, 'one viewer call, then one list call');
+  // No connection, no rows: there is no public-username read.
+  assert.deepEqual(await anilist.anilistRowItems(ctx, { token: '' }, 'current', 'series', { idMap }), []);
 });
 
 test('anilist connection: the viewer\'s own lists under the token\'s own cache key', async () => {
@@ -408,33 +410,37 @@ test('anilist connection: the viewer\'s own lists under the token\'s own cache k
     return { data: ANILIST_COLLECTION };
   });
   const { ctx, store } = context(http);
-  const auth = { user: 'Neo_99', token: ANILIST_TOKEN };
+  const auth = { token: ANILIST_TOKEN };
   await anilist.anilistRowItems(ctx, auth, 'planning', 'series', { idMap: async () => ID_MAP });
   assert.ok([...store.data.keys()].some((k) => k.endsWith(rt.credentialFp('anilist-token', ANILIST_TOKEN))));
-  assert.ok(![...store.data.keys()].some((k) => k.endsWith(rt.credentialFp('anilist-user', 'neo_99'))), 'never stored under the public name');
   assert.equal(await anilist.anilistName(ctx, auth), 'ViewerName');
 });
 
 test('anilist: a server-wide budget and a server-wide wait after a 429', async () => {
   let limited = false;
-  const http = fakeHttp(() => (limited ? httpError(429, { 'retry-after': '60' }) : { data: ANILIST_COLLECTION }));
+  const http = fakeHttp((method, url, options, body) => {
+    if (/Viewer/.test(body.query)) return { data: { data: { Viewer: { id: 77, name: 'ViewerName' } } } };
+    return limited ? httpError(429, { 'retry-after': '60' }) : { data: ANILIST_COLLECTION };
+  });
   const { ctx, clock } = context(http);
   const idMap = async () => ID_MAP;
-  for (let n = 0; n < anilist.THROTTLE_PER_MIN + 5; n++) {
-    await anilist.anilistRowItems(ctx, { user: `user_${n}`, token: '' }, 'current', 'series', { idMap });
+  // Each connection costs two calls (viewer, then lists). Ask for far more
+  // connections than the budget allows; the budget stops the upstream.
+  for (let n = 0; n < anilist.THROTTLE_PER_MIN; n++) {
+    await anilist.anilistRowItems(ctx, { token: `token_${n}` }, 'current', 'series', { idMap }).catch(() => []);
   }
   assert.equal(http.calls.length, anilist.THROTTLE_PER_MIN, 'no more than the budget per minute');
   clock.t += 61_000;
   limited = true;
-  await anilist.anilistRowItems(ctx, { user: 'late_user', token: '' }, 'current', 'series', { idMap });
+  await anilist.anilistRowItems(ctx, { token: 'late' }, 'current', 'series', { idMap }).catch(() => []);
   const after429 = http.calls.length;
   limited = false;
-  await anilist.anilistRowItems(ctx, { user: 'other_user', token: '' }, 'current', 'series', { idMap });
+  await anilist.anilistRowItems(ctx, { token: 'other' }, 'current', 'series', { idMap }).catch(() => []);
   assert.equal(http.calls.length, after429, 'another user waits too (the limit is per server IP)');
   // Asking during the wait never extends it.
   clock.t += 61_000;
-  await anilist.anilistRowItems(ctx, { user: 'third_user', token: '' }, 'current', 'series', { idMap });
-  assert.equal(http.calls.length, after429 + 1, 'asks again once Retry-After has passed');
+  await anilist.anilistRowItems(ctx, { token: 'third' }, 'current', 'series', { idMap }).catch(() => []);
+  assert.ok(http.calls.length > after429, 'asks again once Retry-After has passed');
 });
 
 // ── The catalogue entry point ─────────────────────────────────────────────
@@ -478,9 +484,10 @@ test('identities: display names only, per connected service', async () => {
   });
   const { ctx } = context(http);
   const out = await userLists.userListIdentities({
-    mdblistKey: MDB_KEY, watchlist: { simkl: { access_token: SIMKL_TOKEN } }, anilistUser: 'Neo_99',
+    mdblistKey: MDB_KEY,
+    watchlist: { simkl: { access_token: SIMKL_TOKEN }, anilist: { access_token: ANILIST_TOKEN, username: 'StoredName' } },
   }, ctx);
-  assert.deepEqual(out, { mdblist: 'listmaker', simkl: 'SimklPerson', anilist: 'Neo_99' });
+  assert.deepEqual(out, { mdblist: 'listmaker', simkl: 'SimklPerson', anilist: 'StoredName' });
   assert.deepEqual(await userLists.userListIdentities({}, ctx), {});
 });
 
@@ -518,7 +525,7 @@ test('manifest declares personal rows only for services the setup has', () => {
   const ids = (config) => getConfiguredManifest('http://localhost:7860', config, { integration: 'nuvio', userListRows, homeRows })
     .catalogs.filter((c) => c.id.startsWith('lelibrary-user-'));
   assert.deepEqual(ids(base), [], 'nothing connected: nothing declared');
-  const all = ids({ ...base, watchlist: { simkl: { access_token: SIMKL_TOKEN } }, mdblistKey: MDB_KEY, anilistUser: 'Neo_99' });
+  const all = ids({ ...base, watchlist: { simkl: { access_token: SIMKL_TOKEN }, anilist: { access_token: ANILIST_TOKEN } }, mdblistKey: MDB_KEY });
   assert.deepEqual(all.map((c) => [c.id, c.name, c.showInHome]), [
     ['lelibrary-user-simkl-upnext-series', 'Simkl Up Next', undefined],
     ['lelibrary-user-mdblist-list.42-movie', 'Best Films', false],
@@ -533,11 +540,11 @@ test('manifest declares personal rows only for services the setup has', () => {
 // ── Routes ────────────────────────────────────────────────────────────────
 const UUID = '123e4567-e89b-12d3-a456-426614174000';
 
-async function startApp({ keys = { mdblistKey: MDB_KEY, tmdbApiKey: 'synthetic-tmdb' }, lists, identities } = {}) {
+async function startApp({ keys = { mdblistKey: MDB_KEY, tmdbApiKey: 'synthetic-tmdb' }, lists, identities, config = { lang: 'en-US' } } = {}) {
   const { mountSetupRoutes } = require('../src/routes/setup.ts');
   const { createEditSessionStore } = require('../src/setup/edit-sessions.ts');
   const sessions = createEditSessionStore();
-  const setup = { uuid: UUID, tier: 'full', name: null, hasPassword: true, config: { lang: 'en-US' }, keys, secret: 'synthetic-secret', createdAt: null, updatedAt: null };
+  const setup = { uuid: UUID, tier: 'full', name: null, hasPassword: true, config: { ...config }, keys, secret: 'synthetic-secret', createdAt: null, updatedAt: null };
   const seen = [];
   const app = express();
   app.set('trust proxy', false);
@@ -548,13 +555,18 @@ async function startApp({ keys = { mdblistKey: MDB_KEY, tmdbApiKey: 'synthetic-t
       resolveByToken: async () => null,
       checkPassword: async () => false,
       toEngineConfig: (o) => ({ ...o.config, ...o.keys }),
+      save: async (_uuid, patch) => {
+        if (patch.config) setup.config = { ...setup.config, ...patch.config };
+        for (const key of patch.clearConfig ?? []) delete setup.config[key];
+        return { ...setup };
+      },
     }),
     mdblistLists: lists || (async (key, refresh) => { seen.push({ key, refresh }); return [{ id: 9, name: 'Mine', user_name: 'me', mediatype: 'show', items: 4, likes: 0, source: 'own', apikey: key }]; }),
     identities: identities || (async () => ({ mdblist: 'me' })),
   });
   const server = app.listen(0);
   await once(server, 'listening');
-  return { base: `http://127.0.0.1:${server.address().port}`, sessions, seen, close: () => new Promise((r) => server.close(r)) };
+  return { base: `http://127.0.0.1:${server.address().port}`, sessions, seen, setup, close: () => new Promise((r) => server.close(r)) };
 }
 
 test('GET /:uuid/mdblist/lists: edit token required, saved key used server-side, never returned', async () => {
@@ -634,15 +646,17 @@ test('/watchlist-config reports AniList and marks Trakt as legacy', async () => 
   }
 });
 
-test('create and save refuse a malformed AniList username', async () => {
-  const app = await startApp();
+test('a saved AniList username is dropped on save, not validated or stored', async () => {
+  const app = await startApp({ config: { anilistUser: 'Neo_99', lang: 'en-US' } });
   try {
     const token = app.sessions.issue(UUID).token;
     const res = await fetch(`${app.base}/api/setup/${UUID}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ config: { anilistUser: 'not valid!' } }),
+      body: JSON.stringify({ config: { anilistUser: 'not valid!', lang: 'en-GB' } }),
     });
-    assert.equal(res.status, 400);
+    assert.equal(res.status, 200);
+    assert.equal('anilistUser' in app.setup.config, false);
+    assert.equal(app.setup.config.lang, 'en-GB');
   } finally { await app.close(); }
 });
 
@@ -692,20 +706,11 @@ test('draft preview: personal rows are samples with a label, never fetched', asy
 
 // ── Seams with the API keys cards (frontend) ──────────────────────────────
 
-test('anilistUser has one home: config.anilistUser, as the page sends it, read by the rows', () => {
-  // The create body the setup pages build: the name in config, a pre-creation
-  // AniList connect in keys.watchlist (memory-only on the page until then).
-  const body = { config: { lang: 'en-US', anilistUser: ' Neo_99 ' }, keys: { watchlist: { anilist: { access_token: ANILIST_TOKEN } } } };
-  const checked = userLists.checkAnilistUser(body.config);
-  assert.equal(checked.ok, true);
-  assert.equal(checked.config.anilistUser, 'Neo_99');
-  // The engine config is the saved config plus the sealed keys.
-  const engine = { ...checked.config, ...body.keys };
+test('AniList rows come from the connection only; a username never serves rows', () => {
+  const engine = { lang: 'en-US', watchlist: { anilist: { access_token: ANILIST_TOKEN } } };
   assert.equal(rows.userListServices(engine).anilist, true);
   assert.equal(rows.watchlistToken(engine, 'anilist'), ANILIST_TOKEN);
-  // A username alone (no connection) still serves the public lists.
-  assert.equal(rows.userListServices({ anilistUser: 'Neo_99' }).anilist, true);
-  // Nothing else is read as the AniList name.
+  assert.equal(rows.userListServices({ anilistUser: 'Neo_99' }).anilist, false);
   assert.equal(rows.userListServices({ meta: { anilistUser: 'Neo_99' } }).anilist, false);
 });
 

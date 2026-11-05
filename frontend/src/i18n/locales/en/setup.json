@@ -1780,8 +1780,6 @@
     "{{value}} connected - save to keep it": "{{value}} connected - save to keep it",
     "Disconnected - save to apply": "Disconnected - save to apply",
     "Connected as {{name}}": "Connected as {{name}}",
-    "Connected as {{name}} (public lists)": "Connected as {{name}} (public lists)",
-    "Your public AniList lists, read by name. Connect AniList to sign in instead, or disconnect to remove the name.": "Your public AniList lists, read by name. Connect AniList to sign in instead, or disconnect to remove the name.",
     "Remove key": "Remove key",
     "Keep it": "Keep it",
     "{{key}} is stored on this server. Turning it off here removes it when you save, and this setup stops using {{key}} until a key is added again.": "{{key}} is stored on this server. Turning it off here removes it when you save, and this setup stops using {{key}} until a key is added again.",

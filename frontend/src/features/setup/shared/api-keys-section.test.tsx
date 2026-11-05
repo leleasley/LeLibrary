@@ -71,8 +71,6 @@ function connections(options: {
   precreation?: boolean;
   // Account names the hook knows (popup or stored at connect time).
   names?: Partial<Record<WatchlistProvider, string>>;
-  // An older setup's saved public AniList name.
-  publicUser?: string;
 } = {}): WatchlistConnections {
   const connected = options.connected ?? [];
   const config = { simkl: true, trakt: true, anilist: options.anilist === true, traktLegacy: options.traktLegacy === true };
@@ -82,9 +80,8 @@ function connections(options: {
     config,
     status: null,
     connected: isConnected,
-    linked: (provider) => isConnected(provider) || (provider === 'anilist' && Boolean(options.publicUser)),
+    linked: (provider) => isConnected(provider),
     identity: (provider, saved) => (isConnected(provider) ? options.names?.[provider] ?? saved ?? null : null),
-    publicUser: () => options.publicUser ?? null,
     configured: (provider) => config[provider],
     canConnect: true,
     connect: async () => {},
@@ -143,7 +140,6 @@ describe('Integrations accordion', () => {
     expect(html).toContain('data-provider="simkl"');
     expect(html).toContain('data-provider="anilist"');
     expect(html).toContain('<span>Simkl connected</span>');
-    expect(integrationsSummary({ connected: [], anilistPublic: 'lewis_1' })).toEqual(['AniList · lewis_1']);
     expect(integrationsSummary({})).toEqual(['Nothing connected']);
   });
 
@@ -235,17 +231,11 @@ describe('connected accounts', () => {
     expect(render(<ConnectedAccounts connections={connections({ anilist: false })} />)).not.toContain('data-provider="anilist"');
   });
 
-  it('an older setup\'s saved AniList name shows as public lists, with Connect and Disconnect', () => {
-    const html = render(<ConnectedAccounts connections={connections({ anilist: true, precreation: false, publicUser: 'lewis_99' })} defaultOpen="anilist" />);
-    expect(html).toContain('Connected as lewis_99 (public lists)');
-    expect(html).toContain('data-state="public"');
+  it('AniList is Connect only: no public-name card, no username field', () => {
+    const html = render(<ConnectedAccounts connections={connections({ anilist: true, precreation: false })} defaultOpen="anilist" />);
     expect(html).toContain('Connect AniList');
-    expect(html).toContain('>Disconnect</button>');
-    // Shown even where the server has no AniList app (Disconnect only).
-    const noApp = render(<ConnectedAccounts connections={connections({ anilist: false, precreation: false, publicUser: 'lewis_99' })} defaultOpen="anilist" />);
-    expect(noApp).toContain('Connected as lewis_99 (public lists)');
-    expect(noApp).not.toContain('>Connect AniList</button>');
-    expect(noApp).toContain('>Disconnect</button>');
+    expect(html).not.toContain('public lists');
+    expect(html).not.toContain('AniList username');
   });
 });
 

@@ -50,9 +50,6 @@ const ALIAS_TARGET: Record<string, { provider: UserListProvider; list: string }>
   simkl: { provider: 'simkl', list: 'plantowatch' },
   mdblist: { provider: 'mdblist', list: 'watchlist' },
 };
-// AniList usernames: 2-20 letters, digits or underscores.
-const ANILIST_USER = /^[A-Za-z0-9_]{2,20}$/;
-
 function rowDef(provider: string, list: string): UserListRowDef | null {
   return ROW_DEFS.find((def) => def.provider === provider && def.list === list) || null;
 }
@@ -94,11 +91,6 @@ function userListId(provider: UserListProvider, list: string, type: UserListType
   return `lelibrary-user-${provider}-${list}-${type}`;
 }
 
-function normaliseAnilistUser(value: unknown): string | null {
-  const name = typeof value === 'string' ? value.trim() : '';
-  return ANILIST_USER.test(name) ? name : null;
-}
-
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
@@ -122,7 +114,8 @@ function userListServices(config: Record<string, unknown> | null | undefined): U
   return {
     simkl: Boolean(watchlistToken(c, 'simkl')),
     mdblist: typeof c['mdblistKey'] === 'string' && Boolean((c['mdblistKey'] as string).trim()),
-    anilist: Boolean(normaliseAnilistUser(c['anilistUser']) || watchlistToken(c, 'anilist')),
+    // AniList rows need a connection: there is no username path (v6).
+    anilist: Boolean(watchlistToken(c, 'anilist')),
   };
 }
 
@@ -159,7 +152,6 @@ export interface UserListRowsApi {
   parseUserListId: typeof parseUserListId;
   isUserListCatalogId: typeof isUserListCatalogId;
   userListId: typeof userListId;
-  normaliseAnilistUser: typeof normaliseAnilistUser;
   watchlistToken: typeof watchlistToken;
   userListServices: typeof userListServices;
   userListTitle: typeof userListTitle;
@@ -169,6 +161,6 @@ export interface UserListRowsApi {
 }
 
 module.exports = {
-  ROW_DEFS, parseUserListId, isUserListCatalogId, userListId, normaliseAnilistUser, watchlistToken,
+  ROW_DEFS, parseUserListId, isUserListCatalogId, userListId, watchlistToken,
   userListServices, userListTitle, fixedRowsFor, mdblistListTypes, isMdblistListId,
 } satisfies UserListRowsApi;

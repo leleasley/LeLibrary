@@ -137,35 +137,34 @@ test('callback: a failed name lookup still connects, without a name', async () =
   } finally { restore(); await app.close(); }
 });
 
-test('an older setup\'s public AniList name: in the status, cleared by Disconnect', async () => {
+test('a saved public AniList name is never reported: AniList is Connect only', async () => {
   const app = await startApp({ config: { anilistUser: 'Neo_99' } });
   try {
-    let status = await (await fetch(`${app.base}/api/setup/${UUID}/watchlist`, app.bearer())).json();
+    const status = await (await fetch(`${app.base}/api/setup/${UUID}/watchlist`, app.bearer())).json();
     assert.equal(status.anilist.connected, false);
-    assert.equal(status.anilist.publicUser, 'Neo_99');
+    assert.equal('publicUser' in status.anilist, false);
     const res = await fetch(`${app.base}/api/setup/${UUID}/watchlist/anilist/disconnect`, { method: 'POST', ...app.bearer() });
     assert.equal(res.status, 200);
-    assert.deepEqual(app.saves.at(-1).clearConfig, ['anilistUser']);
-    status = await (await fetch(`${app.base}/api/setup/${UUID}/watchlist`, app.bearer())).json();
-    assert.equal(status.anilist.publicUser, undefined);
-    // Other providers' disconnects leave the config alone.
+    // The name is untouched here; the next save drops it.
+    assert.equal(app.saves.at(-1).clearConfig, undefined);
     await fetch(`${app.base}/api/setup/${UUID}/watchlist/simkl/disconnect`, { method: 'POST', ...app.bearer() });
     assert.equal(app.saves.at(-1).clearConfig, undefined);
   } finally { await app.close(); }
 });
 
-test('an older setup\'s public AniList name is replaced by an AniList login', async () => {
+test('an AniList login is the only way in; a saved username is left unused', async () => {
   const restore = fakeTokenExchange('anilist', ANILIST_TOKEN);
   const app = await startApp({ config: { anilistUser: 'Neo_99' }, accountName: async () => 'Neo_99' });
   try {
     const { state } = require('../src/setup/oauth.ts').createPendingOAuth(UUID, 'anilist');
     await (await fetch(`${app.base}/api/setup/oauth/anilist/callback?state=${state}&code=code-1`)).text();
     assert.equal(app.row.keys.watchlist.anilist.username, 'Neo_99');
-    assert.equal(app.row.config.anilistUser, undefined);
+    // The username field is not touched by a connect; the next save drops it.
+    assert.equal(app.row.config.anilistUser, 'Neo_99');
     const status = await (await fetch(`${app.base}/api/setup/${UUID}/watchlist`, app.bearer())).json();
     assert.equal(status.anilist.connected, true);
     assert.equal(status.anilist.username, 'Neo_99');
-    assert.equal(status.anilist.publicUser, undefined);
+    assert.equal('publicUser' in status.anilist, false);
   } finally { restore(); await app.close(); }
 });
 
@@ -179,8 +178,8 @@ test('identities prefer the name stored with the connection; older connections s
   const lookup = fakeHttp((_method, url) => (url.endsWith('/users/settings') ? { data: { user: { name: 'Looked' } } } : httpError(404)));
   assert.deepEqual(await userLists.userListIdentities({ watchlist: { simkl: { access_token: SIMKL_TOKEN_2 } } }, context(lookup)), { simkl: 'Looked' });
   assert.equal(lookup.calls[0].method, 'GET', 'Simkl /users/settings is a GET');
-  // A saved public AniList name (older setups) is still its display name.
-  assert.deepEqual(await userLists.userListIdentities({ anilistUser: 'Neo_99' }, context(none)), { anilist: 'Neo_99' });
+  // A saved public AniList name is never a display name (Connect only).
+  assert.deepEqual(await userLists.userListIdentities({ anilistUser: 'Neo_99' }, context(none)), {});
 });
 
 test('connectionUsername: Simkl user.name and AniList Viewer.name with the new token; failures are null', async () => {

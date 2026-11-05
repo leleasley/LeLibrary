@@ -238,12 +238,13 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     }
   }
 
-  // AniList usernames are checked here (the one rule both pages and the API
-  // share); an empty one is dropped.
-  function anilistChecked(config: unknown): { ok: true; config: Record<string, unknown> | undefined } | { ok: false; error: string } {
-    if (config === undefined || config === null || typeof config !== 'object' || Array.isArray(config)) return { ok: true, config: config as undefined };
-    const { checkAnilistUser } = require('../user-lists/index.ts') as { checkAnilistUser: (c: Record<string, unknown>) => { ok: true; config: Record<string, unknown> } | { ok: false; error: string } };
-    return checkAnilistUser(config as Record<string, unknown>);
+  // AniList rows are Connect-only (v6). A config may still carry an old
+  // public username from before that change: drop it on every write so it
+  // never powers a row again.
+  function withoutAnilistUser(config: unknown): Record<string, unknown> | undefined {
+    if (config === undefined || config === null || typeof config !== 'object' || Array.isArray(config)) return config as undefined;
+    const { anilistUser: _dropped, ...rest } = config as Record<string, unknown>;
+    return rest;
   }
 
   // Create a config. Returns the install token exactly once.
@@ -267,8 +268,7 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
       res.status(400).json({ error: `Tier must be one of: ${TIERS.join(', ')}` });
       return;
     }
-    const anilist = anilistChecked(config);
-    if (!anilist.ok) { res.status(400).json({ error: anilist.error }); return; }
+    const cleanedConfig = withoutAnilistUser(config);
     // A Nuvio/Stremio login made on the Destination step is sealed with the
     // setup at creation, so it survives even if the person never presses
     // push (the end screen can be closed). Only well-formed sessions are kept.
@@ -289,7 +289,7 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
       const created = await store.create({
         tier: (tier as string) || DEFAULT_TIER,
         name,
-        config: normaliseSetupConfigCollections((anilist.config && typeof anilist.config === 'object' ? anilist.config : {}) as Record<string, unknown>),
+        config: normaliseSetupConfigCollections((cleanedConfig && typeof cleanedConfig === 'object' ? cleanedConfig : {}) as Record<string, unknown>),
         keys: keyRecord,
         password: password ? String(password) : null,
       });
@@ -543,8 +543,7 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
       return;
     }
     if (tier !== undefined && !TIERS.includes(tier as never)) { res.status(400).json({ error: 'Invalid tier' }); return; }
-    const anilist = anilistChecked(config);
-    if (!anilist.ok) { res.status(400).json({ error: anilist.error }); return; }
+    const cleanedConfig = withoutAnilistUser(config);
     limiter.succeed(clientIp(req), uuid);
     // Watchlist connects and disconnects staged on the edit page (v6): a
     // pending connect commits only for the edit session that signed in
@@ -554,7 +553,12 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     if (!staged.ok) { res.status(400).json({ error: staged.error }); return; }
     let saveKeys = keys as Record<string, unknown> | undefined;
     let saveClearConfig = clearConfig as string[] | undefined;
+    // A legacy public AniList username is never used again (Connect only):
+    // forget it on this save, even when the save does not touch config.
     let consumed: string[] = [];
+    if (opened.config && typeof opened.config === 'object' && 'anilistUser' in (opened.config as Record<string, unknown>)) {
+      saveClearConfig = [...new Set([...(saveClearConfig ?? []), 'anilistUser'])];
+    }
     if (Object.keys(staged.changes).length > 0) {
       const openedKeys = (opened.keys ?? {}) as Record<string, unknown>;
       const currentWatchlist = (openedKeys['watchlist'] && typeof openedKeys['watchlist'] === 'object' ? openedKeys['watchlist'] : {}) as Record<string, unknown>;
@@ -563,18 +567,13 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
       });
       if (!applied.ok) { res.status(applied.status).json({ error: applied.error }); return; }
       saveKeys = { ...((keys && typeof keys === 'object' ? keys : {}) as Record<string, unknown>), watchlist: applied.watchlist };
-      // An AniList login or disconnect replaces an older setup's public name.
-      const configRecord = (opened.config ?? {}) as Record<string, unknown>;
-      if (applied.anilistTouched && typeof configRecord['anilistUser'] === 'string' && configRecord['anilistUser']) {
-        saveClearConfig = [...new Set([...(Array.isArray(clearConfig) ? clearConfig as string[] : []), 'anilistUser'])];
-      }
       consumed = applied.consumed;
     }
     const { normaliseSetupConfigCollections } = require('../setup/collections.ts') as {
       normaliseSetupConfigCollections: <T>(config: T) => T;
     };
     const saved = await store.save(uuid, {
-      config: config === undefined ? undefined : normaliseSetupConfigCollections((anilist.config ?? config) as Record<string, unknown>),
+      config: cleanedConfig === undefined ? undefined : normaliseSetupConfigCollections((cleanedConfig ?? config) as Record<string, unknown>),
       keys: saveKeys,
       tier: tier as string | undefined,
       name,

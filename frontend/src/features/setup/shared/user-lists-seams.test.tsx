@@ -185,7 +185,6 @@ function connections(options: { connected?: WatchlistProvider[]; anilist?: boole
     connected: (provider) => connected.includes(provider),
     linked: (provider) => connected.includes(provider),
     identity: (provider, saved) => (connected.includes(provider) ? saved ?? null : null),
-    publicUser: () => null,
     configured: (provider) => config[provider],
     canConnect: true,
     connect: async () => {},

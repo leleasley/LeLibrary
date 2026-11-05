@@ -7,8 +7,7 @@
 //   setup resolved from its install token like every other catalogue.
 // - userListIdentities: "Connected as ..." names for the edit page.
 // - connectionUsername: the account name asked once at OAuth connect.
-// - checkAnilistUser: the setup config's `anilistUser` rule (an older
-//   setup's public AniList name; the pages no longer write it).
+// AniList rows come only from a connection; there is no username path.
 // Errors become an empty row plus a log line without secrets.
 import type { UserListContext, UserListRuntimeApi } from './runtime.ts';
 import type { UserListRowsApi } from './rows.ts';
@@ -34,8 +33,8 @@ function simklAuth(config: Config): { token: string; clientId: string } {
   };
 }
 
-function anilistAuth(config: Config): { user: string; token: string } {
-  return { user: rows.normaliseAnilistUser(config['anilistUser']) || '', token: rows.watchlistToken(config, 'anilist') };
+function anilistAuth(config: Config): { token: string } {
+  return { token: rows.watchlistToken(config, 'anilist') };
 }
 
 export interface UserListCatalogInput {
@@ -100,7 +99,7 @@ async function connectionUsername(provider: string, token: string, ctxIn?: Parti
   const ctx = rt.withContext(ctxIn);
   const work = provider === 'simkl'
     ? simkl.simklUsername(ctx, { token, clientId: String(process.env['SIMKL_CLIENT_ID'] || '') })
-    : anilist.anilistName(ctx, { user: '', token });
+    : anilist.anilistName(ctx, { token });
   const name = await Promise.race([
     work.catch(() => null),
     new Promise<null>((resolve) => { const timer = setTimeout(() => resolve(null), timeoutMs); (timer as { unref?: () => void }).unref?.(); }),
@@ -130,26 +129,11 @@ async function userListIdentities(config: Config, ctxIn?: Partial<UserListContex
   return out;
 }
 
-// `anilistUser` in a setup config: absent/empty is fine (dropped), a valid
-// name is kept trimmed, anything else is refused.
-function checkAnilistUser(config: Config): { ok: true; config: Config } | { ok: false; error: string } {
-  if (!config || typeof config !== 'object' || !('anilistUser' in config)) return { ok: true, config };
-  const raw = config['anilistUser'];
-  if (raw === null || raw === undefined || (typeof raw === 'string' && raw.trim() === '')) {
-    const { anilistUser: _dropped, ...rest } = config;
-    return { ok: true, config: rest };
-  }
-  const name = rows.normaliseAnilistUser(raw);
-  if (!name) return { ok: false, error: 'AniList username must be 2-20 letters, numbers or underscores' };
-  return { ok: true, config: { ...config, anilistUser: name } };
-}
-
 export interface UserListsApi {
   buildUserListCatalog: typeof buildUserListCatalog;
   userListIdentities: typeof userListIdentities;
   connectionUsername: typeof connectionUsername;
   cleanAccountName: typeof cleanAccountName;
-  checkAnilistUser: typeof checkAnilistUser;
   parseUserListId: UserListRowsApi['parseUserListId'];
   isUserListCatalogId: UserListRowsApi['isUserListCatalogId'];
   userListServices: UserListRowsApi['userListServices'];
@@ -158,7 +142,7 @@ export interface UserListsApi {
 }
 
 module.exports = {
-  buildUserListCatalog, userListIdentities, connectionUsername, cleanAccountName, checkAnilistUser,
+  buildUserListCatalog, userListIdentities, connectionUsername, cleanAccountName,
   parseUserListId: rows.parseUserListId,
   isUserListCatalogId: rows.isUserListCatalogId,
   userListServices: rows.userListServices,

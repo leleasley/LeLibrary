@@ -10,11 +10,15 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 - A new API keys section. TMDB, TVDB, OMDb and MDBList now have the same cards as the library providers, and the MDBList card shows which account it is connected to.
 - Simkl rows: connect Simkl to add Up Next, Airing Next, Plan to Watch, Watching and Completed rows.
 - Your MDBList lists: with an MDBList key you can pick your own lists, the lists you liked, your watchlist and Up Next straight from the Home rows and folder pickers, without adding each list somewhere else first.
-- AniList rows: add your AniList username (or connect AniList for private lists) to get Watching, Plan to Watch and Completed anime rows.
+- AniList rows: connect AniList to get Watching, Plan to Watch and Completed anime rows, private lists included.
+- Content filters, on Settle In and Move In: one Setup section with Use Main Metadata, Hide anime, Hide adult content and the categories you want left out (Anime, Animation, Reality TV, Talk Shows, Kids, Family, Musical, Documentary, News, Soap Operas, Horror). A title is hidden when any of its categories is ticked, everywhere Hide anime already worked: My Movies, My Shows, the Hub, collections and search. Hide adult content drops titles TMDB flags as adult or rates NC-17 or X (films) and TV-MA (shows); unrated titles stay. Titles TMDB has not described yet are never hidden by a guess.
+- TorBox sources now look like proper cards (Torrents, Usenet, Web downloads), and Use Main Metadata says plainly that turning it on lets your library rows bring through streams you have enabled, so leave it off if you only want your own files.
 - Nuvio now lists far fewer LeLibrary catalogues. Collection folders already shared one catalogue, but every pack source was still listed on its own as a hidden row, so a setup with packs showed well over a hundred catalogues in Nuvio. Only the rows you actually picked for Home are listed now. Push again or restart Nuvio to see the smaller list.
 
 ### Changes
 
+- AniList can only be connected now. The old username option is gone: a saved username is not shown, cannot be added and no longer serves any rows. Connect AniList to keep your anime rows.
+- Library row names are no longer on Settle In or Move In. Rows are named where you add them, in Home rows; names already saved keep working.
 - Trakt can no longer be connected to new setups. Setups that already use it keep it.
 - Importing an old account setup is gone for good. It was switched off in 5.9.5 and all old account data has been deleted. Old account links still open the setup page.
 - Keys, sign-ins and your own stream addon links you type in before creating a setup are no longer kept in your browser's storage. They stay only while the page is open, so after a reload you enter them again. Settings that are not secret are still kept as before.

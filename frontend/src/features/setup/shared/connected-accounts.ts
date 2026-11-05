@@ -44,16 +44,14 @@ export function providerConfigured(
 // hidden outright: a dead Connect button next to "Not configured on this
 // server" reads as broken. Trakt is kept only for setups already connected
 // once the server marks it legacy (creating a Trakt app needs Trakt VIP), so
-// new setups are not offered it. AniList (Connect only since v6, like Simkl)
-// shows where the server has an AniList app, where it is connected, or for
-// an older setup's saved public AniList name. Pure for unit tests.
+// new setups are not offered it. AniList is Connect only (v6): no username
+// path exists, so it shows where the server has an AniList app or where it is
+// connected. Pure for unit tests.
 export function visibleConnectCards(options: {
   precreation: boolean;
   config: WatchlistServerConfig | null;
   status: WatchlistState | null | undefined;
   connected: (provider: WatchlistProvider) => boolean;
-  // An older setup's saved public AniList name (the hook's publicUser).
-  publicUser?: (() => string | null) | undefined;
   // A connect or disconnect waiting for Save keeps its card in sight (a
   // staged Trakt disconnect must stay undoable).
   staged?: ((provider: WatchlistProvider) => 'connect' | 'remove' | null) | undefined;
@@ -61,7 +59,6 @@ export function visibleConnectCards(options: {
   return PROVIDERS.filter((provider) => {
     if (options.connected(provider)) return true;
     if (options.staged?.(provider)) return true;
-    if (provider === 'anilist' && options.publicUser?.()) return true;
     if (provider === 'trakt' && (options.config?.traktLegacy === true || options.status?.trakt?.legacy === true)) return false;
     return providerConfigured(provider, options) !== false;
   });
@@ -126,18 +123,16 @@ export function pendingFromPopup(data: unknown): { provider: WatchlistProvider; 
 
 // The saved status with the page's staged connects and disconnects laid
 // over it, so every reader (cards, summary, "Your lists" shelves, Preview)
-// follows what Save will write. A staged AniList change also drops an older
-// setup's public name (the save clears it). Pure for tests.
+// follows what Save will write. Pure for tests.
 export function effectiveWatchlistStatus(status: WatchlistState | null, staged: StagedConnections | null | undefined): WatchlistState | null {
   const changes = Object.entries(staged ?? {}).filter(([, change]) => Boolean(change)) as [WatchlistProvider, StagedConnection][];
   if (!changes.length) return status;
   const base: WatchlistState = status ?? { simkl: { connected: false, configured: true }, trakt: { connected: false, configured: true } };
   const next: WatchlistState = { ...base, simkl: { ...base.simkl }, trakt: { ...base.trakt }, ...(base.anilist ? { anilist: { ...base.anilist } } : {}) };
   for (const [provider, change] of changes) {
-    const entry = { ...(next[provider] ?? { configured: true }), connected: !('remove' in change) } as { connected: boolean; configured: boolean; username?: string; publicUser?: string };
+    const entry = { ...(next[provider] ?? { configured: true }), connected: !('remove' in change) } as { connected: boolean; configured: boolean; username?: string };
     delete entry.username;
     if (!('remove' in change) && change.username) entry.username = change.username;
-    if (provider === 'anilist') delete entry.publicUser;
     (next as unknown as Record<string, unknown>)[provider] = entry;
   }
   return next;
@@ -177,8 +172,6 @@ export interface WatchlistConnections {
   // identities) is the fallback for older connections, unless the provider
   // was connected or disconnected on this page.
   identity: (provider: WatchlistProvider, saved?: string | null) => string | null;
-  // An older setup's saved public AniList name (no login), else null.
-  publicUser: () => string | null;
   configured: (provider: WatchlistProvider) => boolean | null;
   // Connect needs an unlocked editor after creation (the bearer edit token).
   canConnect: boolean;
@@ -303,10 +296,6 @@ export function useWatchlistConnections({ uuid, editToken, draft, onDraft, stage
     }
   }
 
-  function publicUser(): string | null {
-    return precreation ? null : cleanAccountName(status?.anilist?.publicUser);
-  }
-
   async function disconnect(provider: WatchlistProvider) {
     if (precreation) {
       const next = { ...(draft ?? {}) };
@@ -318,9 +307,8 @@ export function useWatchlistConnections({ uuid, editToken, draft, onDraft, stage
     if (!uuid || !editToken) return;
     if (staging) {
       // Staged: a sign-in made on this page is simply dropped; a saved
-      // connection (or an older setup's public AniList name) is removed on
-      // Save.
-      const savedLinked = savedStatus?.[provider]?.connected === true || (provider === 'anilist' && Boolean(cleanAccountName(savedStatus?.anilist?.publicUser)));
+      // connection is removed on Save.
+      const savedLinked = savedStatus?.[provider]?.connected === true;
       markChanged(provider);
       onStage?.(provider, savedLinked ? { remove: true } : null);
       toast(savedLinked ? 'Disconnected - save to apply' : 'Disconnected');
@@ -341,11 +329,10 @@ export function useWatchlistConnections({ uuid, editToken, draft, onDraft, stage
     config,
     status,
     connected,
-    linked: (provider) => connected(provider) || (provider === 'anilist' && publicUser() !== null),
+    linked: (provider) => connected(provider),
     identity: (provider, saved) => accountIdentity(provider, {
       precreation, draft, status, connected: connected(provider), changed: changed.has(provider), saved,
     }),
-    publicUser,
     configured: (provider) => providerConfigured(provider, { precreation, config, status }),
     canConnect: precreation || Boolean(uuid && editToken),
     connect,

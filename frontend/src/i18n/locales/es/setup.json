@@ -1780,8 +1780,6 @@
     "{{value}} connected - save to keep it": "{{value}} conectado: guarda para conservarlo",
     "Disconnected - save to apply": "Desconectado: guarda para aplicarlo",
     "Connected as {{name}}": "Conectado como {{name}}",
-    "Connected as {{name}} (public lists)": "Conectado como {{name}} (listas públicas)",
-    "Your public AniList lists, read by name. Connect AniList to sign in instead, or disconnect to remove the name.": "Tus listas públicas de AniList, leídas por nombre. Conecta AniList para iniciar sesión en su lugar, o desconecta para quitar el nombre.",
     "Remove key": "Quitar clave",
     "Keep it": "Conservarla",
     "{{key}} is stored on this server. Turning it off here removes it when you save, and this setup stops using {{key}} until a key is added again.": "{{key}} está guardado en este servidor. Si lo desactivas aquí, se quitará al guardar y esta configuración dejará de usar {{key}} hasta que añadas una clave de nuevo.",

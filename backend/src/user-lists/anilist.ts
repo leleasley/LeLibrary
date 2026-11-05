@@ -1,10 +1,10 @@
 'use strict';
 // AniList personal rows: Watching, Plan to Watch and Completed anime.
 //
-// Public lists are read by username (config `anilistUser`, no login); an
-// optional AniList connection (keys.watchlist.anilist, one-year token, no
-// refresh) reads the viewer's own lists, private ones included. One GraphQL
-// call returns all three lists for a user, cached three hours.
+// Lists come only from an AniList connection (keys.watchlist.anilist, a
+// one-year token, no refresh): its viewer's own lists, private ones included.
+// There is no plain-username path. One GraphQL call returns all three lists
+// for the viewer, cached three hours.
 //
 // AniList currently allows about 30 requests a minute PER SERVER IP, shared
 // by every hosted setup. So: single-flight per user, a long cache, a
@@ -36,8 +36,8 @@ type Mapped = { imdb?: string; tv?: number; movie?: number };
 export interface AnilistEntry { id: number; title: string; year: number | null; movie: boolean; cover: string | null }
 export type AnilistLists = Record<AnilistList, AnilistEntry[]>;
 
-const LISTS_QUERY = `query ($userName: String, $userId: Int) {
-  MediaListCollection(userName: $userName, userId: $userId, type: ANIME, status_in: [CURRENT, REPEATING, PLANNING, COMPLETED], sort: UPDATED_TIME_DESC, forceSingleCompletedList: true) {
+const LISTS_QUERY = `query ($userId: Int) {
+  MediaListCollection(userId: $userId, type: ANIME, status_in: [CURRENT, REPEATING, PLANNING, COMPLETED], sort: UPDATED_TIME_DESC, forceSingleCompletedList: true) {
     lists { status entries { status media { id format isAdult title { english romaji } startDate { year } coverImage { large } } } }
   }
 }`;
@@ -105,12 +105,10 @@ function listsFrom(data: Record<string, unknown>): AnilistLists {
   return out;
 }
 
-export interface AnilistAuth { user: string; token: string }
+export interface AnilistAuth { token: string }
 
 function fpOf(auth: AnilistAuth): string {
-  // A connection reads private lists: its own fingerprint, never the
-  // username's (a public read of the same name must not see them).
-  return auth.token ? rt.credentialFp('anilist-token', auth.token) : rt.credentialFp('anilist-user', auth.user.toLowerCase());
+  return rt.credentialFp('anilist-token', auth.token);
 }
 
 async function viewerOf(ctx: UserListContext, token: string): Promise<{ id: number; name: string } | null> {
@@ -124,7 +122,7 @@ async function viewerOf(ctx: UserListContext, token: string): Promise<{ id: numb
 }
 
 async function anilistLists(ctx: UserListContext, auth: AnilistAuth): Promise<AnilistLists | null> {
-  if (!auth.token && !auth.user) return null;
+  if (!auth.token) return null;
   const fp = fpOf(auth);
   return rt.gatedBucket<AnilistLists>({
     ctx,
@@ -135,13 +133,9 @@ async function anilistLists(ctx: UserListContext, auth: AnilistAuth): Promise<An
     maxAgeMs: FRESH_MS,
     storeTtlS: STORE_TTL_S,
     load: async () => {
-      let variables: Record<string, unknown> = { userName: auth.user };
-      if (auth.token) {
-        const viewer = await viewerOf(ctx, auth.token);
-        if (!viewer) throw Object.assign(new Error('AniList connection has no viewer'), { response: { status: 401 } });
-        variables = { userId: viewer.id };
-      }
-      return listsFrom(await graphql(ctx, LISTS_QUERY, variables, auth.token));
+      const viewer = await viewerOf(ctx, auth.token);
+      if (!viewer) throw Object.assign(new Error('AniList connection has no viewer'), { response: { status: 401 } });
+      return listsFrom(await graphql(ctx, LISTS_QUERY, { userId: viewer.id }, auth.token));
     },
   });
 }
@@ -171,13 +165,10 @@ async function anilistRowItems(ctx: UserListContext, auth: AnilistAuth, list: st
   return mapEntries(entries, map as Record<string, Mapped>, type);
 }
 
-// Display name: the username, or the connected viewer's name.
+// Display name: only the connected viewer's name.
 async function anilistName(ctx: UserListContext, auth: AnilistAuth): Promise<string | null> {
-  if (auth.token) {
-    const viewer = await viewerOf(ctx, auth.token).catch(() => null);
-    if (viewer?.name) return viewer.name;
-  }
-  return auth.user || null;
+  const viewer = await viewerOf(ctx, auth.token).catch(() => null);
+  return viewer?.name || null;
 }
 
 export interface AnilistListsApi {

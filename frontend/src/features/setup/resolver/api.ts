@@ -206,9 +206,8 @@ export interface WatchlistState {
   simkl: { connected: boolean; configured: boolean; username?: string };
   // `legacy`: Trakt is kept only for setups already connected (v6).
   trakt: { connected: boolean; configured: boolean; legacy?: boolean; username?: string };
-  // AniList (v6): absent on older servers. `publicUser`: an older setup's
-  // saved public AniList name (no login), still serving its rows.
-  anilist?: { connected: boolean; configured: boolean; username?: string; publicUser?: string };
+  // AniList (v6): Connect only. Absent on older servers.
+  anilist?: { connected: boolean; configured: boolean; username?: string };
 }
 
 export function watchlistStatus(uuid: string, editToken: string): Promise<WatchlistState> {

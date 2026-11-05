@@ -52,10 +52,9 @@ describe('connect card visibility', () => {
     expect(visibleConnectCards({ precreation: true, config: legacy, status: null, connected: only('trakt') })).toContain('trakt');
   });
 
-  it('AniList is Connect-only: shown with a server app, when connected, or for a saved public name', () => {
+  it('AniList is Connect-only: shown with a server app or when connected', () => {
     expect(visibleConnectCards({ precreation: true, config: CONFIG, status: null, connected: none })).not.toContain('anilist');
     expect(visibleConnectCards({ precreation: false, config: CONFIG, status: null, connected: only('anilist') })).toContain('anilist');
-    expect(visibleConnectCards({ precreation: false, config: CONFIG, status: null, connected: none, publicUser: () => 'Neo_99' })).toContain('anilist');
   });
 });
 

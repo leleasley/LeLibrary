@@ -93,7 +93,7 @@ const CONNECT_CARDS: Record<WatchlistProvider, { blurb: string; logo?: string; m
   trakt: { blurb: 'Sync your personal lists and watch history', logo: '/logos/trakt.svg', brand: '237, 34, 36' },
 };
 
-function ConnectCard({ provider, connected, identity, publicLists, staged, defaultOpen, children }: {
+function ConnectCard({ provider, connected, identity, staged, defaultOpen, children }: {
   provider: WatchlistProvider;
   connected: boolean;
   identity?: string | null | undefined;
@@ -101,7 +101,6 @@ function ConnectCard({ provider, connected, identity, publicLists, staged, defau
   staged?: 'connect' | 'remove' | null | undefined;
   // An older setup's saved public AniList name (no login): `identity` is
   // that name and the line says so.
-  publicLists?: boolean | undefined;
   // Tests only: every card starts closed for people.
   defaultOpen?: boolean | undefined;
   children: ReactNode;
@@ -114,7 +113,7 @@ function ConnectCard({ provider, connected, identity, publicLists, staged, defau
     <div
       className={`provider-card connect-card${open ? ' is-open' : ''}${connected ? ' filled is-verified' : ''}`}
       style={{ '--pc-brand-rgb': card.brand } as CSSProperties}
-      data-state={connected ? 'connected' : publicLists ? 'public' : 'idle'}
+      data-state={connected ? 'connected' : 'idle'}
       data-provider={provider}
       {...(staged ? { 'data-staged': staged } : {})}
     >
@@ -136,9 +135,7 @@ function ConnectCard({ provider, connected, identity, publicLists, staged, defau
             ? <small className="pc-identity">Disconnected · not saved yet</small>
             : staged === 'connect'
               ? <small className="pc-identity">{identity ? `Connected as ${identity} · not saved yet` : 'Connected · not saved yet'}</small>
-              : identity && (publicLists
-                ? <small className="pc-identity">{`Connected as ${identity} (public lists)`}</small>
-                : <small className="pc-identity">{`Connected as ${identity}`}</small>)}
+              : identity && <small className="pc-identity">{`Connected as ${identity}`}</small>}
         </div>
         {connected && !identity && !staged && <span className="pc-pill is-verified">Connected</span>}
         <span className="pc-chevron" aria-hidden="true">▸</span>
@@ -192,21 +189,6 @@ function ConnectAction({ provider, connections, connected, unavailable, label }:
   );
 }
 
-// An older setup's saved public AniList name (v6 pages no longer ask for
-// one): its rows keep working; Connect switches to a login, Disconnect
-// removes the name.
-function AnilistPublicLists({ connections, unavailable }: { connections: WatchlistConnections; unavailable: boolean }) {
-  return (
-    <div className="pc-connect">
-      <p className="setup-hint">Your public AniList lists, read by name. Connect AniList to sign in instead, or disconnect to remove the name.</p>
-      {!unavailable && (
-        <button type="button" className="setup-secondary" disabled={!connections.canConnect} onClick={() => void connections.connect('anilist')}>Connect AniList</button>
-      )}
-      <button type="button" className="setup-secondary" disabled={!connections.canConnect} onClick={() => void connections.disconnect('anilist')}>Disconnect</button>
-    </div>
-  );
-}
-
 export function ConnectedAccounts({ connections, identities, defaultOpen }: {
   connections: WatchlistConnections;
   // The config read's names (edit mode): the fallback for connections made
@@ -223,27 +205,16 @@ export function ConnectedAccounts({ connections, identities, defaultOpen }: {
         const identity = provider === 'trakt' ? null : connections.identity(provider, identities?.[provider]);
         const unavailable = !connected && connections.configured(provider) === false;
         const staged = connections.staged?.(provider) ?? null;
-        if (provider === 'anilist') {
-          const publicUser = connected ? null : connections.publicUser();
-          return (
-            <ConnectCard
-              key={provider} provider={provider} connected={connected} staged={staged}
-              identity={publicUser ?? identity} publicLists={publicUser !== null}
-              defaultOpen={defaultOpen === provider}
-            >
-              {publicUser
-                ? <AnilistPublicLists connections={connections} unavailable={unavailable} />
-                : <ConnectAction provider={provider} connections={connections} connected={connected} unavailable={unavailable} label="Connect AniList" />}
-              <p className="setup-hint pc-note">Not affiliated with AniList.</p>
-            </ConnectCard>
-          );
-        }
         return (
           <ConnectCard key={provider} provider={provider} connected={connected} staged={staged} identity={identity} defaultOpen={defaultOpen === provider}>
             {provider === 'trakt' && connections.config?.traktLegacy && (
               <p className="setup-hint">Kept for setups already connected. New setups cannot connect Trakt.</p>
             )}
-            <ConnectAction provider={provider} connections={connections} connected={connected} unavailable={unavailable} />
+            <ConnectAction
+              provider={provider} connections={connections} connected={connected} unavailable={unavailable}
+              {...(provider === 'anilist' ? { label: 'Connect AniList' } : {})}
+            />
+            {provider === 'anilist' && <p className="setup-hint pc-note">Not affiliated with AniList.</p>}
           </ConnectCard>
         );
       })}
@@ -276,8 +247,6 @@ export function apiKeysSummary(options: {
 export function integrationsSummary(options: {
   connected?: readonly WatchlistProvider[] | undefined;
   names?: Partial<Record<WatchlistProvider, string | null | undefined>> | undefined;
-  // An older setup's saved public AniList name (no login).
-  anilistPublic?: string | null | undefined;
   // Edit page: connects and disconnects waiting for Save.
   staged?: Partial<Record<WatchlistProvider, 'connect' | 'remove' | null>> | undefined;
 }): string[] {
@@ -292,8 +261,6 @@ export function integrationsSummary(options: {
     if (staged === 'connect') parts.push(name ? `${label} · ${name} · not saved yet` : `${label} connected · not saved yet`);
     else parts.push(name ? `${label} · ${name}` : `${label} connected`);
   }
-  const anilistPublic = (options.anilistPublic ?? '').trim();
-  if (!connected.includes('anilist') && anilistPublic) parts.push(`AniList · ${anilistPublic}`);
   return parts.length ? parts : ['Nothing connected'];
 }
 
@@ -353,7 +320,6 @@ export function IntegrationsAccordion({ edit, connections }: {
       simkl: connections.identity('simkl', edit?.identities?.simkl),
       anilist: connections.identity('anilist', edit?.identities?.anilist),
     },
-    anilistPublic: connections.publicUser(),
     staged: Object.fromEntries(providers.map((provider) => [provider, connections.staged?.(provider) ?? null])),
   });
   return (

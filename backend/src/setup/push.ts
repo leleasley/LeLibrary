@@ -842,15 +842,18 @@ function nuvioCollectionsFromPlan(plannedCollections: unknown, addonId: string, 
     const folders = (Array.isArray(c['folders']) ? c['folders'] : []).map((f, fi) => {
       const raw = f as Record<string, unknown>;
       const rawSources = Array.isArray(raw['catalogSources']) ? raw['catalogSources'] : [];
-      const sources = rawSources.length
-        ? (rawSources as Record<string, unknown>[]).map((s) => ({
+      const sources = [
+        ...(rawSources as Record<string, unknown>[]).map((s) => ({
           provider: 'addon',
           addonId: s['addonId'] || addonId,
           catalogId: s['catalogId'],
           type: s['type'] || 'movie',
           genre: s['genre'] || '',
-        }))
-        : [];
+        })),
+        // TMDB / Trakt sources from an imported Nuvio collection, already in
+        // Nuvio's own shape (compileCollectionPlan checked every field).
+        ...(Array.isArray(raw['nativeSources']) ? raw['nativeSources'] as Record<string, unknown>[] : []),
+      ];
       if (!sources.length) return null;
       return {
         id: raw['id'] || `folder-${ci}-${fi}`,

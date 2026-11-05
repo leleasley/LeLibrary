@@ -1811,6 +1811,11 @@
     "Your list shows here once the setup is saved": "Your list shows here once the setup is saved",
     "Optional. Connect an account to add its personal rows (Up Next, Watching, Plan to Watch and more) to Home rows and folders.": "Optional. Connect an account to add its personal rows (Up Next, Watching, Plan to Watch and more) to Home rows and folders.",
     "Nothing connected": "Nothing connected",
-    "Integrations": "Integrations"
+    "Integrations": "Integrations",
+    "1 source": "1 source",
+    "TMDB, loaded by Nuvio": "TMDB, loaded by Nuvio",
+    "Trakt list, loaded by Nuvio": "Trakt list, loaded by Nuvio",
+    "1 source in this collection uses a kind LeLibrary cannot keep yet, so it was left out.": "1 source in this collection uses a kind LeLibrary cannot keep yet, so it was left out.",
+    "{{count}} sources in this collection use a kind LeLibrary cannot keep yet, so they were left out.": "{{count}} sources in this collection use a kind LeLibrary cannot keep yet, so they were left out."
   }
 }

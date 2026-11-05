@@ -43,6 +43,14 @@ function failurePayload({ status = 0, code = '' } = {}) {
   return { status: 502, code: `nuvio_transport_${safeCode.toLowerCase()}`, error: `LeLibrary could not reach Nuvio (${safeCode}).` };
 }
 
+// A folder's sources the way Nuvio counts them: `sources` is the full list
+// (addon, TMDB and Trakt); `catalogSources` is Nuvio's derived addon-only copy
+// and is empty for TMDB / Trakt packs, so it is only the fallback.
+function folderSourceCount(folder) {
+  if (Array.isArray(folder?.sources)) return folder.sources.length;
+  return Array.isArray(folder?.catalogSources) ? folder.catalogSources.length : 0;
+}
+
 function compactListItem(item) {
   if (!item || typeof item !== 'object' || Array.isArray(item)) return item;
   const output = { ...item };
@@ -54,7 +62,7 @@ function compactListItem(item) {
     const derivedStats = collections.length ? {
       collectionCount: collections.length,
       folderCount: collections.reduce((total, collection) => total + (Array.isArray(collection?.folders) ? collection.folders.length : 0), 0),
-      sourceCount: collections.reduce((total, collection) => total + (Array.isArray(collection?.folders) ? collection.folders.reduce((count, folder) => count + (Array.isArray(folder?.catalogSources) ? folder.catalogSources.length : Array.isArray(folder?.sources) ? folder.sources.length : 0), 0) : 0), 0),
+      sourceCount: collections.reduce((total, collection) => total + (Array.isArray(collection?.folders) ? collection.folders.reduce((count, folder) => count + folderSourceCount(folder), 0) : 0), 0),
     } : null;
     if (derivedStats && (!output.stats || typeof output.stats !== 'object')) output.stats = derivedStats;
     const first = collections[0] || {};
@@ -93,6 +101,7 @@ export interface NuvioCommunityApi {
   transportCode: any;
   failurePayload: any;
   compactListPayload: any;
+  folderSourceCount: any;
 }
 
-module.exports = { MAX_UPSTREAM_BYTES, listParams, transportCode, failurePayload, compactListPayload } satisfies NuvioCommunityApi;
+module.exports = { MAX_UPSTREAM_BYTES, listParams, transportCode, failurePayload, compactListPayload, folderSourceCount } satisfies NuvioCommunityApi;

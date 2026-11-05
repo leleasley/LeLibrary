@@ -1,4 +1,4 @@
-import { collectionBackdrop, normalizeTileShape, normalizeViewMode, type CollectionDoc, type FolderDoc } from '@/features/setup/shared/collection-doc';
+import { collectionBackdrop, folderSourceCount, normalizeTileShape, normalizeViewMode, type CollectionDoc, type FolderDoc } from '@/features/setup/shared/collection-doc';
 import { FolderCard } from '@/features/setup/full/collections/FolderCard';
 
 // One collection in the studio. Closed it is a hero (artwork, inline title,
@@ -23,7 +23,7 @@ export function CollectionCard({ collection, open, system, names = {}, disableUp
   onMoveFolder: (from: number, to: number) => void;
 }) {
   const folders = collection.folders || [];
-  const sourceCount = folders.reduce((total, folder) => total + (folder.catalogSources || []).length, 0);
+  const sourceCount = folders.reduce((total, folder) => total + folderSourceCount(folder), 0);
   const title = collection.title.trim() || 'Imported collection';
 
   function dropFolder(from: number, to: number) {

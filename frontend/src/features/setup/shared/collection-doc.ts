@@ -26,6 +26,24 @@ export interface CatalogSourceRef {
   title?: string;
 }
 
+// A folder source Nuvio resolves itself, with no addon behind it: a TMDB
+// list, collection, company, network, person, director or discover query, or
+// a public Trakt list. Community packs are often built only from these (their
+// `catalogSources` is empty). LeLibrary keeps them as Nuvio wrote them and a
+// Nuvio push sends them back unchanged; the studio shows them but cannot
+// build new ones. Stremio has no equivalent, so they only reach Nuvio.
+export interface NativeSourceRef {
+  provider: 'tmdb' | 'trakt';
+  title: string;
+  mediaType: 'MOVIE' | 'TV';
+  sortBy: string;
+  tmdbSourceType?: string;
+  tmdbId?: number | null;
+  filters?: Record<string, string | number>;
+  traktListId?: number;
+  sortHow?: string;
+}
+
 export interface FolderDoc {
   id: string;
   title: string;
@@ -36,6 +54,95 @@ export interface FolderDoc {
   focusGifUrl: string;
   heroBackdropUrl: string;
   catalogSources: CatalogSourceRef[];
+  // Optional: only imported Nuvio collections carry them.
+  nativeSources?: NativeSourceRef[];
+  // Imported Nuvio art the studio does not edit; a push forwards it (a
+  // hidden-title folder often shows its name only through the logo).
+  titleLogoUrl?: string;
+  heroVideoUrl?: string;
+}
+
+const TMDB_SOURCE_TYPES = ['LIST', 'COLLECTION', 'COMPANY', 'NETWORK', 'DISCOVER', 'PERSON', 'DIRECTOR'];
+// Nuvio's TmdbCollectionFilters: these keys only, with these value types
+// (Nuvio's apps reject a whole collections document over one wrong type).
+const TMDB_NUMBER_FILTERS = new Set(['voteAverageGte', 'voteAverageLte']);
+const TMDB_INTEGER_FILTERS = new Set(['voteCountGte', 'year']);
+const TMDB_TEXT_FILTERS = new Set([
+  'withGenres', 'withoutGenres', 'releaseDateGte', 'releaseDateLte', 'withOriginalLanguage',
+  'withOriginCountry', 'withKeywords', 'withoutKeywords', 'withCompanies', 'withoutCompanies',
+  'withNetworks', 'watchRegion', 'withWatchProviders', 'withoutWatchProviders',
+]);
+
+function tmdbFilters(raw: unknown): Record<string, string | number> {
+  const out: Record<string, string | number> = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (value === null || value === undefined || value === '') continue;
+    if (TMDB_TEXT_FILTERS.has(key)) out[key] = String(value).slice(0, 300);
+    else if (TMDB_NUMBER_FILTERS.has(key) && Number.isFinite(Number(value))) out[key] = Number(value);
+    else if (TMDB_INTEGER_FILTERS.has(key) && Number.isFinite(Number(value))) out[key] = Math.trunc(Number(value));
+  }
+  return out;
+}
+
+function positiveInteger(value: unknown): number | null {
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number >= 1 ? number : null;
+}
+
+// One Nuvio-native source in the shape Nuvio's own parser accepts, or null
+// for an addon source or one Nuvio itself would reject (no TMDB source type,
+// no TMDB id outside Discover, no Trakt list id).
+export function toNativeSource(raw: unknown): NativeSourceRef | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const source = raw as Record<string, unknown>;
+  const provider = String(source['provider'] || '').trim().toLowerCase();
+  const mediaType = ['tv', 'series'].includes(String(source['mediaType'] || '').trim().toLowerCase()) ? 'TV' : 'MOVIE';
+  const title = String(source['title'] || '').trim().slice(0, 160);
+  const sortBy = String(source['sortBy'] || '').trim().slice(0, 40);
+  if (provider === 'tmdb') {
+    const kind = String(source['tmdbSourceType'] || '').trim().toUpperCase();
+    if (!TMDB_SOURCE_TYPES.includes(kind)) return null;
+    const tmdbId = positiveInteger(source['tmdbId']);
+    if (kind !== 'DISCOVER' && tmdbId === null) return null;
+    return {
+      provider: 'tmdb',
+      tmdbSourceType: kind,
+      tmdbId,
+      title,
+      // Nuvio: networks are TV, lists and collections are films.
+      mediaType: kind === 'NETWORK' ? 'TV' : kind === 'LIST' || kind === 'COLLECTION' ? 'MOVIE' : mediaType,
+      sortBy,
+      filters: tmdbFilters(source['filters']),
+    };
+  }
+  if (provider === 'trakt') {
+    const traktListId = positiveInteger(source['traktListId']);
+    if (traktListId === null) return null;
+    const sortHow = String(source['sortHow'] || '').trim().toLowerCase();
+    return {
+      provider: 'trakt',
+      traktListId,
+      title,
+      mediaType,
+      sortBy,
+      sortHow: sortHow === 'desc' ? 'desc' : 'asc',
+    };
+  }
+  return null;
+}
+
+// Every source a folder opens: its catalogue sources and the Nuvio-native ones.
+export function folderSourceCount(folder: Pick<FolderDoc, 'catalogSources' | 'nativeSources'>): number {
+  return (folder.catalogSources || []).length + (folder.nativeSources || []).length;
+}
+
+// What a Nuvio-native source is called on screen.
+export function nativeSourceName(source: NativeSourceRef): string {
+  if (source.title) return source.title;
+  if (source.provider === 'trakt') return `Trakt list ${source.traktListId ?? ''}`.trim();
+  const kind = String(source.tmdbSourceType || 'DISCOVER').toLowerCase();
+  return `TMDB ${kind}${source.tmdbId ? ` ${source.tmdbId}` : ''}`;
 }
 
 export interface CollectionDoc {

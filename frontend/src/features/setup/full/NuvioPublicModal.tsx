@@ -7,7 +7,8 @@ import {
   fetchPublicCollection,
   fetchPublicCollectionBySession,
 } from '@/features/setup/resolver/api';
-import { isPortraitShape, type CollectionDoc, type FolderDoc } from '@/features/setup/shared/collection-doc';
+import { type CollectionDoc } from '@/features/setup/shared/collection-doc';
+import { detailCollections, importPublicCollections, rawFolderSourceCount } from '@/features/setup/full/public-collection-import';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -70,77 +71,6 @@ function cleanDescription(value: unknown): string {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 260);
-}
-
-// Normalize a raw community collection into the studio document. Mirrors the
-// old importedCollections() mapping: legacy folder shapes collapse into
-// catalogSources, presentation falls back to the studio defaults.
-function toFolderDoc(raw: unknown, index: number, folderIndex: number): FolderDoc | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const folder = raw as JsonRecord;
-  const listed = Array.isArray(folder['catalogSources']) ? (folder['catalogSources'] as JsonRecord[]) : [];
-  const legacy: JsonRecord[] = typeof folder['catalogId'] === 'string' && folder['catalogId'] !== ''
-    ? [{
-        catalogId: folder['catalogId'],
-        type: folder['type'],
-        genre: folder['genre'],
-        addonId: (folder['addonId'] ?? folder['addon_id'] ?? '') as string,
-        addonUrl: (folder['addonUrl'] ?? folder['addon_url'] ?? '') as string,
-      }]
-    : [];
-  const sources = [...listed, ...legacy]
-    .map((source) => ({
-      addonId: String(source['addonId'] || source['addon_id'] || ''),
-      addonUrl: String(source['addonUrl'] || source['addon_url'] || ''),
-      catalogId: String(source['catalogId'] || source['id'] || ''),
-      type: source['type'] === 'series' ? 'series' : 'movie',
-      genre: String(source['genre'] || ''),
-      // Display only: the server derives the transport label from the id.
-      ...(String(source['title'] || source['name'] || '').trim()
-        ? { title: String(source['title'] || source['name']).trim() }
-        : {}),
-    } as FolderDoc['catalogSources'][number]))
-    .filter((source) => source.catalogId !== '');
-  return {
-    id: String(folder['id'] || `imported-folder-${index}-${folderIndex}`),
-    title: String(folder['title'] || folder['name'] || 'Folder').slice(0, 80),
-    tileShape: isPortraitShape(folder['tileShape']) ? 'PORTRAIT' : 'LANDSCAPE',
-    hideTitle: folder['hideTitle'] === true,
-    coverImageUrl: String(folder['customCoverImageUrl'] || folder['coverImageUrl'] || folder['cover'] || ''),
-    focusGifEnabled: folder['focusGifEnabled'] === true,
-    focusGifUrl: String(folder['focusGifUrl'] || ''),
-    heroBackdropUrl: String(folder['heroBackdropUrl'] || folder['backdropUrl'] || ''),
-    catalogSources: sources,
-  };
-}
-
-function toCollectionDoc(raw: unknown, index: number): CollectionDoc | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const collection = raw as JsonRecord;
-  const folders = Array.isArray(collection['folders']) ? collection['folders'] : [];
-  return {
-    id: String(collection['id'] || `imported-${Date.now()}-${index}`),
-    title: String(collection['title'] || collection['name'] || 'Imported collection').slice(0, 80),
-    tileShape: isPortraitShape(collection['tileShape']) ? 'PORTRAIT' : 'LANDSCAPE',
-    pinToTop: collection['pinToTop'] === true,
-    focusGlowEnabled: collection['focusGlowEnabled'] !== false,
-    showAllTab: collection['showAllTab'] !== false,
-    viewMode: collection['viewMode'] === 'FOLLOW_LAYOUT' ? 'FOLLOW_LAYOUT' : 'TABBED_GRID',
-    backdropUrl: String(collection['backdropImageUrl'] || collection['heroBackdropUrl'] || collection['backdropUrl'] || ''),
-    hideTitle: collection['hideTitle'] === true,
-    folders: folders
-      .map((folder, folderIndex) => toFolderDoc(folder, index, folderIndex))
-      .filter((folder): folder is FolderDoc => folder !== null),
-  };
-}
-
-function detailCollections(data: unknown, item: JsonRecord): { root: JsonRecord; envelope: JsonRecord; collections: JsonRecord[] } {
-  const root = ((data as JsonRecord)?.['item'] || data || item || {}) as JsonRecord;
-  const envelope = ((root['envelope'] || (item['envelope'] as JsonRecord) || root || {}) as JsonRecord);
-  const raw = envelope['collections'];
-  const collections = Array.isArray(raw) ? raw as JsonRecord[]
-    : envelope['collection'] && typeof envelope['collection'] === 'object' ? [envelope['collection'] as JsonRecord] : [];
-  return { root, envelope, collections };
 }
 
 // Nuvio Community browser. Folder content stays live from the addon after
@@ -231,13 +161,17 @@ export function NuvioPublicModal({ open, onClose, uuid, editToken, nuvioToken, o
     try {
       const data = await fetchDetail(id);
       const { collections } = detailCollections(data, detail.item);
-      const normalized = collections
-        .map((collection, index) => toCollectionDoc(collection, index))
-        .filter((collection): collection is CollectionDoc => collection !== null);
+      const { collections: normalized, skipped } = importPublicCollections(collections);
       if (!normalized.length) throw new Error('Could not prepare this public collection');
       onImport(normalized);
       onClose();
       toast('Public collection imported. You can now edit every folder.');
+      // Never shrink a folder silently: name what could not come across.
+      if (skipped > 0) {
+        toast(skipped === 1
+          ? '1 source in this collection uses a kind LeLibrary cannot keep yet, so it was left out.'
+          : `${skipped} sources in this collection use a kind LeLibrary cannot keep yet, so they were left out.`, 'error');
+      }
     } catch (error) {
       toast(apiErrorCopy(error, 'Could not import public collection'), 'error');
     } finally {
@@ -334,7 +268,7 @@ export function NuvioPublicModal({ open, onClose, uuid, editToken, nuvioToken, o
                         </div>
                         <div>
                           <strong>{String(folder['title'] || folder['name'] || 'Untitled folder')}</strong>
-                          <small>{String(folder['tileShape'] || 'Landscape').toLowerCase()}</small>
+                          <small>{String(folder['tileShape'] || 'Landscape').toLowerCase()} · {rawFolderSourceCount(folder) === 1 ? '1 source' : `${rawFolderSourceCount(folder)} sources`}</small>
                         </div>
                       </article>
                     );

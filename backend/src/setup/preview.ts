@@ -303,6 +303,18 @@ async function buildPreview({ opened, platform, origin, port }: PreviewInput, de
       shape: shapeOf(folder['tileShape']),
       hideTitle: folder['hideTitle'] === true,
       sources: (Array.isArray(folder['sources']) ? folder['sources'] as Row[] : []).map((source) => {
+        // TMDB / Trakt: Nuvio loads these itself, the preview cannot.
+        if (source['provider'] === 'tmdb' || source['provider'] === 'trakt') {
+          const name = text(source['title'], 120) || text(folder['title'], 120);
+          return {
+            catalogId: '',
+            type: source['mediaType'] === 'TV' ? 'series' : 'movie',
+            genre: '',
+            name,
+            catalogName: name,
+            external: true,
+          };
+        }
         const own = !source['addonId'] || source['addonId'] === manifestId;
         const ownName = catalogName.get(`${source['type']}\u0000${source['catalogId']}`) || '';
         const name = text(source['genre']) || ownName || text(folder['title'], 120);

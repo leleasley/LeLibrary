@@ -3,10 +3,12 @@ import { toast } from '@/features/setup/shared/Toast';
 import { FolderArt } from '@/features/setup/full/collections/FolderCard';
 import { type BrowserSource,
   absoluteUrl,
+  nativeSourceName,
   sourceDisplayName,
   normalizeTileShape,
   type CatalogSourceRef,
   type FolderDoc,
+  type NativeSourceRef,
 } from '@/features/setup/shared/collection-doc';
 import { SourcePickerModal } from '@/features/setup/full/collections/SourcePickerModal';
 import { GifPickerModal } from '@/features/setup/full/collections/GifPickerModal';
@@ -40,6 +42,9 @@ export function FolderEditorModal({ folder, gifLibrary, names = {}, onSave, onCl
   const [gifOn, setGifOn] = useState(folder.focusGifEnabled);
   const [gifUrl, setGifUrl] = useState(() => full(folder.focusGifUrl));
   const [sources, setSources] = useState<CatalogSourceRef[]>(folder.catalogSources);
+  // TMDB / Trakt sources from an imported Nuvio collection: kept and removable,
+  // never rebuilt here (Nuvio loads them itself).
+  const [native, setNative] = useState<NativeSourceRef[]>(folder.nativeSources ?? []);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [gifPickerOpen, setGifPickerOpen] = useState(false);
 
@@ -67,7 +72,7 @@ export function FolderEditorModal({ folder, gifLibrary, names = {}, onSave, onCl
       toast('Choose a focus animation or turn Focus animation off', 'error');
       return;
     }
-    onSave({
+    const next: FolderDoc = {
       ...folder,
       title: title.trim().slice(0, 80) || folder.title,
       tileShape: normalizeTileShape(shape),
@@ -77,7 +82,10 @@ export function FolderEditorModal({ folder, gifLibrary, names = {}, onSave, onCl
       focusGifEnabled: gifOn,
       focusGifUrl: absoluteUrl(origin, gifUrl),
       catalogSources: sources.filter((source) => String(source.catalogId || '').trim() !== ''),
-    });
+    };
+    if (native.length) next.nativeSources = native;
+    else delete next.nativeSources;
+    onSave(next);
   }
 
   return (
@@ -195,7 +203,7 @@ export function FolderEditorModal({ folder, gifLibrary, names = {}, onSave, onCl
                 <button type="button" className="setup-secondary" onClick={() => setPickerOpen(true)}>+ Add sources</button>
               </div>
               <div>
-                {sources.length === 0 && <p className="setup-note">No catalogue sources selected yet.</p>}
+                {sources.length === 0 && native.length === 0 && <p className="setup-note">No catalogue sources selected yet.</p>}
                 {sources.map((source, index) => {
                   const label = sourceDisplayName(source, names);
                   return (
@@ -206,6 +214,19 @@ export function FolderEditorModal({ folder, gifLibrary, names = {}, onSave, onCl
                         <small>{source.type === 'series' ? 'Series' : 'Movies'} · <span data-i18n-preserve>{source.addonId || 'LeLibrary'}</span></small>
                       </span>
                       <button type="button" className="eye-btn" aria-label={`Remove ${label}`} onClick={() => removeSource(index)}>✕</button>
+                    </article>
+                  );
+                })}
+                {native.map((source, index) => {
+                  const label = nativeSourceName(source);
+                  return (
+                    <article className="folder-source-summary" key={`native:${index}`}>
+                      <span className="media-type-icon" aria-hidden="true">{source.mediaType === 'TV' ? '📺' : '🎬'}</span>
+                      <span>
+                        <strong data-i18n-preserve>{label}</strong>
+                        <small>{source.mediaType === 'TV' ? 'Series' : 'Movies'} · {source.provider === 'trakt' ? 'Trakt list, loaded by Nuvio' : 'TMDB, loaded by Nuvio'}</small>
+                      </span>
+                      <button type="button" className="eye-btn" aria-label={`Remove ${label}`} onClick={() => setNative((prev) => prev.filter((_, at) => at !== index))}>✕</button>
                     </article>
                   );
                 })}

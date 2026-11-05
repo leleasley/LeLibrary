@@ -1811,6 +1811,11 @@
     "Your list shows here once the setup is saved": "Tu lista aparece aquí cuando guardes la configuración",
     "Optional. Connect an account to add its personal rows (Up Next, Watching, Plan to Watch and more) to Home rows and folders.": "Opcional. Conecta una cuenta para añadir sus filas personales (Siguiente, Viendo, Pendientes y más) a las filas de Inicio y a las carpetas.",
     "Nothing connected": "Nada conectado",
-    "Integrations": "Integraciones"
+    "Integrations": "Integraciones",
+    "1 source": "1 fuente",
+    "TMDB, loaded by Nuvio": "TMDB, lo carga Nuvio",
+    "Trakt list, loaded by Nuvio": "Lista de Trakt, la carga Nuvio",
+    "1 source in this collection uses a kind LeLibrary cannot keep yet, so it was left out.": "1 fuente de esta colección es de un tipo que LeLibrary aún no puede conservar, así que se ha omitido.",
+    "{{count}} sources in this collection use a kind LeLibrary cannot keep yet, so they were left out.": "{{count}} fuentes de esta colección son de un tipo que LeLibrary aún no puede conservar, así que se han omitido."
   }
 }

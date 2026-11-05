@@ -55,6 +55,70 @@ function cloneSource(source = {}, manifestId = '') {
   };
 }
 
+// Nuvio-native folder sources (TMDB and Trakt) from imported community
+// collections. Nuvio resolves them itself, so the push hands them back in
+// Nuvio's own shape. Browser documents are untrusted and Nuvio's apps reject
+// a whole collections document over one malformed source (kotlinx, typed
+// fields), so only the fields and value types Nuvio declares survive.
+const TMDB_SOURCE_TYPES = new Set(['LIST', 'COLLECTION', 'COMPANY', 'NETWORK', 'DISCOVER', 'PERSON', 'DIRECTOR']);
+const TMDB_TEXT_FILTERS = new Set([
+  'withGenres', 'withoutGenres', 'releaseDateGte', 'releaseDateLte', 'withOriginalLanguage',
+  'withOriginCountry', 'withKeywords', 'withoutKeywords', 'withCompanies', 'withoutCompanies',
+  'withNetworks', 'watchRegion', 'withWatchProviders', 'withoutWatchProviders',
+]);
+const TMDB_NUMBER_FILTERS = new Set(['voteAverageGte', 'voteAverageLte']);
+const TMDB_INTEGER_FILTERS = new Set(['voteCountGte', 'year']);
+
+function positiveId(value) {
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number >= 1 ? number : null;
+}
+
+function cloneNativeSource(source = {}) {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return null;
+  const provider = String(source.provider || '').trim().toLowerCase();
+  const mediaType = ['tv', 'series'].includes(String(source.mediaType || '').trim().toLowerCase()) ? 'TV' : 'MOVIE';
+  const title = String(source.title || '').trim().slice(0, 160);
+  const sortBy = String(source.sortBy || '').trim().slice(0, 40);
+  if (provider === 'tmdb') {
+    const kind = String(source.tmdbSourceType || '').trim().toUpperCase();
+    if (!TMDB_SOURCE_TYPES.has(kind)) return null;
+    const tmdbId = positiveId(source.tmdbId);
+    if (kind !== 'DISCOVER' && tmdbId === null) return null;
+    const filters = {};
+    const rawFilters = source.filters && typeof source.filters === 'object' && !Array.isArray(source.filters) ? source.filters : {};
+    for (const [key, value] of Object.entries(rawFilters)) {
+      if (value === null || value === undefined || value === '') continue;
+      if (TMDB_TEXT_FILTERS.has(key)) filters[key] = String(value).slice(0, 300);
+      else if (TMDB_NUMBER_FILTERS.has(key) && Number.isFinite(Number(value))) filters[key] = Number(value);
+      else if (TMDB_INTEGER_FILTERS.has(key) && Number.isFinite(Number(value))) filters[key] = Math.trunc(Number(value));
+    }
+    return {
+      provider: 'tmdb',
+      tmdbSourceType: kind,
+      tmdbId,
+      ...(title ? { title } : {}),
+      // Nuvio's own rule: networks are TV, lists and collections are films.
+      mediaType: kind === 'NETWORK' ? 'TV' : kind === 'LIST' || kind === 'COLLECTION' ? 'MOVIE' : mediaType,
+      ...(sortBy ? { sortBy } : {}),
+      filters,
+    };
+  }
+  if (provider === 'trakt') {
+    const traktListId = positiveId(source.traktListId);
+    if (traktListId === null) return null;
+    return {
+      provider: 'trakt',
+      traktListId,
+      ...(title ? { title } : {}),
+      mediaType,
+      ...(sortBy ? { sortBy } : {}),
+      sortHow: String(source.sortHow || '').trim().toLowerCase() === 'desc' ? 'desc' : 'asc',
+    };
+  }
+  return null;
+}
+
 function isAnimeSource(source = {}) {
   if (String(source.type || '').toLowerCase() === 'anime') return true;
   const identity = [sourceCatalogId(source), source.title, source.name, source.category, source.provider, source.addonId]
@@ -350,6 +414,21 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
     return normalized;
   }
 
+  function warnOnce(message) {
+    if (!warnings.includes(message)) warnings.push(message);
+  }
+
+  function nativeSourcesOf(folder) {
+    const raw = Array.isArray(folder?.nativeSources) ? folder.nativeSources : [];
+    if (integration !== 'nuvio') {
+      if (raw.length) warnOnce('TMDB and Trakt folder sources are available in Nuvio folders only.');
+      return [];
+    }
+    const kept = raw.map(cloneNativeSource).filter(Boolean);
+    if (kept.length < raw.length) warnOnce('A TMDB or Trakt folder source Nuvio cannot read was ignored.');
+    return kept;
+  }
+
   const normalizedHomeRows = safeHomeRows.map((row, index) => ({
     ...row,
     enabled: row?.enabled !== false,
@@ -386,8 +465,10 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
         // as one list. Franchise navigation is only supported by Nuvio's
         // native generated collection, never by a configurable folder.
         .filter((source) => source.catalogId && !(integration === 'nuvio' && source.catalogId === 'torbox-collections')),
+      // Only Nuvio can load TMDB / Trakt sources; anywhere else they are left out.
+      nativeSources: nativeSourcesOf(folder),
     });
-    }).filter((folder) => folder && (!hideAnime || folder.catalogSources.length) && !(folder?._import && folder.enabled === false)),
+    }).filter((folder) => folder && (!hideAnime || folder.catalogSources.length || folder.nativeSources.length) && !(folder?._import && folder.enabled === false)),
   });
   }).filter((collection) => collection && (collection.folders.length > 0 || !collection?._import));
 
@@ -422,6 +503,7 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
 
 export interface CollectionPlanApi {
   compileCollectionPlan: any;
+  cloneNativeSource: any;
   upgradeCuratedSourceId: any;
   isLeLibrarySource: any;
   isAnimeSource: any;
@@ -431,4 +513,4 @@ export interface CollectionPlanApi {
   expandHubGenres: any;
 }
 
-module.exports = { compileCollectionPlan, upgradeCuratedSourceId, isLeLibrarySource, isAnimeSource, sourceCatalogId, companionGatewayLabel, withHubExtras, expandHubGenres } satisfies CollectionPlanApi;
+module.exports = { compileCollectionPlan, cloneNativeSource, upgradeCuratedSourceId, isLeLibrarySource, isAnimeSource, sourceCatalogId, companionGatewayLabel, withHubExtras, expandHubGenres } satisfies CollectionPlanApi;

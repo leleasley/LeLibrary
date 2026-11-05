@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { artThumb, sourceDisplayName, type FolderDoc } from '@/features/setup/shared/collection-doc';
+import { artThumb, nativeSourceName, sourceDisplayName, type FolderDoc } from '@/features/setup/shared/collection-doc';
 
 // Folder artwork, or a designed empty tile when there is none (or the link is
 // broken): a folder glyph and the folder's title instead of the site logo.
@@ -30,7 +30,7 @@ export function FolderArt({ src, title, className = '' }: { src: string; title: 
 // One folder tile in the studio grid. Markup mirrors the old
 // renderFolderCard(): animated art wins, then cover, then hero, then the
 // designed empty tile; badges name the tile state.
-export function FolderCard({ folder, names = {}, onEdit, onRemove }: {
+export function FolderCard({ folder, names: labels = {}, onEdit, onRemove }: {
   folder: FolderDoc;
   names?: Record<string, string>;
   onEdit: () => void;
@@ -43,7 +43,14 @@ export function FolderCard({ folder, names = {}, onEdit, onRemove }: {
   const [focused, setFocused] = useState(false);
   const image = animated && (focused || !still) ? folder.focusGifUrl : still;
   const sources = folder.catalogSources || [];
-  const types = [...new Set(sources.map((source) => (source.type === 'series' ? 'Series' : 'Movies')))];
+  // TMDB and Trakt sources from an imported Nuvio collection: Nuvio loads them.
+  const native = folder.nativeSources || [];
+  const types = [...new Set([
+    ...sources.map((source) => (source.type === 'series' ? 'Series' : 'Movies')),
+    ...native.map((source) => (source.mediaType === 'TV' ? 'Series' : 'Movies')),
+  ])];
+  const count = sources.length + native.length;
+  const names = [...sources.map((source) => sourceDisplayName(source, labels)), ...native.map(nativeSourceName)];
   const shape = folder.tileShape === 'PORTRAIT' ? 'PORTRAIT' : 'LANDSCAPE';
 
   return (
@@ -59,9 +66,9 @@ export function FolderCard({ folder, names = {}, onEdit, onRemove }: {
       </div>
       <div className="folder-card-body">
         <strong data-i18n-preserve>{folder.title || 'Folder'}</strong>
-        <p>{types.join(' + ') || 'No media'} · {sources.length} source{sources.length === 1 ? '' : 's'}</p>
-        {sources.length > 0 && (
-          <p className="folder-card-sources" data-i18n-preserve>{sources.map((source) => sourceDisplayName(source, names)).join(' · ')}</p>
+        <p>{types.join(' + ') || 'No media'} · {count} source{count === 1 ? '' : 's'}</p>
+        {count > 0 && (
+          <p className="folder-card-sources" data-i18n-preserve>{names.join(' · ')}</p>
         )}
         <div className="folder-card-actions">
           <button type="button" className="setup-secondary" onClick={onEdit}>Edit folder</button>

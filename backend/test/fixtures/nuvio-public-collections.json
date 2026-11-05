@@ -1,0 +1,305 @@
+{
+  "item": {
+    "public_id": "fixture-pack",
+    "title": "Fixture pack (trimmed public Nuvio collections)",
+    "envelope": {
+      "schemaVersion": 1,
+      "type": "collection_pack",
+      "requirements": {
+        "addons": []
+      },
+      "collections": [
+        {
+          "id": "27bda92a-f626-4093-a2ba-0a32dc09437a",
+          "title": "Networks",
+          "folders": [
+            {
+              "id": "folder-SJ5F6A2Q",
+              "title": "NBC",
+              "sources": [
+                {
+                  "title": "Popular Series",
+                  "sortBy": "popularity.desc",
+                  "tmdbId": null,
+                  "filters": {
+                    "voteCountGte": 50,
+                    "withNetworks": "6",
+                    "withOriginalLanguage": "en"
+                  },
+                  "provider": "tmdb",
+                  "mediaType": "TV",
+                  "tmdbSourceType": "DISCOVER"
+                },
+                {
+                  "title": "Recent Series",
+                  "sortBy": "popularity.desc",
+                  "tmdbId": null,
+                  "filters": {
+                    "voteCountGte": 10,
+                    "withNetworks": "6",
+                    "releaseDateGte": "2024-01-01",
+                    "withOriginalLanguage": "en"
+                  },
+                  "provider": "tmdb",
+                  "mediaType": "TV",
+                  "tmdbSourceType": "DISCOVER"
+                }
+              ],
+              "hideTitle": true,
+              "tileShape": "POSTER",
+              "titleLogoUrl": "https://raw.githubusercontent.com/bramst0ne/prism-wallpapers/main/collections/networks/6-nbc/logos/color/6_color_1.png",
+              "coverImageUrl": "https://imkaptain.github.io/nuvio-assets/assets/images/4d3847a8.webp",
+              "catalogSources": [],
+              "focusGifEnabled": false,
+              "heroBackdropUrl": "https://raw.githubusercontent.com/bramst0ne/prism-wallpapers/main/collections/networks/6-nbc/backdrops/t2_flat_1080p.jpg"
+            }
+          ],
+          "pinToTop": true,
+          "viewMode": "FOLLOW_LAYOUT",
+          "showAllTab": true,
+          "focusGlowEnabled": true
+        },
+        {
+          "id": "collection-8EYK6R4X",
+          "title": "Film Collections",
+          "folders": [
+            {
+              "id": "folder-3B76E2AD",
+              "title": "\ud83c\udfac Action Collections",
+              "sources": [
+                {
+                  "title": "Bad Boys Collection",
+                  "sortBy": "original",
+                  "tmdbId": 14890,
+                  "filters": {},
+                  "provider": "tmdb",
+                  "mediaType": "MOVIE",
+                  "tmdbSourceType": "COLLECTION"
+                },
+                {
+                  "title": "Die Hard Collection",
+                  "sortBy": "original",
+                  "tmdbId": 1570,
+                  "filters": {},
+                  "provider": "tmdb",
+                  "mediaType": "MOVIE",
+                  "tmdbSourceType": "COLLECTION"
+                }
+              ],
+              "hideTitle": true,
+              "tileShape": "POSTER",
+              "coverEmoji": "\ud83d\udcc1",
+              "titleLogoUrl": "https://image.tmdb.org/t/p/original/12tlRLp0fD2GMbIcYSxkL41JzNE.png",
+              "coverImageUrl": "https://imkaptain.github.io/nuvio-assets/assets/images/dcb10a2e.webp",
+              "catalogSources": [],
+              "focusGifEnabled": false,
+              "heroBackdropUrl": "https://imkaptain.github.io/nuvio-assets/assets/images/4530e395.webp"
+            }
+          ],
+          "pinToTop": true,
+          "viewMode": "FOLLOW_LAYOUT",
+          "showAllTab": true,
+          "focusGlowEnabled": true
+        },
+        {
+          "id": "collection-1IPJJWUO",
+          "title": "Actors",
+          "folders": [
+            {
+              "id": "folder-WBL5AUA4",
+              "title": "Adam Sandler",
+              "sources": [
+                {
+                  "title": "Popular Movies",
+                  "sortBy": "popularity.desc",
+                  "tmdbId": 19292,
+                  "filters": {},
+                  "provider": "tmdb",
+                  "mediaType": "MOVIE",
+                  "tmdbSourceType": "PERSON"
+                },
+                {
+                  "title": "Popular Series",
+                  "sortBy": "popularity.desc",
+                  "tmdbId": 19292,
+                  "filters": {},
+                  "provider": "tmdb",
+                  "mediaType": "TV",
+                  "tmdbSourceType": "PERSON"
+                }
+              ],
+              "hideTitle": false,
+              "tileShape": "POSTER",
+              "coverImageUrl": "https://raw.githubusercontent.com/ImKaptain/nuvio-assets/main/Actors/Adam_Sandler/Adam_Sandler_Base.png",
+              "catalogSources": [],
+              "focusGifEnabled": true,
+              "heroBackdropUrl": "https://image.tmdb.org/t/p/original/fqzMNYRA3VO3IbqXCf8qiTxprVO.jpg",
+              "focusGifUrl": "https://raw.githubusercontent.com/ImKaptain/nuvio-assets/main/Actors/Adam_Sandler/Adam_Sandler_Hover.gif"
+            }
+          ],
+          "pinToTop": true,
+          "viewMode": "FOLLOW_LAYOUT",
+          "showAllTab": true,
+          "focusGlowEnabled": true
+        },
+        {
+          "id": "collection-XB14SDA2",
+          "title": "Studios",
+          "folders": [
+            {
+              "id": "folder-CYHIQOKR",
+              "title": "Marvel Studios",
+              "sources": [
+                {
+                  "title": "Recent Movies",
+                  "sortBy": "primary_release_date.desc",
+                  "tmdbId": 420,
+                  "filters": {
+                    "voteCountGte": 10,
+                    "withOriginalLanguage": "en"
+                  },
+                  "provider": "tmdb",
+                  "mediaType": "MOVIE",
+                  "tmdbSourceType": "COMPANY"
+                },
+                {
+                  "title": "Popular Movies",
+                  "sortBy": "popularity.desc",
+                  "tmdbId": 420,
+                  "filters": {
+                    "withOriginalLanguage": "en"
+                  },
+                  "provider": "tmdb",
+                  "mediaType": "MOVIE",
+                  "tmdbSourceType": "COMPANY"
+                }
+              ],
+              "hideTitle": true,
+              "tileShape": "LANDSCAPE",
+              "coverEmoji": "",
+              "focusGifUrl": "",
+              "heroVideoUrl": "",
+              "titleLogoUrl": "https://raw.githubusercontent.com/bramst0ne/prism-wallpapers/main/collections/companies/420-marvel-studios/logos/color/420_color_1.png",
+              "coverImageUrl": "https://imkaptain.github.io/nuvio-assets/assets/images/67a54fdf.webp",
+              "catalogSources": [],
+              "focusGifEnabled": false,
+              "heroBackdropUrl": "https://raw.githubusercontent.com/bramst0ne/prism-wallpapers/main/collections/companies/420-marvel-studios/backdrops/t2_flat_1080p.jpg"
+            }
+          ],
+          "pinToTop": true,
+          "viewMode": "FOLLOW_LAYOUT",
+          "showAllTab": true,
+          "backdropImageUrl": "",
+          "focusGlowEnabled": true
+        },
+        {
+          "id": "collection-beabeb28-community",
+          "title": "Streaming Services",
+          "folders": [
+            {
+              "id": "folder-a4a45888",
+              "title": "Netflix",
+              "sources": [
+                {
+                  "type": "movie",
+                  "genre": "",
+                  "title": null,
+                  "sortBy": null,
+                  "tmdbId": null,
+                  "addonId": "aio-metadata",
+                  "filters": null,
+                  "sortHow": null,
+                  "provider": "addon",
+                  "catalogId": "custom.pw_ers_netflix_catalog.movie.nfx",
+                  "mediaType": null,
+                  "traktListId": null,
+                  "tmdbSourceType": null
+                },
+                {
+                  "type": "series",
+                  "genre": "",
+                  "title": null,
+                  "sortBy": null,
+                  "tmdbId": null,
+                  "addonId": "aio-metadata",
+                  "filters": null,
+                  "sortHow": null,
+                  "provider": "addon",
+                  "catalogId": "custom.pw_ers_netflix_catalog.series.nfx",
+                  "mediaType": null,
+                  "traktListId": null,
+                  "tmdbSourceType": null
+                }
+              ],
+              "hideTitle": true,
+              "tileShape": "LANDSCAPE",
+              "focusGifUrl": "https://rsaaa.xyz/hosted-files/nuvio-minimal-collection/ezgif-6df1df20c255f3b6.gif",
+              "coverImageUrl": "https://rsaaa.xyz/hosted-files/nuvio-minimal-collection/469fb054-cbec-46ca-bc91-6ed73a6d647b.png",
+              "catalogSources": [
+                {
+                  "type": "movie",
+                  "addonId": "aio-metadata",
+                  "catalogId": "custom.pw_ers_netflix_catalog.movie.nfx"
+                },
+                {
+                  "type": "series",
+                  "addonId": "aio-metadata",
+                  "catalogId": "custom.pw_ers_netflix_catalog.series.nfx"
+                }
+              ],
+              "focusGifEnabled": true
+            }
+          ],
+          "pinToTop": false,
+          "viewMode": "ROWS",
+          "showAllTab": true,
+          "backdropImageUrl": "https://nuvioapp.space/uploads/covers/161c7fde-ad93-41a2-919a-c830f4e8f6fb.jpeg",
+          "focusGlowEnabled": false
+        },
+        {
+          "id": "collection-56d0517f",
+          "title": "Awards",
+          "folders": [
+            {
+              "id": "folder-13a3da42",
+              "title": "Academy Awards",
+              "sources": [
+                {
+                  "title": "Best Picture - All Time",
+                  "sortBy": "rank",
+                  "sortHow": "asc",
+                  "provider": "trakt",
+                  "mediaType": "MOVIE",
+                  "traktListId": 4325279
+                },
+                {
+                  "title": "Best Cinemetography - All Time",
+                  "sortBy": "rank",
+                  "sortHow": "asc",
+                  "provider": "trakt",
+                  "mediaType": "MOVIE",
+                  "traktListId": 20492427
+                }
+              ],
+              "hideTitle": true,
+              "tileShape": "LANDSCAPE",
+              "coverEmoji": "",
+              "focusGifUrl": "",
+              "heroVideoUrl": "",
+              "titleLogoUrl": "",
+              "coverImageUrl": "https://i.postimg.cc/KzdMvyMB/oscars.jpg",
+              "catalogSources": [],
+              "focusGifEnabled": false,
+              "heroBackdropUrl": ""
+            }
+          ],
+          "pinToTop": true,
+          "viewMode": "FOLLOW_LAYOUT",
+          "showAllTab": true,
+          "backdropImageUrl": "",
+          "focusGlowEnabled": true
+        }
+      ]
+    }
+  }
+}

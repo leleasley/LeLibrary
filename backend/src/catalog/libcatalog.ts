@@ -152,19 +152,27 @@ async function tmdbItemsToRows(tmdbApiKey, apiType, items, type) {
       year: date.slice(0, 4) || undefined,
       description: item.overview || undefined,
       ...(isTmdbAnimeItem(item) ? { _anime: true } : {}),
+      // Content filters (5.9.7): TMDB genre ids / adult flag, stripped before
+      // any row reaches a client (forClient).
+      ...(Array.isArray(item.genre_ids) && item.genre_ids.length ? { _genres: item.genre_ids.map(Number) } : {}),
+      ...(item.adult === true ? { _adult: true } : {}),
     });
   }
   return rows;
 }
 
-// "Hide anime": drop rows tagged as anime (before paging, so pages stay full),
-// and always strip the internal tag so no client ever sees it.
-function forClient(rows, hideAnime = false) {
+// Content filters: drop rows the setup excludes (anime, categories, adult)
+// before paging so pages stay full, and always strip the internal tags so no
+// client ever sees them.
+function forClient(rows, hideAnime = false, filters = null) {
+  const contentFilters = require('./content-filters.ts');
+  const state = filters || { hideAnime: !!hideAnime, hideAdult: false, excludeCategories: [] };
   return (Array.isArray(rows) ? rows : [])
-    .filter((row) => !(hideAnime && row && row._anime === true))
+    .filter((row) => !(row && contentFilters.metaExcluded(row, state, row.type === 'series' ? 'tv' : 'movie')))
     .map((row) => {
-      if (!row || !('_anime' in row)) return row;
-      const { _anime, ...rest } = row;
+      if (!row) return row;
+      if (!('_anime' in row) && !('_genres' in row) && !('_adult' in row) && !('_cert' in row)) return row;
+      const { _anime, _genres, _adult, _cert, ...rest } = row;
       return rest;
     });
 }
@@ -303,8 +311,12 @@ async function fetchNormalizedImportedPage({ definition, page, tmdbApiKey, mdbli
 
 async function buildNormalizedImportedCatalog({
   definition, tmdbApiKey, lang = 'en-US', skip = 0, search = '', enhance = {}, posterFp = '',
-  mdblistKey = '', pageSize = 50, maxSkip = 5000, runtime = {}, hideAnime = false,
+  mdblistKey = '', pageSize = 50, maxSkip = 5000, runtime = {}, hideAnime = false, filters = null,
 }) {
+  const contentFilters = require('./content-filters.ts');
+  const filterState = filters || contentFilters.normalizeContentFilters({ hideAnime: hideAnime === true });
+  const filterTag = filterState.hideAnime || filterState.hideAdult || filterState.excludeCategories.length
+    ? JSON.stringify(filterState) : '';
   const { normalizeImportedSourceDefinition } = require('../import-sources/definition.ts');
   const source = normalizeImportedSourceDefinition(definition);
   const logicalSkip = Math.max(0, Math.trunc(Number(skip) || 0));
@@ -320,7 +332,7 @@ async function buildNormalizedImportedCatalog({
     : 'public';
   // Cache only public/base rows. Enhanced poster URLs can contain an account
   // token in their path and must never be persisted in an imported cache.
-  const renderedKey = cache.makeKey('cat', 'imp-render-v2', source.signature, credentialScope, lang, String(logicalSkip), String(logicalSize), hideAnime ? 'noanime' : '');
+  const renderedKey = cache.makeKey('cat', 'imp-render-v3', source.signature, credentialScope, lang, String(logicalSkip), String(logicalSize), filterTag);
   const result = await cachedRows({ store: cacheStore, key: renderedKey, ttl: ttls.rendered,
     // Credential-protected sources revalidate before serving expired data.
     allowStale: source.provider !== 'mdblist',
@@ -329,8 +341,8 @@ async function buildNormalizedImportedCatalog({
       const rows = [];
       const seen = new Set();
       for (let page = 1; page <= 250 && rows.length < wanted; page++) {
-        const upstreamKey = cache.makeKey('cat', 'imp-up-v2', source.signature, credentialScope, lang, String(page));
-        const lkgKey = cache.makeKey('cat', 'imp-lkg-v2', source.signature, credentialScope, lang, String(page));
+        const upstreamKey = cache.makeKey('cat', 'imp-up-v3', source.signature, credentialScope, lang, String(page));
+        const lkgKey = cache.makeKey('cat', 'imp-lkg-v3', source.signature, credentialScope, lang, String(page));
         let pageValue = await cacheStore.get(upstreamKey);
         if (!pageValue || !Array.isArray(pageValue.rows)) {
           try {
@@ -353,7 +365,7 @@ async function buildNormalizedImportedCatalog({
           if (!row?.id || seen.has(row.id)) continue;
           seen.add(row.id);
           // Counted only when kept, so a hidden title never shortens a page.
-          if (hideAnime && row._anime === true) continue;
+          if (contentFilters.metaExcluded(row, filterState, row.type === 'series' ? 'tv' : 'movie')) continue;
           rows.push(row);
         }
         if (pageValue.terminal) break;
@@ -363,7 +375,7 @@ async function buildNormalizedImportedCatalog({
       return result;
     },
   });
-  const output = forClient(await enhanceCatalogRows(result, enhance), hideAnime);
+  const output = forClient(await enhanceCatalogRows(result, enhance), hideAnime, filterState);
   return search ? output.filter(row => (row.name || '').toLowerCase().includes(search.toLowerCase())) : output;
 }
 
@@ -560,7 +572,7 @@ async function fetchMdblistItems(def, mdblistKey = '') {
 }
 
 // ── Catalog entry point (called from handleCatalog) ──────────
-async function buildLibraryCatalog({ tmdbApiKey, catalogId, lang = 'en-US', userKey, skip = 0, search = '', enhance = {}, posterFp = '', mdblistKey = '', hideAnime = false }) {
+async function buildLibraryCatalog({ tmdbApiKey, catalogId, lang = 'en-US', userKey, skip = 0, search = '', enhance = {}, posterFp = '', mdblistKey = '', hideAnime = false, filters = null }) {
   const { getSourceDefinition, canonicalSourceId } = require('./catalog-source-registry.ts');
   // An alias serves (and shares the cache of) its canonical definition.
   const def = getSourceDefinition(canonicalSourceId(catalogId));
@@ -589,7 +601,7 @@ async function buildLibraryCatalog({ tmdbApiKey, catalogId, lang = 'en-US', user
   if (!rotated.rotation && !nativeOnly && staticEntry && ['discover', 'list', 'collection'].includes(staticEntry.definition.engine)) {
     return buildNormalizedImportedCatalog({
       definition: staticEntry.definition, tmdbApiKey, lang, skip, search,
-      enhance, posterFp, pageSize: 50, hideAnime,
+      enhance, posterFp, pageSize: 50, hideAnime, filters,
     });
   }
   // Credential-scoped cache key: numeric MDBList lists are fetched WITH the
@@ -603,11 +615,13 @@ async function buildLibraryCatalog({ tmdbApiKey, catalogId, lang = 'en-US', user
   // catalogue (a wrong TMDB id fixed) serves its new rows at once instead of
   // the old ones for up to a day.
   const defFp = hashShort(JSON.stringify([effectiveDef.handler, effectiveDef.params]));
-  const libCacheKey = cache.makeKey('cat', 'lib7-base', sourceId, rotationSlot, lang, credFp, defFp);
+  // v3 (5.9.7) stores genre ids and the adult flag on each row, so the setup's
+  // content filters can drop them without a second upstream read.
+  const libCacheKey = cache.makeKey('cat', 'lib8-base', sourceId, rotationSlot, lang, credFp, defFp);
   let rows;
   try {
     rows = await cachedRows({ store: cache, key: libCacheKey,
-      staleKey: cache.makeKey('cat', 'lib7-base-lkg', sourceId, lang, credFp, defFp), ttl: TTL_LIB,
+      staleKey: cache.makeKey('cat', 'lib8-base-lkg', sourceId, lang, credFp, defFp), ttl: TTL_LIB,
       allowStale: !credFp,
       load: async () => {
         const rows = await buildCatalogRows(tmdbApiKey, effectiveDef, lang, mdblistKey);
@@ -616,7 +630,7 @@ async function buildLibraryCatalog({ tmdbApiKey, catalogId, lang = 'en-US', user
       },
     });
   } catch { rows = []; }
-  rows = forClient(await enhanceCatalogRows(rows, enhance), hideAnime);
+  rows = forClient(await enhanceCatalogRows(rows, enhance), hideAnime, filters);
 
   if (search) rows = rows.filter(m => (m.name || '').toLowerCase().includes(search.toLowerCase()));
   return rows.slice(skip, skip + 50);
@@ -625,10 +639,10 @@ async function buildLibraryCatalog({ tmdbApiKey, catalogId, lang = 'en-US', user
 // Imported folders use a small, constrained reference rather than one manifest
 // catalog per source. It accepts only IDs already embedded in the collection
 // export: static LeLibrary sources and numeric TMDB/Trakt resources.
-async function buildImportedCatalog({ tmdbApiKey, ref, type, lang = 'en-US', userKey, skip = 0, search = '', enhance = {}, posterFp = '', mdblistKey = '', hideAnime = false }) {
+async function buildImportedCatalog({ tmdbApiKey, ref, type, lang = 'en-US', userKey, skip = 0, search = '', enhance = {}, posterFp = '', mdblistKey = '', hideAnime = false, filters = null }) {
   let def = null;
   if (/^lib:[a-z0-9_]+$/.test(ref)) {
-    return buildLibraryCatalog({ tmdbApiKey, catalogId: ref.slice(4), lang, userKey, skip, search, enhance, posterFp, mdblistKey, hideAnime });
+    return buildLibraryCatalog({ tmdbApiKey, catalogId: ref.slice(4), lang, userKey, skip, search, enhance, posterFp, mdblistKey, hideAnime, filters });
   }
   let match = ref.match(/^tmdb-collection:(\d+)$/);
   if (match && type === 'movie') def = { id: ref, type: 'movie', handler: 'tmdb_collection', params: { collectionId: Number(match[1]) } };
@@ -701,7 +715,7 @@ async function buildImportedCatalog({ tmdbApiKey, ref, type, lang = 'en-US', use
     rows = await cachedRows({ store: cache, key: cacheKey, ttl: TTL_LIB,
       load: () => buildCatalogRows(tmdbApiKey, def, lang, mdblistKey) });
   } catch { rows = []; }
-  rows = forClient(await enhanceCatalogRows(rows, enhance), hideAnime);
+  rows = forClient(await enhanceCatalogRows(rows, enhance), hideAnime, filters);
   if (search) rows = rows.filter(m => (m.name || '').toLowerCase().includes(search.toLowerCase()));
   return rows.slice(skip, skip + 50);
 }

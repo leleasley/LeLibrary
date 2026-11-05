@@ -85,8 +85,12 @@ export interface HomeRowDoc {
 // "leave Nuvio alone", never a default that overwrites the user's player.
 function pushOptionsFromConfig(config: Record<string, unknown> | null | undefined): PushOptions {
   const source = config && typeof config === 'object' ? config : {};
+  const contentFilters = require('../catalog/content-filters.ts');
+  const state = contentFilters.normalizeContentFilters(source);
   return {
-    hideAnime: source['hideAnime'] === true,
+    // Hide anime and the Anime exclude category are one switch (5.9.7).
+    hideAnime: state.hideAnime,
+    excludeCategories: state.excludeCategories,
     badgePack: typeof source['nuvioBadgePack'] === 'string' ? source['nuvioBadgePack'] : undefined,
     badgeUrl: typeof source['nuvioBadgeUrl'] === 'string' ? source['nuvioBadgeUrl'] : undefined,
     nuvioPlayback: playbackSettings.normalisePlaybackSettings(source['nuvioPlayback']),
@@ -104,6 +108,9 @@ export interface PushDocument {
 
 export interface PushOptions {
   hideAnime?: boolean;
+  // Content filters (5.9.7): excluded category slugs, used to drop the Hub's
+  // own genre tabs for categories the setup hides.
+  excludeCategories?: string[];
   badgePack?: string;
   badgeUrl?: string;
   // Absent/null leaves the user's Nuvio playback settings untouched.
@@ -814,7 +821,7 @@ async function pushToStremio(data: PushConnection, manifestUrl: string, manifest
 // Fills the Hub's Genres folder for the setup behind this install link.
 // Best effort: without the library database, or on any error, the folder is
 // simply left out of this push (compileCollectionPlan drops it empty).
-async function withHubGenreTabs(collections: unknown[], installToken: string, hideAnime: boolean): Promise<unknown[]> {
+async function withHubGenreTabs(collections: unknown[], installToken: string, excludedSlugs: string[]): Promise<unknown[]> {
   const hasHub = collections.some((c) => (c as { id?: string })?.id === 'collection-lelibrary-hub');
   if (!hasHub) return collections;
   try {
@@ -825,7 +832,10 @@ async function withHubGenreTabs(collections: unknown[], installToken: string, hi
     const scopeId = require('../providers/index.ts').getUserKey(setupStore.toEngineConfig(opened));
     if (!scopeId) return collections;
     let counts = await require('../library/genres.ts').ownedGenreCounts(scopeId);
-    if (hideAnime) counts = counts.filter((entry: { slug: string }) => entry.slug !== 'anime');
+    // Hidden categories lose their genre tab: every row inside it would be
+    // filtered out anyway, so an empty folder never ships.
+    const hidden = new Set(excludedSlugs);
+    if (hidden.size) counts = counts.filter((entry: { slug: string }) => !hidden.has(entry.slug));
     log(`Hub genres: ${counts.filter((entry: { count: number }) => entry.count >= 10).length} genres with 10+ titles`);
     return require('../catalog/collection-plan.ts').expandHubGenres(collections, counts);
   } catch {
@@ -924,7 +934,10 @@ async function pushToNuvio(
 ): Promise<{ ok: boolean; connection: PushConnection; libraryPending: boolean }> {
   // The Hub's Genres folder: one tab per genre this library owns enough of,
   // decided now from the library's own titles (library/genres.ts).
-  collections = await withHubGenreTabs(collections, options.installToken, options.hideAnime === true);
+  collections = await withHubGenreTabs(collections, options.installToken, [
+    ...(options.hideAnime === true ? ['anime'] : []),
+    ...(Array.isArray(options.excludeCategories) ? options.excludeCategories : []),
+  ]);
   const collectionPlan = compileCollectionPlan({
     collections,
     homeRows,
@@ -1163,7 +1176,7 @@ export interface PushApi {
   nuvioCollectionsFromPlan: (plannedCollections: unknown, addonId: string, origin: string) => Record<string, unknown>[];
   withFranchiseCollection: typeof withFranchiseCollection;
   fetchOwnedFranchiseCollection: (loopback: string, tokenId: string, timeout?: number) => Promise<Record<string, unknown> | null>;
-  withHubGenreTabs: (collections: unknown[], installToken: string, hideAnime: boolean) => Promise<unknown[]>;
+  withHubGenreTabs: (collections: unknown[], installToken: string, excludedSlugs: string[]) => Promise<unknown[]>;
   pullNuvioCollections: (token: string, profileIndex: number) => Promise<Record<string, unknown>[]>;
   writeNuvioCollections: (token: string, profileIndex: number, collections: unknown[], uuidKey: string) => Promise<void>;
   pushOptionsFromConfig: (config: Record<string, unknown> | null | undefined) => PushOptions;

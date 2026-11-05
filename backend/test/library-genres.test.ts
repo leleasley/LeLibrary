@@ -66,17 +66,26 @@ test('rules become SQL with parameters only', () => {
   assert.deepEqual(params, ['movie', ['ja'], [16]]);
 });
 
-test('one TMDB read gives genres, keywords and language; gone titles are remembered', async () => {
+test('one TMDB read gives genres, keywords, language, adult flag and certification', async () => {
   const reply = (status, data) => async (url, opts) => {
-    assert.equal(opts.params.append_to_response, 'keywords', 'one request, keywords appended');
+    assert.equal(opts.params.append_to_response, 'keywords,release_dates,content_ratings', 'one request, facts appended');
     if (status !== 200) { const err = new Error('x'); err.response = { status }; throw err; }
     return { data };
   };
-  assert.deepEqual(await genres.fetchFacts('k', 'movie', 1, reply(200, { genres: [{ id: 27 }], keywords: { keywords: [{ id: 12377 }] }, original_language: 'en' })),
-    { genreIds: [27], keywordIds: [12377], lang: 'en' });
-  assert.deepEqual(await genres.fetchFacts('k', 'tv', 1, reply(200, { genres: [{ id: 18 }], keywords: { results: [{ id: 9672 }] }, original_language: 'ko' })),
-    { genreIds: [18], keywordIds: [9672], lang: 'ko' }, 'shows list keywords under results');
-  assert.deepEqual(await genres.fetchFacts('k', 'movie', 1, reply(404)), { genreIds: [], keywordIds: [], lang: null });
+  assert.deepEqual(await genres.fetchFacts('k', 'movie', 1, reply(200, {
+    genres: [{ id: 27 }],
+    keywords: { keywords: [{ id: 12377 }] },
+    original_language: 'en',
+    adult: false,
+    release_dates: { results: [{ iso_3166_1: 'US', release_dates: [{ certification: 'NC-17', type: 3 }] }] },
+  })), { genreIds: [27], keywordIds: [12377], lang: 'en', adult: false, certification: 'NC-17' });
+  assert.deepEqual(await genres.fetchFacts('k', 'tv', 1, reply(200, {
+    genres: [{ id: 18 }],
+    keywords: { results: [{ id: 9672 }] },
+    original_language: 'ko',
+    content_ratings: { results: [{ iso_3166_1: 'US', rating: 'TV-MA' }] },
+  })), { genreIds: [18], keywordIds: [9672], lang: 'ko', adult: false, certification: 'TV-MA' }, 'shows list keywords under results and rate in content_ratings');
+  assert.deepEqual(await genres.fetchFacts('k', 'movie', 1, reply(404)), { genreIds: [], keywordIds: [], lang: null, adult: false, certification: null });
   assert.equal(await genres.fetchFacts('k', 'movie', 1, reply(401)), 'rejected');
   assert.equal(await genres.fetchFacts('k', 'movie', 1, reply(503)), null);
 });

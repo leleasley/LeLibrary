@@ -157,8 +157,13 @@ async function buildAndCacheForConfigInner(token, config) {
   // Merge server-side settings (incl. the libraryIdMode toggle) so the
   // background rebuild matches what the on-demand route would serve.
   config = await require('./configstore.ts').mergeStoredConfig(config);
-  const { tmdbApiKey, sortBy = 'data_adicao', lang = 'en-US', rdCatalog = 'merge', erdbToken, rpdbKey, fanartKey, hideAnime, libraryIdMode } = config;
+  const { tmdbApiKey, sortBy = 'data_adicao', lang = 'en-US', rdCatalog = 'merge', erdbToken, rpdbKey, fanartKey, libraryIdMode } = config;
   if (!tmdbApiKey) return;
+  // Content filters (5.9.7): hideAnime also answers the Anime exclude
+  // category; categories and adult content ride into the builder.
+  const contentFilters = require('../catalog/content-filters.ts');
+  const filterState = contentFilters.normalizeContentFilters(config);
+  const hideAnime = filterState.hideAnime;
 
   const active = providers.activeProviders(config);
   const userKey = providers.getUserKey(config);
@@ -192,6 +197,7 @@ async function buildAndCacheForConfigInner(token, config) {
     // a single shared hash made them continually invalidate each other's rows.
     const projectionFp = hashShort(JSON.stringify({
       sortBy, lang, rdCatalog, poster: posterFp(config), libraryIdMode: libraryIdMode || 'torbox', hideAnime: !!hideAnime,
+      filters: filterState.hideAdult || filterState.excludeCategories.length ? filterState : null,
       torboxSources: providers.torboxSourcesKey(config),
     }));
     const hashKey   = cache.makeKey('dlhash', 'v2', userKey, projectionFp);
@@ -253,7 +259,7 @@ async function buildAndCacheForConfigInner(token, config) {
     // above; invalidating rendered pages never causes another TorBox request.
     const catalogPages = await Promise.all(sources.flatMap(({ key, downloads: dl }) =>
       TYPES.map(async type => {
-        const metas    = await buildCatalog(dl, tmdbApiKey, type, sortBy, { skip: 0, search: '' }, lang, posterEnhance(config), { userKey, hideAnime, libraryIdMode, config, deferCacheInvalidation: true });
+        const metas    = await buildCatalog(dl, tmdbApiKey, type, sortBy, { skip: 0, search: '' }, lang, posterEnhance(config), { userKey, hideAnime, filters: filterState, libraryIdMode, config, deferCacheInvalidation: true });
         const cacheKey = cache.makeKey('cat', key, type, sortBy, '', '0', userKey, lang, posterFp(config), libraryIdMode);
         console.log(`[Cache] ${key}:${type} → ${metas.length} items`);
         return { key: cacheKey, value: { metas }, ttl: TTL_CATALOG };

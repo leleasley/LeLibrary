@@ -262,14 +262,25 @@ describe('edit save body', () => {
         sortBy: 'data_adicao',
         libraryIdMode: 'tt',
         hideAnime: true,
+        hideAdultContent: false,
         searchScope: 'combined',
         streamNotices: 'off',
         streamNoticeTypes: ['none'],
       },
-      // Every TorBox source on and every search option at its default: any
-      // stored value is cleared.
-      clearConfig: ['torboxSources', 'searchOptions'],
+      // Every TorBox source on, no excluded category and every search option at
+      // its default: any stored value is cleared.
+      clearConfig: ['excludeCategories', 'torboxSources', 'searchOptions'],
     });
+  });
+
+  it('saves excluded categories and the adult switch when they change', () => {
+    const body = buildEditSaveBody({
+      ...BASE_EDIT_SAVE,
+      metaTouched: true,
+      meta: { ...EMPTY_METADATA_EXTRAS, hideAdult: true, excludeCategories: ['horror', 'news', 'bogus'] },
+    });
+    expect(body?.config).toMatchObject({ hideAdultContent: true, excludeCategories: ['news', 'horror'] });
+    expect(body?.clearConfig ?? []).not.toContain('excludeCategories');
   });
 
   it('saves a TorBox source limit with the metadata toggles', () => {
@@ -279,7 +290,7 @@ describe('edit save body', () => {
       meta: { ...EMPTY_METADATA_EXTRAS, torboxSources: ['usenet'] },
     });
     expect(body?.config).toMatchObject({ torboxSources: ['usenet'] });
-    expect(body?.clearConfig).toEqual(['searchOptions']);
+    expect(body?.clearConfig).toEqual(['excludeCategories', 'searchOptions']);
   });
 
   it('saves search options only when they differ from the defaults', () => {

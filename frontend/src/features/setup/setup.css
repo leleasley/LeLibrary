@@ -126,6 +126,68 @@ p.setup-note-pill { width: fit-content; max-width: 100%; box-sizing: border-box;
 .notice-check strong { display: block; font-size: 0.82rem; }
 .notice-check small { display: block; margin-top: 2px; color: var(--muted); font-size: 0.72rem; line-height: 1.5; }
 
+/* Content filters (5.9.7): TorBox source cards, the Main Metadata disclosure
+   and the excluded-category grid. Phones: one column, never wider than the
+   card (a sideways scroller here would stretch the whole Setup page). */
+.source-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.015);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  box-sizing: border-box;
+  min-width: 0;
+}
+.source-card:hover { border-color: rgba(245, 158, 11, 0.45); }
+.source-card.is-on { border-color: rgba(245, 158, 11, 0.55); background: rgba(245, 158, 11, 0.05); }
+.source-card.is-locked { cursor: default; }
+.source-card input { accent-color: var(--amber); width: 18px; height: 18px; margin-top: 1px; flex: none; }
+.source-card-text { min-width: 0; }
+.source-card-text strong { display: block; font-size: 0.86rem; }
+.source-card-text small { display: block; margin-top: 3px; color: var(--muted); font-size: 0.75rem; line-height: 1.5; }
+.source-list > .setup-hint { margin-top: 2px; }
+
+.cf-disclosure {
+  margin: -2px 0 14px;
+  padding: 10px 14px;
+  border-left: 3px solid rgba(245, 158, 11, 0.55);
+  border-radius: 0 10px 10px 0;
+  background: rgba(245, 158, 11, 0.06);
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+.cf-disclosure strong { color: var(--text); font-weight: 600; }
+
+.cf-categories { margin: 18px 0 6px; }
+.cf-categories h4 { margin: 0 0 4px; font-size: 0.84rem; font-weight: 600; }
+.cf-categories .setup-hint { margin: 0 0 12px; }
+.cf-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 14px;
+}
+@media (max-width: 640px) { .cf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 340px) { .cf-grid { grid-template-columns: minmax(0, 1fr); } }
+.cf-check {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.cf-check:has(input:checked) { border-color: rgba(245, 158, 11, 0.55); background: rgba(245, 158, 11, 0.05); }
+.cf-check input { accent-color: var(--amber); width: 16px; height: 16px; flex: none; }
+.cf-check span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* Step accordions (cg-accordion), on the site palette. */
 .cg-accordion { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); margin-top: 12px; }
 .cg-accordion-body { overflow: visible; padding: 0 18px 18px; border-top: 1px solid var(--border); }

@@ -22,7 +22,8 @@ import { BADGE_PACKS, DEFAULT_BADGE_PACK } from '@/features/setup/shared/BadgePa
 import { toast } from '@/features/setup/shared/Toast';
 import { HomeRowsSection } from '@/features/setup/full/HomeRowsSection';
 import { useCustomAddonActions, type CustomAddonRef } from '@/features/setup/shared/custom-addons';
-import { LibraryRowsSection } from '@/features/setup/shared/LibraryRowsSection';
+import { ContentFiltersSection } from '@/features/setup/shared/ContentFiltersSection';
+import { contentFilterSummaryParts } from '@/features/setup/shared/content-filters';
 import { EMPTY_LIBRARY_ROWS, withLibraryRowNames, type LibraryRowsDraft } from '@/features/setup/shared/library-rows';
 import { hubPrefix, normalizeHomeOrder, ownedFranchiseMarker, OWNED_DEFAULT_TITLE, type CollectionDoc, type HomeRowDoc } from '@/features/setup/shared/collection-doc';
 import { CollectionStudio } from '@/features/setup/full/collections/CollectionStudio';
@@ -285,6 +286,8 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
         sortBy: meta.sortBy,
         libraryIdMode: meta.mainMetadata ? 'tt' : 'torbox',
         hideAnime: meta.hideAnime,
+        hideAdultContent: meta.hideAdult,
+        excludeCategories: meta.excludeCategories,
         torboxSources: meta.torboxSources,
         searchScope: meta.searchScope,
         searchOptions: searchOptionsForConfig(meta.searchOptions) ?? undefined,
@@ -422,6 +425,9 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
                 <div className="qs-catalogs"><RdCatalogSelect value={rdCatalog} onChange={setRdCatalog} /></div>
               </ApiKeysAccordion>
               <IntegrationsAccordion edit={edit} connections={connections} />
+              <Accordion title="Content filters" icon="🎛️" summary={contentFilterSummaryParts(meta)}>
+                <ContentFiltersSection draft={meta} onChange={setMeta} />
+              </Accordion>
               <Accordion title="Streams" icon="🎚️"
                 summary={[...filterSummaryParts(filterSets).slice(0, 2), addons.length + customAddons.length > 0 ? 'Extra sources on' : 'Library only']}>
                 <h3 className="qs-sub"><strong>Library playback filters</strong><span>Resolutions, qualities and files</span></h3>
@@ -455,10 +461,8 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
                   <FormattingSection draft={formatting} onChange={setFormatting} templatesOnly />
                 </StreamStylePicker>
               </Accordion>
-              <Accordion title="Preferences" icon="🧭" desc="Language, order, anime, notices, row names and Nuvio playback.">
+              <Accordion title="Preferences" icon="🧭" desc="Language, order, notices and Nuvio playback.">
                 <MetadataExtras draft={meta} onChange={setMeta} />
-                <h3 className="qs-sub"><strong>Library row names</strong><span>My Movies, My Shows, My Anime</span></h3>
-                <LibraryRowsSection value={libraryRows} onChange={setLibraryRows} />
                 {platform === 'nuvio' && (
                   <>
                     <h3 className="qs-sub"><strong>Nuvio playback</strong><span>Auto stream selection and next episode</span></h3>

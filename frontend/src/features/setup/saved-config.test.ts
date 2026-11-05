@@ -124,13 +124,13 @@ describe('saved config mapping', () => {
   it('reads the destination and metadata toggles back', () => {
     const drafts = applySavedConfig({
       wizardPlatform: 'stremio', rdCatalog: 'separate',
-      lang: 'fr-FR', sortBy: 'ano', libraryIdMode: 'tt', hideAnime: true, torboxSources: ['usenet'],
+      lang: 'fr-FR', sortBy: 'ano', libraryIdMode: 'tt', hideAnime: true, hideAdultContent: true, excludeCategories: ['horror', 'bogus'], torboxSources: ['usenet'],
       searchScope: 'library', streamNotices: 'off', streamNoticeTypes: ['none'],
     });
     expect(drafts.platform).toBe('stremio');
     expect(drafts.rdCatalog).toBe('separate');
     expect(drafts.meta).toEqual({
-      lang: 'fr-FR', sortBy: 'ano', mainMetadata: true, hideAnime: true, torboxSources: ['usenet'],
+      lang: 'fr-FR', sortBy: 'ano', mainMetadata: true, hideAnime: true, hideAdult: true, excludeCategories: ['horror'], torboxSources: ['usenet'],
       searchScope: 'library', searchOptions: EMPTY_METADATA_EXTRAS.searchOptions, notices: false, noticeTypes: ['none'],
     });
   });

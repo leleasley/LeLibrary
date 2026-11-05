@@ -284,6 +284,10 @@ const MIGRATIONS = [
   `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS keyword_ids integer[]`,
   `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS orig_lang text`,
   `CREATE INDEX IF NOT EXISTS lib_tmdb_genres_kw_idx ON lib_tmdb_genres USING gin (keyword_ids)`,
+  // Content filters (5.9.7): the TMDB adult flag and the US certification, so
+  // "Hide adult content" can answer without a new upstream read.
+  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS adult boolean`,
+  `ALTER TABLE lib_tmdb_genres ADD COLUMN IF NOT EXISTS certification text`,
 ];
 
 async function migrate() {

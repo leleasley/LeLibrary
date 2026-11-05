@@ -184,6 +184,8 @@ function buildRow(item, type) {
     _votes: Number(item.vote_count) || 0,
     _rating: Number(item.vote_average) || 0,
     _anime: item.isJapaneseAnimation === true,
+    _genres: Array.isArray(item.genre_ids) ? item.genre_ids.map(Number) : undefined,
+    _adult: item.adult === true,
   };
   return row;
 }
@@ -204,7 +206,7 @@ function cleanRows(rows) {
       seen.add(r.id);
       return true;
     })
-    .map(({ _score, _pop, _votes, _rating, _anime, ...result }) => result);
+    .map(({ _score, _pop, _votes, _rating, _anime, _genres, _adult, _cert, ...result }) => result);
 }
 
 async function resolveRows(apiKey, items, type, apiType, lang, q, scored) {
@@ -256,7 +258,10 @@ const VARIANTS = ['', 'no-anime', 'anime', 'similar', 'people'];
 function optionsFingerprint(opts) {
   const variant = VARIANTS.includes(opts && opts.variant) ? opts.variant : '';
   const order = SEARCH_ORDERS.includes(opts && opts.order) ? opts.order : 'relevance';
-  return `${variant || 'all'}|${order}|${opts && opts.hideObscure ? 1 : 0}|${opts && opts.mergePeople === false ? 0 : 1}`;
+  // Content filters change which rows survive, so they belong in the key.
+  const filters = require('../catalog/content-filters.ts').normalizeContentFilters(opts && opts.config);
+  const filterTag = filters.hideAnime || filters.hideAdult || filters.excludeCategories.length ? JSON.stringify(filters) : '';
+  return `${variant || 'all'}|${order}|${opts && opts.hideObscure ? 1 : 0}|${opts && opts.mergePeople === false ? 0 : 1}|${filterTag}`;
 }
 
 async function searchCatalog(opts) {
@@ -269,12 +274,14 @@ async function searchCatalog(opts) {
   return pending;
 }
 
-async function searchCatalogInner({ apiKey, query, type, lang = 'en-US', limit = LIMIT, enhance = {}, enhanceFingerprint = '', variant = '', order = 'relevance', hideObscure = false, mergePeople = true }) {
+async function searchCatalogInner({ apiKey, query, type, lang = 'en-US', limit = LIMIT, enhance = {}, enhanceFingerprint = '', variant = '', order = 'relevance', hideObscure = false, mergePeople = true, config = null }) {
   if (!VARIANTS.includes(variant)) variant = '';
   const raw = String(query || '').trim().slice(0, 120);
   if (raw.length < 2 || !apiKey) return [];
   const apiType = type === 'series' ? 'tv' : 'movie';
   const metaType = type === 'series' ? 'series' : 'movie';
+  const contentFilters = require('../catalog/content-filters.ts');
+  const filterState = contentFilters.normalizeContentFilters(config);
 
   const q = normalize(raw);
   if (!q) return [];
@@ -282,12 +289,19 @@ async function searchCatalogInner({ apiKey, query, type, lang = 'en-US', limit =
   // v5 invalidates cached rankings from before year-aware title ranking and
   // closest-prefix scoring. It continues preserving non-Latin queries,
   // separating result limits and isolating poster/rating fingerprints.
-  const optFp = optionsFingerprint({ variant, order, hideObscure, mergePeople });
-  const keyParts = (part) => cache.makeKey('search5', apiType, lang, enhanceFingerprint, limit, optFp, part, q);
+  // search6 (5.9.7): cached rows carry genre ids and the adult flag so the
+  // setup's content filters can apply.
+  const optFp = optionsFingerprint({ variant, order, hideObscure, mergePeople, config });
+  const keyParts = (part) => cache.makeKey('search6', apiType, lang, enhanceFingerprint, limit, optFp, part, q);
   const shape = (rows) => {
     let out = rows;
     if (variant === 'anime') out = out.filter((row) => row._anime);
     else if (variant === 'no-anime') out = out.filter((row) => !row._anime);
+    // The setup's content filters (anime/categories/adult) bite everywhere,
+    // search included. Unknown facts never hide a title.
+    if (filterState.hideAnime || filterState.hideAdult || filterState.excludeCategories.length) {
+      out = out.filter((row) => !contentFilters.metaExcluded(row, filterState, apiType));
+    }
     return applySearchOptions(out, { order, hideObscure });
   };
   const cached = (key) => cache.get(key).then(hit => (Array.isArray(hit) ? hit : null));

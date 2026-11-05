@@ -30,6 +30,6 @@ describe('import entry points', () => {
   it('settle in lists the LeLibrary shelves with no keys filled', () => {
     const html = render('partial');
     expect(html).toContain('My Movies');
-    expect(html).toContain('My Anime');
+    expect(html).toContain('Content filters');
   });
 });

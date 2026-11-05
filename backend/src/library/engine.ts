@@ -574,8 +574,13 @@ function warmCatalogPosters(config, metas) {
 // Coalesce identical concurrent catalog reads (a Nuvio burst on one page).
 const catalogInFlight = new Map();
 
-function catalogFingerprint({ userKey, type, sortBy, skip, libraryIdMode, provider, enhance, hideAnime = false, variant = null }) {
-  const raw = JSON.stringify({ userKey, type, sortBy, skip, libraryIdMode, provider, enhance, ...(hideAnime ? { hideAnime: true } : {}), ...(variant ? { variant } : {}) });
+function catalogFingerprint({ userKey, type, sortBy, skip, libraryIdMode, provider, enhance, hideAnime = false, variant = null, filters = null }) {
+  const raw = JSON.stringify({
+    userKey, type, sortBy, skip, libraryIdMode, provider, enhance,
+    ...(hideAnime ? { hideAnime: true } : {}),
+    ...(filters ? { filters } : {}),
+    ...(variant ? { variant } : {}),
+  });
   return require('crypto').createHash('sha1').update(raw).digest('hex');
 }
 
@@ -613,16 +618,23 @@ async function buildCatalog({ token, config, type, sortBy = 'data_adicao', skip 
   // only for warm-up diagnostics; indexed reads remain bounded while the
   // background sync populates a new scope.
   const ready = !!rec?.lastSyncAt;
-  // "Hide anime" (setup option): anime the filename gave away already lives in
-  // the Anime row; this also drops titles TMDB identifies as anime from My
-  // Movies / My Series (Your Name., Totoro). Part of the cache key, so the
+  // Content filters (5.9.7): "Hide anime" plus the setup's excluded categories
+  // and adult content. Anime the filename gave away already lives in the Anime
+  // row; hideAnime also drops titles TMDB identifies as anime from My Movies /
+  // My Series (Your Name., Totoro). Everything is part of the cache key, so a
   // switch takes effect on the next request.
-  const hideAnime = config?.hideAnime === true && type !== 'anime';
+  const contentFilters = require('../catalog/content-filters.ts');
+  const filterState = contentFilters.normalizeContentFilters(config);
+  const hideAnime = filterState.hideAnime && type !== 'anime';
+  const filterKind = type === 'movie' ? 'movies' : 'series';
   // Genre rows also key on the genre fill's progress, so a page cached while
   // the first fill ran is rebuilt as genres arrive.
   const genreRow = typeof variant === 'string' && variant.startsWith('g-');
-  const fingerprint = catalogFingerprint({ userKey, type, sortBy, skip, libraryIdMode, provider, enhance, hideAnime,
-    variant: genreRow ? `${variant}@${require('./genres.ts').genreVersion()}` : variant });
+  const fingerprint = catalogFingerprint({
+    userKey, type, sortBy, skip, libraryIdMode, provider, enhance, hideAnime,
+    filters: filterState.hideAdult || filterState.excludeCategories.length ? filterState : null,
+    variant: genreRow ? `${variant}@${require('./genres.ts').genreVersion()}` : variant,
+  });
   // Result cache keyed on the projection fingerprint, so a completed sync that
   // changed nothing keeps serving cached pages, and stale pages expire on
   // their own TTL. A content change (or identity-version bump) naturally
@@ -664,6 +676,20 @@ async function buildCatalog({ token, config, type, sortBy = 'data_adicao', skip 
       }
       // Before paging, so every page stays full and in order.
       if (hideAnime) rows = catalog.withoutTmdbAnime(rows);
+      // Excluded categories and adult content: one id lookup per request (the
+      // genre facts are shared by every library), then a row filter. A title
+      // whose facts have not been filled yet stays visible: never guess.
+      if (filterState.excludeCategories.length || filterState.hideAdult) {
+        const genres = require('./genres.ts');
+        const excluded = new Set();
+        if (filterState.excludeCategories.length) {
+          for (const id of await genres.idsMatchingRules(filterKind, contentFilters.libraryRules(filterState, filterKind))) excluded.add(id);
+        }
+        if (filterState.hideAdult) {
+          for (const id of await genres.adultTmdbIds(filterKind)) excluded.add(id);
+        }
+        if (excluded.size) rows = rows.filter((row) => !excluded.has(Number(row.tmdb_id)));
+      }
       // 4K / HDR rows: titles with at least one release of that quality. All
       // releases of a kept title stay, so its page and streams match My Movies.
       if (genreRow) {
@@ -696,10 +722,25 @@ async function search({ token, config, type, query, limit = 50, libraryIdMode, l
   // required by it in turn, so a top-level import would cycle.
   let enhanceFingerprint = '';
   try { enhanceFingerprint = require('../routes/shared.ts').posterFp(config); } catch { /* unkeyed search */ }
-  return librarySearch.searchLibrary({
+  const rows = await librarySearch.searchLibrary({
     scopeId: userKey, provider, type, query, limit, libraryIdMode,
     tmdbApiKey: config.tmdbApiKey, lang, enhance, userKey, enhanceFingerprint,
   });
+  // Content filters (5.9.7): the same exclusions the catalogue rows get.
+  const contentFilters = require('../catalog/content-filters.ts');
+  const filterState = contentFilters.normalizeContentFilters(config);
+  if (!filterState.hideAdult && !filterState.excludeCategories.length) return rows;
+  const kind = type === 'movie' ? 'movies' : 'series';
+  const excluded = new Set();
+  const genres = require('./genres.ts');
+  if (filterState.excludeCategories.length) {
+    for (const id of await genres.idsMatchingRules(kind, contentFilters.libraryRules(filterState, kind))) excluded.add(id);
+  }
+  if (filterState.hideAdult) {
+    for (const id of await genres.adultTmdbIds(kind)) excluded.add(id);
+  }
+  if (!excluded.size) return rows;
+  return rows.filter((row: { tmdbId?: number }) => !excluded.has(Number(row?.tmdbId)));
 }
 
 // Populate the in-process owned-episode index from persisted rows so a meta or

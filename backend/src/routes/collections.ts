@@ -167,7 +167,7 @@ function mountCollectionsRoutes(app: Express, deps: CollectionsDeps): void {
     const curated = require('../catalog/curated-collections.ts').buildCuratedCollections(
       config.nuvioCollectionPacks,
       config.nuvioCollectionOverrides || {},
-      { hideAnime: config.hideAnime === true }
+      { hideAnime: require('../catalog/content-filters.ts').hideAnime(config) }
     );
     // Imported Nuvio folders are token-backed just like curated packs. Native
     // TMDB/Trakt sources stay native; addon catalog sources stay as references.

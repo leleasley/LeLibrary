@@ -104,7 +104,9 @@ function getBaseManifest(baseUrl: any) {
 }
 
 function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watchlist = [], collectionRefs = [], qualityRefs = [], homeRows = [], importedTypes = [], userListRows = [], token = '', integration = 'nuvio', omitAnime = false }: LooseOptions = {}) {
-  const { rdCatalog = 'merge', catNameMovies, catNameSeries, catNameAnime, hideAnime } = config;
+  const { rdCatalog = 'merge', catNameMovies, catNameSeries, catNameAnime } = config;
+  // Content filters (5.9.7): hideAnime also covers the Anime exclude category.
+  const hideAnime = require('../catalog/content-filters.ts').hideAnime(config);
   const active  = providers.activeProviders(config);
   const separate = rdCatalog === 'separate';
   const selectedHomeCatalogs = new Set((Array.isArray(homeRows) ? homeRows : []).filter(row => row?.enabled !== false).map(row => row?.source?.id || row?.source?.catalogId).filter(Boolean));
@@ -317,7 +319,7 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
       searchRow('lelibrary-search-movies', 'movie', names.movies || 'LeLibrary · Movies');
       searchRow('lelibrary-search-series', 'series', names.series || 'LeLibrary · Series');
       // Anime in its own row (and out of Series). Hide anime wins: no row.
-      if (options.animeRow && config.hideAnime !== true) searchRow('lelibrary-search-anime', 'series', names.anime || 'LeLibrary · Anime');
+      if (options.animeRow && !hideAnime) searchRow('lelibrary-search-anime', 'series', names.anime || 'LeLibrary · Anime');
       if (options.similar) {
         searchRow('lelibrary-search-similar-movies', 'movie', `${names.similar || 'Similar titles'} · Movies`);
         searchRow('lelibrary-search-similar-series', 'series', `${names.similar || 'Similar titles'} · Series`);
@@ -710,7 +712,7 @@ async function buildConfiguredManifest(config: LooseConfig, token: string, reque
       externalSources: collectionDocument.externalSources,
       manifestId: (REGISTRY && REGISTRY.addonId) || 'community.lelibrary.selfhosted',
       integration: requestedIntegration,
-      hideAnime: config.hideAnime === true,
+      hideAnime: require('../catalog/content-filters.ts').hideAnime(config),
     });
     homeRows = plan.homeRows;
     collectionRefs = plan.folderLibraryIds;
@@ -727,7 +729,7 @@ async function buildConfiguredManifest(config: LooseConfig, token: string, reque
   // current behavior. An explicitly enabled row is kept by the builder below.
   let omitAnime = false;
   try {
-    if (libraryEngine.isIndexed() && config.catalogAnime !== true && !config.hideAnime) {
+    if (libraryEngine.isIndexed() && config.catalogAnime !== true && !require('../catalog/content-filters.ts').hideAnime(config)) {
       const store = require('../library/store.ts');
       const scopeId = providers.getUserKey(config);
       const scopeRow = await store.getScope(scopeId).catch(() => null);

@@ -1123,6 +1123,10 @@ async function buildDiscoveryMetas(apiKey, items, lang, apiType) {
       year: date.slice(0, 4) || undefined,
       description: item.overview || undefined,
       ...(isTmdbAnimeItem(item) ? { _anime: true } : {}),
+      // Content filters (5.9.7): genre ids and the TMDB adult flag ride along
+      // on the shared cached row and are stripped per request.
+      ...(Array.isArray(item.genre_ids) && item.genre_ids.length ? { _genres: item.genre_ids.map(Number) } : {}),
+      ...(item.adult === true ? { _adult: true } : {}),
     });
   }
   return metas;

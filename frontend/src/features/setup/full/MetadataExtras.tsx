@@ -1,14 +1,18 @@
 import { TORBOX_SOURCE_IDS, cleanTorboxSources } from '@/features/setup/shared/config-contract';
 import { DEFAULT_SEARCH_OPTIONS, type SearchOptionsDraft } from '@/features/setup/shared/search-options';
 
-// Metadata step extras: language, order, id mode, anime, search scope and
-// stream notices. The backend honours every one of these field names on the
-// config.
+// Content filters plus language, order, search scope and stream notices. The
+// backend honours every one of these field names on the config. Hide anime,
+// adult content, the excluded categories, Use Main Metadata and TorBox sources
+// are rendered by ContentFiltersSection (Settle In / Move In).
 export interface MetadataExtrasDraft {
   lang: string;
   sortBy: string;
   mainMetadata: boolean;
   hideAnime: boolean;
+  // Content filters (5.9.7).
+  hideAdult: boolean;
+  excludeCategories: string[];
   torboxSources: string[];
   searchScope: string;
   // Settle In / Move In Search accordion (config.searchOptions).
@@ -24,6 +28,8 @@ export const EMPTY_METADATA_EXTRAS: MetadataExtrasDraft = {
   sortBy: 'data_adicao',
   mainMetadata: false,
   hideAnime: false,
+  hideAdult: false,
+  excludeCategories: [],
   torboxSources: [...TORBOX_SOURCE_IDS],
   searchScope: 'combined',
   searchOptions: { ...DEFAULT_SEARCH_OPTIONS, names: {} },
@@ -74,21 +80,25 @@ export function TorboxSourcesField({ value, onChange }: {
     }
   }
   return (
-    <div className="setup-field">
-      <span>TorBox sources</span>
-      <div className="source-list">
-        {TORBOX_SOURCES.map((source) => (
-          <label className="notice-check" key={source.id}>
+    <div className="source-list">
+      {TORBOX_SOURCES.map((source) => {
+        const on = picked.includes(source.id);
+        const locked = on && picked.length === 1;
+        return (
+          <label className={`source-card${on ? ' is-on' : ''}${locked ? ' is-locked' : ''}`} key={source.id}>
             <input
               type="checkbox"
-              checked={picked.includes(source.id)}
-              disabled={picked.length === 1 && picked.includes(source.id)}
+              checked={on}
+              disabled={locked}
               onChange={() => toggle(source.id)}
             />
-            <span><strong>{source.title}</strong><small>{source.hint}</small></span>
+            <span className="source-card-text">
+              <strong>{source.title}</strong>
+              <small>{source.hint}</small>
+            </span>
           </label>
-        ))}
-      </div>
+        );
+      })}
       <small className="setup-hint">TorBox only. Unticked sources stay out of My Movies, My Shows, collections and search.</small>
     </div>
   );
@@ -241,17 +251,6 @@ export function MetadataExtras({ draft, onChange }: {
           </select>
         </label>
       </div>
-      <label className="switch-row">
-        <span><strong>Use Main Metadata</strong><small>Use IMDb IDs for My Movies, My Shows and LeLibrary Collections. This enables richer client metadata, external streams and Trakt scrobbling through Nuvio or Stremio (connect Trakt in the player).</small></span>
-        <input type="checkbox" checked={draft.mainMetadata} onChange={(event) => onChange({ ...draft, mainMetadata: event.target.checked })} />
-        <i aria-hidden="true" />
-      </label>
-      <label className="switch-row">
-        <span><strong>Hide anime</strong><small>Remove only anime sources from the Anime catalogue, library rows and mixed collections. Other sources in those collections stay available.</small></span>
-        <input type="checkbox" checked={draft.hideAnime} onChange={(event) => onChange({ ...draft, hideAnime: event.target.checked })} />
-        <i aria-hidden="true" />
-      </label>
-      <TorboxSourcesField value={draft.torboxSources} onChange={(torboxSources) => onChange({ ...draft, torboxSources })} />
       <NoticeDropdown
         notices={draft.notices} noticeTypes={draft.noticeTypes}
         onNotices={(notices) => onChange({ ...draft, notices })}

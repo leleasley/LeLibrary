@@ -82,7 +82,7 @@ function defaultDeps() {
         collections: Array.isArray(config.collections) ? config.collections : [],
         homeRows: Array.isArray(config.collectionHomeRows) ? config.collectionHomeRows : [],
         sources: Array.isArray(config.collectionSources) ? config.collectionSources : [],
-        externalSources: [], manifestId: 'x', integration: 'nuvio', hideAnime: config.hideAnime === true,
+        externalSources: [], manifestId: 'x', integration: 'nuvio', hideAnime: require('../catalog/content-filters.ts').hideAnime(config),
       });
       return plan.nativeFranchiseCollection && plan.nativeFranchiseCollection.enabled === true;
     },

@@ -409,6 +409,10 @@ function buildMatchMeta(result, type, item, season, episode, episodeEnd, seasonS
     tmdbId:               result.id,
     catalogType:          type,
     isJapaneseAnimation:  isTmdbAnime(result),
+    // Content filters (5.9.7): tags used by buildCatalog, stripped before any
+    // client response (the projection map at the end of buildCatalog).
+    ...(Array.isArray(result.genre_ids) && result.genre_ids.length ? { _genres: result.genre_ids.map(Number) } : {}),
+    ...(result.adult === true ? { _adult: true } : {}),
     torboxItem:           item,
     season,
     seasonStart,
@@ -1043,6 +1047,13 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
   if (hideAnime && type !== 'anime') {
     results = results.filter(r => !r.isJapaneseAnimation);
   }
+  // Content filters (5.9.7): excluded categories and adult content, on the
+  // rarer request-time path (the indexed engine has its own row filter).
+  if (opts.filters && type !== 'anime') {
+    const contentFilters = require('./content-filters.ts');
+    const mediaType = type === 'movie' ? 'movie' : 'tv';
+    results = results.filter(r => !contentFilters.metaExcluded(r, opts.filters, mediaType));
+  }
 
   // New matches (a download that was previously unmatchable now resolves to a
   // title/episode) mean the user's rendered library pages are stale too.  It
@@ -1183,7 +1194,7 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
   // never dropped as documented.
   const output = paginated
     .filter(m => m.poster && !m._drop)
-    .map(({ torboxItem, torboxItems, tmdbId, released, catalogType, isJapaneseAnimation, season, seasonStart, seasonEnd, episode, _drop, _freshMatch, ...rest }) => rest);
+    .map(({ torboxItem, torboxItems, tmdbId, released, catalogType, isJapaneseAnimation, season, seasonStart, seasonEnd, episode, _drop, _freshMatch, _genres, _adult, _cert, ...rest }) => rest);
 
   if (completion) return { metas: output, completion, _fresh: freshCount };
   return output;

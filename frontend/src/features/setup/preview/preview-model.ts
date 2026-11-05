@@ -1,4 +1,5 @@
 import { apiClient } from '@/api/client';
+import { cleanExcludeCategories } from '@/features/setup/shared/content-filters';
 
 // Setup Preview data and the pure rules behind the Nuvio replica. The layout
 // (rows, order, collections, folders, covers) comes from
@@ -172,11 +173,14 @@ export function fetchDraftPreview(draft: PreviewDraft, platform: PreviewPlatform
 }
 
 // What the draft catalogue endpoint needs to know about the setup: the
-// language, Hide anime and the chosen packs (for folder labels). Nothing else.
+// language, its content filters and the chosen packs (for folder labels).
+// Nothing else.
 export function draftCatalogConfig(config: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (typeof config['lang'] === 'string') out['lang'] = config['lang'];
   if (config['hideAnime'] === true) out['hideAnime'] = true;
+  if (config['hideAdultContent'] === true) out['hideAdultContent'] = true;
+  if (Array.isArray(config['excludeCategories'])) out['excludeCategories'] = [...cleanExcludeCategories(config['excludeCategories'])];
   if (Array.isArray(config['nuvioCollectionPacks'])) out['nuvioCollectionPacks'] = (config['nuvioCollectionPacks'] as unknown[]).filter((id) => typeof id === 'string');
   return out;
 }

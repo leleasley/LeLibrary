@@ -184,6 +184,9 @@ export interface SetupConfigDraft {
   sortBy?: string;
   libraryIdMode?: string;
   hideAnime?: boolean;
+  // Content filters (5.9.7): adult content and the excluded category slugs.
+  hideAdultContent?: boolean;
+  excludeCategories?: string[];
   // TorBox download kinds kept in the library. Absent means all three.
   torboxSources?: string[];
   searchScope?: string;
@@ -468,6 +471,10 @@ export function pruneConfig(draft: SetupConfigDraft): Record<string, unknown> {
   if (draft.sortBy && draft.sortBy !== 'data_adicao') out.sortBy = draft.sortBy;
   if (draft.libraryIdMode && draft.libraryIdMode !== 'torbox') out.libraryIdMode = draft.libraryIdMode;
   if (draft.hideAnime === true) out.hideAnime = true;
+  if (draft.hideAdultContent === true) out.hideAdultContent = true;
+  if (draft.excludeCategories && draft.excludeCategories.length > 0) {
+    out.excludeCategories = [...draft.excludeCategories];
+  }
   const torboxSources = torboxSourcesForConfig(draft.torboxSources);
   if (torboxSources.length > 0) out.torboxSources = torboxSources;
   if (draft.searchScope && draft.searchScope !== 'combined') out.searchScope = draft.searchScope;

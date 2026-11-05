@@ -8,6 +8,7 @@ import {
   type StreamPresetId,
 } from '@/features/setup/shared/config-contract';
 import { cleanSearchOptions } from '@/features/setup/shared/search-options';
+import { cleanExcludeCategories } from '@/features/setup/shared/content-filters';
 import { BADGE_PACKS, DEFAULT_BADGE_PACK } from '@/features/setup/shared/BadgePackPicker';
 import {
   DEFAULT_NOTICE_TYPES,
@@ -149,6 +150,8 @@ export function applySavedConfig(saved: unknown): SavedDrafts {
       sortBy,
       mainMetadata: config.libraryIdMode === 'tt',
       hideAnime: config.hideAnime === true,
+      hideAdult: config.hideAdultContent === true,
+      excludeCategories: cleanExcludeCategories(config.excludeCategories),
       torboxSources: cleanTorboxSources(config.torboxSources),
       searchScope: searchScope || EMPTY_METADATA_EXTRAS.searchScope,
       searchOptions: cleanSearchOptions(config.searchOptions),

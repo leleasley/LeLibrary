@@ -141,12 +141,12 @@ test('temporary upstream failures use last-known-good but permanent failures do 
   const working = async () => ({ data: { results: [{ id: 1 }], total_pages: 1 } });
   const first = await buildNormalizedImportedCatalog({ definition: source, tmdbApiKey: 'synthetic', runtime: { cache: store, request: working, convertTmdb } });
   assert.equal(first.length, 1);
-  for (const key of [...store.values.keys()]) if (key.includes('imp-up-v2') || key.includes('imp-render-v2')) store.values.delete(key);
+  for (const key of [...store.values.keys()]) if (key.includes('imp-up-v3') || key.includes('imp-render-v3')) store.values.delete(key);
   const temporary = Object.assign(new Error('rate limited'), { response: { status: 429 } });
   const fallback = await buildNormalizedImportedCatalog({ definition: source, tmdbApiKey: 'synthetic', runtime: { cache: store, request: async () => { throw temporary; }, convertTmdb } });
   assert.equal(fallback.length, 1);
 
-  for (const key of [...store.values.keys()]) if (key.includes('imp-up-v2') || key.includes('imp-render-v2')) store.values.delete(key);
+  for (const key of [...store.values.keys()]) if (key.includes('imp-up-v3') || key.includes('imp-render-v3')) store.values.delete(key);
   await assert.rejects(() => buildNormalizedImportedCatalog({
     definition: source, tmdbApiKey: 'synthetic', runtime: { cache: store, request: async () => { throw Object.assign(new Error('gone'), { response: { status: 404 } }); }, convertTmdb },
   }), error => error instanceof ImportedSourceUpstreamError && error.code === 'source_not_found');

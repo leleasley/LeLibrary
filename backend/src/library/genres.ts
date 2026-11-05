@@ -253,8 +253,8 @@ const REJECTED_MAX = 1000;
 const FILL_PER_TICK = Math.max(1, Number(process.env['LIBRARY_GENRE_FILL'] || 150));
 const CONCURRENCY = 4;
 
-// Titles in this library without facts yet, or stored before keywords and
-// language were kept (keyword_ids IS NULL).
+// Titles in this library without facts yet, or stored before keywords,
+// language, the adult flag or the certification were kept (NULL = never read).
 async function missing(scopeId: string, limit: number): Promise<{ apiType: 'movie' | 'tv'; tmdbId: number }[]> {
   const pool = await store.ensure();
   const { rows } = await pool.query(
@@ -263,31 +263,62 @@ async function missing(scopeId: string, limit: number): Promise<{ apiType: 'movi
       WHERE i.scope_id = $1 AND i.removed_at IS NULL AND i.match_status = 'matched' AND i.tmdb_id IS NOT NULL
         AND NOT EXISTS (SELECT 1 FROM lib_tmdb_genres g
                          WHERE g.media_type = CASE WHEN i.media_type = 'movie' THEN 'movie' ELSE 'tv' END
-                           AND g.tmdb_id = i.tmdb_id AND g.keyword_ids IS NOT NULL)
+                           AND g.tmdb_id = i.tmdb_id AND g.keyword_ids IS NOT NULL AND g.adult IS NOT NULL)
       LIMIT $2`,
     [scopeId, limit]
   );
   return rows.map((row: Record<string, unknown>) => ({ apiType: row['api_type'] === 'movie' ? 'movie' : 'tv', tmdbId: Number(row['tmdb_id']) }));
 }
 
-type Facts = { genreIds: number[]; keywordIds: number[]; lang: string | null };
+type Facts = { genreIds: number[]; keywordIds: number[]; lang: string | null; adult: boolean; certification: string | null };
+
+// US certification off the same TMDB reply: films carry it in release_dates,
+// shows in content_ratings. Adult content filtering reads this (NC-17 / X for
+// films, TV-MA for shows); a missing rating hides nothing.
+function certificationFrom(apiType: 'movie' | 'tv', data: any): string | null {
+  const entries = apiType === 'movie'
+    ? data?.release_dates?.results
+    : data?.content_ratings?.results;
+  if (!Array.isArray(entries)) return null;
+  const us = entries.find((entry: any) => entry?.iso_3166_1 === 'US') || null;
+  if (!us) return null;
+  if (apiType === 'tv') {
+    const rating = typeof us.rating === 'string' ? us.rating.trim() : '';
+    return rating || null;
+  }
+  const dates = Array.isArray(us.release_dates) ? us.release_dates : [];
+  // Prefer the theatrical release (type 3), else the first rated release.
+  const rated = dates.filter((entry: any) => typeof entry?.certification === 'string' && entry.certification.trim());
+  const picked = rated.find((entry: any) => Number(entry.type) === 3) || rated[0];
+  return picked ? String(picked.certification).trim() : null;
+}
 
 async function fetchFacts(apiKey: string, apiType: 'movie' | 'tv', tmdbId: number, get = axios.get): Promise<Facts | null | 'rejected'> {
   const { headers, params } = auth(apiKey);
   try {
-    const res = await get(`${TMDB}/${apiType}/${tmdbId}`, { headers, params: { ...params, append_to_response: 'keywords' }, timeout: 8000 });
+    const res = await get(`${TMDB}/${apiType}/${tmdbId}`, {
+      headers,
+      params: { ...params, append_to_response: 'keywords,release_dates,content_ratings' },
+      timeout: 8000,
+    });
     const data = res?.data || {};
     const ids = (list: unknown) => (Array.isArray(list) ? list : [])
       .map((entry: { id?: unknown }) => Number(entry?.id)).filter((id: number) => Number.isInteger(id) && id > 0);
     // Films list keywords under `keywords`, shows under `results`.
     const keywordList = data.keywords?.keywords ?? data.keywords?.results;
     const lang = typeof data.original_language === 'string' && /^[a-z]{2,3}$/.test(data.original_language) ? data.original_language : null;
-    return { genreIds: ids(data.genres), keywordIds: ids(keywordList), lang };
+    return {
+      genreIds: ids(data.genres),
+      keywordIds: ids(keywordList),
+      lang,
+      adult: data.adult === true,
+      certification: certificationFrom(apiType, data),
+    };
   } catch (err: any) {
     const status = Number(err?.response?.status) || 0;
     if (status === 401) return 'rejected';
     // Gone from TMDB: store "nothing" so it is never asked again.
-    if (status === 404) return { genreIds: [], keywordIds: [], lang: null };
+    if (status === 404) return { genreIds: [], keywordIds: [], lang: null, adult: false, certification: null };
     return null; // try again on a later pass
   }
 }
@@ -316,12 +347,13 @@ async function fillForScope(scopeId: string, setupKey: string | null | undefined
       }
       if (facts === null) continue;
       await pool.query(
-        `INSERT INTO lib_tmdb_genres (media_type, tmdb_id, genre_ids, keyword_ids, orig_lang, fetched_at)
-         VALUES ($1, $2, $3, $4, $5, now())
+        `INSERT INTO lib_tmdb_genres (media_type, tmdb_id, genre_ids, keyword_ids, orig_lang, adult, certification, fetched_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, now())
          ON CONFLICT (media_type, tmdb_id) DO UPDATE
            SET genre_ids = EXCLUDED.genre_ids, keyword_ids = EXCLUDED.keyword_ids,
-               orig_lang = EXCLUDED.orig_lang, fetched_at = now()`,
-        [job.apiType, job.tmdbId, facts.genreIds, facts.keywordIds, facts.lang]
+               orig_lang = EXCLUDED.orig_lang, adult = EXCLUDED.adult,
+               certification = EXCLUDED.certification, fetched_at = now()`,
+        [job.apiType, job.tmdbId, facts.genreIds, facts.keywordIds, facts.lang, facts.adult, facts.certification]
       );
       filled++;
     }
@@ -345,6 +377,46 @@ async function tmdbIdsWithGenre(kind: Kind, slug: string): Promise<Set<number>> 
   const pool = await store.ensure();
   const params: unknown[] = [kind === 'movies' ? 'movie' : 'tv'];
   const { rows } = await pool.query(`SELECT tmdb_id FROM lib_tmdb_genres WHERE media_type = $1 AND ${ruleSql(rule, params)}`, params);
+  const ids = new Set<number>(rows.map((row: Record<string, unknown>) => Number(row['tmdb_id'])));
+  idCache.set(key, { at: Date.now(), ids });
+  return ids;
+}
+
+// Certifications that mark adult content. Films: NC-17 and the legacy X;
+// shows: TV-MA (operator's choice, 2026-11-05). The list itself lives with the
+// content filters so one table decides both paths.
+const { ADULT_CERTIFICATIONS } = require('../catalog/content-filters.ts') as {
+  ADULT_CERTIFICATIONS: Readonly<Record<'movie' | 'tv', readonly string[]>>;
+};
+
+// TMDB ids of one kind matching ANY of the rules (the setup's excluded
+// categories). Same short cache as one genre.
+async function idsMatchingRules(kind: Kind, rules: readonly GenreRule[]): Promise<Set<number>> {
+  const usable = (Array.isArray(rules) ? rules : []).filter(Boolean);
+  if (!usable.length) return new Set();
+  const key = `${kind}:cf:${JSON.stringify(usable)}:${version}`;
+  const hit = idCache.get(key);
+  if (hit && Date.now() - hit.at < ID_TTL_MS) return hit.ids;
+  const pool = await store.ensure();
+  const params: unknown[] = [kind === 'movies' ? 'movie' : 'tv'];
+  const where = usable.map((rule) => `(${ruleSql(rule, params)})`).join(' OR ');
+  const { rows } = await pool.query(`SELECT tmdb_id FROM lib_tmdb_genres WHERE media_type = $1 AND (${where})`, params);
+  const ids = new Set<number>(rows.map((row: Record<string, unknown>) => Number(row['tmdb_id'])));
+  idCache.set(key, { at: Date.now(), ids });
+  return ids;
+}
+
+// TMDB ids of one kind flagged adult, or certified adult in the US.
+async function adultTmdbIds(kind: Kind): Promise<Set<number>> {
+  const certs = [...(ADULT_CERTIFICATIONS[kind === 'movies' ? 'movie' : 'tv'] || [])];
+  const key = `${kind}:adult:${certs.join(',')}:${version}`;
+  const hit = idCache.get(key);
+  if (hit && Date.now() - hit.at < ID_TTL_MS) return hit.ids;
+  const pool = await store.ensure();
+  const { rows } = await pool.query(
+    `SELECT tmdb_id FROM lib_tmdb_genres WHERE media_type = $1 AND (adult = true OR upper(certification) = ANY($2::text[]))`,
+    [kind === 'movies' ? 'movie' : 'tv', certs]
+  );
   const ids = new Set<number>(rows.map((row: Record<string, unknown>) => Number(row['tmdb_id'])));
   idCache.set(key, { at: Date.now(), ids });
   return ids;
@@ -382,6 +454,7 @@ function genreVersion(): number { return version; }
 
 export interface GenresApi {
   GENRES: readonly GenreDef[];
+  ADULT_CERTIFICATIONS: Readonly<Record<'movie' | 'tv', readonly string[]>>;
   genreBySlug: typeof genreBySlug;
   genreByName: typeof genreByName;
   genresFor: typeof genresFor;
@@ -391,8 +464,10 @@ export interface GenresApi {
   fillForScope: typeof fillForScope;
   fetchFacts: typeof fetchFacts;
   tmdbIdsWithGenre: typeof tmdbIdsWithGenre;
+  idsMatchingRules: typeof idsMatchingRules;
+  adultTmdbIds: typeof adultTmdbIds;
   ownedGenreCounts: typeof ownedGenreCounts;
   genreVersion: typeof genreVersion;
 }
 
-module.exports = { GENRES, genreBySlug, genreByName, genresFor, nameFor, matchesRule, ruleSql, fillForScope, fetchFacts, tmdbIdsWithGenre, ownedGenreCounts, genreVersion } satisfies GenresApi;
+module.exports = { GENRES, ADULT_CERTIFICATIONS, genreBySlug, genreByName, genresFor, nameFor, matchesRule, ruleSql, fillForScope, fetchFacts, tmdbIdsWithGenre, idsMatchingRules, adultTmdbIds, ownedGenreCounts, genreVersion } satisfies GenresApi;

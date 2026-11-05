@@ -7,6 +7,7 @@ import {
   type CustomStreamRow,
 } from '@/features/setup/shared/config-contract';
 import { searchOptionsForConfig } from '@/features/setup/shared/search-options';
+import { cleanExcludeCategories } from '@/features/setup/shared/content-filters';
 import type { FormattingDraft } from '@/features/setup/shared/FormattingSection';
 import type { PostersDraft } from '@/features/setup/shared/PostersSection';
 import type { MetadataExtrasDraft } from '@/features/setup/full/MetadataExtras';
@@ -162,6 +163,11 @@ export function buildEditSaveBody(input: EditSaveInput): Record<string, unknown>
     config.sortBy = input.meta.sortBy;
     config.libraryIdMode = input.meta.mainMetadata ? 'tt' : 'torbox';
     config.hideAnime = input.meta.hideAnime;
+    config.hideAdultContent = input.meta.hideAdult === true;
+    // No category picked is the default: clear a stored list, never store [].
+    const excluded = cleanExcludeCategories(input.meta.excludeCategories ?? []);
+    if (excluded.length > 0) config.excludeCategories = excluded;
+    else clearConfig.push('excludeCategories');
     // Every source on is the default: clear a stored limit instead of saving it.
     const torboxSources = torboxSourcesForConfig(input.meta.torboxSources);
     if (torboxSources.length > 0) config.torboxSources = torboxSources;

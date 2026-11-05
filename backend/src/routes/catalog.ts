@@ -119,6 +119,8 @@ async function searchCollectionFilms({ userKey, lang, query, libraryIdMode, conf
 }
 
 async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lang, enhance, userKey }: any) {
+    const contentFilters = require('../catalog/content-filters.ts');
+    const filterState = contentFilters.normalizeContentFilters(config);
     const words = String(query || '')
       .toLowerCase()
       .normalize('NFKD')
@@ -138,7 +140,7 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       if (!candidates.length) return [];
       return buildCatalog(candidates, tmdbApiKey, type, sortBy, { search: query }, lang,
         enhance,
-        { userKey, hideAnime: config.hideAnime === true, libraryIdMode: config.libraryIdMode || 'torbox', config });
+        { userKey, hideAnime: filterState.hideAnime, filters: filterState, libraryIdMode: config.libraryIdMode || 'torbox', config });
     } catch (err: any) {
       console.warn('[Search] owned-library search failed:', err.message);
       return [];
@@ -156,7 +158,7 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       return res.json({ metas: [] });
     }
 
-    const { tmdbApiKey, sortBy = 'data_adicao', lang = 'en-US', rdCatalog = 'merge', erdbToken, rpdbKey, omdbKey, fanartKey, posterProvider, hideAnime, libraryIdMode } = config;
+    const { tmdbApiKey, sortBy = 'data_adicao', lang = 'en-US', rdCatalog = 'merge', erdbToken, rpdbKey, omdbKey, fanartKey, posterProvider, libraryIdMode } = config;
     const active = providers.activeProviders(config);
     if (!tmdbApiKey || active.length === 0) {
       res.setHeader('Cache-Control', 'no-store');
@@ -169,6 +171,11 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
     if (active.length) registerBackgroundRefresh(req.params.token, config);
 
     const catalogId = req.params.catalogId;
+    // Content filters (5.9.7): one normalized state for every surface below.
+    const contentFilters = require('../catalog/content-filters.ts');
+    const filterState = contentFilters.normalizeContentFilters(config);
+    const hideAnime = filterState.hideAnime;
+    const filterTag = filterState.hideAdult || filterState.excludeCategories.length ? JSON.stringify(filterState) : '';
 
     const customCatalogMatch = catalogId.match(/^custom-stream-(movies|series)$/);
     if (customCatalogMatch) {
@@ -215,7 +222,7 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       const type = /movies$/.test(row) ? 'movie' : 'series';
       const options = normalizeSearchOptions(config.searchOptions);
       // The anime row takes anime out of Series; Series keeps it otherwise.
-      const animeSplit = options.animeRow && config.hideAnime !== true;
+      const animeSplit = options.animeRow && !filterState.hideAnime;
       const variant = row === 'anime' ? 'anime'
         : row.startsWith('similar-') ? 'similar'
           : row.startsWith('people-') ? 'people'
@@ -234,6 +241,7 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
         hideObscure: options.hideObscure,
         // With a People row, a name search no longer pads the title rows.
         mergePeople: !options.people,
+        config,
       }));
       res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
       return res.json(withCacheHints({ metas }, { cacheMaxAge: 300, staleRevalidate: 1800, staleError: 1800 }));
@@ -290,7 +298,7 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
         // Read-only compatibility for existing pre-normalization imports. New
         // imports never create these recipe strings.
         const ref = String(extra.genre || '');
-        metas = await require('../catalog/libcatalog.ts').buildImportedCatalog({ tmdbApiKey, ref, type, lang, userKey: providers.getUserKey(config), skip, search, enhance: posterEnhance(config), posterFp: posterFp(config), mdblistKey: config.mdblistKey, hideAnime: config.hideAnime === true });
+        metas = await require('../catalog/libcatalog.ts').buildImportedCatalog({ tmdbApiKey, ref, type, lang, userKey: providers.getUserKey(config), skip, search, enhance: posterEnhance(config), posterFp: posterFp(config), mdblistKey: config.mdblistKey, hideAnime: filterState.hideAnime, filters: filterState });
       }
       setPrivateResponseCache(res, TTL_CATALOG);
       return res.json(withCacheHints({ metas }, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
@@ -334,7 +342,7 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       const { buildLibraryCatalog } = require('../catalog/libcatalog.ts');
       let metas = [];
       try {
-        metas = await timeSpan(req.perfTrace, spanName('libcatalog', { op: 'curated' }), () => buildLibraryCatalog({ tmdbApiKey, catalogId: libId, lang, userKey, skip, search, enhance: posterEnhance(config), posterFp: posterFp(config), mdblistKey: config.mdblistKey, hideAnime: config.hideAnime === true }));
+        metas = await timeSpan(req.perfTrace, spanName('libcatalog', { op: 'curated' }), () => buildLibraryCatalog({ tmdbApiKey, catalogId: libId, lang, userKey, skip, search, enhance: posterEnhance(config), posterFp: posterFp(config), mdblistKey: config.mdblistKey, hideAnime: filterState.hideAnime, filters: filterState }));
       } catch (err: any) {
         console.error(`[Curated] ${libId} error:`, err.message);
       }
@@ -477,7 +485,7 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       const { buildLibraryCatalog } = require('../catalog/libcatalog.ts');
       let paginated = [];
       try {
-        paginated = await timeSpan(req.perfTrace, spanName('libcatalog', { op: 'lib' }), () => buildLibraryCatalog({ tmdbApiKey, catalogId: libId, lang, userKey, skip, search, enhance: posterEnhance(config), posterFp: posterFp(config), mdblistKey: config.mdblistKey, hideAnime: config.hideAnime === true }));
+        paginated = await timeSpan(req.perfTrace, spanName('libcatalog', { op: 'lib' }), () => buildLibraryCatalog({ tmdbApiKey, catalogId: libId, lang, userKey, skip, search, enhance: posterEnhance(config), posterFp: posterFp(config), mdblistKey: config.mdblistKey, hideAnime: filterState.hideAnime, filters: filterState }));
       } catch (err: any) {
         console.error(`[LibCat] ${libId} error:`, err.message);
       }
@@ -527,7 +535,7 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       const userKey  = providers.getUserKey(config);
       let paginated;
       try {
-        paginated = await timeSpan(req.perfTrace, 'discovery-catalog', () => buildDiscoveryCatalog({ tmdbApiKey, kind, apiType, lang, userKey, skip, search, enhance: posterEnhance(config), posterFp: posterFp(config), hideAnime: config.hideAnime === true }));
+        paginated = await timeSpan(req.perfTrace, 'discovery-catalog', () => buildDiscoveryCatalog({ tmdbApiKey, kind, apiType, lang, userKey, skip, search, enhance: posterEnhance(config), posterFp: posterFp(config), hideAnime: filterState.hideAnime, filters: filterState }));
       } catch (err: any) {
         console.error(`[Discovery] ${kind} ${apiType} error:`, err.message);
         return res.json({ metas: [] });
@@ -753,7 +761,7 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
     // in hide-anime used to serve each other's rows for the whole TTL.
     // So is a limited TorBox source selection (torboxSources).
     const sourcesKey = providers.torboxSourcesKey(config);
-    const cacheKey = cache.makeKey('cat', catKey, type, sortBy, search, skip.toString(), userKey, lang, posterFp(config), libraryIdMode, hideAnime ? 'noanime' : '', sourcesKey, variant || '');
+    const cacheKey = cache.makeKey('cat', catKey, type, sortBy, search, skip.toString(), userKey, lang, posterFp(config), libraryIdMode, hideAnime ? 'noanime' : '', filterTag, sourcesKey, variant || '');
     // Long-lived "last good" copy of this catalog page. The serve-stale branches
     // below used to re-read `cacheKey` itself: the exact key that just missed -
     // so the protection never fired. This snapshot is only written on success.

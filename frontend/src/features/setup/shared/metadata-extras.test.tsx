@@ -60,7 +60,9 @@ describe('stream notices dropdown', () => {
 describe('TorBox sources field', () => {
   it('offers torrents, usenet and web downloads, all on by default', () => {
     const html = renderToStaticMarkup(<TorboxSourcesField value={undefined} onChange={() => {}} />);
-    expect(html).toContain('TorBox sources');
+    // The section title is rendered by ContentFiltersSection; the field itself
+    // is the card list (5.9.7 restyle).
+    expect(html).toContain('source-card');
     expect(html).toContain('Torrents');
     expect(html).toContain('Usenet');
     expect(html).toContain('Web downloads');

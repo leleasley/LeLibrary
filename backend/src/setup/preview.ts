@@ -258,9 +258,14 @@ async function buildPreview({ opened, platform, origin, port }: PreviewInput, de
   }
 
   // Nuvio: the same inputs pushToNuvio compiles.
-  const hideAnime = config['hideAnime'] === true;
+  const contentFilters = require('../catalog/content-filters.ts');
+  const filterState = contentFilters.normalizeContentFilters(config);
+  const hideAnime = filterState.hideAnime;
   const saved = Array.isArray(config['collections']) ? config['collections'] as unknown[] : [];
-  const withGenres = draft ? saved : await push.withHubGenreTabs(saved, token, hideAnime);
+  const withGenres = draft ? saved : await push.withHubGenreTabs(saved, token, [
+    ...(filterState.hideAnime ? ['anime'] : []),
+    ...filterState.excludeCategories,
+  ]);
   const plan = compileCollectionPlan({
     collections: withGenres,
     homeRows: Array.isArray(config['collectionHomeRows']) ? config['collectionHomeRows'] : [],
@@ -570,7 +575,9 @@ async function buildDraftCatalog(input: DraftCatalogInput, deps: DraftCatalogDep
 
   const config = draftConfig(input.config);
   const lang = draftLang(config);
-  const hideAnime = config['hideAnime'] === true;
+  const contentFilters = require('../catalog/content-filters.ts');
+  const filterState = contentFilters.normalizeContentFilters(config);
+  const hideAnime = filterState.hideAnime;
   const { getSourceDefinition, canonicalSourceId } = require('../catalog/catalog-source-registry.ts');
   let libId = '';
   if (kind.kind === 'lib') libId = kind.libId;
@@ -589,17 +596,17 @@ async function buildDraftCatalog(input: DraftCatalogInput, deps: DraftCatalogDep
   if (!key) return { status: 200, body: { sample: true, reason: 'unavailable' } };
   // Plain TMDB posters (no enhance, empty poster fingerprint), first page,
   // no user key of any kind: the rows land in the shared catalogue caches
-  // (cat:lib7-base per definition, cat:discovery3 per list and language).
+  // (cat:lib8-base per definition, cat:discovery4 per list and language).
   let rows: unknown[] = [];
   try {
     if (kind.kind === 'discovery') {
       const discovery = deps.discovery
         || (require('../catalog/discovery.ts') as { buildDiscoveryCatalog: (i: Record<string, unknown>) => Promise<unknown[]> }).buildDiscoveryCatalog;
-      rows = await discovery({ tmdbApiKey: key, kind: kind.list, apiType: kind.apiType, lang, userKey: '', skip: 0, search: '', enhance: {}, posterFp: '', hideAnime });
+      rows = await discovery({ tmdbApiKey: key, kind: kind.list, apiType: kind.apiType, lang, userKey: '', skip: 0, search: '', enhance: {}, posterFp: '', hideAnime, filters: filterState });
     } else {
       const library = deps.library
         || (require('../catalog/libcatalog.ts') as { buildLibraryCatalog: (i: Record<string, unknown>) => Promise<unknown[]> }).buildLibraryCatalog;
-      rows = await library({ tmdbApiKey: key, catalogId: libId, lang, userKey: '', skip: 0, search: '', enhance: {}, posterFp: '', mdblistKey: '', hideAnime });
+      rows = await library({ tmdbApiKey: key, catalogId: libId, lang, userKey: '', skip: 0, search: '', enhance: {}, posterFp: '', mdblistKey: '', hideAnime, filters: filterState });
     }
   } catch {
     rows = [];

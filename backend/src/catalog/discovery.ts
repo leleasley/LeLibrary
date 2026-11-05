@@ -75,10 +75,11 @@ async function enhanceDiscoveryMetas(metas, enhance = {}) {
 // fingerprint (so changing the poster provider refreshes the grid). The rows
 // are pure TMDB data, identical for every user with the same poster config, so
 // the cache is deliberately shared across users (no userKey in the key).
-async function buildDiscoveryCatalog({ tmdbApiKey, kind, apiType, lang, userKey, skip = 0, search = '', enhance = {}, posterFp = '', hideAnime = false }) {
+async function buildDiscoveryCatalog({ tmdbApiKey, kind, apiType, lang, userKey, skip = 0, search = '', enhance = {}, posterFp = '', hideAnime = false, filters = null }) {
   // v2: poster precedence fixed (pictorium before erdb); old entries under the
   // previous key are ignored rather than served.
-  const discCacheKey = cache.makeKey('cat', 'discovery3', kind, apiType, lang, posterFp);
+  // v4 (5.9.7): rows carry genre ids and the adult flag for content filters.
+  const discCacheKey = cache.makeKey('cat', 'discovery4', kind, apiType, lang, posterFp);
   let metas = await cache.get(discCacheKey);
   if (!Array.isArray(metas)) {
     metas = kind === 'trending'
@@ -87,11 +88,18 @@ async function buildDiscoveryCatalog({ tmdbApiKey, kind, apiType, lang, userKey,
     metas = await enhanceDiscoveryMetas(metas, enhance);
     await cache.set(discCacheKey, metas, TTL_CATALOG);
   }
-  // Shared cache, per-user choice: "Hide anime" filters here, before paging,
-  // and the internal tag is stripped for everyone.
+  // Shared cache, per-user choice: the setup's content filters apply here,
+  // before paging, and the internal tags are stripped for everyone.
+  const contentFilters = require('./content-filters.ts');
+  const state = filters || contentFilters.normalizeContentFilters({ hideAnime: hideAnime === true });
   metas = metas
-    .filter((m) => !(hideAnime && m && m._anime === true))
-    .map((m) => { if (!m || !('_anime' in m)) return m; const { _anime, ...rest } = m; return rest; });
+    .filter((m) => !(m && contentFilters.metaExcluded(m, state, apiType === 'movie' ? 'movie' : 'tv')))
+    .map((m) => {
+      if (!m) return m;
+      if (!('_anime' in m) && !('_genres' in m) && !('_adult' in m) && !('_cert' in m)) return m;
+      const { _anime, _genres, _adult, _cert, ...rest } = m;
+      return rest;
+    });
   if (search) metas = metas.filter(m => (m.name || '').toLowerCase().includes(search.toLowerCase()));
   return metas.slice(skip, skip + 50);
 }

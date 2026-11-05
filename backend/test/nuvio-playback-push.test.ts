@@ -84,11 +84,19 @@ test('config parsing feeds the push options and does not guess a mode', () => {
   });
   assert.deepEqual(parsed, {
     hideAnime: true,
+    excludeCategories: [],
     badgePack: 'elite',
     badgeUrl: 'https://example.com/b.json',
     nuvioPlayback: { mode: 'FIRST_STREAM', regex: '', nextEpisode: true, onlyLeLibrary: true },
     nuvioHideUnreleased: true,
   });
+
+  // Content filters (5.9.7): the Anime exclude category is the same switch as
+  // Hide anime, and a bad category id drops out.
+  const animeCategory = pushOptionsFromConfig({ excludeCategories: ['anime', 'nope', 7] });
+  assert.equal(animeCategory.hideAnime, true);
+  assert.deepEqual(animeCategory.excludeCategories, ['anime']);
+  assert.deepEqual(pushOptionsFromConfig({ excludeCategories: ['horror', 'news'] }).excludeCategories, ['news', 'horror']);
 
   // No stored choice leaves Nuvio alone; an invalid one is ignored, not defaulted.
   assert.equal(pushOptionsFromConfig({}).nuvioPlayback, null);

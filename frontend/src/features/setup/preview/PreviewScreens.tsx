@@ -194,6 +194,7 @@ export function ExternalNote() {
 }
 
 function sampleText(reason: SampleReason): string {
+  if (reason === 'personal') return 'Your list shows here once the setup is saved.';
   if (reason === 'key') return 'This list needs your MDBList key. It shows here once the setup is created.';
   if (reason === 'unavailable') return 'This row shows here once the setup is created.';
   return 'Your library shows here once the setup is created.';
@@ -224,7 +225,7 @@ export function FranchiseNote() {
 
 // A row the draft cannot fill yet: quiet placeholder tiles in the row's
 // shape with one line saying when the real titles appear.
-export function SampleRow({ reason, count = 6, shape = 'poster' }: { reason: SampleReason; count?: number; shape?: 'poster' | 'landscape' | 'square' }) {
+export function SampleRow({ reason, label, count = 6, shape = 'poster' }: { reason: SampleReason; label?: string | undefined; count?: number; shape?: 'poster' | 'landscape' | 'square' }) {
   return (
     <div className="npv-sample">
       <div className="npv-strip" aria-hidden="true">
@@ -235,7 +236,7 @@ export function SampleRow({ reason, count = 6, shape = 'poster' }: { reason: Sam
           </span>
         ))}
       </div>
-      <p className="npv-sample-note">{sampleText(reason)}</p>
+      <p className="npv-sample-note">{label || sampleText(reason)}</p>
     </div>
   );
 }
@@ -266,7 +267,7 @@ function Grid({ metas, loading }: { metas: PreviewMeta[]; loading: boolean }) {
 export function GridState({ state, retry }: { state: RowState | undefined; retry: () => void }) {
   if (!state || state.status === 'loading') return <Grid metas={[]} loading />;
   if (state.status === 'error') return <ErrorNote onRetry={retry} />;
-  if (state.status === 'sample') return <SampleRow reason={state.reason} />;
+  if (state.status === 'sample') return <SampleRow reason={state.reason} label={state.label} />;
   if (!state.metas.length) return <EmptyNote />;
   return <Grid metas={state.metas} loading={false} />;
 }
@@ -286,7 +287,7 @@ function AllSources({ folder }: { folder: PreviewFolder }) {
   const ready = states.filter((state): state is Extract<RowState, { status: 'ready' }> => state?.status === 'ready');
   if (!ready.length && states.some((state) => !state || state.status === 'loading')) return <Grid metas={[]} loading />;
   const sample = states.find((state): state is Extract<RowState, { status: 'sample' }> => state?.status === 'sample');
-  if (!ready.length && sample) return <SampleRow reason={sample.reason} />;
+  if (!ready.length && sample) return <SampleRow reason={sample.reason} label={sample.label} />;
   if (!ready.length) return <ErrorNote onRetry={() => { for (const ref of refs) loader?.retry(ref); }} />;
   const metas = mergeSources(ready.map((state) => state.metas), GRID_LIMIT);
   return metas.length ? <Grid metas={metas} loading={false} /> : <EmptyNote />;

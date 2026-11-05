@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { fetchCatalogLibrary } from '@/features/setup/full/collections/catalog-sources';
 import { sourceKey, type BrowserSource, type CatalogSourceRef } from '@/features/setup/shared/collection-doc';
 
@@ -26,14 +26,18 @@ interface PickerSource {
 // (`leading`: My Movies / My Shows, 4K, HDR, Your genres / themes / world
 // cinema, Trending and Popular, the same definitions the Home rows picker
 // uses), then the shared catalogue registry (/api/catalog-library).
-export function SourcePickerModal({ open, selected, onApply, onClose, leading = [] }: {
+const NO_LEADING: BrowserSource[] = [];
+
+export function SourcePickerModal({ open, selected, onApply, onClose, leading = NO_LEADING, notice = null }: {
   open: boolean;
   selected: CatalogSourceRef[];
   leading?: BrowserSource[];
+  // A line above the list (the "Your MDBList lists" status and refresh).
+  notice?: ReactNode;
   onApply: (sources: CatalogSourceRef[]) => void;
   onClose: () => void;
 }) {
-  const [sources, setSources] = useState<PickerSource[]>([]);
+  const [registry, setRegistry] = useState<RegistrySource[]>([]);
   const [query, setQuery] = useState('');
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [failed, setFailed] = useState(false);
@@ -47,39 +51,43 @@ export function SourcePickerModal({ open, selected, onApply, onClose, leading = 
     fetchCatalogLibrary<RegistrySource>()
       .then((payload) => {
         if (cancelled) return;
-        const list = Array.isArray(payload?.catalogs) ? payload.catalogs : [];
-        const normalized: PickerSource[] = [];
-        const seen = new Set<string>();
-        for (const row of leading) {
-          const mediaType = row.type === 'series' ? 'series' : 'movie';
-          const key = sourceKey({ addonId: '', catalogId: row.catalogId, type: mediaType });
-          if (seen.has(key)) continue;
-          seen.add(key);
-          normalized.push({ key, catalogId: row.catalogId, title: row.name, mediaType, category: row.category, icon: mediaType === 'series' ? '📺' : '🎬' });
-        }
-        for (const source of list) {
-          const catalogId = String(source.catalogId || source.id || '').trim();
-          if (!catalogId) continue;
-          const mediaType = source.type === 'series' ? 'series' : 'movie';
-          const key = sourceKey({ addonId: '', catalogId, type: mediaType });
-          if (seen.has(key)) continue;
-          seen.add(key);
-          normalized.push({
-            key,
-            catalogId,
-            title: String(source.name || source.title || catalogId.replace(/^lib-/, '')),
-            mediaType,
-            category: String(source.category || source.group || 'Other'),
-            icon: String(source.icon || (mediaType === 'series' ? '📺' : '🎬')),
-          });
-        }
-        setSources(normalized);
+        setRegistry(Array.isArray(payload?.catalogs) ? payload.catalogs : []);
       })
       .catch(() => { if (!cancelled) setFailed(true); });
     return () => { cancelled = true; };
     // Selected is snapshotted on open by design.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Leading rows can arrive after opening (the MDBList lists load then).
+  const sources = useMemo(() => {
+    const normalized: PickerSource[] = [];
+    const seen = new Set<string>();
+    for (const row of leading) {
+      const mediaType = row.type === 'series' ? 'series' : 'movie';
+      const key = sourceKey({ addonId: '', catalogId: row.catalogId, type: mediaType });
+      if (seen.has(key)) continue;
+      seen.add(key);
+      normalized.push({ key, catalogId: row.catalogId, title: row.name, mediaType, category: row.category, icon: mediaType === 'series' ? '📺' : '🎬' });
+    }
+    for (const source of registry) {
+      const catalogId = String(source.catalogId || source.id || '').trim();
+      if (!catalogId) continue;
+      const mediaType = source.type === 'series' ? 'series' : 'movie';
+      const key = sourceKey({ addonId: '', catalogId, type: mediaType });
+      if (seen.has(key)) continue;
+      seen.add(key);
+      normalized.push({
+        key,
+        catalogId,
+        title: String(source.name || source.title || catalogId.replace(/^lib-/, '')),
+        mediaType,
+        category: String(source.category || source.group || 'Other'),
+        icon: String(source.icon || (mediaType === 'series' ? '📺' : '🎬')),
+      });
+    }
+    return normalized;
+  }, [leading, registry]);
 
   useEffect(() => {
     if (!open) return;
@@ -155,6 +163,7 @@ export function SourcePickerModal({ open, selected, onApply, onClose, leading = 
           </div>
           <span className="result-count">{chosen.size} selected</span>
         </div>
+        {notice}
         {failed ? (
           <p className="setup-error">Could not load catalogues.</p>
         ) : (

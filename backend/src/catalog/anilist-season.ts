@@ -149,6 +149,8 @@ export interface AnilistSeasonApi {
   compactMap: typeof compactMap;
   mapItems: typeof mapItems;
   seasonRows: typeof seasonRows;
+  // Shared with the AniList personal rows (user-lists/anilist.ts).
+  idMap: typeof idMap;
 }
 
-module.exports = { currentSeason, fetchSeason, compactMap, mapItems, seasonRows } satisfies AnilistSeasonApi;
+module.exports = { currentSeason, fetchSeason, compactMap, mapItems, seasonRows, idMap } satisfies AnilistSeasonApi;

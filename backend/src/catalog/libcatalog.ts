@@ -548,12 +548,10 @@ async function fetchMdblistItems(def, mdblistKey = '') {
     if (p.listId) {
       const key = mdblistKey || '';
       if (!key) return [];
-      const res = await axios.get(`https://api.mdblist.com/lists/${p.listId}/items`, {
-        params: { apikey: key, limit: 100, unified: 'true' },
-        timeout: 20000,
-      });
-      const d = res.data || {};
-      return [...(d.movies || []), ...(d.shows || [])];
+      // Every page, not just the first 100 items (cursor paging, capped at
+      // ITEM_CAP; shared with the personal MDBList rows).
+      const { mdblistItemPages } = require('../user-lists/mdblist.ts');
+      return mdblistItemPages((url, options) => axios.get(url, options), `https://api.mdblist.com/lists/${encodeURIComponent(p.listId)}/items`, { apikey: key, unified: 'true' });
     }
     return [];
   } catch (err) {

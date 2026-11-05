@@ -191,6 +191,20 @@ describe('data source', () => {
     await vi.waitFor(() => expect(edited.get({ type: 'movie', catalogId: 'torbox-movies' })?.status).toBe('ready'));
     expect(fetchJson).toHaveBeenCalledWith(model.catalogUrl(TOKEN, { type: 'movie', catalogId: 'torbox-movies' }));
   });
+
+  it('personal list rows: a labelled sample in a draft, the real row through the install link when editing', async () => {
+    const ref = { type: 'series' as const, catalogId: 'lelibrary-user-simkl-upnext-series' };
+    const post = vi.fn(async () => ({ sample: true, reason: 'personal', service: 'simkl', label: 'Your Simkl rows show here once the setup is saved' }));
+    const fetchJson = vi.fn(async () => ({ metas: [{ id: 'tt7', type: 'series', name: 'Seven', poster: 'https://image.tmdb.org/t/p/w500/7.jpg' }] }));
+    const create = model.createDraftCatalogLoader({}, { post, fetchJson });
+    create.load(ref);
+    await vi.waitFor(() => expect(create.get(ref)).toEqual({ status: 'sample', reason: 'personal', label: 'Your Simkl rows show here once the setup is saved' }));
+    expect(fetchJson).not.toHaveBeenCalled();
+    const edited = model.createDraftCatalogLoader({}, { post, fetchJson, installToken: TOKEN });
+    edited.load(ref);
+    await vi.waitFor(() => expect(edited.get(ref)?.status).toBe('ready'));
+    expect(fetchJson).toHaveBeenCalledWith(model.catalogUrl(TOKEN, ref));
+  });
 });
 
 describe('drafts never carry a secret', () => {

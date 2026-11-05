@@ -232,22 +232,29 @@ export interface SetupConfigDraft {
   customPosterTemplate?: string;
   // Display names for the user's own stream addons (links live in keys).
   customAddons?: { id: string; name: string }[];
-  // AniList username for the public anime list rows (not a secret: AniList
-  // lists are public by name). Private lists use the AniList connect instead.
+  // AniList username for the public "Your lists" rows (Watching, Plan to
+  // Watch, Completed). Not a secret: AniList lists are public by name. The
+  // one place it lives (server: user-lists/index.ts checkAnilistUser and
+  // rows.ts normaliseAnilistUser read config.anilistUser). Private lists need
+  // the AniList connection instead (keys.watchlist.anilist).
   anilistUser?: string;
 }
 
-// AniList usernames: 2-20 letters, digits or underscores.
-const ANILIST_USER_RE = /^[A-Za-z0-9_]{2,20}$/;
+// The AniList username rule, mirrored by the server: trimmed, 2-20 of
+// A-Z a-z 0-9 _. Anything else is no username (null).
+export function normalizeAnilistUser(value: unknown): string | null {
+  const name = typeof value === 'string' ? value.trim() : '';
+  return /^[A-Za-z0-9_]{2,20}$/.test(name) ? name : null;
+}
 
 export function isValidAnilistUser(value: string | null | undefined): boolean {
-  return typeof value === 'string' && ANILIST_USER_RE.test(value.trim());
+  return normalizeAnilistUser(value) !== null;
 }
 
 // The value a config carries: the trimmed name, or nothing when it is empty
 // or not a valid AniList username.
 export function anilistUserForConfig(value: string | null | undefined): string {
-  return isValidAnilistUser(value) ? (value as string).trim() : '';
+  return normalizeAnilistUser(value) ?? '';
 }
 
 // Key field names match the legacy token fields so the resolver can reuse

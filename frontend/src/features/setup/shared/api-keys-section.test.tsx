@@ -14,7 +14,7 @@ const api = vi.hoisted(() => ({
 vi.mock('@/api/client', () => ({ apiClient: api }));
 
 const {
-  ApiKeysAccordion, ConnectedAccounts, MetadataKeyCards, apiKeysSummary, resolveMdblistIdentity,
+  ApiKeysAccordion, ConnectedAccounts, MetadataKeyCards, apiKeysSummary, resolveMdblistIdentity, useSetupConnections,
 } = await import('@/features/setup/shared/ApiKeysSection');
 const { KeyCard } = await import('@/features/setup/shared/sections');
 const { anilistUserForConfig, isValidAnilistUser, pruneConfig } = await import('@/features/setup/shared/config-contract');
@@ -43,14 +43,22 @@ function editMode(overrides: Partial<EditMode> = {}): EditMode {
   };
 }
 
-function accordion(props: Partial<Parameters<typeof ApiKeysAccordion>[0]> = {}) {
-  return render(
+type AccordionProps = Parameters<typeof ApiKeysAccordion>[0];
+
+// The page owns the connections (useSetupConnections); the harness does too.
+function AccordionHarness(props: Partial<AccordionProps>) {
+  const live = useSetupConnections(props.edit, {}, () => {});
+  return (
     <ApiKeysAccordion
-      keys={{}} onKeys={() => {}} watchlist={{}} onWatchlist={() => {}}
-      anilistUser="" onAnilistUser={() => {}}
+      keys={{}} onKeys={() => {}} anilistUser="" onAnilistUser={() => {}}
       {...props}
-    />,
+      connections={props.connections ?? live}
+    />
   );
+}
+
+function accordion(props: Partial<AccordionProps> = {}) {
+  return render(<AccordionHarness {...props} />);
 }
 
 function connections(options: {

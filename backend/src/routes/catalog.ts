@@ -486,15 +486,30 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
       return res.json(withCacheHints({ metas: paginated }, { cacheMaxAge: TTL_CATALOG, staleRevalidate: TTL_CATALOG, staleError: 1800 }));
     }
 
-    // ── Watchlist catalogs (Simkl / MDBList / Trakt) ──
-    // torbox-watchlist-{simkl,mdblist,trakt}-{movie,series}. Rows carry pure tt:
-    // ids so external stream addons and Nuvio enrichment work. Handled before the
-    // generic path (would otherwise look like a library catalog).
-    const wlMatch = catalogId.match(/^torbox-watchlist-([a-z]+)-(movie|series)$/);
-    if (wlMatch) {
-      // Watchlist rows were built by the accounts-era extension (removed in
-      // v5.5). Old pushes still reference the ids, so answer with an empty row.
-      return res.json({ metas: [] });
+    // ── Personal list rows (v6: Simkl / MDBList / AniList) ──
+    // lelibrary-user-{provider}-{list}-{type}, plus the v5.5 watchlist ids as
+    // aliases (torbox-watchlist-simkl-* = Simkl Plan to Watch,
+    // torbox-watchlist-mdblist-* = MDBList Watchlist; Trakt's stay empty).
+    // Served from this setup's own connection, key or username through
+    // per-user caches (user-lists/). Rows carry pure tt: ids so external
+    // stream addons and Nuvio enrichment work. Handled before the generic
+    // path (would otherwise look like a library catalog).
+    const userLists = require('../user-lists/index.ts');
+    if (userLists.isUserListCatalogId(catalogId)) {
+      const extra = parseExtra(req.params.extra || '');
+      let metas = [];
+      try {
+        metas = await timeSpan(req.perfTrace, 'user-lists', () => userLists.buildUserListCatalog({
+          config, catalogId, type: req.params.type,
+          skip: parseInt(extra.skip) || 0, search: extra.search || '', enhance: posterEnhance(config),
+        }));
+      } catch (err: any) {
+        console.warn(`[user-lists] catalogue failed: ${err?.message || 'error'}`);
+      }
+      // Personal rows: private, short client cache (the server holds the
+      // long, activity-gated copy).
+      setPrivateResponseCache(res, 300);
+      return res.json(withCacheHints({ metas }, { cacheMaxAge: 300, staleRevalidate: 300, staleError: 1800 }));
     }
 
     // ── Trending / Popular discovery catalogs ──

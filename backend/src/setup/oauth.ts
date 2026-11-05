@@ -1,4 +1,4 @@
-// Simkl/Trakt watchlist OAuth re-keyed from accounts to setups.
+// Simkl/Trakt/AniList watchlist OAuth re-keyed from accounts to setups.
 //
 // The old flow bound state to a session cookie. There are no sessions here:
 // state is a random token held server-side in a short-lived pending map that
@@ -14,7 +14,14 @@ const crypto = require('node:crypto') as typeof import('node:crypto');
 import type { BoundedMapApi } from '../runtime/bounded-map.ts';
 const { boundedSet } = require('../runtime/bounded-map.ts') as BoundedMapApi;
 
-export type WatchlistOAuthProvider = 'simkl' | 'trakt';
+export type WatchlistOAuthProvider = 'simkl' | 'trakt' | 'anilist';
+
+// AniList (v6): authorization-code grant, no scopes; the token lasts a year
+// and has no refresh, so a person reconnects once a year (or keeps reading
+// public lists by username without any connection).
+const ANILIST_AUTHORIZE = 'https://anilist.co/api/v2/oauth/authorize';
+const ANILIST_TOKEN = 'https://anilist.co/api/v2/oauth/token';
+const ANILIST_DEFAULT_LIFETIME_S = 365 * 24 * 60 * 60;
 
 const PENDING_TTL_MS = 10 * 60 * 1000;
 // Abandoned flows are never consumed. States share one TTL, so each insert
@@ -38,6 +45,7 @@ function oauthConfigured(provider: string): boolean {
   const vars: Record<string, string[]> = {
     simkl: ['SIMKL_CLIENT_ID', 'SIMKL_CLIENT_SECRET'],
     trakt: ['TRAKT_CLIENT_ID', 'TRAKT_CLIENT_SECRET'],
+    anilist: ['ANILIST_CLIENT_ID', 'ANILIST_CLIENT_SECRET'],
   };
   const required = vars[provider];
   if (!required) return false;
@@ -49,8 +57,10 @@ function callbackUrl(provider: string, baseUrl: string): string {
 }
 
 function authorizeUrl(provider: WatchlistOAuthProvider, state: string, baseUrl: string): string {
-  const clientId = provider === 'simkl' ? process.env['SIMKL_CLIENT_ID'] : process.env['TRAKT_CLIENT_ID'];
-  const u = new URL(provider === 'simkl' ? 'https://simkl.com/oauth/authorize' : 'https://trakt.tv/oauth/authorize');
+  const clientId = provider === 'simkl' ? process.env['SIMKL_CLIENT_ID']
+    : provider === 'anilist' ? process.env['ANILIST_CLIENT_ID'] : process.env['TRAKT_CLIENT_ID'];
+  const u = new URL(provider === 'simkl' ? 'https://simkl.com/oauth/authorize'
+    : provider === 'anilist' ? ANILIST_AUTHORIZE : 'https://trakt.tv/oauth/authorize');
   u.searchParams.set('client_id', String(clientId || ''));
   u.searchParams.set('redirect_uri', callbackUrl(provider, baseUrl));
   u.searchParams.set('response_type', 'code');
@@ -93,6 +103,24 @@ async function exchangeCode(provider: WatchlistOAuthProvider, code: string, base
     const access = (tok.data || {})['access_token'];
     if (!access) throw new Error('Simkl token exchange failed');
     return { access_token: String(access), client_id: process.env['SIMKL_CLIENT_ID'] };
+  }
+  if (provider === 'anilist') {
+    const tok = await axios.post(ANILIST_TOKEN, {
+      grant_type: 'authorization_code',
+      client_id: String(process.env['ANILIST_CLIENT_ID'] || ''),
+      client_secret: String(process.env['ANILIST_CLIENT_SECRET'] || ''),
+      redirect_uri: callbackUrl('anilist', baseUrl),
+      code,
+    }, { headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, timeout: 15000 });
+    const access = (tok.data || {})['access_token'];
+    if (!access) throw new Error('AniList token exchange failed');
+    const expiresIn = Number((tok.data || {})['expires_in'] || 0) || ANILIST_DEFAULT_LIFETIME_S;
+    return {
+      access_token: String(access),
+      refresh_token: null,
+      expires_at: Date.now() + expiresIn * 1000,
+      client_id: process.env['ANILIST_CLIENT_ID'],
+    };
   }
   const tok = await axios.post('https://api.trakt.tv/oauth/token', {
     code,

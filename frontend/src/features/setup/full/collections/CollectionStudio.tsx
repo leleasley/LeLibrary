@@ -24,11 +24,13 @@ import { FolderEditorModal } from '@/features/setup/full/collections/FolderEdito
 import { PackLibraryModal } from '@/features/setup/full/collections/PackLibraryModal';
 import { useCatalogSources } from '@/features/setup/full/collections/catalog-sources';
 import { NuvioPublicModal } from '@/features/setup/full/NuvioPublicModal';
+import { NO_USER_LISTS, useMdblistLists, userListPickerRows, type UserListsContext } from '@/features/setup/shared/user-lists';
+import { MdblistListsStatus } from '@/features/setup/shared/MdblistListsStatus';
 
 // Collections studio: the list of Nuvio collections, the Quick Pack launch
 // block and its library, the public Nuvio directory browser, plus the
 // LeLibrary Hub system toggle.
-export function CollectionStudio({ collections, onChange, providerPrefix, platform, packs, onPacks, ownedOn, onToggleOwned, owned = null, onOwned, nuvioToken, savedSetup, lang, hasMdblistKey = false, hideAnime = false, defaultOpenId = null }: {
+export function CollectionStudio({ collections, onChange, providerPrefix, platform, packs, onPacks, ownedOn, onToggleOwned, owned = null, onOwned, nuvioToken, savedSetup, lang, hasMdblistKey = false, hideAnime = false, defaultOpenId = null, userLists = NO_USER_LISTS }: {
   collections: CollectionDoc[];
   onChange: (next: CollectionDoc[]) => void;
   providerPrefix: string | null;
@@ -56,6 +58,8 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
   hasMdblistKey?: boolean;
   // Every collection starts closed; tests open one to inspect its tiles.
   defaultOpenId?: string | null;
+  // "Your lists" (v6): personal rows a folder can use (shared/user-lists.ts).
+  userLists?: UserListsContext;
 }) {
   const canBrowse = Boolean(nuvioToken) || Boolean(savedSetup);
   const [openId, setOpenId] = useState<string | null>(defaultOpenId);
@@ -78,7 +82,14 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
   const hubOn = collections.some((collection) => collection.id === HUB_COLLECTION_ID);
   // LeLibrary's own rows lead the folder source picker. The Stremio-only
   // "LeLibrary Collections" row is a collection, not a folder source.
-  const folderLeadingSources = [...nativeLibraryRows(providerPrefix, platform).filter((row) => !row.nativeCollection), ...DISCOVERY_ROWS];
+  // Then the setup's own lists; the MDBList lists load once a folder editor
+  // opens.
+  const mdblistLists = useMdblistLists(userLists.mdblistSource, editor !== null);
+  const folderLeadingSources = useMemo(() => [
+    ...nativeLibraryRows(providerPrefix, platform).filter((row) => !row.nativeCollection),
+    ...DISCOVERY_ROWS,
+    ...userListPickerRows(userLists.services, mdblistLists.lists),
+  ], [providerPrefix, platform, userLists.services, mdblistLists.lists]);
   // Every card moves, the Hub and Movie Collections included (its place is its
   // Nuvio place).
   const entries = collectionEntries(collections.length, owned ? owned.slot ?? 0 : null);
@@ -348,6 +359,9 @@ export function CollectionStudio({ collections, onChange, providerPrefix, platfo
           gifLibrary={gifLibrary}
           names={sourceNames}
           leadingSources={folderLeadingSources}
+          sourceNotice={userLists.mdblistSource
+            ? <MdblistListsStatus state={mdblistLists.state} count={mdblistLists.lists.length} onReload={mdblistLists.reload} />
+            : null}
           onSave={saveFolder}
           onClose={() => setEditor(null)}
         />

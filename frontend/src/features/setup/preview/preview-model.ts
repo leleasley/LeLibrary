@@ -126,6 +126,8 @@ const SECRET_NAME = /api_?key|token|secret|passw|auth|session|cookie|credential|
 const KEY_SERVICE_NAMES = new Set([
   'torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'tvdbApiKey', 'omdbKey', 'mdblistKey',
   'erdbToken', 'rpdbKey', 'fanartKey', 'postersPlusUrl',
+  // Connected list services (names only): their rows show as samples.
+  'simkl', 'anilist',
 ]);
 
 export function draftRequestConfig(value: unknown): Record<string, unknown> {
@@ -274,18 +276,26 @@ export function metasFrom(body: unknown, limit: number): { metas: PreviewMeta[];
 
 // `sample`: a draft row the preview cannot fill yet: the library (shows
 // once the setup exists) or a list that needs the person's own key.
-export type SampleReason = 'library' | 'key' | 'unavailable';
+// `personal`: one of the person's own lists (Simkl, MDBList, AniList), read
+// with their connection only once the setup is saved; the server sends the
+// line to show (`label`).
+export type SampleReason = 'library' | 'key' | 'unavailable' | 'personal';
 
 export type RowState =
   | { status: 'loading' }
   | { status: 'ready'; metas: PreviewMeta[]; total: number }
-  | { status: 'sample'; reason: SampleReason }
+  | { status: 'sample'; reason: SampleReason; label?: string }
   | { status: 'error' };
 
 function sampleOf(body: unknown): SampleReason | null {
   if (!body || typeof body !== 'object' || (body as { sample?: unknown }).sample !== true) return null;
   const reason = (body as { reason?: unknown }).reason;
-  return reason === 'key' || reason === 'unavailable' ? reason : 'library';
+  return reason === 'key' || reason === 'unavailable' || reason === 'personal' ? reason : 'library';
+}
+
+function sampleLabel(body: unknown): string | undefined {
+  const label = body && typeof body === 'object' ? (body as { label?: unknown }).label : undefined;
+  return typeof label === 'string' && label.trim() ? label.trim().slice(0, 160) : undefined;
 }
 
 // Nuvio shows a row's "see all" button only when it has more than one row's
@@ -351,7 +361,10 @@ export function createDraftCatalogLoader(config: Record<string, unknown>, option
     const body = await post({
       config: setup, type: ref.type, catalogId: ref.catalogId, ...(ref.genre ? { genre: ref.genre } : {}),
     });
-    if (options.installToken && sampleOf(body) === 'library') return fetchJson(catalogUrl(options.installToken, ref));
+    // The library and the person's own lists do not depend on the draft:
+    // with a saved setup they load for real through its install link.
+    const sample = sampleOf(body);
+    if (options.installToken && (sample === 'library' || sample === 'personal')) return fetchJson(catalogUrl(options.installToken, ref));
     return body;
   }, options);
 }
@@ -364,7 +377,8 @@ export function createRowLoader(fetchRows: (ref: CatalogRef) => Promise<unknown>
   const push = createQueue<CatalogRef>((ref) => fetchRows(ref)
     .then((body) => {
       const sample = sampleOf(body);
-      states.set(catalogKey(ref), sample ? { status: 'sample', reason: sample } : { status: 'ready', ...metasFrom(body, limit) });
+      const label = sampleLabel(body);
+      states.set(catalogKey(ref), sample ? { status: 'sample', reason: sample, ...(label ? { label } : {}) } : { status: 'ready', ...metasFrom(body, limit) });
     })
     .catch(() => { states.set(catalogKey(ref), { status: 'error' }); })
     .finally(notify), Math.max(1, options.concurrency ?? CONCURRENCY));

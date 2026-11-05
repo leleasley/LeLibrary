@@ -267,14 +267,24 @@ export function apiKeysSummary(options: {
   return parts;
 }
 
+// The page's Simkl / AniList / Trakt connections: edit mode seals into the
+// saved setup, create mode keeps the popup's tokens in the page's draft
+// (memory only). One per page: the API keys cards and the "Your lists"
+// shelves read the same state, so a connect shows its rows at once.
+export function useSetupConnections(edit: EditMode | undefined, watchlist: WatchlistDraftMap, onWatchlist: (next: WatchlistDraftMap) => void): WatchlistConnections {
+  return useWatchlistConnections(edit
+    ? { uuid: edit.uuid, editToken: edit.editToken }
+    : { uuid: null, editToken: null, draft: watchlist, onDraft: onWatchlist });
+}
+
 // Settle In and Move In's "API keys" accordion. `children` sits under the
 // provider cards (Move In's catalogue organization).
-export function ApiKeysAccordion({ keys, onKeys, edit, watchlist, onWatchlist, anilistUser, onAnilistUser, revealSaved, children }: {
+export function ApiKeysAccordion({ keys, onKeys, edit, connections, anilistUser, onAnilistUser, revealSaved, children }: {
   keys: SetupKeysDraft;
   onKeys: (next: SetupKeysDraft) => void;
   edit?: EditMode | undefined;
-  watchlist: WatchlistDraftMap;
-  onWatchlist: (next: WatchlistDraftMap) => void;
+  // From useSetupConnections on the page.
+  connections: WatchlistConnections;
   anilistUser: string;
   onAnilistUser: (next: string) => void;
   revealSaved?: ((field: keyof SetupKeysDraft) => Promise<string | null>) | undefined;
@@ -282,9 +292,6 @@ export function ApiKeysAccordion({ keys, onKeys, edit, watchlist, onWatchlist, a
 }) {
   // The MDBList name a verify returned this session (undefined: none yet).
   const [mdblistSession, setMdblistSession] = useState<string | null | undefined>(undefined);
-  const connections = useWatchlistConnections(edit
-    ? { uuid: edit.uuid, editToken: edit.editToken }
-    : { uuid: null, editToken: null, draft: watchlist, onDraft: onWatchlist });
   const mdblistName = resolveMdblistIdentity(mdblistSession, edit?.identities?.mdblist);
   const reveal = edit ? { savedServices: edit.savedServices, revealSaved, onRemove: edit.onRemoveKey } : {};
   const summary = apiKeysSummary({

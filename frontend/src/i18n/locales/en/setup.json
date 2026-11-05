@@ -1794,6 +1794,20 @@
     "Sign-in did not return tokens": "Sign-in did not return tokens",
     "Complete sign-in in the popup": "Complete sign-in in the popup",
     "Could not disconnect": "Could not disconnect",
-    "Disconnected": "Disconnected"
+    "Disconnected": "Disconnected",
+    "Your Simkl lists": "Your Simkl lists",
+    "Your MDBList lists": "Your MDBList lists",
+    "Your AniList lists": "Your AniList lists",
+    "Your Trakt lists": "Your Trakt lists",
+    "Loading your MDBList lists…": "Loading your MDBList lists…",
+    "Could not load your MDBList lists.": "Could not load your MDBList lists.",
+    "No own or liked lists on MDBList yet.": "No own or liked lists on MDBList yet.",
+    "Your own and liked lists from MDBList.": "Your own and liked lists from MDBList.",
+    "Refresh lists": "Refresh lists",
+    "Your list shows here once the setup is saved.": "Your list shows here once the setup is saved.",
+    "Your Simkl rows show here once the setup is saved": "Your Simkl rows show here once the setup is saved",
+    "Your MDBList rows show here once the setup is saved": "Your MDBList rows show here once the setup is saved",
+    "Your AniList rows show here once the setup is saved": "Your AniList rows show here once the setup is saved",
+    "Your list shows here once the setup is saved": "Your list shows here once the setup is saved"
   }
 }

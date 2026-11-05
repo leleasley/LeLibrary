@@ -4,6 +4,8 @@ import { createPortal } from 'react-dom';
 import { apiClient } from '@/api/client';
 import { toast } from '@/features/setup/shared/Toast';
 import {
+  USER_LIST_GROUPS,
+  isUserListGroup,
   homeCategoryRank,
   homeRowFromSource,
   normalizeHomeOrder,
@@ -15,6 +17,8 @@ import {
 import { homePickerSources, SUGGESTED_GROUP, useCatalogSources } from '@/features/setup/full/collections/catalog-sources';
 import { regionForLang } from '@/features/setup/full/collections/region';
 import { setupCopy } from '@/features/setup/shared/setup-copy';
+import { NO_USER_LISTS, useMdblistLists, userListPickerRows, type UserListsContext } from '@/features/setup/shared/user-lists';
+import { MdblistListsStatus } from '@/features/setup/shared/MdblistListsStatus';
 
 // Group rank for the Home catalogue browser: the shared rank first, except
 // actor shelves always sink to the bottom no matter what else is installed.
@@ -34,6 +38,7 @@ function browserKey(source: BrowserSource): string {
 // A small glyph per catalogue shelf so the long accordion list scans quickly.
 function groupIcon(group: string): string {
   const name = group.toLowerCase();
+  if (isUserListGroup(group)) return '🔖';
   if (name.includes('lelibrary')) return '📚';
   if (name === 'suggested') return '✨';
   if (name.includes('watchlist')) return '🔖';
@@ -65,7 +70,7 @@ function groupIcon(group: string): string {
 // Home builder: catalogue browser on the left, ordered Home rows on the
 // right, plus the owned-franchise toggle and manifest import. The rename and
 // import modals live here with them.
-export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdblistKey = false, ownedInCollections = false }: {
+export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdblistKey = false, ownedInCollections = false, userLists = NO_USER_LISTS }: {
   rows: HomeRowDoc[];
   onChange: (next: HomeRowDoc[]) => void;
   platform: 'nuvio' | 'stremio';
@@ -76,8 +81,20 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
   // Move In: Movie Collections lives on the Collections page (Nuvio), so its
   // switch is not repeated here.
   ownedInCollections?: boolean;
+  // "Your lists" (v6): the services this setup has and where its MDBList
+  // lists come from (shared/user-lists.ts useUserLists).
+  userLists?: UserListsContext;
 }) {
-  const { sources: all, failed } = useCatalogSources(prefix, platform, true);
+  // 5.9: the catalogue browser lives in a sheet opened from Your Home.
+  const [addOpen, setAddOpen] = useState(false);
+  // The MDBList lists load when the sheet first opens (they cost the person
+  // MDBList quota), and again from the shelf's refresh button.
+  const mdblistLists = useMdblistLists(userLists.mdblistSource, addOpen);
+  const personalRows = useMemo(
+    () => userListPickerRows(userLists.services, mdblistLists.lists),
+    [userLists.services, mdblistLists.lists],
+  );
+  const { sources: all, failed } = useCatalogSources(prefix, platform, personalRows);
   const region = regionForLang(lang);
   const base = useMemo(() => homePickerSources(all, region), [all, region]);
   const [query, setQuery] = useState('');
@@ -87,8 +104,6 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
   const [importing, setImporting] = useState(false);
   const [renameIndex, setRenameIndex] = useState<number | null>(null);
   const [renameTitle, setRenameTitle] = useState('');
-  // 5.9: the catalogue browser lives in a sheet opened from Your Home.
-  const [addOpen, setAddOpen] = useState(false);
   useEffect(() => {
     if (!addOpen) return undefined;
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !importOpen) setAddOpen(false); };
@@ -361,7 +376,8 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
                       >
                         <span className="hr-group-icon" aria-hidden="true">{groupIcon(group)}</span>
                         <span className="hr-group-title">
-                          {group === SUGGESTED_GROUP ? <h3>{setupCopy('Suggested', 'Suggested')}</h3> : <h3 data-i18n-preserve>{group}</h3>}
+                          {group === SUGGESTED_GROUP ? <h3>{setupCopy('Suggested', 'Suggested')}</h3>
+                            : isUserListGroup(group) ? <h3>{group}</h3> : <h3 data-i18n-preserve>{group}</h3>}
                           <small>{added > 0 && <b>{added} added · </b>}{items.length} rows</small>
                         </span>
                         <span className="source-group-chevron" aria-hidden="true">
@@ -369,6 +385,9 @@ export function HomeRowsSection({ rows, onChange, platform, prefix, lang, hasMdb
                         </span>
                       </summary>
                       <div className="source-group-items">
+                        {group === USER_LIST_GROUPS.mdblist && userLists.mdblistSource && (
+                          <MdblistListsStatus state={mdblistLists.state} count={mdblistLists.lists.length} onReload={mdblistLists.reload} />
+                        )}
                         {items.map((source) => {
                           const key = browserKey(source);
                           const active = chosen.has(key);

@@ -42,6 +42,13 @@ const DRAFT_BODY_LIMIT = '256kb';
 const DRAFT_BODY_BYTES = 256 * 1024;
 const draftPreviewLimit = rateLimit({ windowMs: 60_000, max: DRAFT_PREVIEW_MAX, scope: 'preview-draft' });
 const draftCatalogLimit = rateLimit({ windowMs: 60_000, max: DRAFT_CATALOG_MAX, scope: 'preview-draft-catalog' });
+// "Your MDBList lists" (issue #20): each call can cost the person up to four
+// MDBList requests from their daily quota, so it is limited tightly, at
+// module scope (one bucket set however often the routes are mounted).
+const MDBLIST_LISTS_MAX = 10;
+const mdblistListsLimit = rateLimit({ windowMs: 60_000, max: MDBLIST_LISTS_MAX, scope: 'mdblist-lists' });
+// What a typed MDBList key may look like before anything is sent upstream.
+const MDBLIST_KEY_SHAPE = /^[A-Za-z0-9_-]{8,128}$/;
 const { TIERS, DEFAULT_TIER } = configStore;
 const { isUuid, parseInstallToken } = token;
 const { createEditSessionStore, bearerToken, DEFAULT_TTL_MS } = editSessionsModule;
@@ -52,6 +59,10 @@ export interface SetupRoutesOptions {
   getStore?: () => Promise<ConfigStore | null>;
   // Test seam only: the Preview's manifest and Movie Collections loaders.
   previewDeps?: PreviewDeps;
+  // Test seam only: the edit page's "Connected as ..." lookups.
+  identities?: (config: Record<string, unknown>) => Promise<Record<string, string>>;
+  // Test seam only: the MDBList lists read (user-lists/mdblist.ts).
+  mdblistLists?: (key: string, refresh: boolean) => Promise<unknown[]>;
 }
 
 export interface SetupRoutesApi {
@@ -129,7 +140,15 @@ function editorConfigView(opened: OpenedConfig) {
   return { config: withLegacyWatchlistRows(opened.config ?? {}, opened.tier, connectedWatchlistIds(opened)) };
 }
 
-function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions, getStore, previewDeps }: SetupRoutesOptions = {}): void {
+// The live identity lookups, except under the test runner: tests never reach
+// MDBList, Simkl or AniList (they pass the `identities` seam instead).
+function liveIdentities(config: Record<string, unknown>): Promise<Record<string, string>> {
+  if (process.env['NODE_TEST_CONTEXT'] || process.argv.some((arg) => arg.includes('--test'))) return Promise.resolve({});
+  const { userListIdentities } = require('../user-lists/index.ts') as { userListIdentities: (config: Record<string, unknown>) => Promise<Record<string, string>> };
+  return userListIdentities(config);
+}
+
+function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions, getStore, previewDeps, identities: identitiesFor = liveIdentities, mdblistLists: listsFor }: SetupRoutesOptions = {}): void {
   const router = express.Router();
   router.use(express.json({ limit: '1mb' }));
   const sessions: EditSessionStore = editSessions || createEditSessionStore();
@@ -190,6 +209,41 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     }
   };
 
+  async function sendMdblistLists(res: Response, key: string, refresh: boolean): Promise<void> {
+    try {
+      const read = listsFor || ((k: string, r: boolean) => (require('../user-lists/index.ts') as {
+        mdblistLists: (ctx: undefined, key: string, refresh: boolean) => Promise<unknown[]>;
+      }).mdblistLists(undefined, k, r));
+      // Display fields only, whatever the reader returned.
+      const lists = (await read(key, refresh)).map((raw) => {
+        const row = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+        return {
+          id: Number(row['id']) || 0,
+          name: String(row['name'] || '').slice(0, 120),
+          user_name: String(row['user_name'] || '').slice(0, 80),
+          mediatype: String(row['mediatype'] || '').slice(0, 20),
+          items: Number(row['items']) || 0,
+          likes: Number(row['likes']) || 0,
+          source: row['source'] === 'liked' ? 'liked' : 'own',
+        };
+      }).filter((row) => row.id > 0);
+      res.json({ lists });
+    } catch (err) {
+      const status = Number((err as { response?: { status?: number } })?.response?.status || 0);
+      if (status === 401 || status === 403) { res.status(400).json({ error: 'MDBList did not accept this key' }); return; }
+      if (status === 429) { res.setHeader('Retry-After', '60'); res.status(429).json({ error: 'MDBList is busy. Try again in a minute.' }); return; }
+      res.status(502).json({ error: 'Could not load your MDBList lists' });
+    }
+  }
+
+  // AniList usernames are checked here (the one rule both pages and the API
+  // share); an empty one is dropped.
+  function anilistChecked(config: unknown): { ok: true; config: Record<string, unknown> | undefined } | { ok: false; error: string } {
+    if (config === undefined || config === null || typeof config !== 'object' || Array.isArray(config)) return { ok: true, config: config as undefined };
+    const { checkAnilistUser } = require('../user-lists/index.ts') as { checkAnilistUser: (c: Record<string, unknown>) => { ok: true; config: Record<string, unknown> } | { ok: false; error: string } };
+    return checkAnilistUser(config as Record<string, unknown>);
+  }
+
   // Create a config. Returns the install token exactly once.
   router.post('/', async (req: Request, res: Response) => {
     const store = await withStore(res);
@@ -211,6 +265,8 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
       res.status(400).json({ error: `Tier must be one of: ${TIERS.join(', ')}` });
       return;
     }
+    const anilist = anilistChecked(config);
+    if (!anilist.ok) { res.status(400).json({ error: anilist.error }); return; }
     // A Nuvio/Stremio login made on the Destination step is sealed with the
     // setup at creation, so it survives even if the person never presses
     // push (the end screen can be closed). Only well-formed sessions are kept.
@@ -231,7 +287,7 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
       const created = await store.create({
         tier: (tier as string) || DEFAULT_TIER,
         name,
-        config: normaliseSetupConfigCollections((config && typeof config === 'object' ? config : {}) as Record<string, unknown>),
+        config: normaliseSetupConfigCollections((anilist.config && typeof anilist.config === 'object' ? anilist.config : {}) as Record<string, unknown>),
         keys: keyRecord,
         password: password ? String(password) : null,
       });
@@ -260,11 +316,25 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
   // Which watchlist providers this server can connect (public: the setup
   // pages need it before any UUID exists). Registered before /:uuid so the
   // single-segment path is not swallowed by the metadata route.
+  // `traktLegacy`: Trakt is no longer offered to new setups (an API app needs
+  // Trakt VIP); only setups already connected keep their Trakt card.
   router.get('/watchlist-config', async (_req: Request, res: Response) => {
     res.json({
       simkl: oauth.oauthConfigured('simkl'),
       trakt: oauth.oauthConfigured('trakt'),
+      anilist: oauth.oauthConfigured('anilist'),
+      traktLegacy: true,
     });
+  });
+
+  // "Your MDBList lists" before a setup exists: the key the person just
+  // typed rides in the body, is used for this one read and is never stored
+  // or logged. Lists only (id, name, owner, type, counts), never the key.
+  router.post('/mdblist/lists', mdblistListsLimit, async (req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const key = (req.body as { key?: unknown } | undefined)?.key;
+    if (typeof key !== 'string' || !MDBLIST_KEY_SHAPE.test(key.trim())) { res.status(400).json({ error: 'Enter a valid MDBList API key' }); return; }
+    await sendMdblistLists(res, key.trim(), (req.body as { refresh?: unknown } | undefined)?.refresh === true);
   });
 
   // Self-host saved setups (GitHub issue #4). Summaries only: never the secret,
@@ -371,7 +441,31 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
         ...(view.config['nuvioCollectionOverrides'] ? { nuvioCollectionOverrides: currentPackOverrides(view.config['nuvioCollectionOverrides']) } : {}),
       };
     }
-    res.json(view);
+    // "Connected as ..." per list service (MDBList account, Simkl user,
+    // AniList name): display names only, cached a day, never a key.
+    let identities = {};
+    try {
+      identities = await identitiesFor(configStore.toEngineConfig(opened));
+    } catch { /* names are a nicety: the config still loads */ }
+    res.json({ ...view, identities });
+  });
+
+  // "Your MDBList lists" for a saved setup: its own and liked lists, read
+  // with the saved key (which never leaves the server). Same authority as
+  // the config above. A key typed on the page but not saved yet uses the
+  // POST route instead.
+  router.get('/:uuid/mdblist/lists', mdblistListsLimit, async (req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const store = await withStore(res);
+    if (!store) return;
+    const uuid = String(req.params.uuid || '').toLowerCase();
+    if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
+    const opened = await store.resolveByUuid(uuid);
+    if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
+    if (!(await authorizeEdit(req, uuid, store, opened))) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
+    const key = String(((opened.keys ?? {}) as Record<string, unknown>)['mdblistKey'] || '').trim();
+    if (!key) { res.status(404).json({ error: 'This setup has no MDBList key' }); return; }
+    await sendMdblistLists(res, key, req.query['refresh'] === '1');
   });
 
   // Preview: what Nuvio or Stremio will show for the saved setup (Home rows in
@@ -447,12 +541,14 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
       return;
     }
     if (tier !== undefined && !TIERS.includes(tier as never)) { res.status(400).json({ error: 'Invalid tier' }); return; }
+    const anilist = anilistChecked(config);
+    if (!anilist.ok) { res.status(400).json({ error: anilist.error }); return; }
     limiter.succeed(clientIp(req), uuid);
     const { normaliseSetupConfigCollections } = require('../setup/collections.ts') as {
       normaliseSetupConfigCollections: <T>(config: T) => T;
     };
     const saved = await store.save(uuid, {
-      config: config === undefined ? undefined : normaliseSetupConfigCollections(config as Record<string, unknown>),
+      config: config === undefined ? undefined : normaliseSetupConfigCollections((anilist.config ?? config) as Record<string, unknown>),
       keys: keys as Record<string, unknown> | undefined,
       tier: tier as string | undefined,
       name,

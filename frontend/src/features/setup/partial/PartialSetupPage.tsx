@@ -9,7 +9,7 @@ import { CreatingSetup } from '@/features/setup/shared/CreatingSetup';
 import { PublishPanel } from '@/features/setup/shared/PublishPanel';
 import { ConfirmModal } from '@/features/setup/shared/Modal';
 import { useWizardStep } from '@/features/setup/shared/WizardStepper';
-import { ApiKeysAccordion } from '@/features/setup/shared/ApiKeysSection';
+import { ApiKeysAccordion, useSetupConnections } from '@/features/setup/shared/ApiKeysSection';
 import { TierProgress } from '@/features/setup/shared/tier/TierProgress';
 import { BadgePackStrip, StreamStylePicker, usePresetPicker } from '@/features/setup/shared/tier/TierPickers';
 import { TierInstall } from '@/features/setup/shared/tier/TierInstall';
@@ -69,6 +69,7 @@ import { usePlatformPush } from '@/features/setup/shared/usePlatformPush';
 import { toast } from '@/features/setup/shared/Toast';
 import type { PlatformConnection } from '@/features/setup/full/platform-login';
 import { same } from '@/features/setup/shared/same';
+import { useUserLists } from '@/features/setup/shared/user-lists';
 
 // Settle In builds on the library-first Quick Look with Home rows, playback
 // controls and artwork. External sources and list providers remain optional.
@@ -146,6 +147,19 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
   const [badgePack, setBadgePack] = useState(restored?.badgePack ?? DEFAULT_BADGE_PACK);
   const [customBadgeUrl, setCustomBadgeUrl] = useState(restored?.customBadgeUrl ?? '');
   const [watchlist, setWatchlist] = useState<WatchlistDraftMap>(restored?.watchlist ?? {});
+  // "Your lists" (v6) for the Home rows and folder pickers: the services this
+  // setup has (draft connects, typed MDBList key, saved connections) and
+  // where its MDBList lists come from. `anilistUser` lives in the page's
+  // metadata draft (meta.anilistUser -> config.anilistUser).
+  const connections = useSetupConnections(edit, watchlist, setWatchlist);
+  const userLists = useUserLists({
+    savedSetup: edit ? { uuid: edit.uuid, editToken: edit.editToken } : null,
+    status: connections.status,
+    savedServices: edit?.savedServices ?? [],
+    watchlistDraft: watchlist,
+    mdblistKey: keys.mdblistKey ?? '',
+    anilistUser: meta.anilistUser,
+  });
   const [addons, setAddons] = useState<string[]>(restored?.addons ?? []);
   const [customStreams, setCustomStreams] = useState<CustomStreamRow[]>(restored?.customStreams ?? []);
   // Nuvio player choices. Off by default: an untouched setup leaves whatever
@@ -302,6 +316,7 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
   // The Preview reads the same draft creation saves (its config, never its keys).
   const preview = useTierPreview(edit, {
     tier: 'partial', platform, config: () => buildDraft().config, keys, formatting,
+    connected: (['simkl', 'anilist'] as const).filter((provider) => connections.connected(provider)),
     badgePack: { pack: badgePack, url: badgePack === 'custom' ? customBadgeUrl : '' }, posterStyle: posters.provider, name,
   }, previewOpen);
 
@@ -429,7 +444,7 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
             <div className="qs-accordions qs-setup-page">
               <ApiKeysAccordion
                 keys={keys} onKeys={setKeys} edit={edit} revealSaved={revealEdit}
-                watchlist={watchlist} onWatchlist={setWatchlist}
+                connections={connections}
                 anilistUser={meta.anilistUser} onAnilistUser={(anilistUser) => setMeta({ ...meta, anilistUser })}
               />
               <Accordion title="Streams" icon="🎚️"
@@ -486,6 +501,7 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
               prefix={hubPrefix(providerSelectionWithSaved(keys, edit?.savedServices ?? []))}
               lang={meta.lang}
               hasMdblistKey={Boolean((keys.mdblistKey ?? '').trim()) || Boolean(edit?.savedServices.includes('mdblistKey'))}
+              userLists={userLists}
             />
           </TierStep>
           {edit ? (

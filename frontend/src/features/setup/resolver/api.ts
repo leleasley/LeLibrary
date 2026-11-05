@@ -8,11 +8,11 @@ export interface SetupSummary {
   hasPassword: boolean;
   keyServices: string[];
   updatedAt?: string;
-  // Display names of the accounts behind this setup's keys and connects
-  // (never a key). Absent on servers that do not report them.
-  identities?: SetupIdentities;
 }
 
+// Display names of the accounts behind a setup's keys and connects (never a
+// key). Only the authenticated GET /:uuid/config reports them (the summary
+// above is public); servers before v6 send none.
 export interface SetupIdentities {
   mdblist?: string;
   simkl?: string;
@@ -109,10 +109,11 @@ export function rotateSetupSecret(uuid: string, editToken: string): Promise<{ ok
 
 // Saved structural config for an unlocked editor: pre-fills the pickers so
 // an edit starts where the setup left off. Secrets are never included.
-export function fetchSetupConfig(uuid: string, editToken: string): Promise<{ config: Record<string, unknown> }> {
-  return apiClient.get<{ config: Record<string, unknown> }>(`/api/setup/${encodeURIComponent(uuid)}/config`, {
+export async function fetchSetupConfig(uuid: string, editToken: string): Promise<{ config: Record<string, unknown>; identities: SetupIdentities }> {
+  const data = await apiClient.get<{ config: Record<string, unknown>; identities?: unknown }>(`/api/setup/${encodeURIComponent(uuid)}/config`, {
     headers: { Authorization: `Bearer ${editToken}` },
   });
+  return { config: data.config, identities: cleanIdentities(data.identities) };
 }
 
 // Reveal one saved key value into an unlocked editor (explicit per-service
@@ -201,8 +202,9 @@ export type WatchlistProvider = 'simkl' | 'trakt' | 'anilist';
 
 export interface WatchlistState {
   simkl: { connected: boolean; configured: boolean };
-  trakt: { connected: boolean; configured: boolean };
-  // Servers before the AniList connect do not report it.
+  // `legacy`: Trakt is kept only for setups already connected (v6).
+  trakt: { connected: boolean; configured: boolean; legacy?: boolean };
+  // AniList (v6): optional, for private lists; absent on older servers.
   anilist?: { connected: boolean; configured: boolean };
 }
 
@@ -258,20 +260,16 @@ export interface WatchlistServerConfig {
   traktLegacy: boolean;
 }
 
-// Read tolerantly: older servers send only { simkl, trakt }.
+// The server sends { simkl, trakt, anilist, traktLegacy } (routes/setup.ts
+// /watchlist-config); older servers send only { simkl, trakt }, which reads
+// as no AniList and Trakt not legacy.
 export function parseWatchlistConfig(raw: unknown): WatchlistServerConfig {
   const record = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
-  const trakt = record['trakt'];
-  const traktObject = trakt && typeof trakt === 'object' ? trakt as Record<string, unknown> : null;
-  const legacy = record['legacy'];
   return {
     simkl: record['simkl'] === true,
-    trakt: trakt === true || (traktObject !== null && traktObject['configured'] !== false),
+    trakt: record['trakt'] === true,
     anilist: record['anilist'] === true,
-    traktLegacy: legacy === true
-      || record['traktLegacy'] === true
-      || (Array.isArray(legacy) && legacy.includes('trakt'))
-      || (traktObject !== null && traktObject['legacy'] === true),
+    traktLegacy: record['traktLegacy'] === true,
   };
 }
 

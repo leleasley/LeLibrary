@@ -61,10 +61,10 @@ describe('server connect config', () => {
     expect(parseWatchlistConfig({ simkl: true, trakt: true })).toEqual({ simkl: true, trakt: true, anilist: false, traktLegacy: false });
   });
 
-  it('reads the legacy flag in its likely shapes', () => {
-    expect(parseWatchlistConfig({ trakt: true, legacy: true }).traktLegacy).toBe(true);
-    expect(parseWatchlistConfig({ trakt: { configured: true, legacy: true } })).toMatchObject({ trakt: true, traktLegacy: true });
-    expect(parseWatchlistConfig({ legacy: ['trakt'] }).traktLegacy).toBe(true);
+  it('reads what the server sends: anilist and traktLegacy', () => {
+    expect(parseWatchlistConfig({ simkl: true, trakt: true, anilist: true, traktLegacy: true }))
+      .toEqual({ simkl: true, trakt: true, anilist: true, traktLegacy: true });
+    expect(parseWatchlistConfig({ trakt: true, legacy: true }).traktLegacy).toBe(false);
     expect(parseWatchlistConfig(null)).toEqual({ simkl: false, trakt: false, anilist: false, traktLegacy: false });
   });
 

@@ -171,7 +171,7 @@ function MobileCatalogRow({ row }: { row: PreviewRow }) {
   if (row.external) body = <ExternalNote />;
   else if (!state || state.status === 'loading') body = <div className="npv-strip"><SkeletonCards count={4} /></div>;
   else if (state.status === 'error') body = <ErrorNote onRetry={retry} />;
-  else if (state.status === 'sample') body = <SampleRow reason={state.reason} count={4} />;
+  else if (state.status === 'sample') body = <SampleRow reason={state.reason} label={state.label} count={4} />;
   else if (!state.metas.length) body = <EmptyNote />;
   else body = <div className="npv-strip">{state.metas.slice(0, ROW_LIMIT).map((meta) => <PosterCard key={meta.id} meta={meta} />)}</div>;
   return (

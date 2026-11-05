@@ -145,9 +145,13 @@ test('POST /preview-draft: body limit', async () => {
 test('draft catalogue kinds: library rows, own definitions, discovery, anything else unknown', () => {
   const { classifyDraftCatalog } = require('../src/setup/preview.ts');
   const { catalogs } = require('../src/catalog/catalogdefs.ts');
-  for (const id of ['torbox-movies', 'rd-series', 'ad-anime', 'pm-movies-4k', 'torbox-series-hdr', 'torbox-movies-g-horror', 'torbox-series-genres', 'torbox-collections', 'collection-645', 'torbox-watchlist-trakt-movie']) {
+  for (const id of ['torbox-movies', 'rd-series', 'ad-anime', 'pm-movies-4k', 'torbox-series-hdr', 'torbox-movies-g-horror', 'torbox-series-genres', 'torbox-collections', 'collection-645']) {
     assert.equal(classifyDraftCatalog('movie', id).kind, 'library', id);
   }
+  // Personal lists (v6) and the old watchlist ids: the setup's own lists.
+  assert.deepEqual(classifyDraftCatalog('movie', 'torbox-watchlist-trakt-movie'), { kind: 'personal', service: 'trakt' });
+  assert.deepEqual(classifyDraftCatalog('series', 'lelibrary-user-simkl-upnext-series'), { kind: 'personal', service: 'simkl' });
+  assert.deepEqual(classifyDraftCatalog('movie', 'lelibrary-user-mdblist-list.123-movie'), { kind: 'personal', service: 'mdblist' });
   assert.deepEqual(classifyDraftCatalog('movie', 'torbox-trending-movies'), { kind: 'discovery', list: 'trending', apiType: 'movie' });
   assert.deepEqual(classifyDraftCatalog('series', 'torbox-popular-series'), { kind: 'discovery', list: 'popular', apiType: 'tv' });
   const [movieId] = Object.entries(catalogs).find(([, def]) => def.type === 'movie' && String(def.handler).startsWith('tmdb_'));

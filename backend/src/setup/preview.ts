@@ -132,7 +132,7 @@ export interface DraftMeta {
 }
 
 export type DraftCatalogResult =
-  | { status: 200; body: { metas: DraftMeta[] } | { sample: true; reason: 'library' | 'key' | 'unavailable' } }
+  | { status: 200; body: { metas: DraftMeta[] } | { sample: true; reason: 'library' | 'key' | 'unavailable' } | { sample: true; reason: 'personal'; service: string; label: string } }
   | { status: 400; body: { error: string } };
 
 export interface DraftCatalogDeps {
@@ -144,6 +144,7 @@ export interface DraftCatalogDeps {
 
 export type DraftCatalogKind =
   | { kind: 'library' }
+  | { kind: 'personal'; service: 'simkl' | 'mdblist' | 'anilist' | 'trakt' }
   | { kind: 'discovery'; list: 'trending' | 'popular'; apiType: 'movie' | 'tv' }
   | { kind: 'lib'; libId: string }
   | { kind: 'curated'; type: 'movie' | 'series'; source: string }
@@ -376,7 +377,11 @@ const DRAFT_KEY_SERVICES = new Set([
   'torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey',
   'tmdbApiKey', 'tvdbApiKey', 'omdbKey', 'mdblistKey',
   'erdbToken', 'rpdbKey', 'fanartKey', 'postersPlusUrl',
+  // Connected list services (keys.watchlist.*): their personal rows are
+  // declared, then shown as samples until the setup is saved.
+  'simkl', 'anilist',
 ]);
+const DRAFT_CONNECTIONS = new Set(['simkl', 'anilist']);
 // Fields a draft never carries, at any depth: every key, login and link
 // that can hold someone's credentials (other addons' links included), plus
 // poster/badge links and custom stream links the preview has no use for.
@@ -429,7 +434,10 @@ function draftKeyServices(value: unknown): string[] {
 
 async function buildDraftPreview({ tier, platform, config, keyServices, origin }: DraftPreviewInput, deps: PreviewDeps = {}): Promise<SetupPreview> {
   const { normaliseSetupConfigCollections } = require('./collections.ts') as { normaliseSetupConfigCollections: <T>(config: T) => T };
-  const keys: Row = Object.fromEntries(draftKeyServices(keyServices).map((name) => [name, KEY_PLACEHOLDER]));
+  const names = draftKeyServices(keyServices);
+  const keys: Row = Object.fromEntries(names.filter((name) => !DRAFT_CONNECTIONS.has(name)).map((name) => [name, KEY_PLACEHOLDER]));
+  const connected = names.filter((name) => DRAFT_CONNECTIONS.has(name));
+  if (connected.length) keys['watchlist'] = Object.fromEntries(connected.map((name) => [name, { access_token: KEY_PLACEHOLDER }]));
   const opened: OpenedConfig = {
     uuid: DRAFT_UUID,
     tier: tier as OpenedConfig['tier'],
@@ -455,6 +463,13 @@ function classifyDraftCatalog(type: string, catalogId: string): DraftCatalogKind
   const providers = require('../providers/index.ts') as { PROVIDER_META: Record<string, { cat: string }> };
   const cats = Object.values(providers.PROVIDER_META).map((meta) => meta.cat).join('|');
   if (new RegExp(`^(?:${cats})-(?:movies|series|anime)(?:-(?:4k|hdr|genres|g-[a-z0-9-]+))?$`).test(catalogId)) return { kind: 'library' };
+  // Personal lists (and the old watchlist ids) need the setup's own
+  // connection or key: never read for a draft.
+  const personal = catalogId.match(/^(?:lelibrary-user-(simkl|mdblist|anilist)-[a-z.0-9]+|torbox-watchlist-([a-z]+))-(?:movie|series)$/);
+  if (personal) {
+    const service = personal[1] || personal[2] || '';
+    if (service === 'simkl' || service === 'mdblist' || service === 'anilist' || service === 'trakt') return { kind: 'personal', service };
+  }
   if (/^(?:torbox-collections|torbox-collection-[A-Za-z0-9_-]+|collection-\d+|torbox-watchlist-[a-z]+-(?:movie|series)|lelibrary-import-(?:movie|series)(?:,imp_[a-f0-9]{64})?|lelibrary-search-[a-z-]+)$/.test(catalogId)) {
     return { kind: 'library' };
   }
@@ -518,6 +533,14 @@ function curatedLibId(type: 'movie' | 'series', raw: string, config: Row): strin
   )) || '';
 }
 
+// What a draft personal row says instead of titles.
+const PERSONAL_LABEL: Record<string, string> = {
+  simkl: 'Your Simkl rows show here once the setup is saved',
+  mdblist: 'Your MDBList rows show here once the setup is saved',
+  anilist: 'Your AniList rows show here once the setup is saved',
+  trakt: 'Your list shows here once the setup is saved',
+};
+
 async function buildDraftCatalog(input: DraftCatalogInput, deps: DraftCatalogDeps = {}): Promise<DraftCatalogResult> {
   const { type, catalogId } = input;
   const genre = input.genre === undefined || input.genre === null ? '' : input.genre;
@@ -529,6 +552,9 @@ async function buildDraftCatalog(input: DraftCatalogInput, deps: DraftCatalogDep
   const kind = classifyDraftCatalog(type, catalogId);
   if (kind.kind === 'unknown') return { status: 400, body: { error: 'Unknown catalogue' } };
   if (kind.kind === 'library') return { status: 200, body: { sample: true, reason: 'library' } };
+  if (kind.kind === 'personal') {
+    return { status: 200, body: { sample: true, reason: 'personal', service: kind.service, label: PERSONAL_LABEL[kind.service] || PERSONAL_LABEL['trakt'] as string } };
+  }
 
   const config = draftConfig(input.config);
   const lang = draftLang(config);

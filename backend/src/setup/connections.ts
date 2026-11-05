@@ -3,7 +3,7 @@
 // The row has exactly one encryption mechanism (seal.js, AES-256-GCM, server
 // key) for every secret type. Platform credentials are sealed - never hashed,
 // because a push must read them back - under `keys.push.{stremio,nuvio}` and
-// watchlist tokens under `keys.watchlist.{simkl,trakt}`. The setup password
+// watchlist tokens under `keys.watchlist.{simkl,trakt,anilist}`. The setup password
 // stays a one-way hash gating edits and has nothing to do with these.
 import type { OpenedConfig } from './config-store.ts';
 import type { PushApi, PushConnection } from './push.ts';
@@ -11,7 +11,7 @@ import type { PushApi, PushConnection } from './push.ts';
 const axios = require('axios');
 const { refreshNuvioToken } = require('./push.ts') as PushApi;
 
-export type WatchlistProvider = 'simkl' | 'trakt';
+export type WatchlistProvider = 'simkl' | 'trakt' | 'anilist';
 
 export interface WatchlistConn {
   access_token?: string;
@@ -45,6 +45,9 @@ function readWatchlist(opened: OpenedConfig | null, provider: string): Watchlist
   const envelope = asRecord(asRecord(opened?.keys)['watchlist']);
   const conn = asRecord(envelope[provider]);
   if (!conn || typeof conn['access_token'] !== 'string' || !conn['access_token']) return null;
+  // AniList tokens have no refresh: once expired the connection is gone
+  // (public lists by username keep working).
+  if (provider === 'anilist' && Number(conn['expires_at'] || 0) && Number(conn['expires_at']) <= Date.now()) return null;
   return conn as WatchlistConn;
 }
 

@@ -26,6 +26,10 @@ export interface TierPreviewInput {
   posterStyle: string;
   // The setup's name (headings in the Preview).
   name?: string | undefined;
+  // Connected list services (Simkl, AniList), by name only: the draft
+  // declares their personal rows and shows them as samples. A connection is
+  // never a key field, so the key names alone would miss it.
+  connected?: readonly string[] | undefined;
 }
 
 export interface TierPreviewSource {
@@ -43,7 +47,7 @@ export function tierPreviewSource(input: TierPreviewInput, savedServices: readon
     draft: {
       tier: input.tier,
       config: draftRequestConfig(input.config()),
-      keyServices: draftKeyServices(cleanKeys(input.keys), savedServices),
+      keyServices: draftKeyServices(cleanKeys(input.keys), [...savedServices, ...(input.connected ?? [])]),
     },
     platform: input.platform,
     streams: { formatting: input.formatting, badgePack: input.badgePack },

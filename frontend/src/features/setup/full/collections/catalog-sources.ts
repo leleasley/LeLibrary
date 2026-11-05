@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/api/client';
-import { watchlistConfig } from '@/features/setup/resolver/api';
 import {
   DISCOVERY_ROWS,
   nativeLibraryRows,
-  watchlistBrowserRows,
   type BrowserSource,
 } from '@/features/setup/shared/collection-doc';
 
@@ -54,25 +52,16 @@ export function homePickerSources(sources: BrowserSource[], region: string): Bro
 }
 
 // Shared catalogue browser list: native library rows, discovery rows,
-// watchlist rows, then the shared registry. Custom-stream rows join here
-// when their editor section lands.
-// Watchlist rows are for the Home picker only (`withWatchlists`).
-export function useCatalogSources(prefix: string | null, platform: string, withWatchlists = false): {
+// the setup's own "Your lists" rows (Home picker: `userLists`, built by
+// shared/user-lists.ts for the services it has), then the shared registry.
+const NO_ROWS: BrowserSource[] = [];
+
+export function useCatalogSources(prefix: string | null, platform: string, userLists: BrowserSource[] = NO_ROWS): {
   sources: BrowserSource[];
   failed: boolean;
 } {
   const [registry, setRegistry] = useState<BrowserSource[]>([]);
   const [failed, setFailed] = useState(false);
-  const [watchlists, setWatchlists] = useState({ simkl: false, trakt: false });
-
-  useEffect(() => {
-    if (!withWatchlists) return undefined;
-    let cancelled = false;
-    watchlistConfig()
-      .then((available) => { if (!cancelled) setWatchlists({ simkl: available?.simkl === true, trakt: available?.trakt === true }); })
-      .catch(() => { /* MDBList rows still show */ });
-    return () => { cancelled = true; };
-  }, [withWatchlists]);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,7 +92,7 @@ export function useCatalogSources(prefix: string | null, platform: string, withW
   }, []);
 
   return useMemo(() => ({
-    sources: [...nativeLibraryRows(prefix, platform), ...DISCOVERY_ROWS, ...(withWatchlists ? watchlistBrowserRows(watchlists) : []), ...registry],
+    sources: [...nativeLibraryRows(prefix, platform), ...DISCOVERY_ROWS, ...userLists, ...registry],
     failed,
-  }), [registry, prefix, platform, failed, watchlists, withWatchlists]);
+  }), [registry, prefix, platform, failed, userLists]);
 }

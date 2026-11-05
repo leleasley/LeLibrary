@@ -46,7 +46,8 @@ export interface SetupConnectionRoutesApi {
 }
 
 const PLATFORMS = ['nuvio', 'stremio'];
-const WATCHLIST_PROVIDERS = ['simkl', 'trakt'];
+const WATCHLIST_PROVIDERS = ['simkl', 'trakt', 'anilist'];
+const PROVIDER_NAMES: Record<string, string> = { simkl: 'Simkl', trakt: 'Trakt', anilist: 'AniList' };
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -281,13 +282,16 @@ function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', edi
     const opened = await store.resolveByUuid(uuid);
     if (!opened) { res.status(404).json({ error: 'Setup not found' }); return; }
     if (!authorizeBearer(req, uuid)) { res.status(401).json({ error: 'Unlock the setup first' }); return; }
-    const status: Record<string, { connected: boolean; configured: boolean }> = {};
+    const status: Record<string, { connected: boolean; configured: boolean; legacy?: boolean }> = {};
     for (const provider of WATCHLIST_PROVIDERS) {
       status[provider] = {
         connected: conns.readWatchlist(opened, provider) !== null,
         configured: oauth.oauthConfigured(provider),
       };
     }
+    // Trakt is kept only for setups already connected (new ones are not
+    // offered it): `legacy` tells the page to hide the card otherwise.
+    if (status['trakt']) status['trakt'].legacy = true;
     res.json(status);
   });
 
@@ -366,7 +370,7 @@ function mountSetupConnectionRoutes(app: Express, { basePath = '/api/setup', edi
       await store.save(pending.uuid, {
         keys: conns.mergeWatchlistKeys(asRecord(opened.keys), provider, conn as Record<string, unknown>),
       });
-      res.type('html').send(oauth.popupPage(provider, true, `${provider === 'simkl' ? 'Simkl' : 'Trakt'} connected. This window closes itself.`));
+      res.type('html').send(oauth.popupPage(provider, true, `${PROVIDER_NAMES[provider] || provider} connected. This window closes itself.`));
     } catch (err) {
       res.status(502).type('html').send(oauth.popupPage(provider, false, (err as Error).message || 'Connection failed.'));
     }

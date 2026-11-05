@@ -103,7 +103,7 @@ function getBaseManifest(baseUrl: any) {
   return manifest;
 }
 
-function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watchlist = [], collectionRefs = [], qualityRefs = [], homeRows = [], importedTypes = [], token = '', integration = 'nuvio', omitAnime = false }: LooseOptions = {}) {
+function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watchlist = [], collectionRefs = [], qualityRefs = [], homeRows = [], importedTypes = [], userListRows = [], token = '', integration = 'nuvio', omitAnime = false }: LooseOptions = {}) {
   const { rdCatalog = 'merge', catNameMovies, catNameSeries, catNameAnime, hideAnime } = config;
   const active  = providers.activeProviders(config);
   const separate = rdCatalog === 'separate';
@@ -398,6 +398,26 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
     }
   }
 
+  // ── Personal list rows (v6): lelibrary-user-{provider}-{list}-{type} ──
+  // Declared only when picked as a Home row or used by a folder (the
+  // collection plan lists them) AND the setup has that service (Simkl
+  // connected, an MDBList key, an AniList username or connection). Off Nuvio
+  // Home unless picked; folders point at these ids directly (a setup has a
+  // handful at most, so no compact route is needed).
+  function buildUserListRows() {
+    const { userListServices, parseUserListId, userListTitle } = require('../user-lists/rows.ts');
+    const services = userListServices(config);
+    const seenIds = new Set<string>();
+    for (const entry of Array.isArray(userListRows) ? userListRows : []) {
+      const ref = parseUserListId(entry?.catalogId);
+      if (!ref || ref.alias || !services[ref.provider] || seenIds.has(entry.catalogId)) continue;
+      seenIds.add(entry.catalogId);
+      const row: LooseConfig = { id: entry.catalogId, type: ref.type, name: userListTitle(ref, entry.title), extra: CAT_EXTRA };
+      if (integration === 'nuvio' && homeManaged && !selectedHomeCatalogs.has(entry.catalogId)) row.showInHome = false;
+      catalogs.push(row);
+    }
+  }
+
   // ── Catalog library rows ──
   // Only the catalog ids the user enabled (config.libraryCatalogs) are listed -
   // the full 451-row library is far too big for one manifest. Each row serves
@@ -536,6 +556,7 @@ function getConfiguredManifest(baseUrl: string, config: LooseConfig = {}, { watc
       buildCollectionsRow();
     } else if (key === 'watchlist') {
       buildWatchlistRows();
+      buildUserListRows();
     } else if (key === 'library') {
       buildLibraryRows();
     } else if (key === 'imports') {
@@ -650,6 +671,7 @@ async function buildConfiguredManifest(config: LooseConfig, token: string, reque
   let qualityRefs: string[] = [];
   let homeRows = [];
   let importedTypes = [];
+  let userListRows: unknown[] = [];
   // The collections document this token installs. v5.5 setups keep it in their
   // own config row; the hosted account area kept it beside the token. Either
   // way the SAME plan drives the manifest and the Nuvio push, so a folder can
@@ -694,6 +716,7 @@ async function buildConfiguredManifest(config: LooseConfig, token: string, reque
     collectionRefs = plan.folderLibraryIds;
     qualityRefs = qualityRefsFrom(collectionDocument.collections);
     importedTypes = plan.importedTypes;
+    userListRows = Array.isArray(plan.userListRows) ? plan.userListRows : [];
   } catch (err: any) {
     console.warn('[watchlist] manifest resolve failed:', err.message);
   }
@@ -714,7 +737,7 @@ async function buildConfiguredManifest(config: LooseConfig, token: string, reque
       }
     }
   } catch { /* keep the row on any doubt */ }
-  return getConfiguredManifest(baseUrl, config, { watchlist, collectionRefs, qualityRefs, homeRows, importedTypes, token, integration: requestedIntegration, omitAnime });
+  return getConfiguredManifest(baseUrl, config, { watchlist, collectionRefs, qualityRefs, homeRows, importedTypes, userListRows, token, integration: requestedIntegration, omitAnime });
 }
 
 async function handleConfiguredManifest(req: Request, res: Response, deps: ManifestDeps): Promise<void> {

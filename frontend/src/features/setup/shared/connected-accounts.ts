@@ -53,7 +53,7 @@ export function visibleConnectCards(options: {
   return PROVIDERS.filter((provider) => {
     if (provider === 'anilist') return true;
     if (options.connected(provider)) return true;
-    if (provider === 'trakt' && options.config?.traktLegacy === true) return false;
+    if (provider === 'trakt' && (options.config?.traktLegacy === true || options.status?.trakt?.legacy === true)) return false;
     return providerConfigured(provider, options) !== false;
   });
 }
@@ -69,6 +69,25 @@ export function cleanConn(value: unknown): WatchlistDraftConn | null {
   if (typeof record['expires_at'] === 'number') out.expires_at = record['expires_at'];
   if (typeof record['client_id'] === 'string') out.client_id = record['client_id'];
   return out;
+}
+
+// A pre-creation popup's message (`lelibraryWatchlistTokens`, sent by the
+// server's OAuth callback): the draft with that provider's tokens added
+// (Simkl, AniList or Trakt), 'no-tokens' when the sign-in returned none, or
+// null for any other message. The draft lives in page memory only
+// (draft-secrets) and seals at creation as keys.watchlist. Pure for tests.
+export function draftFromPopupTokens(
+  data: unknown,
+  draft: WatchlistDraftMap | null | undefined,
+): { next: WatchlistDraftMap; provider: WatchlistProvider } | 'no-tokens' | null {
+  if (!data || typeof data !== 'object') return null;
+  const tokens = (data as { lelibraryWatchlistTokens?: { provider?: unknown; connection?: unknown } }).lelibraryWatchlistTokens;
+  const provider = tokens?.provider;
+  if (!tokens || typeof provider !== 'string' || !(PROVIDERS as readonly string[]).includes(provider)) return null;
+  const conn = cleanConn(tokens.connection);
+  if (!conn) return 'no-tokens';
+  const key = provider as WatchlistProvider;
+  return { next: { ...(draft ?? {}), [key]: conn }, provider: key };
 }
 
 export interface WatchlistConnections {
@@ -128,17 +147,15 @@ export function useWatchlistConnections({ uuid, editToken, draft, onDraft }: {
         refresh();
         return;
       }
-      const tokens = data.lelibraryWatchlistTokens;
-      const provider = tokens?.provider;
-      if (precreation && tokens && typeof provider === 'string' && (PROVIDERS as readonly string[]).includes(provider)) {
-        const conn = cleanConn(tokens.connection);
-        if (!conn) {
-          toast('Sign-in did not return tokens', 'error');
-          return;
-        }
-        const key = provider as WatchlistProvider;
-        onDraft?.({ ...(draft ?? {}), [key]: conn });
-        toast(`${WATCHLIST_PROVIDER_NAMES[key]} connected - saved with your setup`);
+      if (!precreation) return;
+      const accepted = draftFromPopupTokens(data, draft);
+      if (accepted === 'no-tokens') {
+        toast('Sign-in did not return tokens', 'error');
+        return;
+      }
+      if (accepted) {
+        onDraft?.(accepted.next);
+        toast(`${WATCHLIST_PROVIDER_NAMES[accepted.provider]} connected - saved with your setup`);
       }
     }
     window.addEventListener('message', onMessage);

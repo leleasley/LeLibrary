@@ -1794,6 +1794,20 @@
     "Sign-in did not return tokens": "El inicio de sesión no devolvió tokens",
     "Complete sign-in in the popup": "Completa el inicio de sesión en la ventana emergente",
     "Could not disconnect": "No se pudo desconectar",
-    "Disconnected": "Desconectado"
+    "Disconnected": "Desconectado",
+    "Your Simkl lists": "Tus listas de Simkl",
+    "Your MDBList lists": "Tus listas de MDBList",
+    "Your AniList lists": "Tus listas de AniList",
+    "Your Trakt lists": "Tus listas de Trakt",
+    "Loading your MDBList lists…": "Cargando tus listas de MDBList…",
+    "Could not load your MDBList lists.": "No se pudieron cargar tus listas de MDBList.",
+    "No own or liked lists on MDBList yet.": "Aún no tienes listas propias ni listas que te gusten en MDBList.",
+    "Your own and liked lists from MDBList.": "Tus listas propias y las que te gustan de MDBList.",
+    "Refresh lists": "Actualizar listas",
+    "Your list shows here once the setup is saved.": "Tu lista aparece aquí cuando guardes la configuración.",
+    "Your Simkl rows show here once the setup is saved": "Tus filas de Simkl aparecen aquí cuando guardes la configuración",
+    "Your MDBList rows show here once the setup is saved": "Tus filas de MDBList aparecen aquí cuando guardes la configuración",
+    "Your AniList rows show here once the setup is saved": "Tus filas de AniList aparecen aquí cuando guardes la configuración",
+    "Your list shows here once the setup is saved": "Tu lista aparece aquí cuando guardes la configuración"
   }
 }

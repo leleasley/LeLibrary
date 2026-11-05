@@ -135,7 +135,7 @@ function TvCatalogRow({ row, index, focus, onFocusCard, onCount }: RowFocusProps
   if (row.external) body = <ExternalNote />;
   else if (!state || state.status === 'loading') body = <div className="npv-strip"><SkeletonCards count={8} /></div>;
   else if (state.status === 'error') body = <ErrorNote onRetry={retry} />;
-  else if (state.status === 'sample') body = <SampleRow reason={state.reason} count={8} />;
+  else if (state.status === 'sample') body = <SampleRow reason={state.reason} label={state.label} count={8} />;
   else if (!metas.length) body = <EmptyNote />;
   else body = <div className="npv-strip">{metas.map((meta, col) => <PosterCard key={meta.id} meta={meta} focus={cardFocus(index, col, focus, onFocusCard)} />)}</div>;
   const more = rowHasMore(state);

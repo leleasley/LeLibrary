@@ -6,7 +6,7 @@ import { Accordion } from '@/features/setup/shared/Accordion';
 import { ConfirmModal } from '@/features/setup/shared/Modal';
 import { useWizardStep } from '@/features/setup/shared/WizardStepper';
 import { RdCatalogSelect } from '@/features/setup/shared/sections';
-import { ApiKeysAccordion } from '@/features/setup/shared/ApiKeysSection';
+import { ApiKeysAccordion, useSetupConnections } from '@/features/setup/shared/ApiKeysSection';
 import { TierProgress } from '@/features/setup/shared/tier/TierProgress';
 import { BadgePackStrip, StreamStylePicker, usePresetPicker } from '@/features/setup/shared/tier/TierPickers';
 import { TierDock, useTierPreview } from '@/features/setup/shared/tier/TierPreview';
@@ -63,6 +63,7 @@ import {
   type SetupKeysDraft,
 } from '@/features/setup/shared/config-contract';
 import { same } from '@/features/setup/shared/same';
+import { useUserLists } from '@/features/setup/shared/user-lists';
 
 // Move In: the 8-step Collections spine (Docs/plans/v5.5-move-in-scoping.md).
 // Stages 2-6 fill in the destination connection, provider skins, collections
@@ -181,6 +182,19 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
     onRemoveKey: edit?.onRemoveKey,
   });
   const [watchlist, setWatchlist] = useState<WatchlistDraftMap>(restored?.watchlist ?? {});
+  // "Your lists" (v6) for the Home rows and folder pickers: the services this
+  // setup has (draft connects, typed MDBList key, saved connections) and
+  // where its MDBList lists come from. `anilistUser` lives in the page's
+  // metadata draft (meta.anilistUser -> config.anilistUser).
+  const connections = useSetupConnections(edit, watchlist, setWatchlist);
+  const userLists = useUserLists({
+    savedSetup: edit ? { uuid: edit.uuid, editToken: edit.editToken } : null,
+    status: connections.status,
+    savedServices: edit?.savedServices ?? [],
+    watchlistDraft: watchlist,
+    mdblistKey: keys.mdblistKey ?? '',
+    anilistUser: meta.anilistUser,
+  });
   const [confirmReset, setConfirmReset] = useState(false);
   const wizard = useWizardStep(FULL_SECTIONS.length);
   // Stay on the page after creation: the review step turns into the push
@@ -299,6 +313,7 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
   // The Preview reads the same draft creation saves (its config, never its keys).
   const preview = useTierPreview(edit, {
     tier: 'full', platform, config: () => buildDraft().config, keys, formatting,
+    connected: (['simkl', 'anilist'] as const).filter((provider) => connections.connected(provider)),
     badgePack: { pack: badgePack, url: badgeUrl }, posterStyle: posters.provider, name,
   }, previewOpen);
 
@@ -408,7 +423,7 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
             <div className="qs-accordions qs-setup-page">
               <ApiKeysAccordion
                 keys={keys} onKeys={setKeys} edit={edit} revealSaved={revealEdit}
-                watchlist={watchlist} onWatchlist={setWatchlist}
+                connections={connections}
                 anilistUser={meta.anilistUser} onAnilistUser={(anilistUser) => setMeta({ ...meta, anilistUser })}
               >
                 <div className="qs-catalogs"><RdCatalogSelect value={rdCatalog} onChange={setRdCatalog} /></div>
@@ -466,6 +481,7 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
               rows={homeRows} onChange={setHomeRows} platform={platform} prefix={providerPrefix}
               lang={meta.lang} ownedInCollections
               hasMdblistKey={Boolean((keys.mdblistKey ?? '').trim()) || Boolean(edit?.savedServices.includes('mdblistKey'))}
+              userLists={userLists}
             />
           </TierStep>
           <TierStep id="collections" index={4} title="Collections" hidden={wizard.step !== 3} lede="Folders with artwork, Quick Packs and the Nuvio public browser.">
@@ -478,6 +494,7 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
               lang={meta.lang}
               hideAnime={meta.hideAnime === true}
               hasMdblistKey={Boolean((keys.mdblistKey ?? '').trim()) || Boolean(edit?.savedServices.includes('mdblistKey'))}
+              userLists={userLists}
               nuvioToken={pushConn?.platform === 'nuvio' ? pushConn.nuvioToken ?? null : null}
               {...(edit && edit.savedAccount && edit.editToken ? { savedSetup: { uuid: edit.uuid, editToken: edit.editToken } } : {})}
             />

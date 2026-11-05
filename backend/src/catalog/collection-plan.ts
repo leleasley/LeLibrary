@@ -213,6 +213,10 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
   const importedTypes = new Set();
   const warnings = [];
   const importedDefinitions = new Map();
+  // Personal list rows (lelibrary-user-*, v6) picked as Home rows or used in
+  // folders: the manifest declares exactly these (when the setup has the
+  // service), so a Nuvio folder can point at the row id directly.
+  const userListRows = new Map();
   const companionDefinitions = new Map();
   const usedCompanionDefinitions = new Map();
   for (const source of Array.isArray(sources) ? sources : []) {
@@ -229,7 +233,7 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
     companionDefinitions.set(id, binding);
   }
 
-  function visit(source, placement = 'folder') {
+  function visit(source, placement = 'folder', title = '') {
     const normalized = cloneSource(source, manifestId);
     if (!normalized.catalogId) return normalized;
     // Older hosted exports persisted the compact private reference inside the
@@ -253,6 +257,24 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
     if (hideAnime && isAnimeSource(source)) return { ...normalized, catalogId: '' };
     const own = isLeLibrarySource(source, manifestId);
     if (placement === 'home' && own) selectedCatalogIds.add(normalized.catalogId);
+    if (own && /^lelibrary-user-/.test(normalized.catalogId)) {
+      const { parseUserListId } = require('../user-lists/rows.ts');
+      const ref = parseUserListId(normalized.catalogId);
+      if (!ref) {
+        warnings.push('An unknown personal list row was ignored.');
+        return { ...normalized, catalogId: '' };
+      }
+      normalized.type = ref.type;
+      const known = userListRows.get(normalized.catalogId);
+      const label = String(title || source.title || source.name || '').trim().slice(0, 80);
+      userListRows.set(normalized.catalogId, {
+        catalogId: normalized.catalogId,
+        type: ref.type,
+        title: known?.title || label,
+        home: Boolean(known?.home) || placement === 'home',
+        folder: Boolean(known?.folder) || placement === 'folder',
+      });
+    }
     if (normalized.catalogId.startsWith('lib-') && isLeLibrarySource(source, manifestId)) {
       const libraryId = normalized.catalogId.slice(4);
       libraryIds.add(libraryId);
@@ -332,7 +354,7 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
     ...row,
     enabled: row?.enabled !== false,
     order: Number.isFinite(Number(row?.order)) ? Number(row.order) : index,
-    source: visit(row?.source || {}, 'home'),
+    source: visit(row?.source || {}, 'home', row?.title || ''),
   // `torbox-collections` is the backing catalogue for native Nuvio folders.
   // It returns every franchise film, so exposing it on Home flattens a proper
   // folder collection into one misleading film row.
@@ -379,6 +401,7 @@ function compileCollectionPlan({ collections = [], homeRows = [], sources = [], 
     externalAddons: [...externalAddons.values()],
     importedTypes: [...importedTypes].sort(),
     externalBindings: [...usedCompanionDefinitions.values()],
+    userListRows: [...userListRows.values()],
     warnings,
     nativeFranchiseCollection: nativeFranchiseRow && {
       enabled: nativeFranchiseRow.row?.enabled !== false,

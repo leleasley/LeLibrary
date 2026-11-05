@@ -540,24 +540,91 @@ export const DISCOVERY_ROWS: BrowserSource[] = [
   { id: 'popular-series', catalogId: 'torbox-popular-series', name: 'Popular series', type: 'series', category: 'Popular', addonId: '' },
 ];
 
-// Watchlist rows, per provider. Ids and titles match the manifest
-// (routes/manifest.ts) and setup/watchlist-home.ts. A row only appears in
-// the app once that watchlist is connected.
-export const WATCHLIST_ROWS: (BrowserSource & { provider: 'simkl' | 'trakt' | 'mdblist' })[] = [
-  { id: 'watchlist-simkl-movie', catalogId: 'torbox-watchlist-simkl-movie', name: '🎬 Simkl Watchlist', type: 'movie', category: 'Watchlists', addonId: '', provider: 'simkl' },
-  { id: 'watchlist-simkl-series', catalogId: 'torbox-watchlist-simkl-series', name: '📺 Simkl Watchlist', type: 'series', category: 'Watchlists', addonId: '', provider: 'simkl' },
-  { id: 'watchlist-trakt-movie', catalogId: 'torbox-watchlist-trakt-movie', name: '🎬 Trakt Watchlist', type: 'movie', category: 'Watchlists', addonId: '', provider: 'trakt' },
-  { id: 'watchlist-trakt-series', catalogId: 'torbox-watchlist-trakt-series', name: '📺 Trakt Watchlist', type: 'series', category: 'Watchlists', addonId: '', provider: 'trakt' },
-  { id: 'watchlist-mdblist-movie', catalogId: 'torbox-watchlist-mdblist-movie', name: '🎯 MDBList Watchlist', type: 'movie', category: 'Watchlists', addonId: '', provider: 'mdblist' },
-  { id: 'watchlist-mdblist-series', catalogId: 'torbox-watchlist-mdblist-series', name: '📺 MDBList Watchlist', type: 'series', category: 'Watchlists', addonId: '', provider: 'mdblist' },
+// "Your lists" (v6): personal rows per service, one shelf each. Ids match
+// the server (user-lists/rows.ts) and the manifest: Simkl's Plan to Watch
+// and MDBList's Watchlist keep their v5.5 ids (torbox-watchlist-*), so a row
+// picked before v6 is the same row; everything else is
+// lelibrary-user-{provider}-{list}-{type}. A shelf only shows when that
+// service is connected or filled in (the draft or the saved setup).
+export type UserListService = 'simkl' | 'mdblist' | 'anilist' | 'trakt';
+export interface UserListServices { simkl: boolean; mdblist: boolean; anilist: boolean; trakt?: boolean }
+
+export const USER_LIST_GROUPS: Record<UserListService, string> = {
+  simkl: 'Your Simkl lists',
+  mdblist: 'Your MDBList lists',
+  anilist: 'Your AniList lists',
+  trakt: 'Your Trakt lists',
+};
+
+export function isUserListGroup(category: string): boolean {
+  return Object.values(USER_LIST_GROUPS).includes(category);
+}
+
+const userRow = (service: UserListService, id: string, catalogId: string, name: string, type: 'movie' | 'series'): BrowserSource & { service: UserListService } => ({
+  id, catalogId, name, type, category: USER_LIST_GROUPS[service], addonId: '', service,
+});
+
+export const USER_LIST_ROWS: (BrowserSource & { service: UserListService })[] = [
+  userRow('simkl', 'ul-simkl-upnext', 'lelibrary-user-simkl-upnext-series', 'Simkl Up Next', 'series'),
+  userRow('simkl', 'ul-simkl-airing', 'lelibrary-user-simkl-airing-series', 'Simkl Airing Next', 'series'),
+  userRow('simkl', 'watchlist-simkl-movie', 'torbox-watchlist-simkl-movie', 'Simkl Plan to Watch', 'movie'),
+  userRow('simkl', 'watchlist-simkl-series', 'torbox-watchlist-simkl-series', 'Simkl Plan to Watch', 'series'),
+  userRow('simkl', 'ul-simkl-watching', 'lelibrary-user-simkl-watching-series', 'Simkl Watching', 'series'),
+  userRow('simkl', 'ul-simkl-completed-movie', 'lelibrary-user-simkl-completed-movie', 'Simkl Completed', 'movie'),
+  userRow('simkl', 'ul-simkl-completed-series', 'lelibrary-user-simkl-completed-series', 'Simkl Completed', 'series'),
+  userRow('mdblist', 'watchlist-mdblist-movie', 'torbox-watchlist-mdblist-movie', 'MDBList Watchlist', 'movie'),
+  userRow('mdblist', 'watchlist-mdblist-series', 'torbox-watchlist-mdblist-series', 'MDBList Watchlist', 'series'),
+  userRow('mdblist', 'ul-mdblist-upnext', 'lelibrary-user-mdblist-upnext-series', 'MDBList Up Next', 'series'),
+  userRow('anilist', 'ul-anilist-current-series', 'lelibrary-user-anilist-current-series', 'AniList Watching', 'series'),
+  userRow('anilist', 'ul-anilist-planning-series', 'lelibrary-user-anilist-planning-series', 'AniList Plan to Watch', 'series'),
+  userRow('anilist', 'ul-anilist-completed-series', 'lelibrary-user-anilist-completed-series', 'AniList Completed', 'series'),
+  userRow('anilist', 'ul-anilist-current-movie', 'lelibrary-user-anilist-current-movie', 'AniList Watching', 'movie'),
+  userRow('anilist', 'ul-anilist-planning-movie', 'lelibrary-user-anilist-planning-movie', 'AniList Plan to Watch', 'movie'),
+  userRow('anilist', 'ul-anilist-completed-movie', 'lelibrary-user-anilist-completed-movie', 'AniList Completed', 'movie'),
+  // Trakt is no longer offered; a setup already connected keeps its rows.
+  userRow('trakt', 'watchlist-trakt-movie', 'torbox-watchlist-trakt-movie', 'Trakt Watchlist', 'movie'),
+  userRow('trakt', 'watchlist-trakt-series', 'torbox-watchlist-trakt-series', 'Trakt Watchlist', 'series'),
 ];
 
-// Watchlist rows this server can serve: Simkl and Trakt only when it can
-// connect them, MDBList always (it uses the setup's own key).
-export function watchlistBrowserRows(available: { simkl: boolean; trakt: boolean }): BrowserSource[] {
-  return WATCHLIST_ROWS
-    .filter((row) => row.provider === 'mdblist' || available[row.provider])
-    .map(({ provider: _provider, ...row }) => row);
+// The fixed personal rows for the services this setup has.
+export function userListBrowserRows(services: UserListServices): BrowserSource[] {
+  return USER_LIST_ROWS
+    .filter((row) => services[row.service] === true)
+    .map(({ service: _service, ...row }) => row);
+}
+
+// One MDBList list (own or liked) from GET/POST .../mdblist/lists.
+export interface MdblistListSummary {
+  id: number;
+  name: string;
+  user_name: string;
+  mediatype: string;
+  items: number;
+  likes: number;
+  source: 'own' | 'liked';
+}
+
+// A picked MDBList list becomes one row per media type it holds: movie
+// lists a movie row, show lists a series row, mixed lists both.
+export function mdblistListRows(lists: MdblistListSummary[]): BrowserSource[] {
+  const out: BrowserSource[] = [];
+  for (const list of lists) {
+    if (!Number.isInteger(list.id) || list.id <= 0) continue;
+    const kind = String(list.mediatype || '').toLowerCase();
+    const types: ('movie' | 'series')[] = kind === 'movie' ? ['movie'] : kind === 'show' ? ['series'] : ['movie', 'series'];
+    const name = list.source === 'liked' && list.user_name ? `${list.name} (${list.user_name})` : list.name;
+    for (const type of types) {
+      out.push({
+        id: `ul-mdblist-list-${list.id}-${type}`,
+        catalogId: `lelibrary-user-mdblist-list.${list.id}-${type}`,
+        name: name || `MDBList list ${list.id}`,
+        type,
+        category: USER_LIST_GROUPS.mdblist,
+        addonId: '',
+      });
+    }
+  }
+  return out;
 }
 
 export function homeRowFromSource(source: BrowserSource, order: number): HomeRowDoc {
@@ -643,5 +710,6 @@ export function homeCategoryRank(category: string): number {
   if (/trending/.test(name)) return 0;
   if (/popular/.test(name)) return 1;
   if (name === 'watchlists') return 2;
+  if (/^your (simkl|mdblist|anilist|trakt) lists$/.test(name)) return 2;
   return 5;
 }

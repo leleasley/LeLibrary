@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { i18n } from '@/i18n';
 import { HUB_COVER, artThumb, type CollectionDoc } from '@/features/setup/shared/collection-doc';
 import {
@@ -244,7 +244,6 @@ export function PackLibraryModal({
           <div className="pp-card-copy">
             <strong className="pp-card-title" data-i18n-preserve>{title}</strong>
             <small className="pp-card-description">{description}</small>
-            {kind === 'owned' && <small className="pp-card-description pack-home-row-note">Also adds a Home row for your franchises.</small>}
           </div>
         </div>
         <div className="pp-card-actions">
@@ -259,6 +258,26 @@ export function PackLibraryModal({
       </article>
     );
   }
+
+  // Your own library leads the ready-made packs: Movie Collections and the Hub
+  // sit straight after the Bundled packs row, not at the bottom of a long
+  // scroll. When no bundled pack matches the search, they lead the list.
+  const renderedGroups = groups
+    .map((group) => ({ group, packs: shown.filter((pack) => packKind(pack) === group.kind) }))
+    .filter((entry) => entry.packs.length > 0);
+  const essentials = showSystemCards ? (
+    <section className="pp-section" key="essentials">
+      <div className="quick-pack-results-head">
+        <div><span className="setup-kicker">Your library</span><strong>LeLibrary essentials</strong></div>
+      </div>
+      <div className="pp-grid">
+        {systemCard('owned')}
+        {systemCard('hub')}
+      </div>
+    </section>
+  ) : null;
+  const bundleIndex = renderedGroups.findIndex((entry) => entry.group.kind === 'bundle');
+  const essentialsIndex = bundleIndex >= 0 ? bundleIndex + 1 : 0;
 
   const meterPercent = Math.min(100, Math.round((meter.folders / (HOME_FOLDER_WARNING * 1.5)) * 100));
 
@@ -315,36 +334,24 @@ export function PackLibraryModal({
           <p className="setup-error">Could not load Quick Packs.</p>
         ) : (
           <div className="quick-pack-library-scroll pp-scroll">
-            {groups.map((group) => {
-              const packs = shown.filter((pack) => packKind(pack) === group.kind);
-              if (!packs.length) return null;
-              return (
-                <section className="pp-section" key={group.kind} data-kind={group.kind}>
+            {renderedGroups.map(({ group, packs }, index) => (
+              <Fragment key={group.kind}>
+                {index === essentialsIndex && essentials}
+                <section className="pp-section" data-kind={group.kind}>
                   <div className="quick-pack-results-head">
                     <div><span className="setup-kicker">{group.kicker}</span><strong>{group.title}</strong></div>
                     <span>{group.note}</span>
                   </div>
                   <div className="pp-grid">{packs.map(packCard)}</div>
                 </section>
-              );
-            })}
+              </Fragment>
+            ))}
+            {essentialsIndex >= renderedGroups.length && essentials}
             {shown.length === 0 && (
               <div className="quick-pack-empty">
                 <strong>No matching packs</strong>
                 <span>Try another search or a different filter.</span>
               </div>
-            )}
-            {showSystemCards && (
-              <section className="pp-section">
-                <div className="quick-pack-results-head">
-                  <div><span className="setup-kicker">Your library</span><strong>LeLibrary essentials</strong></div>
-                  <span>Always kept together at the bottom of Nuvio Collections</span>
-                </div>
-                <div className="pp-grid">
-                  {systemCard('owned')}
-                  {systemCard('hub')}
-                </div>
-              </section>
             )}
           </div>
         )}

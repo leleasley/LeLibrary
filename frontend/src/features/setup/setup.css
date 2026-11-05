@@ -582,7 +582,6 @@ details.source-group[open] .source-group-items { max-height: 340px; overflow-y: 
 .pack-card-category { display: block; margin-bottom: 4px; color: var(--amber); font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
 .pack-card-body strong { display: block; font-size: 0.86rem; }
 .pack-card-body small { display: block; margin-top: 3px; color: var(--muted); font-size: 0.7rem; line-height: 1.45; }
-.pack-home-row-note { color: var(--amber) !important; }
 .pack-card-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: auto; padding-top: 6px; }
 .pack-card-action { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text); font: inherit; font-size: 0.74rem; font-weight: 700; cursor: pointer; }
 .pack-card-action:hover { border-color: var(--amber); }

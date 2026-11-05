@@ -140,11 +140,32 @@ describe('pack picker', () => {
     expect(stremio).not.toContain('LeLibrary Movie Collections');
   });
 
-  it('keeps the LeLibrary essentials on Nuvio with a plain Home row note', () => {
+  it('keeps the LeLibrary essentials on Nuvio, without the old banner notes', () => {
     const html = renderToStaticMarkup(<PackLibraryModal {...base} curated={[]} />);
     expect(html).toContain('LeLibrary Movie Collections');
-    expect(html).toContain('Also adds a Home row for your franchises.');
+    expect(html).not.toContain('Also adds a Home row for your franchises.');
+    expect(html).not.toContain('Always kept together at the bottom of Nuvio Collections');
     expect(html).not.toContain(String.fromCodePoint(0x2014));
+  });
+
+  it('puts the essentials right after the Bundled packs row, before Themed packs', () => {
+    const html = renderToStaticMarkup(<PackLibraryModal {...base} curated={[SPECIAL, STREAMING, SINGLE]} />);
+    const bundled = html.indexOf('Bundled packs');
+    const essentials = html.indexOf('LeLibrary essentials');
+    const themed = html.indexOf('Themed packs');
+    const single = html.indexOf('Single collections');
+    expect(bundled).toBeGreaterThan(-1);
+    expect(essentials).toBeGreaterThan(bundled);
+    expect(essentials).toBeLessThan(themed);
+    expect(themed).toBeLessThan(single);
+  });
+
+  it('leads with the essentials when no bundled pack is shown', () => {
+    const html = renderToStaticMarkup(<PackLibraryModal {...base} curated={[SINGLE]} />);
+    const essentials = html.indexOf('LeLibrary essentials');
+    const single = html.indexOf('Single collections');
+    expect(essentials).toBeGreaterThan(-1);
+    expect(essentials).toBeLessThan(single);
   });
 
   it('flags seasonal packs', () => {

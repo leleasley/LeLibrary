@@ -45,7 +45,9 @@ Every setup ends with one thing: an install link. Keep it.
   LeLibrary push your Home rows and collections for you) and name the setup.
 - **Setup**: one page of sections. Each starts closed and shows a one-line
   summary of what you picked; open only what you want to change.
-  - **Integrations**: your debrid keys, TMDB, MDBList and watchlists.
+  - **API keys**: your debrid keys (Library providers), TMDB, TVDB, OMDb and
+    MDBList (Metadata and lists), and Connected accounts: Simkl, and AniList
+    by public username or a connect for private lists.
   - **Streams**: playback filters (presets such as Best quality or Save
     space, resolutions you can tap and reorder, size limits), extra stream
     sources and your own addons.

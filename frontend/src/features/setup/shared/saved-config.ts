@@ -154,6 +154,7 @@ export function applySavedConfig(saved: unknown): SavedDrafts {
       searchOptions: cleanSearchOptions(config.searchOptions),
       notices: config.streamNotices !== 'off',
       noticeTypes: noticeTypes.length > 0 ? noticeTypes : [...DEFAULT_NOTICE_TYPES],
+      anilistUser: asString(config.anilistUser),
     },
     filterSets: {
       resolutions: pick(config.filterResolutions, ALL_RES),

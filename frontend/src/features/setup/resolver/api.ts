@@ -8,6 +8,27 @@ export interface SetupSummary {
   hasPassword: boolean;
   keyServices: string[];
   updatedAt?: string;
+  // Display names of the accounts behind this setup's keys and connects
+  // (never a key). Absent on servers that do not report them.
+  identities?: SetupIdentities;
+}
+
+export interface SetupIdentities {
+  mdblist?: string;
+  simkl?: string;
+  anilist?: string;
+}
+
+// Only short display strings survive: anything else the server sends is dropped.
+export function cleanIdentities(value: unknown): SetupIdentities {
+  const out: SetupIdentities = {};
+  if (!value || typeof value !== 'object') return out;
+  const record = value as Record<string, unknown>;
+  for (const service of ['mdblist', 'simkl', 'anilist'] as const) {
+    const name = record[service];
+    if (typeof name === 'string' && name.trim() && name.length <= 100) out[service] = name.trim();
+  }
+  return out;
 }
 
 export interface CreateSetupResult {
@@ -176,9 +197,13 @@ export function pushSetup(
   );
 }
 
+export type WatchlistProvider = 'simkl' | 'trakt' | 'anilist';
+
 export interface WatchlistState {
   simkl: { connected: boolean; configured: boolean };
   trakt: { connected: boolean; configured: boolean };
+  // Servers before the AniList connect do not report it.
+  anilist?: { connected: boolean; configured: boolean };
 }
 
 export function watchlistStatus(uuid: string, editToken: string): Promise<WatchlistState> {
@@ -212,7 +237,7 @@ export interface WatchlistDraftConn {
   client_id?: string | null;
 }
 
-export type WatchlistDraftMap = Partial<Record<'simkl' | 'trakt', WatchlistDraftConn>>;
+export type WatchlistDraftMap = Partial<Record<WatchlistProvider, WatchlistDraftConn>>;
 
 // Pre-creation OAuth start: no row exists yet, so no bearer. The callback
 // posts the tokens to the opener instead of sealing them; the page holds
@@ -224,12 +249,38 @@ export function startWatchlistOAuthPublic(provider: string): Promise<{ url: stri
 }
 
 // Which providers this server can connect, so pre-creation cards know
-// whether Connect is live before any UUID exists.
+// whether Connect is live before any UUID exists. `traktLegacy` means Trakt is
+// kept only for setups already connected (new setups are not offered it).
+export interface WatchlistServerConfig {
+  simkl: boolean;
+  trakt: boolean;
+  anilist: boolean;
+  traktLegacy: boolean;
+}
+
+// Read tolerantly: older servers send only { simkl, trakt }.
+export function parseWatchlistConfig(raw: unknown): WatchlistServerConfig {
+  const record = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+  const trakt = record['trakt'];
+  const traktObject = trakt && typeof trakt === 'object' ? trakt as Record<string, unknown> : null;
+  const legacy = record['legacy'];
+  return {
+    simkl: record['simkl'] === true,
+    trakt: trakt === true || (traktObject !== null && traktObject['configured'] !== false),
+    anilist: record['anilist'] === true,
+    traktLegacy: legacy === true
+      || record['traktLegacy'] === true
+      || (Array.isArray(legacy) && legacy.includes('trakt'))
+      || (traktObject !== null && traktObject['legacy'] === true),
+  };
+}
+
 // Server configuration, fixed for the page's life: asked once, shared.
-let watchlistConfigShared: Promise<{ simkl: boolean; trakt: boolean }> | null = null;
-export function watchlistConfig(): Promise<{ simkl: boolean; trakt: boolean }> {
+let watchlistConfigShared: Promise<WatchlistServerConfig> | null = null;
+export function watchlistConfig(): Promise<WatchlistServerConfig> {
   if (!watchlistConfigShared) {
-    watchlistConfigShared = apiClient.get<{ simkl: boolean; trakt: boolean }>('/api/setup/watchlist-config')
+    watchlistConfigShared = apiClient.get<unknown>('/api/setup/watchlist-config')
+      .then(parseWatchlistConfig)
       .catch((error: unknown) => { watchlistConfigShared = null; throw error; });
   }
   return watchlistConfigShared;

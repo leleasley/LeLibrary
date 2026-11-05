@@ -9,9 +9,9 @@ import { CreatingSetup } from '@/features/setup/shared/CreatingSetup';
 import { PublishPanel } from '@/features/setup/shared/PublishPanel';
 import { ConfirmModal } from '@/features/setup/shared/Modal';
 import { useWizardStep } from '@/features/setup/shared/WizardStepper';
-import { ListKey, ProviderKeys } from '@/features/setup/shared/sections';
+import { ApiKeysAccordion } from '@/features/setup/shared/ApiKeysSection';
 import { TierProgress } from '@/features/setup/shared/tier/TierProgress';
-import { BadgePackStrip, StreamStylePicker, TierMetadata, usePresetPicker } from '@/features/setup/shared/tier/TierPickers';
+import { BadgePackStrip, StreamStylePicker, usePresetPicker } from '@/features/setup/shared/tier/TierPickers';
 import { TierInstall } from '@/features/setup/shared/tier/TierInstall';
 import { TierDock, useTierPreview } from '@/features/setup/shared/tier/TierPreview';
 import { PosterWall, TierHero, TierStep, TierWizardNav } from '@/features/setup/shared/tier/TierChrome';
@@ -23,8 +23,6 @@ import { DEFAULT_BADGE_PACK, BADGE_PACKS } from '@/features/setup/shared/BadgePa
 import {
   EMPTY_METADATA_EXTRAS,
   MetadataExtras,
-  MetadataWatchlists,
-  WATCHLIST_ACCORDION_DESC,
   type MetadataExtrasDraft,
 } from '@/features/setup/full/MetadataExtras';
 import { cleanWatchlistDraft, type WatchlistDraftMap } from '@/features/setup/resolver/api';
@@ -43,7 +41,6 @@ import { clearPartialDraft, loadPartialDraft, savePartialDraft, type PartialDraf
 import { hubPrefix, normalizeHomeOrder, type HomeRowDoc } from '@/features/setup/shared/collection-doc';
 import {
   POSTER_PROVIDERS,
-  PROVIDER_KEY_FIELDS,
   STREAM_PRESETS,
   cleanKeys,
   providerSelection,
@@ -284,6 +281,7 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
         searchOptions: searchOptionsForConfig(meta.searchOptions) ?? undefined,
         streamNotices: meta.notices ? 'on' : 'off',
         streamNoticeTypes: meta.noticeTypes,
+        anilistUser: meta.anilistUser,
         filterResolutions: filterSets.resolutions,
         filterResOrder: filterSets.resolutionOrder,
         filterQualities: filterSets.qualities,
@@ -387,7 +385,6 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
   const badgeUrl = badgePack === 'custom' ? customBadgeUrl : '';
   const presetLabel = STREAM_PRESETS.find((preset) => preset.id === formatting.preset)?.name ?? formatting.preset;
   const artworkLabel = POSTER_PROVIDERS.find((p) => p.id === posters.provider)?.name ?? 'TMDB default';
-  const connected = PROVIDER_KEY_FIELDS.filter(({ field }) => (keys[field] ?? '').trim()).map(({ label }) => label.replace(/ API key$/, ''));
   const hasTmdb = Boolean((keys.tmdbApiKey ?? '').trim());
   const dirty = edit ? edit.dirty : !creation.result && isPartialDirty({
     name, keys, formatting, posters, homeRows,
@@ -430,28 +427,11 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
           </TierStep>
           <TierStep id="setup" index={2} title="Setup" hidden={wizard.step !== 1} lede="Everything about your library in one place. Open a section to change it; each one shows where it stands.">
             <div className="qs-accordions qs-setup-page">
-              <Accordion title="Integrations" icon="🔌"
-                summary={[connected.length ? connected.join(' + ') : 'No library yet', hasTmdb || edit?.savedServices.includes('tmdbApiKey') ? 'TMDB key added' : 'TMDB key needed']}>
-                <h3 className="qs-sub"><strong>Library providers</strong><span>Debrid</span></h3>
-                <ProviderKeys
-                  values={keys} onChange={setKeys}
-                  {...(edit ? { savedServices: edit.savedServices, revealSaved: revealEdit, onRemove: edit.onRemoveKey } : {})}
-                />
-                <TierMetadata
-                  values={keys} onChange={setKeys}
-                  {...(edit ? { savedServices: edit.savedServices, revealSaved: revealEdit } : {})}
-                />
-                <h3 className="qs-sub"><strong>MDBList</strong><span>Optional</span></h3>
-                <ListKey
-                  value={keys.mdblistKey ?? ''} onChange={(value) => setKeys({ ...keys, mdblistKey: value })}
-                  {...(edit ? { savedServices: edit.savedServices, revealSaved: revealEdit } : {})}
-                />
-                <p className="setup-hint qs-note">Want what you watch on MDBList? In Nuvio open Settings, then MDBList, then Connect, and approve the code on mdblist.com. Nuvio then scrobbles for you. The key here only powers lists and ratings in LeLibrary.</p>
-                <h3 className="qs-sub"><strong>Watchlists</strong><span>Optional</span></h3>
-                {edit
-                  ? <MetadataWatchlists uuid={edit.uuid} editToken={edit.editToken} />
-                  : <MetadataWatchlists uuid={null} editToken={null} draft={watchlist} onDraft={setWatchlist} />}
-              </Accordion>
+              <ApiKeysAccordion
+                keys={keys} onKeys={setKeys} edit={edit} revealSaved={revealEdit}
+                watchlist={watchlist} onWatchlist={setWatchlist}
+                anilistUser={meta.anilistUser} onAnilistUser={(anilistUser) => setMeta({ ...meta, anilistUser })}
+              />
               <Accordion title="Streams" icon="🎚️"
                 summary={[...filterSummaryParts(filterSets).slice(0, 2), addons.length + customAddons.length > 0 ? 'Extra sources on' : 'Library only']}>
                 <h3 className="qs-sub"><strong>Library playback filters</strong><span>Resolutions, qualities and files</span></h3>

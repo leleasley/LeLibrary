@@ -1,17 +1,13 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { apiClient } from '@/api/client';
 import { ConfirmModal } from '@/features/setup/shared/Modal';
 import { toast } from '@/features/setup/shared/Toast';
 import { WebdavCard } from '@/features/setup/shared/webdav-card';
 import { useFeatures } from '@/features/site/site-hooks';
 import {
-  ARTWORK_KEY_FIELDS,
-  POSTER_PROVIDERS,
   PROVIDER_KEY_FIELDS,
-  STREAM_PRESETS,
   VERIFY_ENDPOINTS,
   type SetupKeysDraft,
-  type StreamPresetId,
 } from '@/features/setup/shared/config-contract';
 
 interface VerifyResult {
@@ -26,7 +22,8 @@ export function VerifyButton({ endpoint, value, label, onResult, triggerRef }: {
   endpoint: string;
   value: string;
   label?: string;
-  onResult?: (ok: boolean) => void;
+  // The account name the provider returned, when it returns one (MDBList).
+  onResult?: (ok: boolean, username?: string | null) => void;
   // Lets the input ask for a check on blur, so a pasted key is verified without
   // hunting for the tick button.
   triggerRef?: { current: (() => void) | null };
@@ -49,7 +46,7 @@ export function VerifyButton({ endpoint, value, label, onResult, triggerRef }: {
         checkedRef.current = key;
         setState('ok');
         toast(`${who}${data.username ? `connected as ${data.username}` : 'key verified'}`);
-        onResult?.(true);
+        onResult?.(true, typeof data.username === 'string' && data.username.trim() ? data.username.trim() : null);
       } else {
         checkedRef.current = '';
         setState('bad');
@@ -97,7 +94,7 @@ export function KeyInput({ label, hint, value, onChange, verifyEndpoint, placeho
   hideLabel?: boolean;
   required?: boolean;
   docsUrl?: string;
-  onVerifyResult?: (ok: boolean) => void;
+  onVerifyResult?: (ok: boolean, username?: string | null) => void;
   // Editor affordance: the server holds a value for this field (it arrives
   // masked straight into the input on unlock). The tag proves it at a glance.
   saved?: boolean;
@@ -184,7 +181,7 @@ export function KeyInput({ label, hint, value, onChange, verifyEndpoint, placeho
           <VerifyButton
             endpoint={verifyEndpoint} value={value}
             label={label.replace(/ (API )?key$| key$/i, '')}
-            onResult={(ok) => { setFailed(!ok); setPassed(ok); onVerifyResult?.(ok); }}
+            onResult={(ok, username) => { setFailed(!ok); setPassed(ok); onVerifyResult?.(ok, username); }}
             triggerRef={verifyTrigger}
           />
         )}
@@ -201,15 +198,6 @@ export function KeyInput({ label, hint, value, onChange, verifyEndpoint, placeho
   );
 }
 
-// Provider logos live in frontend/public; the keys themselves are sealed
-// server-side and never readable again.
-const PROVIDER_LOGOS: Partial<Record<keyof SetupKeysDraft, string>> = {
-  torboxApiKey: '/provider-logos/torbox.png',
-  rdApiKey: '/provider-logos/realdebrid.svg',
-  adApiKey: '/provider-logos/alldebrid.png',
-  pmApiKey: '/provider-logos/premiumize.svg',
-};
-
 export interface RevealProps {
   // Services with a saved server-side value (from the setup summary). Unlocks
   // the per-field Saved indicator; absent on create pages.
@@ -219,242 +207,272 @@ export interface RevealProps {
   revealSaved?: ((field: keyof SetupKeysDraft) => Promise<string | null>) | undefined;
 }
 
-function keyFields(
-  fields: typeof PROVIDER_KEY_FIELDS,
-  values: SetupKeysDraft,
-  onChange: (next: SetupKeysDraft) => void,
-  reveal?: Pick<RevealProps, 'savedServices' | 'revealSaved'>,
-) {
-  const [verified, setVerified] = useState<Record<string, boolean>>({});
+// One service on a key card: what the head shows and what the key input needs.
+export interface KeyCardSpec {
+  field: keyof SetupKeysDraft;
+  // Short name in the card head ("TorBox", "TMDB").
+  name: string;
+  // The key input's own label ("TorBox API key").
+  label: string;
+  blurb?: string;
+  // A logo in the head tile; services without one get `monogram` instead.
+  logo?: string;
+  monogram?: string;
+  // Brand tint as a CSS rgb triplet (--pc-brand-rgb).
+  brand?: string;
+  placeholder?: string;
+  docsUrl?: string;
+  // Help line under the key input (empty by default: the blurb says it).
+  hint?: string;
+  // Required cards stay open and carry no switch: the setup cannot do without them.
+  required?: boolean;
+  // Spans the whole grid row (a card with a longer body).
+  wide?: boolean;
+}
 
-  function mark(field: string, ok: boolean) {
-    setVerified((prev) => ({ ...prev, [field]: ok }));
+const CHECK_ICON = (
+  <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true" focusable="false">
+    <path d="M2 6.2 4.6 8.8 10 3.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+// The head tile: the service's logo, or a monogram in the same slot.
+export function KeyCardTile({ logo, monogram, invert }: { logo?: string | undefined; monogram?: string | undefined; invert?: boolean | undefined }) {
+  if (logo) return <img src={logo} alt="" className={invert ? 'pc-logo-invert' : undefined} />;
+  if (monogram) return <span className="pc-mono" aria-hidden="true" data-i18n-preserve>{monogram}</span>;
+  return null;
+}
+
+// The one key card: the library providers, the metadata keys and MDBList all
+// use it. Logo, name, blurb and a status pill in the head; the switch turns a
+// service on (opening the card for its key) or off (dropping the key, after a
+// confirm when the server holds it); the body is the key input with its Get
+// key link, verify on blur and saved/reveal handling. `identity` is the
+// account name to show ("Connected as ..."); `onIdentity` hears the name a
+// verify returned (null when the key changed or failed).
+export function KeyCard({ spec, value, onChange, onClear, saved, onReveal, identity, onIdentity, children }: {
+  spec: KeyCardSpec;
+  value: string;
+  onChange: (value: string) => void;
+  // Drop the key. `fromServer` is true when the server held it, so the page
+  // also clears it on save.
+  onClear: (fromServer: boolean) => void;
+  saved?: boolean | undefined;
+  onReveal?: (() => Promise<string | null>) | undefined;
+  identity?: string | null | undefined;
+  onIdentity?: ((name: string | null) => void) | undefined;
+  children?: ReactNode;
+}) {
+  const required = spec.required === true;
+  const [open, setOpen] = useState(required);
+  const [verified, setVerified] = useState(false);
+  // Switched on before a key exists: the thumb slides immediately and the
+  // card opens for the key. Closing the card without one switches it back
+  // off, so the switch never claims a service is ready when it has no key.
+  const [armed, setArmed] = useState(false);
+  // Turning a card off clears its key. When the server holds that key, ask
+  // first: the switch used to delete a saved key silently.
+  const [confirmClear, setConfirmClear] = useState(false);
+  const filled = Boolean(value.trim());
+  const isOpen = required || open;
+  const switchOn = filled || armed;
+  const state = verified ? 'verified' : filled ? 'added' : 'idle';
+
+  function toggle() {
+    const opening = !open;
+    setOpen(opening);
+    if (!opening) setArmed(false);
   }
 
+  function clear(fromServer: boolean) {
+    setOpen(false);
+    setArmed(false);
+    setVerified(false);
+    onIdentity?.(null);
+    onClear(fromServer);
+  }
+
+  function onSwitch(checked: boolean) {
+    // No key yet: switch on, slide the thumb across and open the card for
+    // the key. Switching it off again closes it.
+    if (!filled) {
+      setArmed(checked);
+      setOpen(checked);
+      return;
+    }
+    if (checked) { setOpen(true); return; }
+    if (saved) { setConfirmClear(true); return; }
+    clear(false);
+  }
+
+  const headProps = required ? {} : {
+    role: 'button',
+    tabIndex: 0,
+    'aria-expanded': isOpen,
+    onClick: toggle,
+    onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(); }
+    },
+  };
+
   return (
-    <>
-      {fields.map(({ field, label, hint, logo, required, docsUrl, placeholder }) => (
-        <div
-          key={field}
-          className={`meta-key${verified[field] ? ' is-verified' : ''}${(values[field] ?? '').trim() ? ' is-filled' : ''}${required ? ' is-required' : ''}`}
-        >
-          <span className={`meta-key-tag${required ? ' is-required' : ''}`}>
-            {required ? 'Required' : 'Optional'}
-          </span>
-          <KeyInput
-            label={label}
-            hint={hint}
-            {...(required ? { required: true } : {})}
-            {...(placeholder ? { placeholder } : {})}
-            {...(docsUrl ? { docsUrl } : {})}
-            value={values[field] ?? ''}
-            {...(PROVIDER_LOGOS[field] || logo ? { logo: (PROVIDER_LOGOS[field] || logo) as string } : {})}
-            {...(VERIFY_ENDPOINTS[field] ? { verifyEndpoint: VERIFY_ENDPOINTS[field] as string } : {})}
-            onVerifyResult={(ok) => mark(field, ok)}
-            onChange={(value) => onChange({ ...values, [field]: value })}
-            {...(reveal?.savedServices?.includes(field) ? { saved: true } : {})}
-            {...(reveal?.savedServices?.includes(field) && reveal.revealSaved ? { onReveal: () => reveal.revealSaved!(field) } : {})}
-          />
+    <div
+      className={`provider-card${isOpen ? ' is-open' : ''}${verified ? ' is-verified' : ''}${filled ? ' filled' : ''}${required ? ' is-required' : ''}${spec.wide ? ' is-wide' : ''}`}
+      style={spec.brand ? { '--pc-brand-rgb': spec.brand } as CSSProperties : undefined}
+      data-state={state}
+      data-field={spec.field}
+    >
+      <div className="pc-head" {...headProps}>
+        <KeyCardTile logo={spec.logo} monogram={spec.monogram} />
+        <div className="pc-title">
+          <strong data-i18n-preserve>{spec.name}</strong>
+          {spec.blurb && <small>{spec.blurb}</small>}
+          {identity && <small className="pc-identity">{`Connected as ${identity}`}</small>}
         </div>
-      ))}
-    </>
+        {verified && (
+          <span className="pc-pill is-verified" aria-label="Key verified">{CHECK_ICON}Verified</span>
+        )}
+        {!verified && filled && <span className="pc-pill is-added">Key added</span>}
+        {!verified && !filled && saved && (
+          <span className="pc-pill is-verified" aria-label="Key saved on the server">{CHECK_ICON}Saved</span>
+        )}
+        {!filled && !saved && required && <span className="pc-pill is-warn">Required</span>}
+        {!required && (
+          <span className="pc-switch">
+            <input
+              type="checkbox"
+              className="pc-toggle"
+              checked={switchOn}
+              aria-label={`Use ${spec.name}`}
+              onClick={(event) => event.stopPropagation()}
+              onChange={(event) => onSwitch(event.target.checked)}
+            />
+            <span className="pc-switch-track" aria-hidden="true"><span className="pc-switch-thumb" /></span>
+          </span>
+        )}
+      </div>
+      {isOpen && (
+        <div className="pc-body">
+          <KeyInput
+            label={spec.label}
+            hint={spec.hint ?? ''}
+            {...(required ? { required: true } : {})}
+            {...(spec.placeholder ? { placeholder: spec.placeholder } : {})}
+            {...(spec.docsUrl ? { docsUrl: spec.docsUrl } : {})}
+            value={value}
+            {...(VERIFY_ENDPOINTS[spec.field] ? { verifyEndpoint: VERIFY_ENDPOINTS[spec.field] as string } : {})}
+            onVerifyResult={(ok, username) => {
+              setVerified(ok);
+              // A changed or rejected key forgets the name; a pass reports it.
+              if (!ok) onIdentity?.(null);
+              else if (username) onIdentity?.(username);
+            }}
+            onChange={(next) => {
+              onChange(next);
+              // Removing the last character returns the switch to off.
+              if (!next.trim()) setArmed(false);
+            }}
+            {...(saved ? { saved: true } : {})}
+            {...(saved && onReveal ? { onReveal } : {})}
+          />
+          {children}
+        </div>
+      )}
+      <ConfirmModal
+        open={confirmClear}
+        title={`Remove the ${spec.name} key?`}
+        body={`${spec.name} is stored on this server. Turning it off here removes it when you save, and this setup stops using ${spec.name} until a key is added again.`}
+        confirmLabel="Remove key"
+        cancelLabel="Keep it"
+        danger
+        onConfirm={() => { setConfirmClear(false); clear(true); }}
+        onCancel={() => setConfirmClear(false)}
+      />
+    </div>
   );
 }
 
-const PROVIDER_SHORT: Partial<Record<keyof SetupKeysDraft, string>> = {
-  torboxApiKey: 'TorBox',
-  rdApiKey: 'Real-Debrid',
-  adApiKey: 'AllDebrid',
-  pmApiKey: 'Premiumize',
+export type KeyCardExtras = Partial<Record<keyof SetupKeysDraft, {
+  identity?: string | null | undefined;
+  onIdentity?: ((name: string | null) => void) | undefined;
+  children?: ReactNode;
+}>>;
+
+// Cards for a list of key fields, sharing the page's keys object. The library
+// providers and the metadata keys both render through it.
+export function KeyCardGrid({ specs, values, onChange, onRemove, savedServices, revealSaved, extras }: {
+  specs: KeyCardSpec[];
+  values: SetupKeysDraft;
+  onChange: (next: SetupKeysDraft) => void;
+  onRemove?: ((field: keyof SetupKeysDraft) => void) | undefined;
+  // Per-field extras: the account name and body notes (MDBList).
+  extras?: KeyCardExtras | undefined;
+} & RevealProps) {
+  return (
+    <div className="provider-grid">
+      {specs.map((spec) => {
+        const saved = savedServices?.includes(spec.field) === true;
+        const extra = extras?.[spec.field];
+        return (
+          <KeyCard
+            key={spec.field}
+            spec={spec}
+            value={values[spec.field] ?? ''}
+            onChange={(value) => onChange({ ...values, [spec.field]: value })}
+            onClear={(fromServer) => {
+              if (fromServer) onRemove?.(spec.field);
+              const next = { ...values };
+              delete next[spec.field];
+              onChange(next);
+            }}
+            saved={saved}
+            onReveal={saved && revealSaved ? () => revealSaved(spec.field) : undefined}
+            identity={extra?.identity}
+            onIdentity={extra?.onIdentity}
+          >
+            {extra?.children}
+          </KeyCard>
+        );
+      })}
+    </div>
+  );
+}
+
+// Provider logos live in frontend/public; the keys themselves are sealed
+// server-side and never readable again. The capability line under each name,
+// and brand tints sampled from the shipped logo assets (CSS rgb triplets), so
+// each tile glows in its own colour instead of generic grey.
+const PROVIDER_CARDS: Partial<Record<keyof SetupKeysDraft, { name: string; blurb: string; logo: string; brand: string }>> = {
+  torboxApiKey: { name: 'TorBox', blurb: 'Torrents and Usenet', logo: '/provider-logos/torbox.png', brand: '48, 164, 144' },
+  rdApiKey: { name: 'Real-Debrid', blurb: 'Torrents', logo: '/provider-logos/realdebrid.svg', brand: '159, 211, 238' },
+  adApiKey: { name: 'AllDebrid', blurb: 'Torrents', logo: '/provider-logos/alldebrid.png', brand: '224, 86, 138' },
+  pmApiKey: { name: 'Premiumize', blurb: 'Torrents and Usenet', logo: '/provider-logos/premiumize.svg', brand: '238, 90, 61' },
 };
 
-// Capability line under each provider name.
-const PROVIDER_BLURB: Partial<Record<keyof SetupKeysDraft, string>> = {
-  torboxApiKey: 'Torrents and Usenet',
-  rdApiKey: 'Torrents',
-  adApiKey: 'Torrents',
-  pmApiKey: 'Torrents and Usenet',
-};
-
-// Brand tints sampled from the shipped logo assets (as CSS rgb triplets), so
-// each tile glows in its own colour instead of generic grey. Exposed as
-// --pc-brand-rgb for rgba(...) usage in setup.css.
-const PROVIDER_BRAND: Partial<Record<keyof SetupKeysDraft, string>> = {
-  torboxApiKey: '48, 164, 144',
-  rdApiKey: '159, 211, 238',
-  adApiKey: '224, 86, 138',
-  pmApiKey: '238, 90, 61',
-};
+export const PROVIDER_CARD_SPECS: KeyCardSpec[] = PROVIDER_KEY_FIELDS.map(({ field, label, docsUrl, placeholder }) => ({
+  field,
+  label,
+  ...(PROVIDER_CARDS[field] ?? { name: label }),
+  ...(docsUrl ? { docsUrl } : {}),
+  ...(placeholder ? { placeholder } : {}),
+}));
 
 export function ProviderKeys({ values, onChange, onRemove, savedServices, revealSaved }: {
   values: SetupKeysDraft;
   onChange: (next: SetupKeysDraft) => void;
-  onRemove?: (field: keyof SetupKeysDraft) => void;
+  onRemove?: ((field: keyof SetupKeysDraft) => void) | undefined;
 } & RevealProps) {
-  const [open, setOpen] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(PROVIDER_KEY_FIELDS.map(({ field }) => [field, false])),
-  );
-  const [verified, setVerified] = useState<Record<string, boolean>>({});
-  // Turning a card off clears its key. When the server holds that key, ask
-  // first: the switch used to delete a saved key silently.
-  const [pendingClear, setPendingClear] = useState<keyof SetupKeysDraft | null>(null);
-  // A provider switched on before a key exists: the thumb slides immediately
-  // and the card opens for the key. Closing the card without one clears it, so
-  // the switch never claims a provider is ready when it has no key.
-  const [armed, setArmed] = useState<Record<string, boolean>>({});
   const webdavSource = useFeatures()?.webdavSource === true;
-
-  function toggle(field: keyof SetupKeysDraft) {
-    const opening = open[field] === false;
-    setOpen((prev) => ({ ...prev, [field]: opening }));
-    if (!opening) setArmed((prev) => ({ ...prev, [field]: false }));
-  }
-
-  function markVerified(field: keyof SetupKeysDraft, ok: boolean) {
-    setVerified((prev) => ({ ...prev, [field]: ok }));
-  }
-
-  function enable(field: keyof SetupKeysDraft, enabled: boolean) {
-    setOpen((prev) => ({ ...prev, [field]: enabled }));
-    if (!enabled) {
-      setArmed((prev) => ({ ...prev, [field]: false }));
-      markVerified(field, false);
-      const next = { ...values };
-      delete next[field];
-      onChange(next);
-    }
-  }
-
-  function requestToggle(field: keyof SetupKeysDraft, enabled: boolean) {
-    if (!enabled) {
-      const holdsKey = Boolean((values[field] ?? '').trim());
-      if (holdsKey && savedServices?.includes(field)) {
-        setPendingClear(field);
-        return;
-      }
-    }
-    enable(field, enabled);
-  }
-
-  const clearLabel = pendingClear
-    ? (PROVIDER_SHORT[pendingClear] ?? String(pendingClear))
-    : '';
-
   return (
     <>
-      <div className="provider-grid">
-        {PROVIDER_KEY_FIELDS.map(({ field, label, required, docsUrl, placeholder }) => {
-          const filled = Boolean((values[field] ?? '').trim());
-          // On means the card holds a key, or the user just switched it on and
-          // is entering one. Opening the card by its header does not imply
-          // activation; clicking the switch does, and the thumb slides with it.
-          const switchOn = filled || armed[field] === true;
-          const state = verified[field] ? 'verified' : filled ? 'added' : 'idle';
-          return (
-            <div
-              className={`provider-card${open[field] ? ' is-open' : ''}${verified[field] ? ' is-verified' : ''}${filled ? ' filled' : ''}`}
-              key={field}
-              style={{ '--pc-brand-rgb': PROVIDER_BRAND[field] } as CSSProperties}
-              data-state={state}
-            >
-              <div
-                className="pc-head"
-                role="button"
-                tabIndex={0}
-                aria-expanded={open[field] !== false}
-                onClick={() => toggle(field)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(field); } }}
-              >
-                {PROVIDER_LOGOS[field] && <img src={PROVIDER_LOGOS[field]} alt="" />}
-                <div className="pc-title">
-                  <strong>{PROVIDER_SHORT[field] ?? label}</strong>
-                  {PROVIDER_BLURB[field] && <small>{PROVIDER_BLURB[field]}</small>}
-                </div>
-                {verified[field] && (
-                  <span className="pc-pill is-verified" aria-label="Key verified">
-                    <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true" focusable="false">
-                      <path d="M2 6.2 4.6 8.8 10 3.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    Verified
-                  </span>
-                )}
-                {!verified[field] && filled && <span className="pc-pill is-added">Key added</span>}
-                {!verified[field] && !filled && savedServices?.includes(field) && (
-                  <span className="pc-pill is-verified" aria-label="Key saved on the server">
-                    <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true" focusable="false">
-                      <path d="M2 6.2 4.6 8.8 10 3.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    Saved
-                  </span>
-                )}
-                <span className="pc-switch">
-                  <input
-                    type="checkbox"
-                    className="pc-toggle"
-                    checked={switchOn}
-                    aria-label={`Use ${PROVIDER_SHORT[field] ?? label}`}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(event) => {
-                      // No key yet: switch on, slide the thumb across and open
-                      // the card for the key. Switching it off again closes it.
-                      if (!filled) {
-                        const next = event.target.checked;
-                        setArmed((prev) => ({ ...prev, [field]: next }));
-                        setOpen((prev) => ({ ...prev, [field]: next }));
-                        return;
-                      }
-                      requestToggle(field, event.target.checked);
-                    }}
-                  />
-                  <span className="pc-switch-track" aria-hidden="true"><span className="pc-switch-thumb" /></span>
-                </span>
-              </div>
-              {open[field] !== false && (
-                <div className="pc-body">
-                  <KeyInput
-                    label={label}
-                    hint=""
-                    {...(required ? { required: true } : {})}
-                    {...(placeholder ? { placeholder } : {})}
-                    {...(docsUrl ? { docsUrl } : {})}
-                    value={values[field] ?? ''}
-                    {...(VERIFY_ENDPOINTS[field] ? { verifyEndpoint: VERIFY_ENDPOINTS[field] as string } : {})}
-                    onVerifyResult={(ok) => markVerified(field, ok)}
-                    onChange={(value) => {
-                      onChange({ ...values, [field]: value });
-                      // Removing the last character returns the switch to off.
-                      if (!value.trim()) setArmed((prev) => ({ ...prev, [field]: false }));
-                    }}
-                    {...(savedServices?.includes(field) ? { saved: true } : {})}
-                    {...(savedServices?.includes(field) && revealSaved ? { onReveal: () => revealSaved(field) } : {})}
-                  />
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      <KeyCardGrid
+        specs={PROVIDER_CARD_SPECS} values={values} onChange={onChange} onRemove={onRemove}
+        savedServices={savedServices} revealSaved={revealSaved}
+      />
       <WebdavCard enabled={webdavSource} values={values} onChange={onChange} onRemove={onRemove} savedServices={savedServices} />
       <p className="setup-note">
         Add at least one. Keys are sealed on the server.
       </p>
-
-      <ConfirmModal
-        open={pendingClear !== null}
-        title={`Remove the ${clearLabel} key?`}
-        body={`${clearLabel} is stored on this server. Turning it off here removes it when you save, and this setup stops reading your ${clearLabel} library until a key is added again.`}
-        confirmLabel="Remove key"
-        cancelLabel="Keep it"
-        danger
-        onConfirm={() => {
-          if (pendingClear) {
-            if (savedServices?.includes(pendingClear)) onRemove?.(pendingClear);
-            enable(pendingClear, false);
-          }
-          setPendingClear(null);
-        }}
-        onCancel={() => setPendingClear(null)}
-      />
     </>
   );
 }
@@ -474,25 +492,5 @@ export function RdCatalogSelect({ value, onChange }: {
       </select>
       <small className="setup-hint">Combine providers into one library or keep a separate row for each.</small>
     </label>
-  );
-}
-
-export function ListKey({ value, onChange, savedServices, revealSaved }: {
-  value: string;
-  onChange: (value: string) => void;
-} & RevealProps) {
-  return (
-    <div className="key-card-list">
-      <KeyInput
-        label="MDBList API key"
-        hint="Unlocks MDBList list rows and collection sources."
-        logo="/logos/mdblist.svg"
-        value={value}
-        verifyEndpoint="/api/verify/mdblist"
-        onChange={onChange}
-        {...(savedServices?.includes('mdblistKey') ? { saved: true } : {})}
-        {...(savedServices?.includes('mdblistKey') && revealSaved ? { onReveal: () => revealSaved('mdblistKey') } : {})}
-      />
-    </div>
   );
 }

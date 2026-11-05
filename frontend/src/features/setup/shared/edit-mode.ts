@@ -17,6 +17,7 @@ import type { PartialDraft } from '@/features/setup/partial/partial-draft';
 import type { FullDraft } from '@/features/setup/full/full-draft';
 import { same } from '@/features/setup/shared/same';
 import type { TierPreviewSource } from '@/features/setup/shared/tier/TierPreview';
+import type { SetupIdentities } from '@/features/setup/resolver/api';
 
 export type TierId = 'quick' | 'partial' | 'full';
 
@@ -62,6 +63,8 @@ export interface EditMode {
   initial: TierSnapshot;
   dirty: boolean;
   savedServices: string[];
+  // Display names behind the saved keys and connects (edit summary), never keys.
+  identities?: SetupIdentities | undefined;
   revealSaved: (field: keyof SetupKeysDraft) => Promise<string | null>;
   onRemoveKey: (field: keyof SetupKeysDraft) => void;
   onSnapshot: (snapshot: TierSnapshot) => void;
@@ -154,7 +157,8 @@ export function editSaveBody(input: {
     badgePack: current.badgePack,
     badgeTouched: !same(current.badgePack, saved.badgePack),
     meta: current.meta,
-    metaTouched: !same(current.meta, saved.meta),
+    metaTouched: !same({ ...current.meta, anilistUser: '' }, { ...saved.meta, anilistUser: '' }),
+    anilistUserTouched: (current.meta.anilistUser ?? '') !== (saved.meta.anilistUser ?? ''),
     filterSets: current.filterSets,
     mediaSets: current.mediaSets,
     filtersTouched: !same(current.filterSets, saved.filterSets) || !same(current.mediaSets, saved.mediaSets),

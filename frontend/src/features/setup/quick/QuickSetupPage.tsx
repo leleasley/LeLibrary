@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ConfirmModal } from '@/features/setup/shared/Modal';
 import { ManifestResult } from '@/features/setup/shared/ManifestResult';
 import { ProviderKeys } from '@/features/setup/shared/sections';
+import { MetadataKeyCards } from '@/features/setup/shared/ApiKeysSection';
 import {
   EMPTY_FORMATTING,
   FormattingSection,
@@ -14,7 +15,7 @@ import {
 } from '@/features/setup/shared/PostersSection';
 import { BADGE_PACKS, DEFAULT_BADGE_PACK } from '@/features/setup/shared/BadgePackPicker';
 import { TierProgress } from '@/features/setup/shared/tier/TierProgress';
-import { BadgePackStrip, StreamStylePicker, TierMetadata, usePresetPicker } from '@/features/setup/shared/tier/TierPickers';
+import { BadgePackStrip, StreamStylePicker, usePresetPicker } from '@/features/setup/shared/tier/TierPickers';
 import { TierInstall } from '@/features/setup/shared/tier/TierInstall';
 import { TierDock, useTierPreview } from '@/features/setup/shared/tier/TierPreview';
 import { PosterWall, TierHero, TierStep } from '@/features/setup/shared/tier/TierChrome';
@@ -258,9 +259,10 @@ export function QuickSetupPage({ edit, previewOpen }: { edit?: EditMode; preview
               values={keys} onChange={setKeys}
               {...(edit ? { savedServices: edit.savedServices, revealSaved: revealEdit, onRemove: edit.onRemoveKey } : {})}
             />
-            <TierMetadata
+            <h3 className="qs-sub"><strong>Match titles and artwork</strong><span>TMDB required · TVDB and OMDb optional</span></h3>
+            <MetadataKeyCards
               values={keys} onChange={setKeys}
-              {...(edit ? { savedServices: edit.savedServices, revealSaved: revealEdit } : {})}
+              {...(edit ? { savedServices: edit.savedServices, revealSaved: revealEdit, onRemove: edit.onRemoveKey } : {})}
             />
             <LibraryRowsCard value={libraryRows} onChange={setLibraryRows} hideAnime={extras.hideAnime} />
           </TierStep>

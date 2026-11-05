@@ -6,7 +6,7 @@ import { PublishPanel, type PublishCounts } from '@/features/setup/shared/Publis
 import { DestinationStep, connectionUser } from '@/features/setup/full/DestinationStep';
 import { usePlatformPush } from '@/features/setup/shared/usePlatformPush';
 import { saveSetup } from '@/features/setup/resolver/api';
-import { WatchlistSection } from '@/features/setup/full/WatchlistSection';
+import { ReadyConnections } from '@/features/setup/shared/ApiKeysSection';
 import { NuvioPublicModal } from '@/features/setup/full/NuvioPublicModal';
 import type { CollectionDoc } from '@/features/setup/shared/collection-doc';
 import type { PlatformConnection } from '@/features/setup/full/platform-login';
@@ -139,8 +139,8 @@ export function ReviewStep({ password, confirmation, busy, error, backTo, onPass
         } : null}
         replaceOthers={activeConn ? { value: push.replaceOthers, onChange: push.setReplaceOthers } : null}
       >
-        <div className="review-section-head"><h3>Watchlists</h3><p>Sync your personal lists into library rows.</p></div>
-        <WatchlistSection uuid={created.uuid} editToken={push.editToken} />
+        <div className="review-section-head"><h3>Connected accounts</h3><p>Sync your personal lists into library rows.</p></div>
+        <ReadyConnections uuid={created.uuid} editToken={push.editToken} />
 
         {platform === 'nuvio' && (
           <>

@@ -1,14 +1,10 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   FORMAT_SAMPLES,
-  METADATA_KEY_FIELDS,
   POSTER_PAIRS,
   STREAM_PRESETS,
-  VERIFY_ENDPOINTS,
-  type SetupKeysDraft,
   type StreamPresetId,
 } from '@/features/setup/shared/config-contract';
-import { KeyInput, type RevealProps } from '@/features/setup/shared/sections';
 import { BADGE_PACKS, isValidBadgeUrl } from '@/features/setup/shared/BadgePackPicker';
 import { BadgePackButton, PackPreview } from '@/features/setup/shared/BadgePackModal';
 import { FEATURED_PRESETS, type FormattingDraft } from '@/features/setup/shared/FormattingSection';
@@ -20,62 +16,6 @@ export function samplePoster(index: number, size = 'w342'): string {
   const pair = POSTER_PAIRS[index % POSTER_PAIRS.length] ?? POSTER_PAIRS[0];
   const sample = index % 2 === 0 ? pair?.movie : pair?.series;
   return `https://image.tmdb.org/t/p/${size}${sample?.posterPath ?? ''}`;
-}
-
-// ── Metadata keys: TMDB is the one that matters, the other two are extras ──
-
-const METADATA_LOGOS: Partial<Record<keyof SetupKeysDraft, string>> = {
-  tmdbApiKey: '/logos/TMDB.svg',
-  tvdbApiKey: '/tvdb.png',
-};
-
-export function TierMetadata({ values, onChange, savedServices, revealSaved }: {
-  values: SetupKeysDraft;
-  onChange: (next: SetupKeysDraft) => void;
-} & RevealProps) {
-  const [verified, setVerified] = useState<Record<string, boolean>>({});
-  const [tmdb, ...optional] = METADATA_KEY_FIELDS;
-  if (!tmdb) return null;
-
-  function field(entry: (typeof METADATA_KEY_FIELDS)[number], compact: boolean) {
-    const logo = METADATA_LOGOS[entry.field];
-    return (
-      <div
-        key={entry.field}
-        className={`qs-key${compact ? ' is-compact' : ' is-primary'}${verified[entry.field] ? ' is-verified' : ''}${(values[entry.field] ?? '').trim() ? ' is-filled' : ''}`}
-      >
-        <div className="qs-key-brand">
-          {logo
-            ? <img src={logo} alt="" />
-            : <span className="qs-key-mono" aria-hidden="true">{entry.label.slice(0, 4)}</span>}
-        </div>
-        <KeyInput
-          label={entry.label}
-          hint={compact ? '' : entry.hint}
-          {...(entry.required ? { required: true } : {})}
-          {...(entry.placeholder ? { placeholder: entry.placeholder } : {})}
-          {...(entry.docsUrl ? { docsUrl: entry.docsUrl } : {})}
-          value={values[entry.field] ?? ''}
-          {...(VERIFY_ENDPOINTS[entry.field] ? { verifyEndpoint: VERIFY_ENDPOINTS[entry.field] as string } : {})}
-          onVerifyResult={(ok) => setVerified((prev) => ({ ...prev, [entry.field]: ok }))}
-          onChange={(value) => onChange({ ...values, [entry.field]: value })}
-          {...(savedServices?.includes(entry.field) ? { saved: true } : {})}
-          {...(savedServices?.includes(entry.field) && revealSaved ? { onReveal: () => revealSaved(entry.field) } : {})}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="qs-meta">
-      <div className="qs-sub">
-        <strong>Match titles and artwork</strong>
-        <span>TMDB required · TVDB and OMDb optional</span>
-      </div>
-      {field(tmdb, false)}
-      <div className="qs-meta-optional">{optional.map((entry) => field(entry, true))}</div>
-    </div>
-  );
 }
 
 // ── Nuvio badge packs: chips you tap, live strip of the chosen pack ──

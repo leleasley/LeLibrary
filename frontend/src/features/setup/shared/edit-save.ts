@@ -1,4 +1,5 @@
 import {
+  anilistUserForConfig,
   cleanKeys,
   pruneConfig,
   providerSelectionFromServices,
@@ -43,6 +44,9 @@ export interface EditSaveInput {
   badgeTouched: boolean;
   meta: MetadataExtrasDraft;
   metaTouched: boolean;
+  // The AniList username (API keys section) is its own area: changing it
+  // does not resend every metadata choice.
+  anilistUserTouched?: boolean;
   filterSets: FilterSetsDraft;
   mediaSets: MediaSetsDraft;
   filtersTouched: boolean;
@@ -157,6 +161,13 @@ export function buildEditSaveBody(input: EditSaveInput): Record<string, unknown>
     else clearConfig.push('searchOptions');
     config.streamNotices = input.meta.notices ? 'on' : 'off';
     config.streamNoticeTypes = [...input.meta.noticeTypes];
+  }
+  if (input.anilistUserTouched) {
+    // A valid AniList name is saved, an emptied one cleared; a half-typed
+    // (invalid) name leaves the saved one alone.
+    const anilistUser = anilistUserForConfig(input.meta.anilistUser);
+    if (anilistUser) config.anilistUser = anilistUser;
+    else if (!(input.meta.anilistUser ?? '').trim()) clearConfig.push('anilistUser');
   }
   if (input.filtersTouched) {
     config.filterResolutions = [...input.filterSets.resolutions];

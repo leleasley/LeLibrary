@@ -146,6 +146,8 @@
 .qs .provider-card.is-verified { border-color: rgba(52, 211, 153, 0.55); box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.18); }
 .qs .pc-head { min-height: 60px; padding: 13px 14px; }
 .qs .pc-head img { width: 40px; height: 40px; border-radius: 11px; filter: none; opacity: 1; }
+.qs .pc-head .pc-mono { width: 40px; height: 40px; border-radius: 11px; }
+.qs .pc-head img.pc-logo-invert { filter: invert(1); }
 .qs .pc-head strong { font-size: 0.9rem; }
 .qs .pc-toggle:checked + .pc-switch-track { background: rgba(var(--pc-brand-rgb), 0.35); border-color: rgba(var(--pc-brand-rgb), 0.75); }
 .qs .pc-toggle:checked + .pc-switch-track .pc-switch-thumb { background: rgb(var(--pc-brand-rgb)); }
@@ -163,22 +165,6 @@
 .qs .setup-field textarea:focus { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.13); }
 .qs .eye-btn, .qs .setup-verify-btn { border-radius: 10px; border-color: var(--qs-line-2); }
 
-/* ── Metadata keys: TMDB leads, TVDB and OMDb sit side by side ── */
-.qs-meta { margin-top: 30px; }
-.qs-key { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 14px; align-items: start; padding: 16px; border-radius: 16px; border: 1px solid var(--qs-line); background: var(--qs-raised); transition: border-color 0.25s; }
-.qs-key.is-primary { border-color: rgba(1, 180, 228, 0.28); background: linear-gradient(135deg, rgba(1, 180, 228, 0.08), transparent 55%), var(--qs-raised); }
-.qs-key.is-verified { border-color: rgba(52, 211, 153, 0.5); }
-.qs-key .setup-field { margin: 0; }
-.qs-key .setup-hint { display: block; margin-top: 8px; color: #6b6b75; font-size: 0.74rem; line-height: 1.5; }
-.qs-key-brand { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 13px; background: #0c0c0f; border: 1px solid var(--qs-line); overflow: hidden; }
-.qs-key-brand img { width: 40px; height: 40px; object-fit: contain; }
-.qs-key-mono { font: 700 0.7rem var(--mono, monospace); color: #f5c518; letter-spacing: 0.04em; }
-.qs-meta-optional { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-.qs-key.is-compact { grid-template-columns: 40px minmax(0, 1fr); gap: 12px; padding: 13px; }
-.qs-key.is-compact .qs-key-brand { width: 40px; height: 40px; border-radius: 11px; }
-.qs-key.is-compact .qs-key-brand img { width: 30px; height: 30px; }
-.qs-key.is-compact .setup-hint:empty { display: none; }
-.qs-key .setup-provider-logo { display: none; } /* the brand tile already shows it */
 
 /* ── Shared card bits ── */
 .qs-check {
@@ -310,7 +296,6 @@
 .cg-accordion-summary span + span::before { content: ' · '; }
 .qs-setup-page .qs-accordions { margin-top: 0; }
 .qs-setup-page .cg-accordion-body > * + h3.qs-sub { margin-top: 22px; }
-.qs-meta + .qs-accordions { margin-top: 26px; }
 .qs .cg-accordion { margin: 0; border-radius: 16px; border-color: var(--qs-line); background: var(--qs-raised); transition: border-color 0.25s; }
 .qs .cg-accordion:hover { border-color: var(--qs-line-2); }
 .qs .cg-accordion[open] { border-color: rgba(245, 158, 11, 0.32); }
@@ -432,7 +417,7 @@
   .qs-save-short { display: inline; }
   .qs-step-head h2 { font-size: 1.18rem; }
   .qs .provider-grid { grid-template-columns: 1fr; }
-  .qs-meta-optional, .qs-pw-grid, .qs-facts { grid-template-columns: 1fr; }
+  .qs-pw-grid, .qs-facts { grid-template-columns: 1fr; }
   /* Stream styles swipe sideways on phones (the next card peeks in) instead
      of stacking five tall cards. */
   .qs-stream-list { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 78%; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; margin: 0 -16px; padding: 2px 16px 10px; scroll-padding-inline: 16px; scrollbar-width: none; }
@@ -443,8 +428,6 @@
   .qs-pack-foot .setup-note-pill { margin: 0; padding: 0; border: 0; background: none; color: var(--muted); font-size: 0.72rem; text-align: left; }
   .qs-chips { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 0 16px 4px; scrollbar-width: none; }
   .qs-chips::-webkit-scrollbar { display: none; }
-  .qs-key { grid-template-columns: 1fr; }
-  .qs-key-brand { width: 44px; height: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

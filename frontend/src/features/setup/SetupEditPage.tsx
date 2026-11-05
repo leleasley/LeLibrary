@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
   deleteSetup, fetchSetup, fetchSetupConfig, pushProfiles, pushSetup, pushStatus, revealSetupKey,
-  saveSetup, sealPushConnection, setNuvioProfile, unlockSetup, type SetupSummary,
+  saveSetup, sealPushConnection, setNuvioProfile, unlockSetup, cleanIdentities, type SetupIdentities, type SetupSummary,
 } from '@/features/setup/resolver/api';
 import { clearEditToken, getEditToken, setEditToken } from '@/features/setup/resolver/edit-session';
 import { installUrl } from '@/features/setup/resolver/validation';
@@ -134,6 +134,10 @@ export function SetupEditPage() {
   const { t } = useTranslation('common');
   const [created] = useState<CreatedState>(() => (location.state ?? {}) as CreatedState);
   const [summary, setSummary] = useState<SetupSummary | null>(null);
+  // Account names behind the saved keys and connects ("Connected as ..."),
+  // from whichever summary reported them last. Never keys.
+  const [identities, setIdentities] = useState<SetupIdentities>({});
+  const noteIdentities = (value: unknown) => { if (value !== undefined) setIdentities(cleanIdentities(value)); };
   const [missing, setMissing] = useState(false);
   const [password, setPassword] = useState('');
   const [unlockError, setUnlockError] = useState<string | null>(null);
@@ -241,6 +245,7 @@ export function SetupEditPage() {
       .then((data) => {
         if (cancelled) return;
         setSummary(data);
+        noteIdentities(data.identities);
         const tier = tierFor(data.tier);
         setSavedTier(tier);
         setActiveTier(tier);
@@ -263,6 +268,7 @@ export function SetupEditPage() {
     setUnlockError(null);
     try {
       const result = await unlockSetup(uuid, password);
+      noteIdentities(result.identities);
       setEditToken(result.editToken, result.editTokenExpiresInMs);
       setInstallToken(result.installToken);
       setPassword('');
@@ -391,7 +397,7 @@ export function SetupEditPage() {
       else toast('Saved ✓');
       // The save already succeeded; a failed summary refresh keeps the last
       // known summary on screen rather than failing the save.
-      fetchSetup(uuid).then(setSummary).catch(() => undefined);
+      fetchSetup(uuid).then((data) => { setSummary(data); noteIdentities(data.identities); }).catch(() => undefined);
       return true;
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : 'Could not save';
@@ -647,6 +653,7 @@ export function SetupEditPage() {
     initial: seed ?? emptySnapshot(),
     dirty,
     savedServices: summary.keyServices ?? [],
+    identities,
     revealSaved: async (field) => {
       const token = getEditToken();
       if (!token) throw new Error('unlock the setup first');

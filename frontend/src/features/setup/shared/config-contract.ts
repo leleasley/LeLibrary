@@ -232,6 +232,22 @@ export interface SetupConfigDraft {
   customPosterTemplate?: string;
   // Display names for the user's own stream addons (links live in keys).
   customAddons?: { id: string; name: string }[];
+  // AniList username for the public anime list rows (not a secret: AniList
+  // lists are public by name). Private lists use the AniList connect instead.
+  anilistUser?: string;
+}
+
+// AniList usernames: 2-20 letters, digits or underscores.
+const ANILIST_USER_RE = /^[A-Za-z0-9_]{2,20}$/;
+
+export function isValidAnilistUser(value: string | null | undefined): boolean {
+  return typeof value === 'string' && ANILIST_USER_RE.test(value.trim());
+}
+
+// The value a config carries: the trimmed name, or nothing when it is empty
+// or not a valid AniList username.
+export function anilistUserForConfig(value: string | null | undefined): string {
+  return isValidAnilistUser(value) ? (value as string).trim() : '';
 }
 
 // Key field names match the legacy token fields so the resolver can reuse
@@ -437,6 +453,8 @@ export function pruneConfig(draft: SetupConfigDraft): Record<string, unknown> {
   }
   if (draft.homeRows && draft.homeRows.length > 0) out.homeRows = [...draft.homeRows];
   if (draft.customAddons && draft.customAddons.length > 0) out.customAddons = draft.customAddons.map((row) => ({ ...row }));
+  const anilistUser = anilistUserForConfig(draft.anilistUser);
+  if (anilistUser) out.anilistUser = anilistUser;
   if (draft.posterProvider) out.posterProvider = draft.posterProvider;
   if (draft.pictoriumUrl && draft.pictoriumUrl.trim()) out.pictoriumUrl = draft.pictoriumUrl.trim();
   if (draft.pictoriumOptions && Object.keys(draft.pictoriumOptions).length > 0) {

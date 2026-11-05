@@ -5,9 +5,10 @@ import { useNuvioCreatePrefill } from '@/features/setup/nuvio/prefill';
 import { Accordion } from '@/features/setup/shared/Accordion';
 import { ConfirmModal } from '@/features/setup/shared/Modal';
 import { useWizardStep } from '@/features/setup/shared/WizardStepper';
-import { ListKey, ProviderKeys, RdCatalogSelect } from '@/features/setup/shared/sections';
+import { RdCatalogSelect } from '@/features/setup/shared/sections';
+import { ApiKeysAccordion } from '@/features/setup/shared/ApiKeysSection';
 import { TierProgress } from '@/features/setup/shared/tier/TierProgress';
-import { BadgePackStrip, StreamStylePicker, TierMetadata, usePresetPicker } from '@/features/setup/shared/tier/TierPickers';
+import { BadgePackStrip, StreamStylePicker, usePresetPicker } from '@/features/setup/shared/tier/TierPickers';
 import { TierDock, useTierPreview } from '@/features/setup/shared/tier/TierPreview';
 import { PosterWall, TierHero, TierStep, TierWizardNav } from '@/features/setup/shared/tier/TierChrome';
 import '@/features/setup/shared/tier/tier.css';
@@ -16,7 +17,6 @@ import { EMPTY_METADATA_EXTRAS, MetadataExtras, type MetadataExtrasDraft } from 
 import { EMPTY_FILTER_SETS, FilterSets, filterSummaryParts, type FilterSetsDraft } from '@/features/setup/full/FilterSets';
 import { StreamAddonsSection } from '@/features/setup/full/StreamAddonsSection';
 import { CustomStreamsSection } from '@/features/setup/full/CustomStreamsSection';
-import { MetadataWatchlists, WATCHLIST_ACCORDION_DESC } from '@/features/setup/full/MetadataExtras';
 import { cleanWatchlistDraft, type WatchlistDraftMap } from '@/features/setup/resolver/api';
 import { BADGE_PACKS, DEFAULT_BADGE_PACK } from '@/features/setup/shared/BadgePackPicker';
 import { toast } from '@/features/setup/shared/Toast';
@@ -54,7 +54,6 @@ import {
 } from '@/features/setup/shared/nuvio-library';
 import {
   POSTER_PROVIDERS,
-  PROVIDER_KEY_FIELDS,
   STREAM_PRESETS,
   cleanKeys,
   providerSelection,
@@ -279,6 +278,7 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
         searchOptions: searchOptionsForConfig(meta.searchOptions) ?? undefined,
         streamNotices: meta.notices ? 'on' : 'off',
         streamNoticeTypes: meta.noticeTypes,
+        anilistUser: meta.anilistUser,
         filterResolutions: filterSets.resolutions,
         filterResOrder: filterSets.resolutionOrder,
         filterQualities: filterSets.qualities,
@@ -363,7 +363,6 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
   const presetLabel = STREAM_PRESETS.find((preset) => preset.id === formatting.preset)?.name ?? formatting.preset;
   const artworkLabel = POSTER_PROVIDERS.find((p) => p.id === posters.provider)?.name ?? 'TMDB default';
 
-  const connected = PROVIDER_KEY_FIELDS.filter(({ field }) => (keys[field] ?? '').trim()).map(({ label }) => label.replace(/ API key$/, ''));
   const hasTmdb = Boolean((keys.tmdbApiKey ?? '').trim());
   const dirty = edit ? edit.dirty : !creation.result && isFullDirty({
     platform, rdCatalog, name, keys, formatting, posters, homeRows,
@@ -407,31 +406,13 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
           </TierStep>
           <TierStep id="setup" index={2} title="Setup" hidden={wizard.step !== 1} lede="Everything about your library in one place. Open a section to change it; each one shows where it stands.">
             <div className="qs-accordions qs-setup-page">
-              <Accordion title="Integrations" icon="🔌"
-                summary={[connected.length ? connected.join(' + ') : 'No library yet', hasTmdb || edit?.savedServices.includes('tmdbApiKey') ? 'TMDB key added' : 'TMDB key needed']}>
-                <h3 className="qs-sub"><strong>Library providers</strong><span>Debrid</span></h3>
-                {edit ? (
-                  <ProviderKeys
-                    values={keys} onChange={setKeys}
-                    savedServices={edit.savedServices} revealSaved={revealEdit} onRemove={edit.onRemoveKey}
-                  />
-                ) : (
-                  <ProviderKeys values={keys} onChange={setKeys} />
-                )}
+              <ApiKeysAccordion
+                keys={keys} onKeys={setKeys} edit={edit} revealSaved={revealEdit}
+                watchlist={watchlist} onWatchlist={setWatchlist}
+                anilistUser={meta.anilistUser} onAnilistUser={(anilistUser) => setMeta({ ...meta, anilistUser })}
+              >
                 <div className="qs-catalogs"><RdCatalogSelect value={rdCatalog} onChange={setRdCatalog} /></div>
-                {edit
-                  ? <TierMetadata values={keys} onChange={setKeys} savedServices={edit.savedServices} revealSaved={revealEdit} />
-                  : <TierMetadata values={keys} onChange={setKeys} />}
-                <h3 className="qs-sub"><strong>MDBList</strong><span>Optional</span></h3>
-                {edit
-                  ? <ListKey value={keys.mdblistKey ?? ''} onChange={(value) => setKeys({ ...keys, mdblistKey: value })} savedServices={edit.savedServices} revealSaved={revealEdit} />
-                  : <ListKey value={keys.mdblistKey ?? ''} onChange={(value) => setKeys({ ...keys, mdblistKey: value })} />}
-                <p className="setup-hint qs-note">Want what you watch on MDBList? In Nuvio open Settings, then MDBList, then Connect, and approve the code on mdblist.com. Nuvio then scrobbles for you. The key here only powers lists and ratings in LeLibrary.</p>
-                <h3 className="qs-sub"><strong>Watchlists</strong><span>Optional</span></h3>
-                {edit
-                  ? <MetadataWatchlists uuid={edit.uuid} editToken={edit.editToken} />
-                  : <MetadataWatchlists uuid={null} editToken={null} draft={watchlist} onDraft={setWatchlist} />}
-              </Accordion>
+              </ApiKeysAccordion>
               <Accordion title="Streams" icon="🎚️"
                 summary={[...filterSummaryParts(filterSets).slice(0, 2), addons.length + customAddons.length > 0 ? 'Extra sources on' : 'Library only']}>
                 <h3 className="qs-sub"><strong>Library playback filters</strong><span>Resolutions, qualities and files</span></h3>

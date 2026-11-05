@@ -132,6 +132,7 @@ describe('saved config mapping', () => {
     expect(drafts.meta).toEqual({
       lang: 'fr-FR', sortBy: 'ano', mainMetadata: true, hideAnime: true, torboxSources: ['usenet'],
       searchScope: 'library', searchOptions: EMPTY_METADATA_EXTRAS.searchOptions, notices: false, noticeTypes: ['none'],
+      anilistUser: '',
     });
   });
 });

@@ -66,9 +66,18 @@ describe('quick look reference layout', () => {
 
   it('offers TVDB as optional and TMDB as required', () => {
     const html = render();
-    expect(html).toContain('TVDB API key');
+    // The shared key cards: TMDB is open and required, TVDB and OMDb are
+    // optional cards with a switch (OMDb has no logo: a monogram tile).
+    expect(html).toContain('aria-label="Use TVDB"');
+    expect(html).toContain('aria-label="Use OMDb"');
+    expect(html).toContain('class="pc-mono"');
+    expect(html).not.toContain('aria-label="Use TMDB"');
     expect(html).toContain('Get key');
     expect(html).toMatch(/TMDB API key<span class="req"> \*<\/span>/);
+    expect(html).toContain('provider-card is-open is-required');
+    // The old metadata layout is gone.
+    expect(html).not.toContain('qs-key');
+    expect(html).not.toContain('qs-meta-optional');
   });
 
   it('never marks an individual debrid provider as required', () => {
@@ -82,7 +91,7 @@ describe('quick look reference layout', () => {
   it('ticks provider boxes and clears the key when unticked', () => {
     const html = render();
     // All four providers render a tick box, collapsed by default.
-    expect(html.match(/class="pc-toggle"/g)?.length ?? 0).toBe(4);
+    expect(html.match(/aria-label="Use (TorBox|Real-Debrid|AllDebrid|Premiumize)"/g)?.length ?? 0).toBe(4);
     // Provider keys are hidden by default (collapsed), no placeholder visible.
     expect(html).not.toContain('tb-xxxxxxxxxxxxxxxxxxxxxxxx');
   });

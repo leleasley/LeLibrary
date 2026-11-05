@@ -1,12 +1,5 @@
-import { WatchlistSection, WATCHLIST_ACCORDION_DESC } from '@/features/setup/full/WatchlistSection';
-import type { WatchlistDraftMap } from '@/features/setup/resolver/api';
 import { TORBOX_SOURCE_IDS, cleanTorboxSources } from '@/features/setup/shared/config-contract';
 import { DEFAULT_SEARCH_OPTIONS, type SearchOptionsDraft } from '@/features/setup/shared/search-options';
-
-// The watchlist accordion copy lives with the section so Settle In and Move In
-// cannot drift. Re-exported here because both pages already import the section
-// from this module.
-export { WATCHLIST_ACCORDION_DESC };
 
 // Metadata step extras: language, order, id mode, anime, search scope and
 // stream notices. The backend honours every one of these field names on the
@@ -22,6 +15,9 @@ export interface MetadataExtrasDraft {
   searchOptions: SearchOptionsDraft;
   notices: boolean;
   noticeTypes: string[];
+  // AniList username for the public anime list rows (API keys section,
+  // config.anilistUser). Empty = none.
+  anilistUser: string;
 }
 
 export const DEFAULT_NOTICE_TYPES = ['none', 'rateLimit', 'digitalRelease'];
@@ -36,6 +32,7 @@ export const EMPTY_METADATA_EXTRAS: MetadataExtrasDraft = {
   searchOptions: { ...DEFAULT_SEARCH_OPTIONS, names: {} },
   notices: true,
   noticeTypes: [...DEFAULT_NOTICE_TYPES],
+  anilistUser: '',
 };
 
 export const LANGS: { id: string; name: string }[] = [
@@ -266,16 +263,4 @@ export function MetadataExtras({ draft, onChange }: {
       />
     </>
   );
-}
-
-// Watchlist connects live here in the metadata step. OAuth seals into a
-// setup row, so before creation the cards state the requirement; after
-// creation (review, or any unlocked editor) they go live.
-export function MetadataWatchlists({ uuid, editToken, draft, onDraft }: {
-  uuid: string | null;
-  editToken: string | null;
-  draft?: WatchlistDraftMap | null | undefined;
-  onDraft?: ((next: WatchlistDraftMap) => void) | undefined;
-}) {
-  return <WatchlistSection uuid={uuid} editToken={editToken} draft={draft} onDraft={onDraft} />;
 }

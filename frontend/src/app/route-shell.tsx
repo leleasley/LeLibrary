@@ -1,4 +1,4 @@
-import { Outlet, useNavigation } from 'react-router-dom';
+import { Outlet, ScrollRestoration, useNavigation } from 'react-router-dom';
 import { SiteBanner } from '@/features/site/SiteBanner';
 import { ToastHost } from '@/features/setup/shared/Toast';
 
@@ -13,6 +13,8 @@ export function RouteShell() {
         <Outlet />
       </main>
       <ToastHost />
+      {/* New pages open at the top; Back/Forward return to where you were. */}
+      <ScrollRestoration />
     </div>
   );
 }

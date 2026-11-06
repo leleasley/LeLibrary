@@ -104,7 +104,12 @@ function bootData(): { features: { releases: boolean; savedSetups: boolean; unav
   try { savedSetups = require('../platform/selfhost-access.ts').listEnabled() === true; } catch { /* no secret */ }
   try { unavailableStreamAddons = require('../streams/streamAddons.ts').unavailableStreamAddons(); } catch { /* none */ }
   try { webdavSource = require('../providers/webdav.ts').webdavEnabled() === true; } catch { /* off */ }
-  try { turnstileSiteKey = require('../platform/turnstile.ts').turnstileSiteKey(); } catch { /* not configured */ }
+  try {
+    const turnstile = require('../platform/turnstile.ts');
+    // Only ship the widget when the server can verify a token; an unconfigured
+    // or temporarily disabled instance must not render a dead challenge.
+    turnstileSiteKey = turnstile.turnstileConfigured() ? turnstile.turnstileSiteKey() : '';
+  } catch { /* not configured */ }
   const fresh = latestStatus && Date.now() - latestStatus.at < BOOT_STATUS_MAX_AGE ? latestStatus.data : null;
   return { features: { releases, savedSetups, unavailableStreamAddons, webdavSource, turnstileSiteKey }, ...(fresh ? { status: fresh } : {}), assets: assetVersion() };
 }

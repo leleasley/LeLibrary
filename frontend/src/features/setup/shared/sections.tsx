@@ -280,10 +280,12 @@ export function KeyCard({ spec, value, onChange, onClear, saved, onReveal, ident
   const switchOn = filled || armed;
   const state = verified ? 'verified' : filled ? 'added' : 'idle';
 
+  // Clicking the card does what the switch does: opening it switches the
+  // service on (ready for its key), closing it without a key switches it off.
   function toggle() {
     const opening = !open;
     setOpen(opening);
-    if (!opening) setArmed(false);
+    setArmed(opening);
   }
 
   function clear(fromServer: boolean) {

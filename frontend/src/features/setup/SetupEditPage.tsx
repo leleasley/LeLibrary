@@ -114,7 +114,7 @@ export function UnlockModal({ uuid, tier, busy, loading, error, leaving, passwor
         </label>
         <TurnstileCheck control={turnstile} />
         {error && <p className="setup-error" role="alert">{error}</p>}
-        <button type="submit" className="qs-cta is-ready edit-unlock-btn" disabled={busy || loading || !password || !turnstileReady(turnstile)}>
+        <button type="submit" className={`qs-cta edit-unlock-btn${busy || loading || !password || !turnstileReady(turnstile) ? '' : ' is-ready'}`} disabled={busy || loading || !password || !turnstileReady(turnstile)}>
           <span className="qs-cta-text">{loading ? 'Loading your settings…' : busy ? 'Checking…' : 'Unlock'}</span>
         </button>
         <small className="edit-unlock-note">No email, no recovery. Forgotten passwords cannot be reset.</small>

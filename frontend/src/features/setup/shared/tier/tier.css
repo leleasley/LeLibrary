@@ -242,6 +242,8 @@
 }
 .qs-cta.is-ready { background: var(--amber); color: #1a1203; cursor: pointer; box-shadow: 0 18px 36px -18px rgba(245, 158, 11, 0.75); }
 .qs-cta.is-ready:hover:not(:disabled) { transform: translateY(-2px); }
+/* Disabled (no password yet, or the bot check has not passed): greyed, not amber. */
+.qs-cta:disabled { background: rgba(255, 255, 255, 0.07); color: #6b6b75; cursor: not-allowed; box-shadow: none; transform: none; }
 
 .qs-name { max-width: 420px; margin-bottom: 18px; }
 .qs-catalogs { margin-top: 18px; max-width: 420px; }

@@ -121,12 +121,14 @@ describe('edit page unlock modal', () => {
     expect(password).toBeGreaterThan(-1);
     expect(widget).toBeGreaterThan(password);
     expect(button).toBeGreaterThan(widget);
-    expect(html).toMatch(/<button type="submit" class="qs-cta is-ready edit-unlock-btn" disabled=""/);
+    // Greyed (no amber "ready" style) and disabled until the check passes.
+    expect(html).toMatch(/<button type="submit" class="qs-cta edit-unlock-btn" disabled=""/);
     expect(html).toContain('Complete the check above');
   });
 
   it('enables Unlock once the widget has a token, and disables it again on expiry', () => {
     expect(unlock(control('solved', 'tok'))).not.toMatch(/edit-unlock-btn" disabled/);
+    expect(unlock(control('solved', 'tok'))).toContain('class="qs-cta edit-unlock-btn is-ready"');
     expect(unlock(control('expired'))).toMatch(/edit-unlock-btn" disabled/);
   });
 

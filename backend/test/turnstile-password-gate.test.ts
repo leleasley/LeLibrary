@@ -119,4 +119,25 @@ test('unconfigured self-host: both endpoints behave as before', async () => {
   } finally { await app.close(); }
 });
 
+test('a Cloudflare outage fails open; a rejected token still fails closed', async () => {
+  const app = await startApp();
+  const originalFetch = globalThis.fetch;
+  try {
+    await withEnv({ TURNSTILE_SECRET: 'synthetic-secret', TURNSTILE_SECRET_KEY: undefined, TURNSTILE_HOSTNAMES: 'lelibrary.uk', TURNSTILE_ALLOW_LOCALHOST: undefined }, async () => {
+      // Cloudflare down (5xx): editing must not be locked out by a third party.
+      globalThis.fetch = async () => ({ ok: false, status: 503, json: async () => ({}) });
+      const outage = await post(app.port, `/api/setup/${UUID}/unlock`, { password: 'whatever-1', 'cf-turnstile-response': 'synthetic-token' }, 'lelibrary.uk');
+      assert.equal(outage.status, 401, 'reached the password check during the outage');
+      // Cloudflare answers and rejects the token: closed.
+      globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ success: false, 'error-codes': ['invalid-input-response'] }) });
+      const rejected = await post(app.port, `/api/setup/${UUID}/unlock`, { password: 'whatever-1', 'cf-turnstile-response': 'synthetic-token' }, 'lelibrary.uk');
+      assert.equal(rejected.status, 403);
+      assert.match(rejected.body.error, /Bot check failed/);
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+    await app.close();
+  }
+});
+
 export interface TurnstilePasswordGateTestModule {};

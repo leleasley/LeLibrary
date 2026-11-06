@@ -260,6 +260,14 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
       remoteip: clientIp(req),
     });
     if (verdict.ok) return false;
+    // Cloudflare itself unreachable (network, 5xx): do not lock every editor
+    // out of their setup because a third party is down. Tokens that arrive and
+    // are wrong, or are missing, still fail closed.
+    if (verdict.error === 'verify-unreachable') {
+      console.warn(`[Turnstile] ${action}: siteverify unreachable, allowing the password check`);
+      return false;
+    }
+    console.warn(`[Turnstile] ${action}: blocked (${verdict.error || 'rejected'})`);
     res.status(403).json({ error: 'Bot check failed. Reload the page and try again.' });
     return true;
   }

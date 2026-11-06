@@ -1,4 +1,6 @@
 import { useState, type ReactNode } from 'react';
+import { TurnstileCheck } from '@/features/setup/shared/TurnstileCheck';
+import type { TurnstileControl } from '@/features/setup/shared/turnstile';
 
 // The password form's id: the shell footer's finish button submits it.
 export const INSTALL_FORM_ID = 'tier-install-form';
@@ -24,13 +26,20 @@ const STRENGTH_LABEL = ['', 'Too short', 'Okay', 'Good', 'Strong'] as const;
 // Escape presses from the end screen).
 const QUIET_FIELD = { 'data-1p-ignore': 'true', 'data-lpignore': 'true', 'data-bwignore': 'true', 'data-form-type': 'other' } as const;
 
-export function TierInstall({ password, confirmation, error, onPassword, onConfirmation, onSubmit, children }: {
+export function TierInstall({ password, confirmation, error, onPassword, onConfirmation, onSubmit, turnstile, active = true, children }: {
   password: string;
   confirmation: string;
   error: string | null;
   onPassword: (value: string) => void;
   onConfirmation: (value: string) => void;
   onSubmit: () => void;
+  // The visible bot check (configured instances only). Shown below the
+  // password fields while this step is on screen; the footer's finish stays
+  // disabled until it has a token.
+  turnstile?: TurnstileControl | undefined;
+  // Wizard tiers keep every step mounted: only render the widget once this
+  // step is the one showing.
+  active?: boolean | undefined;
   children?: ReactNode;
 }) {
   const [show, setShow] = useState(false);
@@ -84,6 +93,8 @@ export function TierInstall({ password, confirmation, error, onPassword, onConfi
       </div>
 
       <p className={`qs-pw-status${match ? ' is-ok' : mismatch ? ' is-error' : ''}`} aria-live="polite">{status}</p>
+
+      <TurnstileCheck control={turnstile} active={active} />
 
       <div className="qs-facts">
         <span><b>No email, no recovery.</b> Save both your manifest link and this password.</span>

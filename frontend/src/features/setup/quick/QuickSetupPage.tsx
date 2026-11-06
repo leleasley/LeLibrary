@@ -19,6 +19,7 @@ import { INSTALL_FORM_ID, TierInstall } from '@/features/setup/shared/tier/TierI
 import { useTierPreview } from '@/features/setup/shared/tier/TierPreview';
 import { TierStep } from '@/features/setup/shared/tier/TierChrome';
 import { ShellSidebar, TierShell } from '@/features/setup/shared/tier/TierShell';
+import { turnstileReady } from '@/features/setup/shared/turnstile';
 import { createBlocker, optionalChecks, posterFacts, preferenceFacts, requiredChecks, setupCompletion } from '@/features/setup/shared/tier/shell-model';
 import '@/features/setup/shared/tier/tier.css';
 import { useEditSnapshot, type EditMode } from '@/features/setup/shared/edit-mode';
@@ -234,7 +235,7 @@ export function QuickSetupPage({ edit, previewOpen }: { edit?: EditMode; preview
   }
   const required = requiredChecks(keyState);
   const optional = optionalChecks('quick', keyState);
-  const blocked = edit ? null : createBlocker(keyState, { value: creation.password, confirmation: creation.confirmation });
+  const blocked = edit ? null : createBlocker(keyState, { value: creation.password, confirmation: creation.confirmation }, turnstileReady(creation.turnstile));
   return (
     <section className="setup qs qs-tier ts-page">
       <TierShell
@@ -305,7 +306,7 @@ export function QuickSetupPage({ edit, previewOpen }: { edit?: EditMode; preview
           <TierInstall
             password={creation.password} confirmation={creation.confirmation} error={creation.error}
             onPassword={creation.setPassword} onConfirmation={creation.setConfirmation}
-            onSubmit={submit}
+            onSubmit={submit} turnstile={creation.turnstile}
           />
         </TierStep>
         )}

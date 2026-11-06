@@ -16,6 +16,7 @@ import { useTierPreview } from '@/features/setup/shared/tier/TierPreview';
 import { TierStep } from '@/features/setup/shared/tier/TierChrome';
 import { ShellSidebar, TierShell } from '@/features/setup/shared/tier/TierShell';
 import { HomeLayoutSheet } from '@/features/setup/shared/tier/HomeLayoutSheet';
+import { turnstileReady } from '@/features/setup/shared/turnstile';
 import { createBlocker, optionalChecks, posterFacts, preferenceFacts, requiredChecks, setupCompletion } from '@/features/setup/shared/tier/shell-model';
 import { homeLayoutCollections, homeLayoutCount, homeLayoutRowItems, homeLayoutRows, moveHomeLayoutRow } from '@/features/setup/shared/home-layout';
 import '@/features/setup/shared/tier/tier.css';
@@ -200,6 +201,7 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
   const platformName = platform === 'nuvio' ? 'Nuvio' : 'Stremio';
   const push = usePlatformPush({
     uuid: creation.result?.uuid ?? null,
+    editToken: creation.result?.editToken ?? null,
     password: creation.password,
     platform,
     connection,
@@ -411,7 +413,7 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
   const optional = optionalChecks('partial', keyState, (['simkl', 'anilist', 'trakt'] as const).filter((provider) => connections.linked(provider)));
   const lastStep = wizard.step === PARTIAL_SECTIONS.length - 1;
   const blocked = edit || wizard.step === 0 ? null
-    : createBlocker(keyState, lastStep ? { value: creation.password, confirmation: creation.confirmation } : null);
+    : createBlocker(keyState, lastStep ? { value: creation.password, confirmation: creation.confirmation } : null, !lastStep || turnstileReady(creation.turnstile));
   const arrange = { count: homeLayoutCount([], homeRows, platform), onOpen: () => setLayoutOpen(true) };
 
   return (
@@ -532,7 +534,7 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
           <TierInstall
             password={creation.password} confirmation={creation.confirmation} error={creation.error}
             onPassword={creation.setPassword} onConfirmation={creation.setConfirmation}
-            onSubmit={submit}
+            onSubmit={submit} turnstile={creation.turnstile} active={lastStep}
           />
         </TierStep>
         )}

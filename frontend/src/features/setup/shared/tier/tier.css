@@ -224,6 +224,14 @@
 .qs-pw-status { margin: 0; color: var(--muted); font-size: 0.8rem; }
 .qs-pw-status.is-ok { color: var(--qs-ok); }
 .qs-pw-status.is-error { color: var(--qs-bad); }
+
+/* Turnstile on the password screens (create + unlock). Cloudflare's flexible
+   widget fills the width with a 300px minimum and is 65px tall: reserve the
+   height so the button does not jump when it loads. */
+.ll-turnstile { display: grid; gap: 6px; min-width: 0; margin: 2px 0 6px; }
+.ll-turnstile-widget { width: 100%; min-width: 0; min-height: 65px; }
+.ll-turnstile-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0; color: var(--muted); font-size: 0.78rem; }
+.ll-turnstile-hint.is-error { color: var(--qs-bad, #f87171); }
 .qs-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .qs-facts span { padding: 12px 14px; border-radius: 12px; background: rgba(255, 255, 255, 0.025); border: 1px solid var(--qs-line); color: var(--muted); font-size: 0.75rem; line-height: 1.5; }
 .qs-facts b { display: block; color: var(--text); font-weight: 600; margin-bottom: 2px; }
@@ -355,6 +363,11 @@
   animation: edit-card 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 @keyframes edit-card { from { opacity: 0; transform: translateY(14px) scale(0.98); } }
+/* 360px phones: Turnstile's 300px minimum must fit inside the card. */
+@media (max-width: 400px) {
+  .edit-unlock { padding: 12px; overflow-y: auto; }
+  .edit-unlock-card { padding: 24px 16px 20px; }
+}
 .edit-unlock-logo { width: 54px; height: 54px; margin-bottom: 10px; filter: drop-shadow(0 8px 20px rgba(245, 158, 11, 0.35)); }
 .edit-unlock-card h1 { margin: 0; font-size: 1.6rem; letter-spacing: -0.03em; }
 .edit-unlock-card > p { margin: 4px 0 14px; color: var(--muted); font-size: 0.86rem; line-height: 1.5; }

@@ -18,6 +18,8 @@ process.on('uncaughtException', (err: unknown) => {
 const server = app.listen(PORT, () => {
   console.log(`LeLibrary → http://localhost:${PORT}`);
   console.log(`Configure → http://localhost:${PORT}/configure`);
+  // One line on the password-screen bot check: on/off and why, never values.
+  console.log(require('./src/platform/turnstile.ts').turnstileStartupLine());
   // Cross-provider ID mapping (imdb <-> tmdb/tvdb) and scene-title mappings
   // are loaded in the background so they never delay readiness; matching falls
   // back to plain TMDB search until they are ready.

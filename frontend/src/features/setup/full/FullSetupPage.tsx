@@ -13,6 +13,7 @@ import { TierStep } from '@/features/setup/shared/tier/TierChrome';
 import { INSTALL_FORM_ID } from '@/features/setup/shared/tier/TierInstall';
 import { ShellSidebar, TierShell } from '@/features/setup/shared/tier/TierShell';
 import { HomeLayoutSheet } from '@/features/setup/shared/tier/HomeLayoutSheet';
+import { turnstileReady } from '@/features/setup/shared/turnstile';
 import { createBlocker, optionalChecks, posterFacts, preferenceFacts, requiredChecks, setupCompletion } from '@/features/setup/shared/tier/shell-model';
 import { homeLayoutCollections, homeLayoutCount, homeLayoutRowItems, homeLayoutRows, moveHomeLayoutCollection, moveHomeLayoutRow } from '@/features/setup/shared/home-layout';
 import '@/features/setup/shared/tier/tier.css';
@@ -393,7 +394,7 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
   const optional = optionalChecks('full', keyState, (['simkl', 'anilist', 'trakt'] as const).filter((provider) => connections.linked(provider)));
   const lastStep = wizard.step === FULL_SECTIONS.length - 1;
   const blocked = edit || wizard.step === 0 || creation.result ? null
-    : createBlocker(keyState, lastStep ? { value: creation.password, confirmation: creation.confirmation } : null);
+    : createBlocker(keyState, lastStep ? { value: creation.password, confirmation: creation.confirmation } : null, !lastStep || turnstileReady(creation.turnstile));
   const arrange = { count: homeLayoutCount(collections, homeRows, platform), onOpen: () => setLayoutOpen(true) };
 
   function moveLayoutCollection(from: number, to: number) {
@@ -543,6 +544,7 @@ export function FullSetupPage({ edit, previewOpen }: { edit?: EditMode; previewO
             password={creation.password} confirmation={creation.confirmation} error={creation.error}
             onPassword={creation.setPassword} onConfirmation={creation.setConfirmation}
             onSubmit={submit} created={creation.result}
+            turnstile={creation.turnstile} active={lastStep}
             name={name}
             platform={platform} pushConn={pushConn}
             counts={{

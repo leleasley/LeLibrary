@@ -1,4 +1,5 @@
-// Cloudflare Turnstile bot protection (managed mode, invisible).
+// Cloudflare Turnstile bot protection (managed widget, shown on the password
+// screens).
 //
 // Scope (v6): the password-bearing endpoints, POST /api/setup/:uuid/unlock and
 // POST /api/setup (create). The old /api/save-config gate stays for legacy
@@ -14,7 +15,13 @@
 //                         and pre-secret dev are untouched).
 //   TURNSTILE_HOSTNAMES - comma-separated frontend hostnames the token must
 //                         have been issued for (e.g. "dev.leleasley.uk").
+//                         TURNSTILE_HOSTNAME (singular) is accepted as an
+//                         alias; the plural wins when both are set.
 //                         Production must NOT include localhost/127.0.0.1.
+//   TURNSTILE_ENABLED   - optional kill switch: off/false/0 turns Turnstile
+//                         fully off (no widget, no check). Anything else, or
+//                         absent, means on whenever the three values above
+//                         are present.
 //   TURNSTILE_ALLOW_LOCALHOST - DEV/TEST ONLY: requests whose Host is
 //                         localhost/127.0.0.1 skip enforcement. Never on a
 //                         shared instance.
@@ -40,17 +47,44 @@ function turnstileSiteKey() {
 }
 
 function turnstileHostnames() {
-  return String(process.env.TURNSTILE_HOSTNAMES || '')
+  return String(process.env.TURNSTILE_HOSTNAMES || process.env.TURNSTILE_HOSTNAME || '')
     .split(',')
     .map((hostname) => hostname.trim().toLowerCase())
     .filter(Boolean);
 }
 
-// True when the server can actually verify tokens. Everything else keys off
-// this: unconfigured instances skip both the widget (no site key shipped) and
-// enforcement (requests proceed exactly as before).
+function turnstileKillSwitch() {
+  const value = String(process.env.TURNSTILE_ENABLED ?? '').trim().toLowerCase();
+  return value === 'off' || value === 'false' || value === '0';
+}
+
+// Why Turnstile is on or off, without any values. The site key is required
+// too: without it the page cannot render a widget, so enforcing would refuse
+// every unlock and create.
+function turnstileStatus(): { enabled: boolean; reason: string; hostnames: number } {
+  const hostnames = turnstileHostnames().length;
+  let reason = '';
+  if (turnstileKillSwitch()) reason = 'disabled';
+  else if (!turnstileSiteKey()) reason = 'no site key';
+  else if (!turnstileSecret()) reason = 'no secret';
+  else if (!hostnames) reason = 'no hostnames';
+  return { enabled: !reason, reason, hostnames };
+}
+
+// True when the page can render the widget AND the server can verify its
+// tokens. Everything else keys off this: unconfigured instances skip both the
+// widget (no site key shipped) and enforcement (requests proceed exactly as
+// before).
 function turnstileConfigured() {
-  return turnstileSecret().length > 0 && turnstileHostnames().length > 0;
+  return turnstileStatus().enabled;
+}
+
+// The one startup line: state and hostname count, never a key or hostname.
+function turnstileStartupLine() {
+  const status = turnstileStatus();
+  return status.enabled
+    ? `[Turnstile] enabled for ${status.hostnames} hostname(s)`
+    : `[Turnstile] off (${status.reason})`;
 }
 
 // Local/test escape hatch (TURNSTILE_ALLOW_LOCALHOST=on, DEV ONLY): requests
@@ -72,14 +106,16 @@ function isLocalHostRequest(req: any): boolean {
 
 // Per-request answer for the password endpoints: is the gate active here, and
 // which public site key should the page render? `enforced` is false for the
-// localhost escape and when Turnstile is not configured at all.
+// localhost escape and when Turnstile is not configured at all. The site key
+// is only shipped where the gate is enforced, so a localhost-exempt page (dev
+// Playwright) shows no widget and its submit buttons stay enabled.
 function turnstileRequestState(req: any) {
   const configured = turnstileConfigured();
   const localExempt = configured && turnstileAllowLocalhost() && isLocalHostRequest(req);
   return {
     configured,
     enforced: configured && !localExempt,
-    siteKey: configured ? turnstileSiteKey() : '',
+    siteKey: configured && !localExempt ? turnstileSiteKey() : '',
   };
 }
 
@@ -107,7 +143,7 @@ async function verifyTurnstile(token: unknown, { action = '', remoteip = '' }: {
   }
   const secret = turnstileSecret();
   const hostnames = turnstileHostnames();
-  if (!secret || !hostnames.length) {
+  if (!turnstileConfigured() || !secret || !hostnames.length) {
     return { ok: false, error: 'not-configured' };
   }
   let result;
@@ -137,7 +173,9 @@ module.exports = {
   turnstileSecret,
   turnstileSiteKey,
   turnstileHostnames,
+  turnstileStatus,
   turnstileConfigured,
+  turnstileStartupLine,
   turnstileAllowLocalhost,
   turnstileRequestState,
   checkSiteverifyResult,

@@ -61,7 +61,7 @@ const FRONTEND_SHELL_HTML = fs.existsSync(FRONTEND_SHELL) ? fs.readFileSync(FRON
 function serveShell(res: any): boolean {
   if (!FRONTEND_SHELL_HTML) return false;
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.send(bootHtml.injectBoot(FRONTEND_SHELL_HTML, bootData()));
+  res.send(bootHtml.injectBoot(FRONTEND_SHELL_HTML, bootData(res.req)));
   return true;
 }
 
@@ -94,7 +94,7 @@ function assetVersion(): string {
   return version;
 }
 
-function bootData(): { features: { releases: boolean; savedSetups: boolean; unavailableStreamAddons: string[]; webdavSource: boolean; turnstileSiteKey: string }; status?: unknown; assets: string } {
+function bootData(req?: any): { features: { releases: boolean; savedSetups: boolean; unavailableStreamAddons: string[]; webdavSource: boolean; turnstileSiteKey: string }; status?: unknown; assets: string } {
   let releases = false;
   let webdavSource = false;
   let savedSetups = false;
@@ -106,9 +106,10 @@ function bootData(): { features: { releases: boolean; savedSetups: boolean; unav
   try { webdavSource = require('../providers/webdav.ts').webdavEnabled() === true; } catch { /* off */ }
   try {
     const turnstile = require('../platform/turnstile.ts');
-    // Only ship the widget when the server can verify a token; an unconfigured
-    // or temporarily disabled instance must not render a dead challenge.
-    turnstileSiteKey = turnstile.turnstileConfigured() ? turnstile.turnstileSiteKey() : '';
+    // Only ship the widget where the server enforces it: an unconfigured or
+    // disabled instance must not render a dead challenge, and a
+    // localhost-exempt request (dev tooling) must not wait for one.
+    turnstileSiteKey = turnstile.turnstileRequestState(req).siteKey;
   } catch { /* not configured */ }
   const fresh = latestStatus && Date.now() - latestStatus.at < BOOT_STATUS_MAX_AGE ? latestStatus.data : null;
   return { features: { releases, savedSetups, unavailableStreamAddons, webdavSource, turnstileSiteKey }, ...(fresh ? { status: fresh } : {}), assets: assetVersion() };
@@ -122,7 +123,7 @@ function serveHome(res: any): boolean {
   let stat;
   try { stat = fs.statSync(page); } catch { return false; }
   if (!homeCache || homeCache.mtimeMs !== stat.mtimeMs) homeCache = { mtimeMs: stat.mtimeMs, html: fs.readFileSync(page, 'utf8') };
-  const boot = bootData();
+  const boot = bootData(res.req);
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.type('html').send(bootHtml.injectBoot(bootHtml.patchHome(homeCache.html, boot.status), boot));
   return true;
@@ -415,7 +416,7 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
     const html = fs.readFileSync(legacyConfigure, 'utf8');
     const injected = html.replace(
       '</head>',
-      `<script>window.__HOSTED__ = false;window.__TURNSTILE_SITE_KEY__ = ${scriptSafeJson(require('../platform/turnstile.ts').turnstileSiteKey())};</script></head>`
+      `<script>window.__HOSTED__ = false;window.__TURNSTILE_SITE_KEY__ = ${scriptSafeJson(require('../platform/turnstile.ts').turnstileRequestState(req).siteKey)};</script></head>`
     );
     res.send(injected);
   });

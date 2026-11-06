@@ -30,6 +30,9 @@ export interface PlatformPush {
 export function usePlatformPush(input: {
   uuid: string | null;
   password: string;
+  // The edit session the create call returned. When present no unlock is
+  // made: the unlock would need a fresh Turnstile token the Ready page lacks.
+  editToken?: string | null | undefined;
   platform: 'nuvio' | 'stremio' | null;
   connection: PlatformConnection | null;
   // Push without a connection from the setup itself (used by the review page,
@@ -61,6 +64,7 @@ export function usePlatformPush(input: {
   // One password check, then a bearer token; the password is never stored.
   useEffect(() => {
     if (!uuid || editToken) return;
+    if (handlers.current.editToken) { setEditToken(handlers.current.editToken); return; }
     let cancelled = false;
     unlockSetup(uuid, passwordRef.current)
       .then((result) => { if (!cancelled) setEditToken(result.editToken); })

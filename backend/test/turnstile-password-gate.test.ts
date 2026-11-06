@@ -82,7 +82,7 @@ function post(port, path, body, host) {
 test('configured: unlock and create refuse a request with no token', async () => {
   const app = await startApp();
   try {
-    await withEnv({ TURNSTILE_SECRET: 'synthetic-secret', TURNSTILE_SECRET_KEY: undefined, TURNSTILE_HOSTNAMES: 'lelibrary.uk', TURNSTILE_ALLOW_LOCALHOST: undefined }, async () => {
+    await withEnv({ TURNSTILE_SITE_KEY: '1x00000000000000000000AA', TURNSTILE_SECRET: 'synthetic-secret', TURNSTILE_HOSTNAME: undefined, TURNSTILE_ENABLED: undefined, TURNSTILE_SECRET_KEY: undefined, TURNSTILE_HOSTNAMES: 'lelibrary.uk', TURNSTILE_ALLOW_LOCALHOST: undefined }, async () => {
       const unlock = await post(app.port, `/api/setup/${UUID}/unlock`, { password: 'whatever-1' }, 'lelibrary.uk');
       assert.equal(unlock.status, 403);
       assert.match(unlock.body.error, /Bot check failed/);
@@ -96,7 +96,7 @@ test('configured: unlock and create refuse a request with no token', async () =>
 test('the dev localhost escape lets local tooling through to the real checks', async () => {
   const app = await startApp();
   try {
-    await withEnv({ TURNSTILE_SECRET: 'synthetic-secret', TURNSTILE_SECRET_KEY: undefined, TURNSTILE_HOSTNAMES: 'lelibrary.uk', TURNSTILE_ALLOW_LOCALHOST: 'on' }, async () => {
+    await withEnv({ TURNSTILE_SITE_KEY: '1x00000000000000000000AA', TURNSTILE_SECRET: 'synthetic-secret', TURNSTILE_HOSTNAME: undefined, TURNSTILE_ENABLED: undefined, TURNSTILE_SECRET_KEY: undefined, TURNSTILE_HOSTNAMES: 'lelibrary.uk', TURNSTILE_ALLOW_LOCALHOST: 'on' }, async () => {
       const unlock = await post(app.port, `/api/setup/${UUID}/unlock`, { password: 'whatever-1' }, `localhost:${app.port}`);
       assert.equal(unlock.status, 401, 'reaches the password check, which fails: the gate did not block');
       const create = await post(app.port, '/api/setup', { tier: 'quick' }, `localhost:${app.port}`);
@@ -109,7 +109,7 @@ test('the dev localhost escape lets local tooling through to the real checks', a
 test('unconfigured self-host: both endpoints behave as before', async () => {
   const app = await startApp();
   try {
-    await withEnv({ TURNSTILE_SECRET: undefined, TURNSTILE_SECRET_KEY: undefined, TURNSTILE_HOSTNAMES: undefined, TURNSTILE_ALLOW_LOCALHOST: undefined }, async () => {
+    await withEnv({ TURNSTILE_SITE_KEY: undefined, TURNSTILE_SECRET: undefined, TURNSTILE_SECRET_KEY: undefined, TURNSTILE_HOSTNAMES: undefined, TURNSTILE_HOSTNAME: undefined, TURNSTILE_ALLOW_LOCALHOST: undefined }, async () => {
       const unlock = await post(app.port, `/api/setup/${UUID}/unlock`, { password: 'whatever-1' }, 'lelibrary.uk');
       assert.equal(unlock.status, 401);
       const create = await post(app.port, '/api/setup', { tier: 'quick' }, 'lelibrary.uk');
@@ -119,11 +119,32 @@ test('unconfigured self-host: both endpoints behave as before', async () => {
   } finally { await app.close(); }
 });
 
+test('a missing site key or the kill switch leaves both endpoints ungated', async () => {
+  const app = await startApp();
+  const base = { TURNSTILE_SECRET: 'synthetic-secret', TURNSTILE_SECRET_KEY: undefined, TURNSTILE_HOSTNAMES: 'lelibrary.uk', TURNSTILE_HOSTNAME: undefined, TURNSTILE_ALLOW_LOCALHOST: undefined };
+  try {
+    // No site key: no page could render a widget, so enforcing would 403 everyone.
+    for (const env of [{ ...base, TURNSTILE_SITE_KEY: undefined, TURNSTILE_ENABLED: undefined }, { ...base, TURNSTILE_SITE_KEY: '1x00000000000000000000AA', TURNSTILE_ENABLED: 'off' }]) {
+      await withEnv(env, async () => {
+        const unlock = await post(app.port, `/api/setup/${UUID}/unlock`, { password: 'whatever-1' }, 'lelibrary.uk');
+        assert.equal(unlock.status, 401);
+        const create = await post(app.port, '/api/setup', { tier: 'quick' }, 'lelibrary.uk');
+        assert.equal(create.status, 400);
+      });
+    }
+    // The singular hostname alias turns the gate on like the plural.
+    await withEnv({ ...base, TURNSTILE_HOSTNAMES: undefined, TURNSTILE_HOSTNAME: 'lelibrary.uk', TURNSTILE_SITE_KEY: '1x00000000000000000000AA', TURNSTILE_ENABLED: undefined }, async () => {
+      const unlock = await post(app.port, `/api/setup/${UUID}/unlock`, { password: 'whatever-1' }, 'lelibrary.uk');
+      assert.equal(unlock.status, 403);
+    });
+  } finally { await app.close(); }
+});
+
 test('a Cloudflare outage fails open; a rejected token still fails closed', async () => {
   const app = await startApp();
   const originalFetch = globalThis.fetch;
   try {
-    await withEnv({ TURNSTILE_SECRET: 'synthetic-secret', TURNSTILE_SECRET_KEY: undefined, TURNSTILE_HOSTNAMES: 'lelibrary.uk', TURNSTILE_ALLOW_LOCALHOST: undefined }, async () => {
+    await withEnv({ TURNSTILE_SITE_KEY: '1x00000000000000000000AA', TURNSTILE_SECRET: 'synthetic-secret', TURNSTILE_HOSTNAME: undefined, TURNSTILE_ENABLED: undefined, TURNSTILE_SECRET_KEY: undefined, TURNSTILE_HOSTNAMES: 'lelibrary.uk', TURNSTILE_ALLOW_LOCALHOST: undefined }, async () => {
       // Cloudflare down (5xx): editing must not be locked out by a third party.
       globalThis.fetch = async () => ({ ok: false, status: 503, json: async () => ({}) });
       const outage = await post(app.port, `/api/setup/${UUID}/unlock`, { password: 'whatever-1', 'cf-turnstile-response': 'synthetic-token' }, 'lelibrary.uk');

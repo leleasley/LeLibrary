@@ -1865,6 +1865,9 @@
     "Save from the bar below. Your install link stays the same.": "Save from the bar below. Your install link stays the same.",
     "See how Nuvio or Stremio shows this setup right now.": "See how Nuvio or Stremio shows this setup right now.",
     "Setup completion": "Setup completion",
-    "Setup status": "Setup status"
+    "Setup status": "Setup status",
+    "Complete the check above": "Complete the check above",
+    "The check expired. Complete it again.": "The check expired. Complete it again.",
+    "The check could not finish. Try again.": "The check could not finish. Try again."
   }
 }

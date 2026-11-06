@@ -58,12 +58,9 @@ function mountCoreRoutes(app: Express, deps: CoreDeps): void {
       // Self-host only: the operator set WEBDAV_SOURCE=on.
       webdavSource: require('../providers/webdav.ts').webdavEnabled(),
       // Public Cloudflare Turnstile site key for the password endpoints
-      // (unlock / create). Empty when Turnstile is not configured, or when the
-      // server cannot verify tokens.
-      turnstileSiteKey: (() => {
-        const turnstile = require('../platform/turnstile.ts');
-        return turnstile.turnstileConfigured() ? turnstile.turnstileSiteKey() : '';
-      })(),
+      // (unlock / create). Empty when Turnstile is not configured, switched
+      // off, or not enforced for this request (the dev localhost escape).
+      turnstileSiteKey: require('../platform/turnstile.ts').turnstileRequestState(req).siteKey,
     });
   });
 

@@ -10,19 +10,22 @@ import { ReadyConnections } from '@/features/setup/shared/ApiKeysSection';
 import { NuvioPublicModal } from '@/features/setup/full/NuvioPublicModal';
 import type { CollectionDoc } from '@/features/setup/shared/collection-doc';
 import type { PlatformConnection } from '@/features/setup/full/platform-login';
+import type { TurnstileControl } from '@/features/setup/shared/turnstile';
 
 // Review: password gate + creation, then the Ready page (the shared publish
 // panel Move In's edit flow and Settle In end on). The setup is created first
 // because sealing and pushing need a row; the edit token comes from an
 // immediate unlock with the just-typed password, which never touches storage.
-export function ReviewStep({ password, confirmation, error, onPassword, onConfirmation, onSubmit, created, onRotated, name, platform, onPlatform, pushConn, onPushConn, counts, collections, onImportCollections }: {
+export function ReviewStep({ password, confirmation, error, onPassword, onConfirmation, onSubmit, turnstile, active, created, onRotated, name, platform, onPlatform, pushConn, onPushConn, counts, collections, onImportCollections }: {
   password: string;
   confirmation: string;
   error: string | null;
   onPassword: (value: string) => void;
   onConfirmation: (value: string) => void;
   onSubmit: () => void;
-  created: { uuid: string; installToken: string } | null;
+  turnstile?: TurnstileControl | undefined;
+  active?: boolean | undefined;
+  created: { uuid: string; installToken: string; editToken?: string | undefined } | null;
   // Revoke and regenerate: the new install token for the same setup.
   onRotated?: ((installToken: string) => void) | undefined;
   name: string;
@@ -42,6 +45,7 @@ export function ReviewStep({ password, confirmation, error, onPassword, onConfir
   const platformName = platform === 'nuvio' ? 'Nuvio' : 'Stremio';
   const push = usePlatformPush({
     uuid: created?.uuid ?? null,
+    editToken: created?.editToken ?? null,
     password,
     platform,
     connection: pushConn,
@@ -57,7 +61,7 @@ export function ReviewStep({ password, confirmation, error, onPassword, onConfir
         <TierInstall
           password={password} confirmation={confirmation} error={error}
           onPassword={onPassword} onConfirmation={onConfirmation}
-          onSubmit={onSubmit}
+          onSubmit={onSubmit} turnstile={turnstile} active={active}
         >
           {activeConn && (
             <p className="setup-note">Push to {platformName} is armed - creating the setup pushes straight after.</p>

@@ -36,6 +36,9 @@ export interface CreateSetupResult {
   tier: string;
   installToken: string;
   manifestPath: string;
+  // Edit session for the creator (v6), so the Ready page can push without a
+  // second unlock. Older servers do not send it.
+  editToken?: string;
 }
 
 export interface UnlockResult extends SetupSummary {

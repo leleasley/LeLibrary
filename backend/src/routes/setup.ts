@@ -248,9 +248,10 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
   }
 
   // Bot gate for the two password-bearing endpoints (v6): edit unlock and
-  // setup creation. Managed Turnstile, invisible; enforced only when the
-  // operator set a secret + hostnames. A blocked request never counts as a
-  // wrong password, so it cannot lock a real user out.
+  // setup creation. Managed Turnstile widget shown on both screens; enforced
+  // only when the operator set a site key + secret + hostnames (and did not
+  // switch it off). A blocked request never counts as a wrong password, so it
+  // cannot lock a real user out.
   async function turnstileBlocked(req: Request, res: Response, action: string): Promise<boolean> {
     const turnstile = require('../platform/turnstile.ts');
     const state = turnstile.turnstileRequestState(req);
@@ -332,11 +333,18 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
           ...((keys && typeof keys === 'object' ? keys : {}) as Record<string, unknown>),
         });
       } catch { /* warming is best effort: the first manifest request still starts it */ }
+      // The creator just set the password (and passed the bot check): hand
+      // back an edit session so the Ready page can push without a second
+      // unlock. A Turnstile token is single-use, so that unlock would need a
+      // fresh challenge the Ready page does not show.
+      const session = sessions.issue(created.uuid);
       res.status(201).json({
         uuid: created.uuid,
         tier: created.tier,
         installToken: created.installToken,
         manifestPath: `/${created.installToken}/manifest.json`,
+        editToken: session.token,
+        editTokenExpiresInMs: DEFAULT_TTL_MS,
       });
     } catch {
       res.status(500).json({ error: 'Could not create the setup' });

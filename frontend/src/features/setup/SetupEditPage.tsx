@@ -16,7 +16,8 @@ import { ConfirmModal } from '@/features/setup/shared/Modal';
 import { buildBackup, downloadBackup } from '@/features/setup/shared/setup-backup';
 import { toast } from '@/features/setup/shared/Toast';
 import { isSetupUuid, rememberSetup } from '@/features/setup/shared/setup-history';
-import { turnstileToken } from '@/features/setup/shared/turnstile';
+import { submitWithTurnstile, turnstileReady, type TurnstileControl } from '@/features/setup/shared/turnstile';
+import { TurnstileCheck, useTurnstile } from '@/features/setup/shared/TurnstileCheck';
 import { setupCopy, setupCount } from '@/features/setup/shared/setup-copy';
 import { LibraryPanel } from '@/features/setup/library/LibraryPanel';
 import { NuvioPanel } from '@/features/setup/nuvio/NuvioPanel';
@@ -75,7 +76,7 @@ type EditView = 'edit' | 'library' | 'nuvio' | 'settings';
 // Matches the .edit-stage fade in tier.css.
 const VIEW_FADE_MS = 170;
 
-function UnlockModal({ uuid, tier, busy, loading, error, leaving, password, onPassword, onSubmit }: {
+export function UnlockModal({ uuid, tier, busy, loading, error, leaving, password, onPassword, onSubmit, turnstile }: {
   uuid: string;
   tier: TierId;
   busy: boolean;
@@ -85,6 +86,9 @@ function UnlockModal({ uuid, tier, busy, loading, error, leaving, password, onPa
   password: string;
   onPassword: (value: string) => void;
   onSubmit: () => void;
+  // The visible bot check (configured instances only): below the password,
+  // above Unlock, which stays disabled until it has a token.
+  turnstile?: TurnstileControl | undefined;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => { inputRef.current?.focus(); }, []);
@@ -108,8 +112,9 @@ function UnlockModal({ uuid, tier, busy, loading, error, leaving, password, onPa
             disabled={busy || loading}
           />
         </label>
+        <TurnstileCheck control={turnstile} />
         {error && <p className="setup-error" role="alert">{error}</p>}
-        <button type="submit" className="qs-cta is-ready edit-unlock-btn" disabled={busy || loading || !password}>
+        <button type="submit" className="qs-cta is-ready edit-unlock-btn" disabled={busy || loading || !password || !turnstileReady(turnstile)}>
           <span className="qs-cta-text">{loading ? 'Loading your settings…' : busy ? 'Checking…' : 'Unlock'}</span>
         </button>
         <small className="edit-unlock-note">No email, no recovery. Forgotten passwords cannot be reset.</small>
@@ -143,6 +148,8 @@ export function SetupEditPage() {
   const [password, setPassword] = useState('');
   const [unlockError, setUnlockError] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState(false);
+  // The unlock modal's visible bot check (inert when unconfigured).
+  const unlockCheck = useTurnstile('unlock');
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [installToken, setInstallToken] = useState<string | null>(created.installToken ?? null);
@@ -285,11 +292,12 @@ export function SetupEditPage() {
   }, [uuid]);
 
   async function unlock() {
-    if (!password) return;
+    if (!password || !turnstileReady(unlockCheck)) return;
     setUnlocking(true);
     setUnlockError(null);
     try {
-      const result = await unlockSetup(uuid, password, await turnstileToken('unlock'));
+      // Single-use token: the widget resets after every attempt.
+      const result = await submitWithTurnstile(unlockCheck, (token) => unlockSetup(uuid, password, token));
       setEditToken(result.editToken, result.editTokenExpiresInMs);
       setInstallToken(result.installToken);
       setPassword('');
@@ -867,6 +875,7 @@ export function SetupEditPage() {
           uuid={uuid} tier={savedTier}
           busy={unlocking} loading={loadingSettings} error={unlockError} leaving={leaving}
           password={password} onPassword={setPassword} onSubmit={() => void unlock()}
+          turnstile={unlockCheck}
         />
       )}
       <PreviewModal

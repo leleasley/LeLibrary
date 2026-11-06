@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createSetup } from '@/features/setup/resolver/api';
-import { turnstileToken } from '@/features/setup/shared/turnstile';
+import { TURNSTILE_HINT, submitWithTurnstile, turnstileReady } from '@/features/setup/shared/turnstile';
+import { useTurnstile } from '@/features/setup/shared/TurnstileCheck';
 import { checkPassword } from '@/features/setup/resolver/validation';
 import { rememberSetup } from '@/features/setup/shared/setup-history';
 import { setupCopy } from '@/features/setup/shared/setup-copy';
@@ -39,7 +40,11 @@ export function useCreateSetup(tier: string, options: { navigateToSetup?: boolea
   const [confirmation, setConfirmation] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ uuid: string; installToken: string } | null>(null);
+  // The edit session the create call hands back (memory only), so the Ready
+  // page can push without a second unlock (and a second bot check).
+  const [result, setResult] = useState<{ uuid: string; installToken: string; editToken?: string | undefined } | null>(null);
+  // The visible bot check on the password step (inert when unconfigured).
+  const turnstile = useTurnstile('create-setup');
   // Loader phase while a setup is being created (only with `loader`).
   const [creating, setCreating] = useState<'creating' | 'leaving' | null>(null);
 
@@ -57,26 +62,27 @@ export function useCreateSetup(tier: string, options: { navigateToSetup?: boolea
       setError(setupCopy('Add your TMDB API key above', 'Add your TMDB API key above'));
       return false;
     }
+    if (!turnstileReady(turnstile)) { setError(TURNSTILE_HINT); return false; }
     setBusy(true);
     setError(null);
     const startedAt = Date.now();
     if (options.loader) setCreating('creating');
     try {
       const trimmedName = input.name?.trim();
-      const created = await createSetup({
+      const created = await submitWithTurnstile(turnstile, (token) => createSetup({
         tier,
         ...(trimmedName ? { name: trimmedName } : {}),
         password,
         config: input.config,
         keys: withConnection(input.keys, input.connection),
-        turnstile: await turnstileToken('create-setup'),
-      });
+        turnstile: token,
+      }));
       if (options.loader) {
         await wait(Math.max(0, CREATING_MIN_MS - (Date.now() - startedAt)));
         setCreating('leaving');
         await wait(CREATING_FADE_MS);
       }
-      finish(created.uuid, created.installToken, trimmedName ?? null);
+      finish(created.uuid, created.installToken, trimmedName ?? null, created.editToken);
       setCreating(null);
       return true;
     } catch (caught) {
@@ -88,8 +94,8 @@ export function useCreateSetup(tier: string, options: { navigateToSetup?: boolea
     }
   }
 
-  function finish(uuid: string, installToken: string, name: string | null) {
-    setResult({ uuid, installToken });
+  function finish(uuid: string, installToken: string, name: string | null, editToken?: string) {
+    setResult({ uuid, installToken, ...(editToken ? { editToken } : {}) });
     // Remember this browser's setups so /configure can offer them back
     // (self-hosters have no account list to return to).
     rememberSetup({ uuid, name, tier });
@@ -106,5 +112,5 @@ export function useCreateSetup(tier: string, options: { navigateToSetup?: boolea
     setResult((current) => (current ? { ...current, installToken } : current));
   }
 
-  return { password, confirmation, error, busy, result, creating, setPassword, setConfirmation, create, replaceInstallToken };
+  return { password, confirmation, error, busy, result, creating, turnstile, setPassword, setConfirmation, create, replaceInstallToken };
 }

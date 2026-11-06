@@ -104,12 +104,12 @@ function mountSettingsRoutes(app: Express, deps: SettingsDeps): void {
         saveFail(403, 'setup token on legacy save');
         return res.status(403).json({ error: 'This setup is edited from its own setup page.' });
       }
-      // Turnstile bot gate (managed, invisible): saves must carry a fresh
-      // `cf-turnstile-response` for action "save-config" once
-      // TURNSTILE_SECRET + TURNSTILE_HOSTNAMES are set. Unconfigured
-      // instances (self-hosters, pre-secret dev) proceed exactly as before.
+      // Turnstile bot gate: saves must carry a fresh `cf-turnstile-response`
+      // for action "save-config" once the site key, secret and hostnames are
+      // set. Unconfigured instances (self-hosters, pre-secret dev) and the
+      // dev localhost escape proceed exactly as before.
       const turnstile = require('../platform/turnstile.ts');
-      if (turnstile.turnstileConfigured()) {
+      if (turnstile.turnstileRequestState(req).enforced) {
         const verdict = await turnstile.verifyTurnstile(req.body && req.body['cf-turnstile-response'], {
           action: 'save-config',
           remoteip: req.ip,

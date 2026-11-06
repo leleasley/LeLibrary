@@ -1,6 +1,7 @@
 import { providerSelectionWithSaved, type SetupKeysDraft } from '@/features/setup/shared/config-contract';
 import type { TierId } from '@/features/setup/shared/edit-mode';
 import { MIN_PASSWORD_LENGTH } from '@/features/setup/resolver/validation';
+import { TURNSTILE_HINT } from '@/features/setup/shared/turnstile';
 import { LANGS } from '@/features/setup/full/MetadataExtras';
 
 // What the setup shell's sidebar and footer say about a page, derived only
@@ -73,13 +74,16 @@ export function setupCompletion(required: readonly ShellCheck[], optional: reado
 // Why the finish action (Create my setup) cannot run yet, in the order a
 // person fixes them; null = ready. Mirrors the server's rules (a library
 // provider, the TMDB key, a matching password of 8+ characters).
-export function createBlocker(state: ShellKeyState, password: { value: string; confirmation: string } | null): string | null {
+// `checkReady`: the password step's Turnstile widget has a token (always true
+// where Turnstile is not configured).
+export function createBlocker(state: ShellKeyState, password: { value: string; confirmation: string } | null, checkReady = true): string | null {
   if (!hasLibraryProvider(state)) return 'Add a library provider first';
   if (!hasKey(state, 'tmdbApiKey')) return 'Add your TMDB key first';
   if (password) {
     if (password.value.length < MIN_PASSWORD_LENGTH) return 'Choose a password of 8 or more characters';
     if (password.value !== password.confirmation) return 'Both passwords must match';
   }
+  if (!checkReady) return TURNSTILE_HINT;
   return null;
 }
 

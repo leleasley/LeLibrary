@@ -1865,6 +1865,9 @@
     "Save from the bar below. Your install link stays the same.": "Guarda desde la barra de abajo. Tu enlace de instalación no cambia.",
     "See how Nuvio or Stremio shows this setup right now.": "Mira cómo muestra Nuvio o Stremio esta configuración ahora mismo.",
     "Setup completion": "Configuración completada",
-    "Setup status": "Estado de la configuración"
+    "Setup status": "Estado de la configuración",
+    "Complete the check above": "Completa la verificación de arriba",
+    "The check expired. Complete it again.": "La verificación ha caducado. Complétala de nuevo.",
+    "The check could not finish. Try again.": "La verificación no ha podido terminar. Inténtalo de nuevo."
   }
 }

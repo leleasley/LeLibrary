@@ -82,6 +82,10 @@ mountCoreRoutes(app, { resolveConfig, version: APP_VERSION });
 // self-gates: with no shared TMDB key every route returns 404.
 require('./src/routes/releases.ts').mountReleasesRoutes(app);
 
+// CSP violation reports (report-only policy, middleware/security-headers.ts).
+// Before the website router for the same reason: its 404 catch-all.
+require('./src/routes/csp-report.ts').mountCspReportRoutes(app);
+
 if (createWebRoutes) app.use(createWebRoutes(resolveConfig));
 
 mountAddonRoutes(app, { resolveConfig });

@@ -54,8 +54,14 @@ export function createSetup(input: {
   password: string;
   config?: Record<string, unknown>;
   keys?: Record<string, unknown>;
+  // Cloudflare Turnstile token for action 'create-setup' (v6). Absent when
+  // the instance has no Turnstile app.
+  turnstile?: string | null;
 }): Promise<CreateSetupResult> {
-  return apiClient.post<CreateSetupResult>('/api/setup', input);
+  const { turnstile, ...body } = input;
+  return apiClient.post<CreateSetupResult>('/api/setup', turnstile
+    ? { ...body, 'cf-turnstile-response': turnstile }
+    : body);
 }
 
 export function fetchSetup(uuid: string): Promise<SetupSummary> {
@@ -76,8 +82,10 @@ export async function listSetups(): Promise<SavedSetupSummary[]> {
     .filter((row): row is SavedSetupSummary => row !== null);
 }
 
-export function unlockSetup(uuid: string, password: string): Promise<UnlockResult> {
-  return apiClient.post<UnlockResult>(`/api/setup/${encodeURIComponent(uuid)}/unlock`, { password });
+export function unlockSetup(uuid: string, password: string, turnstile?: string | null): Promise<UnlockResult> {
+  return apiClient.post<UnlockResult>(`/api/setup/${encodeURIComponent(uuid)}/unlock`, turnstile
+    ? { password, 'cf-turnstile-response': turnstile }
+    : { password });
 }
 
 // Mutations carry the bearer token, never a cookie and never the password.

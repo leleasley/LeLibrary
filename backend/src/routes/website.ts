@@ -94,17 +94,19 @@ function assetVersion(): string {
   return version;
 }
 
-function bootData(): { features: { releases: boolean; savedSetups: boolean; unavailableStreamAddons: string[]; webdavSource: boolean }; status?: unknown; assets: string } {
+function bootData(): { features: { releases: boolean; savedSetups: boolean; unavailableStreamAddons: string[]; webdavSource: boolean; turnstileSiteKey: string }; status?: unknown; assets: string } {
   let releases = false;
   let webdavSource = false;
   let savedSetups = false;
   let unavailableStreamAddons: string[] = [];
+  let turnstileSiteKey = '';
   try { releases = require('../platform/hosted.ts').releasesEnabled() === true; } catch { /* self-host */ }
   try { savedSetups = require('../platform/selfhost-access.ts').listEnabled() === true; } catch { /* no secret */ }
   try { unavailableStreamAddons = require('../streams/streamAddons.ts').unavailableStreamAddons(); } catch { /* none */ }
   try { webdavSource = require('../providers/webdav.ts').webdavEnabled() === true; } catch { /* off */ }
+  try { turnstileSiteKey = require('../platform/turnstile.ts').turnstileSiteKey(); } catch { /* not configured */ }
   const fresh = latestStatus && Date.now() - latestStatus.at < BOOT_STATUS_MAX_AGE ? latestStatus.data : null;
-  return { features: { releases, savedSetups, unavailableStreamAddons, webdavSource }, ...(fresh ? { status: fresh } : {}), assets: assetVersion() };
+  return { features: { releases, savedSetups, unavailableStreamAddons, webdavSource, turnstileSiteKey }, ...(fresh ? { status: fresh } : {}), assets: assetVersion() };
 }
 
 // The public homepage is pre-rendered at build time for search engines and

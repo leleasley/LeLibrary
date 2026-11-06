@@ -6,6 +6,7 @@ const {
   checkSiteverifyResult,
   turnstileConfigured,
   turnstileHostnames,
+  turnstileRequestState,
   turnstileSecret,
   turnstileSiteKey,
   MAX_TOKEN_LENGTH,
@@ -106,6 +107,29 @@ test('token length cap matches the enforcement guard', () => {
   assert.equal(MAX_TOKEN_LENGTH, 2048);
   assert.ok('x'.repeat(2048).length <= MAX_TOKEN_LENGTH);
   assert.ok('x'.repeat(2049).length > MAX_TOKEN_LENGTH);
+});
+
+test('request state: enforced only for real hosts, with a localhost escape for dev', () => {
+  const req = (host) => ({ headers: { host } });
+  withEnv({ TURNSTILE_SECRET: 's3cret', TURNSTILE_HOSTNAMES: 'lelibrary.uk', TURNSTILE_ALLOW_LOCALHOST: undefined }, () => {
+    assert.deepEqual(turnstileRequestState(req('lelibrary.uk')).enforced, true);
+    assert.deepEqual(turnstileRequestState(req('localhost:7860')).enforced, true, 'no escape unless opted in');
+  });
+  withEnv({ TURNSTILE_SECRET: 's3cret', TURNSTILE_HOSTNAMES: 'lelibrary.uk', TURNSTILE_ALLOW_LOCALHOST: 'on' }, () => {
+    for (const host of ['localhost:7861', '127.0.0.1:7861', '[::1]:7861']) {
+      const state = turnstileRequestState(req(host));
+      assert.equal(state.enforced, false, host);
+      assert.equal(state.configured, true, host);
+    }
+    assert.equal(turnstileRequestState(req('dev.leleasley.uk')).enforced, true, 'the real domain stays protected');
+    assert.equal(turnstileRequestState(req('lelibrary.uk')).enforced, true);
+  });
+  withEnv({ TURNSTILE_SECRET: undefined, TURNSTILE_HOSTNAMES: undefined, TURNSTILE_ALLOW_LOCALHOST: 'on' }, () => {
+    const state = turnstileRequestState(req('lelibrary.uk'));
+    assert.equal(state.enforced, false, 'self-host with no app: inert');
+    assert.equal(state.configured, false);
+    assert.equal(state.siteKey, '');
+  });
 });
 
 export interface TurnstileTestTestModule {};

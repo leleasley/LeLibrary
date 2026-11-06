@@ -57,6 +57,9 @@ function mountCoreRoutes(app: Express, deps: CoreDeps): void {
       unavailableStreamAddons: require('../streams/streamAddons.ts').unavailableStreamAddons(),
       // Self-host only: the operator set WEBDAV_SOURCE=on.
       webdavSource: require('../providers/webdav.ts').webdavEnabled(),
+      // Public Cloudflare Turnstile site key for the password endpoints
+      // (unlock / create). Empty when Turnstile is not configured.
+      turnstileSiteKey: require('../platform/turnstile.ts').turnstileSiteKey(),
     });
   });
 

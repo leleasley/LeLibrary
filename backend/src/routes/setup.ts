@@ -247,11 +247,31 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     return rest;
   }
 
+  // Bot gate for the two password-bearing endpoints (v6): edit unlock and
+  // setup creation. Managed Turnstile, invisible; enforced only when the
+  // operator set a secret + hostnames. A blocked request never counts as a
+  // wrong password, so it cannot lock a real user out.
+  async function turnstileBlocked(req: Request, res: Response, action: string): Promise<boolean> {
+    const turnstile = require('../platform/turnstile.ts');
+    const state = turnstile.turnstileRequestState(req);
+    if (!state.enforced) return false;
+    const verdict = await turnstile.verifyTurnstile((req.body as Record<string, unknown> | undefined)?.['cf-turnstile-response'], {
+      action,
+      remoteip: clientIp(req),
+    });
+    if (verdict.ok) return false;
+    res.status(403).json({ error: 'Bot check failed. Reload the page and try again.' });
+    return true;
+  }
+
   // Create a config. Returns the install token exactly once.
   router.post('/', async (req: Request, res: Response) => {
     const store = await withStore(res);
     if (!store) return;
     const { tier, name, config, keys, password } = (req.body ?? {}) as Record<string, unknown>;
+    // Bot gate before any validation so a configured instance cannot be used
+    // as a free setup-creation endpoint.
+    if (await turnstileBlocked(req, res, 'create-setup')) return;
     if (password !== undefined && password !== null && String(password).length < 8) {
       res.status(400).json({ error: 'Password must be at least 8 characters' });
       return;
@@ -376,6 +396,7 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
     if (!store) return;
     const uuid = String(req.params.uuid || '').toLowerCase();
     if (!isUuid(uuid)) { res.status(400).json({ error: 'Invalid setup id' }); return; }
+    if (await turnstileBlocked(req, res, 'unlock')) return;
     const limiter = getSetupLimiter();
     const gate = limiter.check(clientIp(req), uuid);
     if (!gate.allowed) {

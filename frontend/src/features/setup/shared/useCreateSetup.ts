@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createSetup } from '@/features/setup/resolver/api';
+import { turnstileToken } from '@/features/setup/shared/turnstile';
 import { checkPassword } from '@/features/setup/resolver/validation';
 import { rememberSetup } from '@/features/setup/shared/setup-history';
 import { setupCopy } from '@/features/setup/shared/setup-copy';
@@ -68,6 +69,7 @@ export function useCreateSetup(tier: string, options: { navigateToSetup?: boolea
         password,
         config: input.config,
         keys: withConnection(input.keys, input.connection),
+        turnstile: await turnstileToken('create-setup'),
       });
       if (options.loader) {
         await wait(Math.max(0, CREATING_MIN_MS - (Date.now() - startedAt)));

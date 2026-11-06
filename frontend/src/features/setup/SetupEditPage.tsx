@@ -16,6 +16,7 @@ import { ConfirmModal } from '@/features/setup/shared/Modal';
 import { buildBackup, downloadBackup } from '@/features/setup/shared/setup-backup';
 import { toast } from '@/features/setup/shared/Toast';
 import { isSetupUuid, rememberSetup } from '@/features/setup/shared/setup-history';
+import { turnstileToken } from '@/features/setup/shared/turnstile';
 import { setupCopy, setupCount } from '@/features/setup/shared/setup-copy';
 import { LibraryPanel } from '@/features/setup/library/LibraryPanel';
 import { NuvioPanel } from '@/features/setup/nuvio/NuvioPanel';
@@ -288,7 +289,7 @@ export function SetupEditPage() {
     setUnlocking(true);
     setUnlockError(null);
     try {
-      const result = await unlockSetup(uuid, password);
+      const result = await unlockSetup(uuid, password, await turnstileToken('unlock'));
       setEditToken(result.editToken, result.editTokenExpiresInMs);
       setInstallToken(result.installToken);
       setPassword('');

@@ -12,6 +12,9 @@ export interface Features {
   unavailableStreamAddons: string[];
   // Self-host only: the operator turned on the WebDAV library source.
   webdavSource: boolean;
+  // Public Cloudflare Turnstile site key for the password endpoints (unlock /
+  // create). Empty when the instance has no Turnstile app configured.
+  turnstileSiteKey: string;
 }
 
 export function normalizeFeatures(payload: unknown): Features {
@@ -20,6 +23,7 @@ export function normalizeFeatures(payload: unknown): Features {
     releases: record['releases'] === true,
     savedSetups: record['savedSetups'] === true,
     webdavSource: record['webdavSource'] === true,
+    turnstileSiteKey: typeof record['turnstileSiteKey'] === 'string' ? record['turnstileSiteKey'] : '',
     unavailableStreamAddons: Array.isArray(record['unavailableStreamAddons'])
       ? (record['unavailableStreamAddons'] as unknown[]).filter((id): id is string => typeof id === 'string')
       : [],

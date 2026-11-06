@@ -1,8 +1,13 @@
 // Cloudflare Turnstile bot protection (managed mode, invisible).
 //
+// Scope (v6): the password-bearing endpoints, POST /api/setup/:uuid/unlock and
+// POST /api/setup (create). The old /api/save-config gate stays for legacy
+// clients. The 20/min per-IP and 5-wrong-per-setup lockout remain underneath,
+// so a blocked bot check never replaces them.
+//
 // Env-driven so dev and prod carry different widgets:
-//   TURNSTILE_SITE_KEY  - public site key, injected into the configure page
-//                         (each environment uses its own widget's key)
+//   TURNSTILE_SITE_KEY  - public site key, shipped in the page boot data so the
+//                         configure/edit pages can render the widget
 //   TURNSTILE_SECRET / TURNSTILE_SECRET_KEY - private widget secret,
 //                         server-side siteverify only. NEVER exposed to the
 //                         browser. Absent = Turnstile is inert (self-hosters
@@ -10,6 +15,9 @@
 //   TURNSTILE_HOSTNAMES - comma-separated frontend hostnames the token must
 //                         have been issued for (e.g. "dev.leleasley.uk").
 //                         Production must NOT include localhost/127.0.0.1.
+//   TURNSTILE_ALLOW_LOCALHOST - DEV/TEST ONLY: requests whose Host is
+//                         localhost/127.0.0.1 skip enforcement. Never on a
+//                         shared instance.
 //
 // Contract (mirrors developers.cloudflare.com/turnstile/spin): the browser
 // gets a token from the managed widget and POSTs it as `cf-turnstile-response`;
@@ -39,10 +47,40 @@ function turnstileHostnames() {
 }
 
 // True when the server can actually verify tokens. Everything else keys off
-// this: unconfigured instances skip both the widget (no site key injected)
-// and enforcement (requests proceed exactly as before).
+// this: unconfigured instances skip both the widget (no site key shipped) and
+// enforcement (requests proceed exactly as before).
 function turnstileConfigured() {
   return turnstileSecret().length > 0 && turnstileHostnames().length > 0;
+}
+
+// Local/test escape hatch (TURNSTILE_ALLOW_LOCALHOST=on, DEV ONLY): requests
+// whose Host is localhost/127.0.0.1 skip enforcement, so Playwright and
+// curl against localhost:7861 work while the real domain stays protected.
+// Production must never set it: direct Host-header spoofing would bypass the
+// gate if the app port is reachable.
+function turnstileAllowLocalhost() {
+  return String(process.env.TURNSTILE_ALLOW_LOCALHOST || '').toLowerCase() === 'on';
+}
+
+function isLocalHostRequest(req: any): boolean {
+  // The raw Host header, not req.hostname: this decision must not depend on
+  // the trust-proxy setting, and it is the browser-visible host either way.
+  const raw = String(req?.headers?.host || req?.hostname || '').toLowerCase();
+  const host = raw.replace(/:\d+$/, '').replace(/^\[|\]$/g, '');
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+}
+
+// Per-request answer for the password endpoints: is the gate active here, and
+// which public site key should the page render? `enforced` is false for the
+// localhost escape and when Turnstile is not configured at all.
+function turnstileRequestState(req: any) {
+  const configured = turnstileConfigured();
+  const localExempt = configured && turnstileAllowLocalhost() && isLocalHostRequest(req);
+  return {
+    configured,
+    enforced: configured && !localExempt,
+    siteKey: configured ? turnstileSiteKey() : '',
+  };
 }
 
 // Pure check over a decoded siteverify response. Kept side-effect free so it
@@ -100,6 +138,8 @@ module.exports = {
   turnstileSiteKey,
   turnstileHostnames,
   turnstileConfigured,
+  turnstileAllowLocalhost,
+  turnstileRequestState,
   checkSiteverifyResult,
   verifyTurnstile,
 };

@@ -214,7 +214,7 @@ describe('drafts never carry a secret', () => {
   it('strips keys, logins, links and internals at any depth; keys only as allowlisted names', () => {
     const config = model.draftRequestConfig({
       lang: 'en-US', torboxApiKey: 'synthetic-1', __configScope: { uuid: UUID }, push: { nuvio: { nuvioToken: 'synthetic-2' } },
-      pictoriumUrl: 'https://p.test/synthetic-3', customStreams: [{ url: 'synthetic-4' }], webdavPassword: 'synthetic-5',
+      customPosterTemplate: 'https://p.test/synthetic-3', customStreams: [{ url: 'synthetic-4' }], webdavPassword: 'synthetic-5',
       collections: [{ id: 'c', folders: [{ id: 'f', catalogSources: [{ addonId: 'x', addonUrl: 'https://x.test/synthetic-6/manifest.json', catalogId: 'top' }] }] }],
     });
     expect(JSON.stringify(config)).not.toMatch(/synthetic|configScope/);

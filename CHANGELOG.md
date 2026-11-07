@@ -33,6 +33,8 @@ Notes for the current version. Every earlier version is on [GitHub Releases](htt
 
 ### Fixes
 
+- Streaming service folders such as Shudder now show the provider's current regional catalogue instead of restricting it to a rotating three-year release window, which could leave smaller series rows empty. New additions can appear as the source updates.
+- Episodes in multi-season downloads using names such as `S01.E01` now match the correct video file instead of showing no streams.
 - Importing a public Nuvio collection that uses Nuvio's own TMDB or Trakt lists (for example "no addons" packs) brought the folders in with 0 sources. Every source now comes across and is sent to Nuvio as the pack has it. If you imported one of these before, remove it and import it again.
 - Simkl and MDBList watchlist rows were always empty since 5.5. They now show your list, including rows you pushed before.
 - MDBList lists with more than 100 titles now show all of them.

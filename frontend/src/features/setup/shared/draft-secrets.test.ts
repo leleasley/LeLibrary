@@ -56,7 +56,7 @@ const PARTIAL: PartialDraft = {
   name: 'Living room',
   keys: KEYS,
   formatting: { ...EMPTY_FORMATTING, preset: 'cinema' },
-  posters: { provider: 'pictorium', pictoriumUrl: 'https://pictorium.example/p', pictoriumOptions: { ratings: true }, customTemplate: '' },
+  posters: { provider: 'erdb', customTemplate: '' },
   homeRows: [],
   filterSets: { ...EMPTY_FILTER_SETS, cachedOnly: true },
   mediaSets: EMPTY_MEDIA_SETS,
@@ -86,7 +86,7 @@ const QUICK: QuickDraft = {
   name: 'Bedroom',
   keys: KEYS,
   formatting: { ...EMPTY_FORMATTING, preset: 'cinema' },
-  posters: { provider: 'erdb', pictoriumUrl: '', pictoriumOptions: {}, customTemplate: '' },
+  posters: { provider: 'erdb', customTemplate: '' },
   badgePack: { pack: 'nard-full', url: '' },
 };
 

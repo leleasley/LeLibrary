@@ -228,12 +228,7 @@ async function resolveRows(apiKey, items, type, apiType, lang, q, scored) {
 
 async function enhanceSearchRows(rows, enhance = {}) {
   if (!Array.isArray(rows) || !rows.length) return rows;
-  // Pictorium is a poster provider too, but it is not one of the key/token
-  // branches below: it enables itself via `enhance.pictorium.enabled`. Missing
-  // that made search return plain TMDB art for Pictorium users while every
-  // other catalogue used their Pictorium posters.
-  const pictoriumOn = !!(enhance.pictorium && enhance.pictorium.enabled);
-  if (!pictoriumOn && !enhance.erdbToken && !enhance.rpdbKey && !enhance.omdbKey && !enhance.fanartKey && !['betterposter', 'custom'].includes(enhance.posterProvider)) return rows;
+  if (!enhance.erdbToken && !enhance.rpdbKey && !enhance.omdbKey && !enhance.fanartKey && !['betterposter', 'custom'].includes(enhance.posterProvider)) return rows;
   // Lazy-load the enhancement module: its library-cache housekeeping interval
   // is unnecessary for plain search/unit-test calls.
   const { enhanceMeta } = require('../catalog/builder.ts');

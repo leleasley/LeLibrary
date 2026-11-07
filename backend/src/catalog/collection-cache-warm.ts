@@ -50,7 +50,7 @@ async function warmConfiguredLibraryCatalogs(config = {}, { limit = 3 } = {}) {
   const { getSourceDefinition } = require('./catalog-source-registry.ts');
   const { buildLibraryCatalog } = require('./libcatalog.ts');
   const providers = require('../providers/index.ts');
-  // The same poster settings the catalogue route uses (Posters+, Pictorium...).
+  // The same poster settings the catalogue route uses (Posters+...).
   // posterFp must be the route's own (runtime/cache-fingerprint.ts), else the
   // warmed entries sit under a key the catalogue route never reads.
   const fingerprint = require('../runtime/cache-fingerprint.ts');

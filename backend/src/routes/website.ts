@@ -84,7 +84,6 @@ function assetVersion(): string {
     path.join(ROOT_DIR, 'backend', 'src', 'streams', 'formatter.ts'),
     path.join(ROOT_DIR, 'backend', 'src', 'config', 'token-map.ts'),
     path.join(ROOT_DIR, 'backend', 'src', 'media', 'poster-template.ts'),
-    path.join(ROOT_DIR, 'backend', 'src', 'runtime', 'pictorium-options.ts'),
     path.join(ROOT_DIR, 'frontend', 'dist', 'custom-streams-editor.js'),
   ]) {
     try { hash.update(fs.readFileSync(file)); } catch { hash.update(file); }
@@ -648,7 +647,6 @@ function createWebRoutes(resolveConfig: any, options: any = {}): Router {
     '/formatter.js': { file: path.join(ROOT_DIR, 'backend', 'src', 'streams', 'formatter.ts'), global: 'LeFormatter' },
     '/token-map.js': { file: path.join(ROOT_DIR, 'backend', 'src', 'config', 'token-map.ts'), global: 'TOKEN_MAP' },
     '/poster-template.js': { file: path.join(ROOT_DIR, 'backend', 'src', 'media', 'poster-template.ts'), global: 'LePosterTemplate' },
-    '/pictorium-options.js': { file: path.join(ROOT_DIR, 'backend', 'src', 'runtime', 'pictorium-options.ts'), global: 'LePictoriumOptions' },
   };
   const legacyScriptCache = new Map();
   for (const [url, spec] of Object.entries(LEGACY_SCRIPT_COMPAT)) {
@@ -1521,7 +1519,7 @@ const STATUS_CHECKS = [
     if (req.path === '/app' || req.path.startsWith('/app/')) return next();
     // The addon's base manifest (no token) is registered after this router.
     if (req.path === '/manifest.json') return next();
-    if (/^\/[^\/]+\/(?:i\/[a-z0-9-]+\/)?(preview|manifest|catalog|meta|stream|play|knaben|collections|nuvio-collections|custom-streams|pictorium|erdb|library)\b/.test(req.path)) return next();
+    if (/^\/[^\/]+\/(?:i\/[a-z0-9-]+\/)?(preview|manifest|catalog|meta|stream|play|knaben|collections|nuvio-collections|custom-streams|erdb|library)\b/.test(req.path)) return next();
     serveErrorPage(res, req, 404, 'Page Not Found', ERROR_DESCRIPTIONS[404]);
   });
 

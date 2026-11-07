@@ -280,8 +280,6 @@ export function PartialSetupPage({ edit, previewOpen }: { edit?: EditMode; previ
         streamNameTemplate: formatting.nameTemplate,
         streamDescTemplate: formatting.descTemplate,
         posterProvider: posters.provider,
-        pictoriumUrl: posters.pictoriumUrl,
-        pictoriumOptions: posters.pictoriumOptions,
         customPosterTemplate: posters.customTemplate,
         nuvioBadgePack: badgePack,
         nuvioBadgeUrl: badgeUrl,

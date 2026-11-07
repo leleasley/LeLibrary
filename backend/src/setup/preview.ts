@@ -236,7 +236,7 @@ async function buildSetupPreview(input: PreviewInput, deps: PreviewDeps = {}): P
 async function buildPreview({ opened, platform, origin, port }: PreviewInput, deps: PreviewDeps, draft: boolean): Promise<SetupPreview> {
   if (!opened.secret) throw new Error('Install link unavailable');
   const token = `${opened.uuid}.${opened.secret}`;
-  const config = setupEngineConfig(toEngineConfig(opened), opened, token);
+  const config = setupEngineConfig(toEngineConfig(opened), opened);
   const manifestFor = deps.manifestFor
     || (require('../routes/manifest.ts') as import('../routes/manifest.ts').ManifestApi).buildConfiguredManifest;
   const manifest = await manifestFor(config, token, platform, origin);
@@ -406,7 +406,7 @@ const SECRET_FIELDS = new Set([
   ...DRAFT_KEY_SERVICES, 'customAddon1', 'customAddon2', 'customAddon3',
   'webdavUrl', 'webdavUser', 'webdavPassword',
   'keys', 'push', 'watchlist', 'connection', 'pushConn', 'password', 'installToken', 'editToken',
-  'pictoriumUrl', 'customPosterTemplate', 'nuvioBadgeUrl', 'customStreams', 'externalSources',
+  'customPosterTemplate', 'nuvioBadgeUrl', 'customStreams', 'externalSources',
   'addonUrl', 'manifestUrl', 'transportUrl',
 ]);
 const SECRET_NAME = /api_?key|token|secret|passw|auth|session|cookie|credential|refresh/i;

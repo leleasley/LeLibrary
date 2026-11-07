@@ -82,8 +82,6 @@ const ALLOWED = new Set([
   'src/runtime/cache.ts',
   'src/runtime/configstore.ts',
   'src/runtime/jobs.ts',
-  'src/runtime/pictorium-warm.ts',
-  'src/runtime/pictorium.ts',
   'src/runtime/refresh.ts',
   'src/setup/pending-push.ts',
   'src/streams/knabenPlayback.ts',

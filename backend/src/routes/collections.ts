@@ -14,7 +14,6 @@ const fs      = require('fs');
 const path    = require('path');
 const crypto  = require('crypto');
 const cache   = require('../runtime/cache.ts');
-const pictoriumWarm = require('../runtime/pictorium-warm.ts');
 const providers = require('../providers/index.ts');
 const { buildCatalog, buildMeta, buildStreams, populateTmdbIndexFromMetas, applyStreamNotices, libraryStreamFmtFp } = require('../catalog/builder.ts');
 const { buildDiscoveryCatalog, buildDiscoveryMeta, buildDiscoveryStreams, discoveryStreamKeyParts } = require('../catalog/discovery.ts');

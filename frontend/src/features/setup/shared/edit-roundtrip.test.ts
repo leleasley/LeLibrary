@@ -16,10 +16,9 @@ const VALUES: Partial<Record<Field, unknown[]>> = {
   platform: ['stremio'],
   rdCatalog: ['separate'],
   posters: [
-    { provider: 'betterposter', pictoriumUrl: '', pictoriumOptions: {}, customTemplate: '' },
-    { provider: 'pictorium', pictoriumUrl: 'https://pictorium.example.com', pictoriumOptions: {}, customTemplate: '' },
-    { provider: 'custom', pictoriumUrl: '', pictoriumOptions: {}, customTemplate: 'https://img.example.com/{imdb}.jpg' },
-    { provider: 'postersplus', pictoriumUrl: '', pictoriumOptions: {}, customTemplate: '' },
+    { provider: 'betterposter', customTemplate: '' },
+    { provider: 'custom', customTemplate: 'https://img.example.com/{imdb}.jpg' },
+    { provider: 'postersplus', customTemplate: '' },
   ],
   formatting: [{ preset: 'custom', nameTemplate: '{stream.resolution}', descTemplate: '{stream.size}' }],
   badgePack: [{ pack: 'custom', url: 'https://badges.example.com/pack.json' }, { pack: 'nard-full', url: '' }],
@@ -99,8 +98,8 @@ describe('every edit is saved and survives a reload', () => {
 
   it('only the edited area is sent', () => {
     const rich = richConfig();
-    const out = saveFrom(rich.config, rich.name, (s) => ({ ...s, posters: { ...s.posters, provider: 'erdb', pictoriumUrl: '' } }));
+    const out = saveFrom(rich.config, rich.name, (s) => ({ ...s, posters: { ...s.posters, provider: 'erdb' } }));
     const sent = Object.keys((out.body?.config as Record<string, unknown>) ?? {});
-    expect(sent.every((key) => ['posterProvider', 'pictoriumUrl', 'pictoriumOptions', 'customPosterTemplate'].includes(key))).toBe(true);
+    expect(sent.every((key) => ['posterProvider', 'customPosterTemplate'].includes(key))).toBe(true);
   });
 });

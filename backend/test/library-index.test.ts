@@ -24,7 +24,7 @@ test('itemContentHash ignores seeding upload progress (total_downloaded)', () =>
   // TorBox bumps total_downloaded on every poll while seeding. If it fed the
   // hash, the whole library re-pended (and every match was wiped) on every
   // 2-minute sync, starving version-stale re-resolves and invalidating every
-  // catalog projection incl. rendered Pictorium posters.
+  // catalog projection incl. rendered posters.
   const a = movie(1, 'Show.S01E01.1080p.WEB', { total_downloaded: 1000 });
   const b = movie(1, 'Show.S01E01.1080p.WEB', { total_downloaded: 987654321 });
   assert.strictEqual(diff.itemContentHash(a), diff.itemContentHash(b));

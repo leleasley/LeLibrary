@@ -186,7 +186,7 @@ test('live fingerprint follows exactly what is drawn; paths only from image.tmdb
   const spec = { layout: 'top3', version: 1, posters: 3 };
   const rows = [
     { poster: 'https://image.tmdb.org/t/p/w342/a1.jpg', background: 'https://image.tmdb.org/t/p/w1280/b1.jpg' },
-    { poster: 'https://pictorium.example/poster?token=SECRET&fallback=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Fw342%2Fa2.jpg' },
+    { poster: 'https://erdb.example/poster?token=SECRET&fallback=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Fw342%2Fa2.jpg' },
     { poster: 'https://evil.example/a3.jpg?key=SECRET' },
     { poster: 'https://image.tmdb.org/t/p/w342/a1.jpg' },
     { poster: 'https://image.tmdb.org/t/p/w342/a4.jpg' },

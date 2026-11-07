@@ -19,8 +19,7 @@ describe('setup dropdowns start closed', () => {
     }
   });
 
-  it('Poster Studio and the collections studio open nothing on load', () => {
-    expect(read('shared/poster-studio/PosterStudio.tsx')).toContain('useState<Set<string>>(() => new Set())');
+  it('the collections studio opens nothing on load', () => {
     expect(read('full/collections/CollectionStudio.tsx')).toContain('useState<string | null>(defaultOpenId)');
   });
 });

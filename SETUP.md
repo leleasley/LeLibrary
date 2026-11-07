@@ -425,7 +425,6 @@ To update: `docker compose pull && docker compose up -d`.
 - `lelibrary`: the addon, setup pages and API.
 - `postgres`: the library index and the saved setups.
 - `redis`: cache only. It can be emptied without losing setups.
-- `pictorium`: only if you added it. Optional poster studio.
 
 Only the app port is published. Postgres and Redis stay on the Compose network.
 

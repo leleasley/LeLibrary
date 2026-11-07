@@ -183,7 +183,7 @@ function tmdbImageUrl(size: 'w342' | 'w780' | 'w300' | 'w1280', path: string): s
 }
 
 // Pull the TMDB path out of a catalogue artwork URL. Poster providers wrap
-// the TMDB poster (Pictorium/ERDB proxies carry it as `fallback`), so one
+// the TMDB poster (ERDB proxies carry it as `fallback`), so one
 // level of fallback is followed. Anything that is not image.tmdb.org yields
 // ''. Never returns a token or a non-TMDB value.
 function tmdbPathFromImageUrl(value: unknown, depth = 0): string {

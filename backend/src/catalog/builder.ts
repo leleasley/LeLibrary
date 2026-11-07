@@ -307,9 +307,13 @@ const SUSPICIOUS_PACK_MIN_BYTES = 40 * 1024 * 1024 * 1024;
 function episodeFileInfo(file) {
   const full = String(file?.name || file?.short_name || '');
   const own = String(file?.short_name || '').trim() || full.split(/[\\/]+/).filter(Boolean).pop() || full;
-  const byName = own ? guessMediaInfo(own) : null;
+  // Some packs separate the season and episode markers (S01.E02). The
+  // general title parser intentionally expects S01E02; normalize only this
+  // unambiguous file-level form, without changing library identity matching.
+  const parseFile = (name) => guessMediaInfo(name.replace(/\b(S\d{1,2})[._\s]+(E\d{1,2})(?=$|[^\d])/gi, '$1$2'));
+  const byName = own ? parseFile(own) : null;
   if (byName && byName.episode != null) return byName;
-  return (full && full !== own ? guessMediaInfo(full) : null) || byName;
+  return (full && full !== own ? parseFile(full) : null) || byName;
 }
 
 function embeddedItemFiles(item) {
@@ -608,18 +612,11 @@ function buildErdbUrl(token, type, id) {
 
 // ERDB posters are composed on demand by an external service and can take
 // 6-14s. When we know the request token and our own origin, route them through
-// LeLibrary's cache instead (same idea as Pictorium): instant after the first
+// LeLibrary's cache instead: instant after the first
 // render, and the client falls back to the TMDB poster while it warms.
-function erdbProxyUrl(enhance, type, id, fallback) {
+function erdbProxyUrl(enhance, type, id) {
   const token = enhance && enhance.erdbToken;
   if (!token || !type || !id) return null;
-  const pic = (enhance && enhance.pictorium) || {};
-  const reqToken = pic.token;
-  const origin = String(pic.origin || process.env.BASE_URL || '').replace(/\/+$/, '');
-  if (reqToken && origin) {
-    const q = fallback ? `?fallback=${encodeURIComponent(fallback)}` : '';
-    return `${origin}/${encodeURIComponent(reqToken)}/erdb/${type}/${encodeURIComponent(id)}${q}`;
-  }
   return buildErdbUrl(token, type, id);
 }
 
@@ -638,26 +635,6 @@ function buildBetterPosterUrl(imdbId, type) {
   return `https://btttr.cc/poster/${t}/${String(imdbId).toLowerCase()}/auto~gr.png`;
 }
 
-// Pictorium posters are served through LeLibrary's own proxy so the user's
-// TMDB key never leaves the server. The client only sees the token-scoped
-// path plus the chosen studio options.
-function buildPictoriumPosterUrl(enhance, { type, id, title, releaseDate, imdbId, fallback }) {
-  const pic = enhance && enhance.pictorium;
-  if (!pic || !pic.enabled || !pic.token || !id) return null;
-  const pictorium = require('../runtime/pictorium.ts');
-  const path = pictorium.proxyPath({
-    token: pic.token,
-    type,
-    id,
-    title,
-    releaseDate,
-    imdbId,
-    options: pic.options,
-    fallback: pictorium.safeFallback(fallback),
-  });
-  const origin = String(pic.origin || '').replace(/\/+$/, '');
-  return `${origin}${path}`;
-}
 
 async function getOmdbRatings(apiKey, imdbId) {
   if (!apiKey || !imdbId) return null;
@@ -1155,12 +1132,11 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
     }
   }
 
-  // Poster precedence mirrors enhanceMeta/discovery: custom > pictorium >
+  // Poster precedence mirrors enhanceMeta/discovery: custom >
   // erdb > rpdb > betterposter > fanart. Anime rows are TV for provider URL
   // purposes (TMDB TV ids in a 'movie' slot 404 and poison the grid).
   const { erdbToken, rpdbKey, fanartKey, posterProvider, customPosterTemplate } = enhance;
-  const pictoriumOn = !!(enhance.pictorium && enhance.pictorium.enabled);
-  if (erdbToken || rpdbKey || fanartKey || posterProvider === 'custom' || posterProvider === 'betterposter' || pictoriumOn) {
+  if (erdbToken || rpdbKey || fanartKey || posterProvider === 'custom' || posterProvider === 'betterposter') {
     const { normalizeImdbId } = require('../media/identity.ts');
     await Promise.all(paginated.map(async (m) => {
       const t = m.catalogType === 'movie' ? 'movie' : 'tv';
@@ -1172,11 +1148,8 @@ async function buildCatalog(downloads, tmdbApiKey, type, sortBy, extra, lang = '
         m.posterShape = 'poster';
       } else if (posterProvider === 'custom') {
         return;
-      } else if (pictoriumOn && m.tmdbId) {
-        const url = buildPictoriumPosterUrl(enhance, { type: m.catalogType, id: m.tmdbId, title: m.name, releaseDate: m.released, imdbId: m.imdbId, fallback: m.poster });
-        if (url) { m.poster = url; m.posterShape = 'poster'; }
       } else if (erdbToken && m.tmdbId) {
-        m.poster = erdbProxyUrl(enhance, 'poster', `tmdb:${t}:${m.tmdbId}`, m.poster) || m.poster;
+        m.poster = erdbProxyUrl(enhance, 'poster', `tmdb:${t}:${m.tmdbId}`) || m.poster;
       } else if (rpdbKey && m.tmdbId) {
         m.poster = buildRpdbUrl(rpdbKey, 'tmdb', 'poster-default', `${t}-${m.tmdbId}`);
       } else if (posterProvider === 'betterposter' && m.tmdbId) {
@@ -1459,21 +1432,10 @@ async function enhanceMeta(meta, enhance = {}) {
       meta.poster = customPoster;
       meta.posterShape = 'poster';
     }
-  } else if (enhance.pictorium && enhance.pictorium.enabled) {
-    const id = imdbId || meta.tmdbId;
-    const url = buildPictoriumPosterUrl(enhance, {
-      type: meta.type === 'movie' ? 'movie' : 'series',
-      id,
-      title: meta.name,
-      releaseDate: meta.released,
-      imdbId,
-      fallback: meta.poster,
-    });
-    if (url) { meta.poster = url; meta.posterShape = 'poster'; }
   } else if (erdbToken && imdbId) {
-    meta.poster = erdbProxyUrl(enhance, 'poster', imdbId, meta.poster) || meta.poster;
-    if (enhanceBackground) meta.background = erdbProxyUrl(enhance, 'backdrop', imdbId, meta.background) || meta.background;
-    if (enhanceLogo) meta.logo = erdbProxyUrl(enhance, 'logo', imdbId, meta.logo) || meta.logo;
+    meta.poster = erdbProxyUrl(enhance, 'poster', imdbId) || meta.poster;
+    if (enhanceBackground) meta.background = erdbProxyUrl(enhance, 'backdrop', imdbId) || meta.background;
+    if (enhanceLogo) meta.logo = erdbProxyUrl(enhance, 'logo', imdbId) || meta.logo;
   } else if (rpdbKey && imdbId) {
     meta.poster = buildRpdbUrl(rpdbKey, 'imdb', 'poster-default', imdbId);
     if (enhanceBackground) meta.background = buildRpdbUrl(rpdbKey, 'imdb', 'backdrop-default', imdbId);
@@ -2298,7 +2260,6 @@ export interface BuilderApi {
   erdbProxyUrl: any;
   buildRpdbUrl: any;
   buildBetterPosterUrl: any;
-  buildPictoriumPosterUrl: any;
   getFanartArt: any;
   applyStreamNotices: any;
   streamNoticesEnabled: any;
@@ -2327,4 +2288,4 @@ export interface BuilderApi {
   matchItem: any;
 }
 
-module.exports = { PLAY_PREFIX, playRef, ownedStreamHints, wholeItemFileId, buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta, buildErdbUrl, erdbProxyUrl, buildRpdbUrl, buildBetterPosterUrl, buildPictoriumPosterUrl, getFanartArt, applyStreamNotices, streamNoticesEnabled, noticeKindEnabled, NOTICE_KINDS, makeProviderRateLimitNotice, libraryStreamFmtFp, buildMatchMeta, publishMatchEntry, remapSplitSeason, resolveSplitTarget, canonicalSource, SPLIT_SHOW_SEASON_REMAP, summarizePackEpisodes, shouldProbeEpisodeNamedPack, addOwnedEpisodeAvailability, addOwnedAirDates, ownedDateKey, mergePackEpisodeRange, embeddedPackEntry, probePackEpisodes, isEpisodePackMisreadAsMovie, episodeTitleMatches, episodeFileInfo, flushMatchCache, matchItem } satisfies BuilderApi;
+module.exports = { PLAY_PREFIX, playRef, ownedStreamHints, wholeItemFileId, buildCatalog, buildMeta, buildStreams, getRealDebridDownloads, getOmdbRatings, populateTmdbIndexFromMetas, formatStreamName, formatStreamDesc, reformatExternalStream, enhanceMeta, buildErdbUrl, erdbProxyUrl, buildRpdbUrl, buildBetterPosterUrl, getFanartArt, applyStreamNotices, streamNoticesEnabled, noticeKindEnabled, NOTICE_KINDS, makeProviderRateLimitNotice, libraryStreamFmtFp, buildMatchMeta, publishMatchEntry, remapSplitSeason, resolveSplitTarget, canonicalSource, SPLIT_SHOW_SEASON_REMAP, summarizePackEpisodes, shouldProbeEpisodeNamedPack, addOwnedEpisodeAvailability, addOwnedAirDates, ownedDateKey, mergePackEpisodeRange, embeddedPackEntry, probePackEpisodes, isEpisodePackMisreadAsMovie, episodeTitleMatches, episodeFileInfo, flushMatchCache, matchItem } satisfies BuilderApi;

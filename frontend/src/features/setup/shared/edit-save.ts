@@ -129,10 +129,8 @@ export function buildEditSaveBody(input: EditSaveInput): Record<string, unknown>
     setOrClear(['rdCatalog'], input.rdCatalog !== 'merge' ? { rdCatalog: input.rdCatalog } : {});
   }
   if (input.postersTouched) {
-    setOrClear(['posterProvider', 'pictoriumUrl', 'pictoriumOptions', 'customPosterTemplate'], pruneConfig({
+    setOrClear(['posterProvider', 'customPosterTemplate'], pruneConfig({
       posterProvider: input.posters.provider,
-      pictoriumUrl: input.posters.pictoriumUrl,
-      pictoriumOptions: input.posters.pictoriumOptions,
       customPosterTemplate: input.posters.customTemplate,
     }));
   }

@@ -19,7 +19,6 @@ const fs      = require('fs');
 const path    = require('path');
 const crypto  = require('crypto');
 const cache   = require('../runtime/cache.ts');
-const pictoriumWarm = require('../runtime/pictorium-warm.ts');
 const providers = require('../providers/index.ts');
 const { buildCatalog, buildMeta, buildStreams, populateTmdbIndexFromMetas, applyStreamNotices, libraryStreamFmtFp } = require('../catalog/builder.ts');
 const { buildDiscoveryCatalog, buildDiscoveryMeta, buildDiscoveryStreams, discoveryStreamKeyParts } = require('../catalog/discovery.ts');
@@ -60,14 +59,13 @@ export interface CatalogApi {
 
 // "Search your collections" (opt-in): films in the setup's LeLibrary
 // Collections whose title holds every query word. Poster precedence mirrors
-// enhanceMeta/discovery: custom > pictorium > erdb > rpdb > betterposter >
+// enhanceMeta/discovery: custom > erdb > rpdb > betterposter >
 // fanart (restored from 5.5, removed in 5.8 when the row was always on).
 async function searchCollectionFilms({ userKey, lang, query, libraryIdMode, config = {} }: any) {
   const words = String(query || '').toLowerCase().split(/[^a-z0-9]+/).filter(word => word.length > 1);
   if (!words.length) return [];
   const enhance = posterEnhance(config) as Record<string, any>;
   const { erdbToken, rpdbKey, fanartKey, posterProvider, customPosterTemplate } = enhance;
-  const pictoriumOn = !!(enhance.pictorium && enhance.pictorium.enabled);
   const builder = require('../catalog/builder.ts');
   const rows: any[] = [];
   const seen = new Set();
@@ -94,16 +92,10 @@ async function searchCollectionFilms({ userKey, lang, query, libraryIdMode, conf
     const posterTemplate = require('../media/poster-template.ts');
     return filtered.map((row: any) => posterTemplate.apply(row, customPosterTemplate));
   }
-  if (pictoriumOn || erdbToken || rpdbKey || fanartKey || posterProvider === 'betterposter') {
+  if (erdbToken || rpdbKey || fanartKey || posterProvider === 'betterposter') {
     await Promise.all(filtered.map(async (row: any) => {
-      if (pictoriumOn && row.tmdbId) {
-        const url = builder.buildPictoriumPosterUrl(enhance, {
-          type: 'movie', id: row.tmdbId, title: row.name,
-          releaseDate: row.released, imdbId: row.imdbId, fallback: row.poster,
-        });
-        if (url) { row.poster = url; row.posterShape = 'poster'; }
-      } else if (erdbToken && row.imdbId) {
-        row.poster = builder.erdbProxyUrl(enhance, 'poster', row.imdbId, row.poster) || row.poster;
+      if (erdbToken && row.imdbId) {
+        row.poster = builder.erdbProxyUrl(enhance, 'poster', row.imdbId) || row.poster;
       } else if (rpdbKey && row.imdbId) {
         row.poster = builder.buildRpdbUrl(rpdbKey, 'imdb', 'poster-default', row.imdbId);
       } else if (posterProvider === 'betterposter' && row.imdbId) {
@@ -228,8 +220,8 @@ async function searchOwnedLibrary({ config, tmdbApiKey, type, query, sortBy, lan
           : row.startsWith('people-') ? 'people'
             : row === 'series' && animeSplit ? 'no-anime' : '';
       // Plain TMDB posters here, whatever the setup's poster style: search
-      // results are new titles every time, so a rendered style (Pictorium,
-      // Posters+...) had nothing warm and every poster waited on a fresh
+      // results are new titles every time, so a rendered style (Posters+...)
+      // had nothing warm and every poster waited on a fresh
       // render. TMDB's own posters load at once. Library search (below) keeps
       // the setup's style: those posters are rendered ahead of time.
       const metas = await timeSpan(req.perfTrace, 'search-catalog', () => searchCatalog({

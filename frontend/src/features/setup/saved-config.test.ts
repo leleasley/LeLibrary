@@ -9,11 +9,10 @@ describe('saved config mapping', () => {
     const drafts = applySavedConfig({
       provider: 'torbox',
       streamPreset: 'cinema',
-      posterProvider: 'pictorium',
-      pictoriumOptions: { badges: true },
+      posterProvider: 'erdb',
       nuvioBadgePack: 'nard-full',
     });
-    expect(drafts.posters).toEqual({ provider: 'pictorium', pictoriumUrl: '', pictoriumOptions: { badges: true }, customTemplate: '' });
+    expect(drafts.posters).toEqual({ provider: 'erdb', customTemplate: '' });
     expect(drafts.formatting).toEqual({ preset: 'cinema', nameTemplate: '', descTemplate: '' });
     expect(drafts.badgePack).toEqual({ pack: 'nard-full', url: '' });
     expect(drafts.collections).toEqual([]);
@@ -48,7 +47,7 @@ describe('saved config mapping', () => {
     const drafts = applySavedConfig(null);
     expect(drafts.platform).toBe('nuvio');
     expect(drafts.rdCatalog).toBe('merge');
-    expect(drafts.posters).toEqual({ provider: '', pictoriumUrl: '', pictoriumOptions: {}, customTemplate: '' });
+    expect(drafts.posters).toEqual({ provider: '', customTemplate: '' });
     expect(drafts.formatting).toEqual({ preset: 'lelibrary', nameTemplate: '', descTemplate: '' });
     expect(drafts.badgePack).toEqual({ pack: 'lelibrary-premium', url: '' });
     expect(drafts.meta.lang).toBe('en-US');
@@ -58,20 +57,17 @@ describe('saved config mapping', () => {
 
     const hostile = applySavedConfig({
       streamPreset: 'bogus', nuvioBadgePack: 'bogus',
-      posterProvider: 42, pictoriumOptions: ['badges'], streamNameTemplate: null,
+      posterProvider: 42, streamNameTemplate: null,
     });
     expect(hostile.formatting.preset).toBe('lelibrary');
     expect(hostile.badgePack.pack).toBe('lelibrary-premium');
     expect(hostile.posters.provider).toBe('');
-    expect(hostile.posters.pictoriumOptions).toEqual({});
     expect(hostile.formatting.nameTemplate).toBe('');
   });
 
-  it('keeps only enabled pictorium flags', () => {
-    const { posters } = applySavedConfig({
-      pictoriumOptions: { badges: true, ratings: false, extra: 'x', count: 3 },
-    });
-    expect(posters.pictoriumOptions).toEqual({ badges: true });
+  it('maps a removed Pictorium provider back to the TMDB default', () => {
+    expect(applySavedConfig({ posterProvider: 'pictorium' }).posters).toEqual({ provider: '', customTemplate: '' });
+    expect(applySavedConfig({ posterProvider: 'pictorium', pictoriumOptions: { badges: true } }).posters).toEqual({ provider: '', customTemplate: '' });
   });
 
   // Both create flows write home rows as documents, so the editor has to read

@@ -15,7 +15,7 @@ const axios = require('axios');
 const crypto = require('node:crypto');
 const { getTrending, getPopular, buildDiscoveryMetas, getImdbId, getImdbIds } = require('../media/tmdb.ts');
 const { normalizeImdbId } = require('../media/identity.ts');
-const { buildErdbUrl, erdbProxyUrl, buildRpdbUrl, buildBetterPosterUrl, buildPictoriumPosterUrl, getFanartArt } = require('./builder.ts');
+const { buildErdbUrl, erdbProxyUrl, buildRpdbUrl, buildBetterPosterUrl, getFanartArt } = require('./builder.ts');
 const { applyRotation } = require('./catalog-rotation.ts');
 const { regionForLang } = require('./region.ts');
 
@@ -44,8 +44,7 @@ const { hashShort } = require('../runtime/cache-fingerprint.ts');
 async function enhanceCatalogRows(rows, enhance = {}) {
   if (!Array.isArray(rows) || !rows.length) return rows;
   const { erdbToken, rpdbKey, fanartKey, posterProvider, customPosterTemplate } = enhance;
-  const pictoriumOn = !!(enhance.pictorium && enhance.pictorium.enabled && enhance.pictorium.token);
-  if (!erdbToken && !rpdbKey && !fanartKey && !pictoriumOn && !['betterposter', 'custom'].includes(posterProvider)) return rows;
+  if (!erdbToken && !rpdbKey && !fanartKey && !['betterposter', 'custom'].includes(posterProvider)) return rows;
   if (fanartKey) {
     const { fanartKey: artworkKey } = require('../runtime/artwork-cache.ts');
     await cache.mget(rows.filter(row => row?.tmdbId).map(row => artworkKey(fanartKey, row.tmdbId, row.type === 'movie' ? 'movie' : 'tv')));
@@ -54,14 +53,7 @@ async function enhanceCatalogRows(rows, enhance = {}) {
     if (!row || typeof row !== 'object') return row;
     const imdbId = normalizeImdbId(row.id || row.imdbId);
     if (posterProvider === 'custom') return require('../media/poster-template.ts').apply({ ...row, imdbId }, customPosterTemplate);
-    if (pictoriumOn) {
-      const url = buildPictoriumPosterUrl(enhance, {
-        type: row.type, id: row.tmdbId || imdbId, title: row.name,
-        releaseDate: row.released, imdbId, fallback: row.poster,
-      });
-      if (url) return { ...row, poster: url, posterShape: 'poster' };
-    }
-    if (erdbToken && imdbId) return { ...row, poster: erdbProxyUrl(enhance, 'poster', imdbId, row.poster) || row.poster };
+    if (erdbToken && imdbId) return { ...row, poster: erdbProxyUrl(enhance, 'poster', imdbId) || row.poster };
     if (rpdbKey && imdbId) return { ...row, poster: buildRpdbUrl(rpdbKey, 'imdb', 'poster-default', imdbId) };
     if (posterProvider === 'betterposter' && imdbId) return { ...row, poster: buildBetterPosterUrl(imdbId, row.type), posterShape: 'poster' };
     if (fanartKey && row.tmdbId) {

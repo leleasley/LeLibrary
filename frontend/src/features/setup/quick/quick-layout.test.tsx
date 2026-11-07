@@ -120,14 +120,14 @@ describe('quick look reference layout', () => {
         name: 'Living room',
         keys: { torboxApiKey: 'tb-kept-across-refresh' },
         formatting: { preset: 'cinema', nameTemplate: '', descTemplate: '' },
-        posters: { provider: 'pictorium', pictoriumUrl: '', pictoriumOptions: {}, customTemplate: '' },
+        posters: { provider: 'erdb', customTemplate: '' },
         badgePack: { pack: 'nard-full', url: '' },
       });
       const restored = draft.loadQuickDraft();
       expect(restored?.name).toBe('Living room');
       expect(restored?.keys).toEqual({ torboxApiKey: 'tb-kept-across-refresh' });
       expect(restored?.formatting.preset).toBe('cinema');
-      expect(restored?.posters.provider).toBe('pictorium');
+      expect(restored?.posters.provider).toBe('erdb');
       expect(restored?.badgePack.pack).toBe('nard-full');
       draft.clearQuickDraft();
       expect(draft.loadQuickDraft()).toBe(null);
@@ -149,11 +149,10 @@ describe('quick look reference layout', () => {
     expect(html).not.toContain('badge-card');
   });
 
-  it('offers Pictorium with no option toggles', () => {
+  it('offers the poster providers without Pictorium', () => {
     const html = render();
-    expect(html).toContain('Pictorium');
-    expect(html).not.toContain('Pictorium instance URL');
-    expect(html).not.toContain('Rating badges');
+    expect(html).not.toContain('Pictorium');
+    expect(html).toContain('Custom template');
   });
 
   it('shows poster skeletons with no names while artwork loads', () => {

@@ -5,7 +5,7 @@ import { FROZEN_ASSETS, FROZEN_ASSET_VERSION } from '@/features/setup/shared/leg
 const ROOT = new URL('../../../../../', import.meta.url);
 const ROUTES = readFileSync(new URL('backend/src/routes/website.ts', ROOT), 'utf8');
 const STATIC_ASSETS = ['custom-streams-editor.js'] as const;
-const COMPAT_ASSETS = ['formatter.js', 'token-map.js', 'poster-template.js', 'pictorium-options.js'] as const;
+const COMPAT_ASSETS = ['formatter.js', 'token-map.js', 'poster-template.js'] as const;
 
 describe('React setup compatibility assets', () => {
   it('version-tags every helper URL used by setup', () => {

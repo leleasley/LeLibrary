@@ -24,11 +24,11 @@ function opened(config, keys) {
 
 test('editor config view returns the structural config only', () => {
   const view = editorConfigView(opened(
-    { streamPreset: 'cinema', posterProvider: 'pictorium', nuvioBadgePack: 'nard-full' },
+    { streamPreset: 'cinema', posterProvider: 'erdb', nuvioBadgePack: 'nard-full' },
     { torboxApiKey: 'real-torbox-key', tmdbApiKey: 'real-tmdb-key' },
   ));
   assert.deepEqual(view, {
-    config: { streamPreset: 'cinema', posterProvider: 'pictorium', nuvioBadgePack: 'nard-full' },
+    config: { streamPreset: 'cinema', posterProvider: 'erdb', nuvioBadgePack: 'nard-full' },
   });
 });
 

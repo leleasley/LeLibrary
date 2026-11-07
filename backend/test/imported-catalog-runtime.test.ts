@@ -3,6 +3,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { normalizeImportedSourceDefinition } = require('../src/import-sources/definition.ts');
 const { buildNormalizedImportedCatalog, ImportedSourceUpstreamError } = require('../src/catalog/libcatalog.ts');
+const { catalogs } = require('../src/catalog/catalogdefs.ts');
+const { staticDefinition } = require('../src/import-sources/static-index.ts');
+const { resolveCuratedSourceLabel } = require('../src/catalog/curated-collections.ts');
 
 function memoryCache() {
   const values = new Map();
@@ -20,6 +23,32 @@ const convertTmdb = async (_key, _apiType, items, mediaType) => items
 function definition(engine, mediaType = 'movie', params = {}) {
   return normalizeImportedSourceDefinition({ provider: 'tmdb', engine, mediaType, params, label: 'Synthetic' });
 }
+
+test('streaming folders resolve and paginate current regional listings without release-year filters', async () => {
+  assert.equal(resolveCuratedSourceLabel('Shudder Series', 'series'), 'streaming_shudder_series');
+  assert.equal(resolveCuratedSourceLabel('Shudder Movies', 'movie'), 'streaming_shudder_movies');
+  const providers = ['streaming_shudder_series', 'streaming_shudder_movies', 'streaming_netflix_series', 'streaming_prime_series', 'streaming_peacock_series', 'streaming_crunchyroll_series', 'streaming_discovery_series'];
+  for (const id of providers) {
+    const def = catalogs[id];
+    const source = staticDefinition(id, def, { region: 'GB' }).definition;
+    const calls = [];
+    const rows = await buildNormalizedImportedCatalog({
+      definition: source, tmdbApiKey: 'synthetic', lang: 'en-US', pageSize: 25,
+      runtime: { cache: memoryCache(), convertTmdb, request: async (url, options) => {
+        calls.push({ url, ...options.params });
+        const start = (options.params.page - 1) * 20 + 1;
+        return { data: { results: Array.from({ length: 20 }, (_, i) => ({ id: start + i })), total_pages: 3 } };
+      } },
+    });
+    assert.equal(rows.length, 25, id);
+    assert.equal(calls.length, 2, id);
+    assert.match(calls[0].url, def.type === 'series' ? /\/discover\/tv$/ : /\/discover\/movie$/);
+    assert.equal(calls[0].watch_region, 'GB', id);
+    assert.equal(String(calls[0].with_watch_providers), String(def.params.providerId), id);
+    assert.equal(calls[0]['first_air_date.gte'], undefined, id);
+    assert.equal(calls[0]['primary_release_date.gte'], undefined, id);
+  }
+});
 
 test('TMDB Discover translates logical skip across upstream pages and deduplicates', async () => {
   const calls = [];

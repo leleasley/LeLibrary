@@ -106,10 +106,6 @@ p.setup-note-pill { width: fit-content; max-width: 100%; box-sizing: border-box;
 .setup-body { min-width: 0; }
 /* Settle In / Move In share the wizard layout below. */
 
-/* Pictorium studio launcher row. The button itself comes from the frozen
-   studio stylesheet; this only lays it out beside the option summary. */
-.pictorium-studio-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-.pictorium-summary { margin: 0; flex: 1; min-width: 180px; }
 
 /* Stream notices dropdown: master switch plus a checkbox dropdown. */
 .notice-dropdown { border: 1px solid var(--border); border-radius: 12px; margin: 2px 0 14px; background: rgba(255, 255, 255, 0.015); }

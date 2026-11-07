@@ -8,28 +8,19 @@ import {
   type SetupKeysDraft,
 } from '@/features/setup/shared/config-contract';
 import { KeyInput } from '@/features/setup/shared/sections';
-import { PosterStudio } from '@/features/setup/shared/poster-studio/PosterStudio';
 import {
-  loadPictoriumOptions,
   loadPosterTemplate,
-  loadTokenMap,
   useLegacyLib,
-  type PictoriumOptionsLib,
   type PosterTemplateLib,
-  type TokenMapLib,
 } from '@/features/setup/shared/legacy-libs';
 
 export interface PostersDraft {
   provider: string;
-  pictoriumUrl: string;
-  pictoriumOptions: Record<string, boolean>;
   customTemplate: string;
 }
 
 export const EMPTY_POSTERS: PostersDraft = {
   provider: '',
-  pictoriumUrl: '',
-  pictoriumOptions: {},
   customTemplate: '',
 };
 
@@ -39,11 +30,8 @@ export const EMPTY_POSTERS: PostersDraft = {
 // invisible (no control on screen clears it) and keep the setup flagged as
 // having unsaved changes forever.
 export function postersForProvider(draft: PostersDraft): PostersDraft {
-  const pictorium = draft.provider === 'pictorium';
   return {
     provider: draft.provider,
-    pictoriumUrl: pictorium ? draft.pictoriumUrl : '',
-    pictoriumOptions: pictorium ? draft.pictoriumOptions : {},
     customTemplate: draft.provider === 'custom' ? draft.customTemplate : '',
   };
 }
@@ -58,10 +46,6 @@ export function previewUrl(input: {
   keys: SetupKeysDraft;
   customTemplate: string;
   posterTemplate: PosterTemplateLib | null;
-  tokenMap: TokenMapLib | null;
-  pictoriumOptions: PictoriumOptionsLib | null;
-  pictoriumOptionsDraft: Record<string, boolean>;
-  pictoriumUrl: string;
 }): { url: string | null; note: string | null; error: string | null } {
   const { provider, sample, keys } = input;
   switch (provider) {
@@ -107,28 +91,6 @@ export function previewUrl(input: {
         ? { url, note: null, error: null }
         : { url: null, note: 'That template needs a field this title does not have.', error: null };
     }
-    case 'pictorium': {
-      if (!input.tokenMap || !input.pictoriumOptions) {
-        return { url: null, note: 'Preparing the Pictorium preview…', error: null };
-      }
-      const tmdbKey = (keys.tmdbApiKey ?? '').trim();
-      if (!tmdbKey) return { url: null, note: 'Add your TMDB key above: Pictorium needs it to render.', error: null };
-      // The proxy resolves a self-contained config token; options go through
-      // the shared sanitizer so a crafted draft cannot widen the contract.
-      const sanitized = input.pictoriumOptions.sanitize({
-        ...input.pictoriumOptionsDraft,
-        lang: 'en',
-      });
-      const query = input.pictoriumOptions.toQuery(sanitized);
-      const token = input.tokenMap.encodeConfig({
-        tmdbApiKey: tmdbKey,
-        posterProvider: 'pictorium',
-        pictoriumOptions: input.pictoriumOptionsDraft,
-        ...(input.pictoriumUrl.trim() ? { pictoriumUrl: input.pictoriumUrl.trim() } : {}),
-      });
-      const base = `/${encodeURIComponent(token)}/pictorium/${sample.type}/${sample.id}.jpg?preview=1&title=${encodeURIComponent(sample.title)}`;
-      return { url: query ? `${base}&${query}` : base, note: null, error: null };
-    }
     case 'postersplus': {
       const link = (keys.postersPlusUrl ?? '').trim();
       if (!link) return { url: null, note: 'Paste your Posters+ link to see your style.', error: null };
@@ -158,20 +120,16 @@ export function PosterPreview({ provider, keys, draft }: {
   const [pairIndex, setPairIndex] = useState(0);
   const [fading, setFading] = useState(false);
   const posterTemplate = useLegacyLib(loadPosterTemplate);
-  const tokenMap = useLegacyLib(loadTokenMap);
-  const pictoriumOptions = useLegacyLib(loadPictoriumOptions);
   const pair = POSTER_PAIRS[pairIndex] ?? POSTER_PAIRS[0];
 
   const resolved = useMemo(() => {
-    const shared = { keys, customTemplate: draft.customTemplate, posterTemplate, tokenMap, pictoriumOptions, pictoriumOptionsDraft: draft.pictoriumOptions, pictoriumUrl: draft.pictoriumUrl };
+    const shared = { keys, customTemplate: draft.customTemplate, posterTemplate };
     if (!pair) return [];
     return [pair.movie, pair.series].map((sample) => ({ sample, ...previewUrl({ provider, sample, ...shared }) }));
-  }, [provider, pair, keys, draft.customTemplate, draft.pictoriumOptions, draft.pictoriumUrl, posterTemplate, tokenMap, pictoriumOptions]);
+  }, [provider, pair, keys, draft.customTemplate, posterTemplate]);
 
-  // Smooth crossfade rotation: fade out, swap, fade in. Not for Pictorium:
-  // every new pair is two fresh server renders (seconds each), so rotating
-  // kept Pictorium drawing non-stop and the preview lagging behind.
-  const rotate = provider !== 'pictorium';
+  // Smooth crossfade rotation: fade out, swap, fade in.
+  const rotate = true;
   useEffect(() => {
     if (typeof window === 'undefined' || !rotate) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -201,7 +159,7 @@ export function PosterPreview({ provider, keys, draft }: {
   const showable = resolved.filter((entry) => entry.url);
   // The caption never sticks on "Loading…": once the option libs are in,
   // an empty stage means a missing key or choice, and says so instead.
-  const libsLoading = !posterTemplate || !tokenMap || !pictoriumOptions;
+  const libsLoading = !posterTemplate;
   const caption = !pair || showable.length === 0
     ? (!pair || libsLoading ? 'Loading…' : (note ?? 'Select a poster service above.'))
     : `${pair.movie.title} & ${pair.series.title}`;
@@ -278,95 +236,8 @@ function PosterFigure({ url, title, kind }: { url: string; title: string; kind: 
   );
 }
 
-// Pictorium Poster Studio (React, shared/poster-studio). Options save into
-// pictoriumOptions, the instance URL into pictoriumUrl; the live preview
-// encodes a throwaway token from the in-memory TMDB key, exactly like the
-// sidebar preview does. Shown on every tier that renders PostersSection with
-// the pictorium provider picked.
-function PictoriumStudioButton({ keys, draft, onDraft }: {
-  keys: SetupKeysDraft;
-  draft: PostersDraft;
-  onDraft: (next: PostersDraft) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const tokenMap = useLegacyLib(loadTokenMap);
-  const pictoriumOptions = useLegacyLib(loadPictoriumOptions);
-
-  // One-line summary of what is set, in plain words.
-  const summary = useMemo(() => {
-    if (!pictoriumOptions) return ['Defaults'];
-    const o = pictoriumOptions.sanitize(draft.pictoriumOptions || {});
-    const defaults = pictoriumOptions.DEFAULTS;
-    const changes = Object.keys(defaults).filter((key) => String(o[key] ?? '') !== String(defaults[key] ?? '')).length;
-    if (changes === 0) return ['Defaults'];
-    const styles: Record<string, string> = { shadow: 'Shadow', pill: 'Pill', bar: 'Bar', colored: 'Colour', bordo: 'Outlined', vetro: 'Glass', minimal: 'Minimal' };
-    const bits = [`${styles[String(o.bs)] ?? 'Shadow'} badges`];
-    if (o.age === '1') bits.push('age ratings');
-    if (o.sep === '1') bits.push('separate ratings');
-    if (o.theme) bits.push(`${o.theme === 'christmas' ? 'Christmas' : 'Halloween'} frame`);
-    bits.push(changes === 1 ? '1 change' : `${changes} changes`);
-    // Separate nodes so each piece translates on its own.
-    return bits;
-  }, [pictoriumOptions, draft.pictoriumOptions]);
-
-  const tmdbKey = (keys.tmdbApiKey ?? '').trim();
-  const previewUrl = useMemo(() => {
-    if (!tokenMap || !pictoriumOptions || !tmdbKey) return null;
-    return (options: Record<string, string | number>, sample: { type: string; tmdbId: string; title: string }) => {
-      const token = tokenMap.encodeConfig({
-        tmdbApiKey: tmdbKey,
-        posterProvider: 'pictorium',
-        ...(draft.pictoriumUrl.trim() ? { pictoriumUrl: draft.pictoriumUrl.trim() } : {}),
-      });
-      const query = pictoriumOptions.toQuery(options);
-      const base = `/${encodeURIComponent(token)}/pictorium/${sample.type}/${sample.tmdbId}.jpg?preview=1&title=${encodeURIComponent(sample.title)}`;
-      return query ? `${base}&${query}` : base;
-    };
-  }, [tokenMap, pictoriumOptions, tmdbKey, draft.pictoriumUrl]);
-
-  return (
-    <>
-      <div className="pictorium-studio-row">
-        <button type="button" className="pictorium-open-btn" disabled={!pictoriumOptions} onClick={() => setOpen(true)}>
-          {pictoriumOptions ? 'Open Poster Studio' : 'Loading studio…'}
-        </button>
-        <span className="setup-hint pictorium-summary">
-          {summary.map((bit, index) => (
-            <span key={bit}>{index > 0 && <span aria-hidden="true"> · </span>}<span>{bit}</span></span>
-          ))}
-        </span>
-      </div>
-      {open && pictoriumOptions && (
-        <PosterStudio
-          lib={pictoriumOptions}
-          initial={draft.pictoriumOptions || {}}
-          previewUrl={previewUrl}
-          onClose={() => setOpen(false)}
-          onSave={(options) => {
-            onDraft({ ...draft, pictoriumOptions: options as unknown as Record<string, boolean> });
-            setOpen(false);
-          }}
-        />
-      )}
-      <label className="setup-field">
-        <span>Pictorium instance URL</span>
-        <input
-          type="url" autoComplete="off" spellCheck={false} inputMode="url"
-          placeholder="Leave empty to use the built-in studio"
-          value={draft.pictoriumUrl}
-          onChange={(event) => onDraft({ ...draft, pictoriumUrl: event.target.value })}
-        />
-        <small className="setup-hint">Leave empty to use the built-in studio. Only enter a URL if you self-host your own Pictorium, and it must be a public HTTPS address.</small>
-      </label>
-      <p className="setup-note">
-        Renders posters live with badges and artwork baked in.
-      </p>
-    </>
-  );
-}
-
-// Posters: the seven real providers, their keys, the custom template and the
-// Pictorium option set, always beside a live preview that rotates samples.
+// Posters: the seven real providers, their keys, the custom template and a
+// live preview that rotates samples.
 export function PostersSection({ draft, keys, onDraft, onKeys, hidePreview, hideSelect, savedServices }: {
   draft: PostersDraft;
   keys: SetupKeysDraft;
@@ -374,7 +245,7 @@ export function PostersSection({ draft, keys, onDraft, onKeys, hidePreview, hide
   onKeys: (next: SetupKeysDraft) => void;
   hidePreview?: boolean;
   // The page renders its own provider picker (Quick Look's poster cards) and
-  // only wants the per-provider extras: key, template, Pictorium studio.
+  // only wants the per-provider extras: key, template.
   hideSelect?: boolean;
   savedServices?: string[] | undefined;
 }) {
@@ -385,13 +256,6 @@ export function PostersSection({ draft, keys, onDraft, onKeys, hidePreview, hide
     : draft.provider === 'postersplus' ? 'postersPlusUrl'
     : null;
   const keyField = keyForProvider ? ARTWORK_KEY_FIELDS.find((field) => field.field === keyForProvider) : null;
-
-  function togglePictoriumOption(field: string, enabled: boolean) {
-    const next = { ...draft.pictoriumOptions };
-    if (enabled) next[field] = true;
-    else delete next[field];
-    onDraft({ ...draft, pictoriumOptions: next });
-  }
 
   return (
     <div className="posters-layout">
@@ -431,10 +295,6 @@ export function PostersSection({ draft, keys, onDraft, onKeys, hidePreview, hide
               HTTPS URL using <span data-i18n-preserve>{'{tmdbId}'}, {'{imdbId}'} or {'{type}'}</span>. The preview below validates it live.
             </small>
           </label>
-        )}
-
-        {draft.provider === 'pictorium' && (
-          <PictoriumStudioButton draft={draft} keys={keys} onDraft={onDraft} />
         )}
 
         {draft.provider === 'betterposter' && (

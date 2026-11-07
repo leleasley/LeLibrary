@@ -98,7 +98,7 @@ describe('edit save body', () => {
       ...BASE_EDIT_SAVE,
       name: 'Living room',
       savedName: 'Living room',
-      posters: { ...EMPTY_POSTERS, provider: 'pictorium' },
+      posters: { ...EMPTY_POSTERS, provider: 'erdb' },
       collections: [collectionDefault('Seeded')],
       homeRows: [ownedFranchiseMarker(0)],
     })).toBe(null);
@@ -199,7 +199,7 @@ describe('edit save body', () => {
     });
     // The other poster fields are cleared: the store merges, so a value left
     // out would otherwise stay from the previous provider.
-    expect(body).toEqual({ config: { posterProvider: 'betterposter' }, clearConfig: ['pictoriumUrl', 'pictoriumOptions', 'customPosterTemplate'] });
+    expect(body).toEqual({ config: { posterProvider: 'betterposter' }, clearConfig: ['customPosterTemplate'] });
   });
 
   it('combines keys, name and config in one body', () => {
@@ -214,7 +214,7 @@ describe('edit save body', () => {
       keys: { tmdbApiKey: 'tmdb-new' },
       name: 'Den',
       config: { posterProvider: 'betterposter' },
-      clearConfig: ['pictoriumUrl', 'pictoriumOptions', 'customPosterTemplate'],
+      clearConfig: ['customPosterTemplate'],
     });
   });
 

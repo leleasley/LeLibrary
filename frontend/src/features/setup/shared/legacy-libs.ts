@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 
-// The formatter, token codec, poster-template validator and pictorium option
-// contract are backend TypeScript (single source of truth). React setup loads
-// type-stripped browser builds from the compat routes in routes/website.ts,
-// so the preview and server cannot disagree.
+// The formatter, token codec and poster-template validator are backend
+// TypeScript (single source of truth). React setup loads type-stripped
+// browser builds from the compat routes in routes/website.ts, so the
+// preview and server cannot disagree.
 
 export interface FormatterPreset {
   name: string;
@@ -43,17 +43,6 @@ export interface PosterTemplateLib {
   fromPostersPlus?: (link: string) => PosterValidation;
 }
 
-export interface PictoriumOptionsLib {
-  DEFAULTS: Record<string, string | number>;
-  RATING_SOURCES?: [string, string][];
-  LANGUAGES?: [string, string][];
-  REGIONS?: [string, string][];
-  VIDEO_FORMATS?: [string, string][];
-  sanitize: (input: unknown) => Record<string, string | number>;
-  toQuery: (input: unknown) => string;
-  fromQuery: (query: unknown) => Record<string, string | number>;
-}
-
 const cache = new Map<string, Promise<unknown>>();
 
 // Shared browser helpers are cached by URL, so the URL carries a version: the
@@ -77,7 +66,6 @@ export const FROZEN_ASSETS = {
   'formatter.js': `/formatter.js?v=${FROZEN_ASSET_VERSION}`,
   'token-map.js': `/token-map.js?v=${FROZEN_ASSET_VERSION}`,
   'poster-template.js': `/poster-template.js?v=${FROZEN_ASSET_VERSION}`,
-  'pictorium-options.js': `/pictorium-options.js?v=${FROZEN_ASSET_VERSION}`,
   'custom-streams-editor.js': `/custom-streams-editor.js?v=${FROZEN_ASSET_VERSION}`,
 } satisfies Record<string, string>;
 
@@ -112,10 +100,6 @@ export function loadTokenMap(): Promise<TokenMapLib> {
 
 export function loadPosterTemplate(): Promise<PosterTemplateLib> {
   return loadScript(FROZEN_ASSETS['poster-template.js'], 'LePosterTemplate') as Promise<PosterTemplateLib>;
-}
-
-export function loadPictoriumOptions(): Promise<PictoriumOptionsLib> {
-  return loadScript(FROZEN_ASSETS['pictorium-options.js'], 'LePictoriumOptions') as Promise<PictoriumOptionsLib>;
 }
 
 export interface CustomStreamsEditor {

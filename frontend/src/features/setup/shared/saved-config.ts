@@ -36,8 +36,6 @@ export interface SavedDrafts {
   rdCatalog: string;
   posters: {
     provider: string;
-    pictoriumUrl: string;
-    pictoriumOptions: Record<string, boolean>;
     customTemplate: string;
   };
   formatting: {
@@ -105,13 +103,12 @@ export function applySavedConfig(saved: unknown): SavedDrafts {
 
   const preset = asString(config.streamPreset);
   const pack = asString(config.nuvioBadgePack);
-  const options = config.pictoriumOptions;
-  const cleanOptions: Record<string, boolean> = {};
-  if (options && typeof options === 'object' && !Array.isArray(options)) {
-    for (const [key, value] of Object.entries(options)) {
-      if (value === true) cleanOptions[key] = true;
-    }
-  }
+
+  // Setups saved with the removed Pictorium provider fall back to the
+  // TMDB default. Their stale pictorium fields are ignored here and
+  // cleared on the next save.
+  const rawProvider = asString(config.posterProvider);
+  const provider = rawProvider === 'pictorium' ? '' : rawProvider;
 
   const platform = config.wizardPlatform === 'stremio' ? 'stremio' : 'nuvio';
   const lang = asString(config.lang) || EMPTY_METADATA_EXTRAS.lang;
@@ -126,9 +123,7 @@ export function applySavedConfig(saved: unknown): SavedDrafts {
     platform,
     rdCatalog: config.rdCatalog === 'separate' ? 'separate' : 'merge',
     posters: {
-      provider: asString(config.posterProvider),
-      pictoriumUrl: asString(config.pictoriumUrl),
-      pictoriumOptions: cleanOptions,
+      provider,
       customTemplate: asString(config.customPosterTemplate),
     },
     formatting: {

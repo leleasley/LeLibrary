@@ -104,7 +104,7 @@ test('the website router no longer carries its own copy of any settings route', 
 });
 
 test('clientConfig drops every __ internal a browser could send', () => {
-  const out = clientConfig({ torboxApiKey: FAKE_TORBOX, __configScope: { type: 'config', uuid: 'x' }, __pictoriumToken: 't' });
+  const out = clientConfig({ torboxApiKey: FAKE_TORBOX, __configScope: { type: 'config', uuid: 'x' }, __internal: 't' });
   assert.deepEqual(out, { torboxApiKey: FAKE_TORBOX });
   assert.equal(clientConfig(null), null);
   assert.equal(clientConfig([1]), null);

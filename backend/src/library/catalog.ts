@@ -99,13 +99,12 @@ function sortMetas(metas, sortBy) {
   return metas;
 }
 
-// Poster precedence mirrors enhanceMeta/discovery: custom > pictorium >
+// Poster precedence mirrors enhanceMeta/discovery: custom >
 // erdb > rpdb > betterposter > fanart. Async because the fanart branch
 // fetches (shared cache); URL-construction branches cost nothing.
 async function applyPosterEnhance(metas, enhance) {
   const { erdbToken, rpdbKey, fanartKey, posterProvider, customPosterTemplate } = enhance || {};
-  const pictoriumOn = !!(enhance && enhance.pictorium && enhance.pictorium.enabled);
-  if (!erdbToken && !rpdbKey && !fanartKey && posterProvider !== 'custom' && posterProvider !== 'betterposter' && !pictoriumOn) return metas;
+  if (!erdbToken && !rpdbKey && !fanartKey && posterProvider !== 'custom' && posterProvider !== 'betterposter') return metas;
   const { normalizeImdbId } = require('../media/identity.ts');
   await Promise.all(metas.map(async (m) => {
     const t = m.catalogType === 'movie' ? 'movie' : 'tv';
@@ -117,11 +116,8 @@ async function applyPosterEnhance(metas, enhance) {
       m.posterShape = 'poster';
     } else if (posterProvider === 'custom') {
       return;
-    } else if (pictoriumOn && m.tmdbId) {
-      const url = builder.buildPictoriumPosterUrl(enhance, { type: m.catalogType, id: m.tmdbId, title: m.name, releaseDate: m.released, imdbId: m.imdbId, fallback: m.poster });
-      if (url) { m.poster = url; m.posterShape = 'poster'; }
     } else if (erdbToken && m.tmdbId) {
-      m.poster = builder.erdbProxyUrl(enhance, 'poster', `tmdb:${t}:${m.tmdbId}`, m.poster) || m.poster;
+      m.poster = builder.erdbProxyUrl(enhance, 'poster', `tmdb:${t}:${m.tmdbId}`) || m.poster;
     } else if (rpdbKey && m.tmdbId) {
       m.poster = builder.buildRpdbUrl(rpdbKey, 'tmdb', 'poster-default', `${t}-${m.tmdbId}`);
     } else if (posterProvider === 'betterposter' && m.tmdbId) {

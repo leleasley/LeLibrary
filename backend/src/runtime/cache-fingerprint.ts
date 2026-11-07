@@ -20,11 +20,8 @@ function posterFp(config: Config = {}): string {
     erdbToken = '', rpdbKey = '', fanartKey = '', omdbKey = '', posterProvider = '',
     customPosterTemplate = '', enhanceBackground = false, enhanceLogo = false,
   } = config;
-  const pictorium = posterProvider === 'pictorium'
-    ? `${config.pictoriumUrl || ''}|${JSON.stringify(config.pictoriumOptions || {})}`
-    : '';
   const postersPlus = posterProvider === 'postersplus' ? String(config.postersPlusUrl || '') : '';
-  return hashShort([posterProvider, erdbToken, rpdbKey, fanartKey, omdbKey, customPosterTemplate, enhanceBackground ? 1 : 0, enhanceLogo ? 1 : 0, pictorium, postersPlus].join('|'));
+  return hashShort([posterProvider, erdbToken, rpdbKey, fanartKey, omdbKey, customPosterTemplate, enhanceBackground ? 1 : 0, enhanceLogo ? 1 : 0, postersPlus].join('|'));
 }
 
 // Posters+ is a poster service driven by one link (its configurator's "Copy
@@ -51,12 +48,6 @@ function posterEnhance(config: Config = {}) {
     customPosterTemplate: poster.customPosterTemplate,
     enhanceBackground: config.enhanceBackground,
     enhanceLogo: config.enhanceLogo,
-    pictorium: {
-      enabled: config.posterProvider === 'pictorium',
-      token: config.__pictoriumToken || '',
-      origin: String(process.env.BASE_URL || '').replace(/\/+$/, ''),
-      options: config.pictoriumOptions || {},
-    },
   };
 }
 

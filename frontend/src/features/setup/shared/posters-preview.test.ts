@@ -11,10 +11,6 @@ function input(provider: string, keys: Record<string, string> = {}) {
     keys,
     customTemplate: '',
     posterTemplate: null,
-    tokenMap: null,
-    pictoriumOptions: null,
-    pictoriumOptionsDraft: {},
-    pictoriumUrl: '',
   };
 }
 

@@ -28,3 +28,21 @@ test('a file with no episode in its own name falls back to the full path', () =>
   assert.equal(info.season, 3);
   assert.equal(info.episode, 5);
 });
+
+test('separated season and episode markers in a multi-season pack select the exact episode', () => {
+  const files = [
+    { name: 'Show.S01-S04/Show.S01.E01.1080p.mkv', short_name: 'Show.S01.E01.1080p.mkv' },
+    { name: 'Show.S01-S04/Show.S01.E02.1080p.mkv', short_name: 'Show.S01.E02.1080p.mkv' },
+    { name: 'Show.S01-S04/Show.S02.E01.1080p.mkv', short_name: 'Show.S02.E01.1080p.mkv' },
+  ];
+  const matches = files.map(episodeFileInfo).filter((info) => info?.season === 1 && info?.episode === 2);
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].season, 1);
+  assert.equal(matches[0].episode, 2);
+  assert.deepEqual(files.map((f) => [episodeFileInfo(f).season, episodeFileInfo(f).episode]), [[1, 1], [1, 2], [2, 1]]);
+});
+
+test('a multi-digit episode marker is not truncated by separator normalization', () => {
+  const info = episodeFileInfo({ name: 'Show.S01.E123.1080p.mkv' });
+  assert.notEqual(info?.episode, 12);
+});

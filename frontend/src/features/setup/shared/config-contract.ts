@@ -230,8 +230,6 @@ export interface SetupConfigDraft {
   popularSeriesName?: string;
   collectionsName?: string;
   posterProvider?: string;
-  pictoriumUrl?: string;
-  pictoriumOptions?: Record<string, unknown>;
   customPosterTemplate?: string;
   // Display names for the user's own stream addons (links live in keys).
   customAddons?: { id: string; name: string }[];
@@ -318,7 +316,6 @@ export const POSTER_PROVIDERS: { id: string; name: string; blurb: string }[] = [
   { id: 'erdb', name: 'ERDB ratings', blurb: 'Ratings baked onto posters. Needs an ERDB token below.' },
   { id: 'rpdb', name: 'RPDB ratings', blurb: 'Rating posters. Needs an RPDB key below.' },
   { id: 'betterposter', name: 'BetterPosters', blurb: 'Community artwork from btttr.cc.' },
-  { id: 'pictorium', name: 'Pictorium', blurb: 'Build your own posters: badges, ratings, backdrops. Free.' },
   { id: 'postersplus', name: 'Posters+', blurb: 'Styled posters from Posters+ by ElfHosted. Paste your Posters+ link below.' },
   { id: 'fanart', name: 'Fanart.tv', blurb: 'High-resolution alternative art. Needs a Fanart.tv key below.' },
   { id: 'custom', name: 'Custom template', blurb: 'Your own poster URL template with {tmdbId} or {imdbId}.' },
@@ -441,10 +438,6 @@ export function pruneConfig(draft: SetupConfigDraft): Record<string, unknown> {
   if (draft.homeRows && draft.homeRows.length > 0) out.homeRows = [...draft.homeRows];
   if (draft.customAddons && draft.customAddons.length > 0) out.customAddons = draft.customAddons.map((row) => ({ ...row }));
   if (draft.posterProvider) out.posterProvider = draft.posterProvider;
-  if (draft.pictoriumUrl && draft.pictoriumUrl.trim()) out.pictoriumUrl = draft.pictoriumUrl.trim();
-  if (draft.pictoriumOptions && Object.keys(draft.pictoriumOptions).length > 0) {
-    out.pictoriumOptions = { ...draft.pictoriumOptions };
-  }
   if (draft.customPosterTemplate && draft.customPosterTemplate.trim()) {
     out.customPosterTemplate = draft.customPosterTemplate.trim();
   }

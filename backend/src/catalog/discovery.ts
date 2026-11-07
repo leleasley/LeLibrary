@@ -15,7 +15,7 @@ const cache = require('../runtime/cache.ts');
 const { matchVersion } = require('../matching/resolve.ts');
 const providers = require('../providers/index.ts');
 const { getMetadata, getTrending, getPopular, imdbToTmdbCached } = require('../media/tmdb.ts');
-const { buildStreams, reformatExternalStream, enhanceMeta, buildErdbUrl, erdbProxyUrl, buildRpdbUrl, buildBetterPosterUrl, buildPictoriumPosterUrl, getFanartArt, applyStreamNotices } = require('./builder.ts');
+const { buildStreams, reformatExternalStream, enhanceMeta, buildErdbUrl, erdbProxyUrl, buildRpdbUrl, buildBetterPosterUrl, getFanartArt, applyStreamNotices } = require('./builder.ts');
 const { fetchExternalStreams, compareExternalProviderPriority } = require('../streams/streamAddons.ts');
 const { normalizeImdbId } = require('../media/identity.ts');
 const { matchCustomStreams } = require('../media/custom-streams.ts');
@@ -39,28 +39,17 @@ const { hashShort } = require('../runtime/cache-fingerprint.ts');
 
 // Apply the user's configured poster providers to a discovery catalog row set.
 // Rows carry plain tt: ids (= IMDb id) plus tmdbId. Precedence MUST mirror
-// enhanceMeta: custom > pictorium > erdb > rpdb > betterposter > fanart. The old
-// order had no pictorium branch and always preferred ERDB whenever an erdbToken
-// was saved, so a Pictorium user's Trending/Popular rows were rendered by ERDB
-// instead (measured 6-14s per poster).
+// enhanceMeta: custom > erdb > rpdb > betterposter > fanart.
 async function enhanceDiscoveryMetas(metas, enhance = {}) {
   if (!Array.isArray(metas) || metas.length === 0) return metas;
   const { erdbToken, rpdbKey, fanartKey, posterProvider, customPosterTemplate } = enhance;
-  const pictoriumOn = !!(enhance.pictorium && enhance.pictorium.enabled);
-  if (!pictoriumOn && !erdbToken && !rpdbKey && fanartKey === undefined && !['betterposter', 'custom'].includes(posterProvider)) return metas;
+  if (!erdbToken && !rpdbKey && fanartKey === undefined && !['betterposter', 'custom'].includes(posterProvider)) return metas;
   return Promise.all(metas.map(async (m) => {
     if (!m || typeof m !== 'object') return m;
     const imdbId = normalizeImdbId(m.id);
     const type = m.type === 'movie' ? 'movie' : 'tv';
     if (posterProvider === 'custom') return require('../media/poster-template.ts').apply({ ...m, imdbId }, customPosterTemplate);
-    if (pictoriumOn && (m.tmdbId || imdbId)) {
-      const url = buildPictoriumPosterUrl(enhance, {
-        type: m.type, id: m.tmdbId || imdbId, title: m.name,
-        releaseDate: m.released, imdbId, fallback: m.poster,
-      });
-      if (url) return { ...m, poster: url, posterShape: 'poster' };
-    }
-    if (erdbToken && imdbId) return { ...m, poster: erdbProxyUrl(enhance, 'poster', imdbId, m.poster) || m.poster };
+    if (erdbToken && imdbId) return { ...m, poster: erdbProxyUrl(enhance, 'poster', imdbId) || m.poster };
     if (rpdbKey && imdbId) return { ...m, poster: buildRpdbUrl(rpdbKey, 'imdb', 'poster-default', imdbId) };
     if (posterProvider === 'betterposter' && imdbId) return { ...m, poster: buildBetterPosterUrl(imdbId, m.type), posterShape: 'poster' };
     if (fanartKey && m.tmdbId) {
@@ -76,8 +65,8 @@ async function enhanceDiscoveryMetas(metas, enhance = {}) {
 // are pure TMDB data, identical for every user with the same poster config, so
 // the cache is deliberately shared across users (no userKey in the key).
 async function buildDiscoveryCatalog({ tmdbApiKey, kind, apiType, lang, userKey, skip = 0, search = '', enhance = {}, posterFp = '', hideAnime = false, filters = null }) {
-  // v2: poster precedence fixed (pictorium before erdb); old entries under the
-  // previous key are ignored rather than served.
+  // v2: poster precedence fixed; old entries under the previous key are
+  // ignored rather than served.
   // v4 (5.9.7): rows carry genre ids and the adult flag for content filters.
   const discCacheKey = cache.makeKey('cat', 'discovery4', kind, apiType, lang, posterFp);
   let metas = await cache.get(discCacheKey);

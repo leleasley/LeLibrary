@@ -95,7 +95,7 @@ test('draftConfig drops every key, token, login and credential link, at any dept
     push: { nuvio: { nuvioToken: 'synthetic-session' } },
     __configScope: { type: 'config', uuid: UUID },
     webdavPassword: 'synthetic-dav-pass',
-    pictoriumUrl: 'https://pictorium.test/p/abc',
+    customPosterTemplate: 'https://poster.test/p/abc',
     customStreams: [{ url: 'https://cdn.test/file.mkv' }],
     myNewApiKey: 'synthetic-new',
     sessionThing: 'synthetic-session-2',
@@ -105,7 +105,7 @@ test('draftConfig drops every key, token, login and credential link, at any dept
     }],
   });
   const raw = JSON.stringify(out);
-  for (const leaked of ['synthetic', 'u:p@', 'pictorium.test', 'cdn.test', 'other.test', 'configScope']) assert.ok(!raw.includes(leaked), `leaked ${leaked}`);
+  for (const leaked of ['synthetic', 'u:p@', 'poster.test', 'cdn.test', 'other.test', 'configScope']) assert.ok(!raw.includes(leaked), `leaked ${leaked}`);
   assert.equal(out.lang, 'en-US');
   assert.deepEqual(out.collections[0].folders[0].catalogSources, [{ addonId: 'other.addon', catalogId: 'top', type: 'movie' }]);
 });

@@ -119,8 +119,6 @@ export function quickCreateConfig(input: {
       streamNameTemplate: formatting.nameTemplate,
       streamDescTemplate: formatting.descTemplate,
       posterProvider: posters.provider,
-      pictoriumUrl: posters.pictoriumUrl,
-      pictoriumOptions: posters.pictoriumOptions,
       customPosterTemplate: posters.customTemplate,
       nuvioBadgePack: badgePack.pack,
       nuvioBadgeUrl: badgePack.url,

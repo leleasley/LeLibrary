@@ -90,15 +90,15 @@ test('TMDB paths are read from catalogue artwork, never from other hosts', () =>
   assert.equal(covers.tmdbPathFromImageUrl('https://image.tmdb.org/t/p/w342/abc123.jpg'), '/abc123.jpg');
   assert.equal(covers.tmdbPathFromImageUrl('https://image.tmdb.org/t/p/w1280/bg9.jpg'), '/bg9.jpg');
   // Poster providers wrap the TMDB poster: the token in the proxy URL never survives.
-  const pictorium = `https://lelibrary.uk/SECRET-TOKEN/pictorium/movie/550.jpg?fallback=${encodeURIComponent('https://image.tmdb.org/t/p/w342/fight.jpg')}`;
-  assert.equal(covers.tmdbPathFromImageUrl(pictorium), '/fight.jpg');
+  const proxied = `https://lelibrary.uk/SECRET-TOKEN/erdb/poster/movie/550.jpg?fallback=${encodeURIComponent('https://image.tmdb.org/t/p/w342/fight.jpg')}`;
+  assert.equal(covers.tmdbPathFromImageUrl(proxied), '/fight.jpg');
   assert.equal(covers.tmdbPathFromImageUrl('http://image.tmdb.org/t/p/w342/a.jpg'), '', 'plain http');
   assert.equal(covers.tmdbPathFromImageUrl('https://image.tmdb.org.evil.example/t/p/w342/a.jpg'), '');
   assert.equal(covers.tmdbPathFromImageUrl('https://api.ratingposterdb.com/k/imdb/poster-default/tt1.jpg?fallback=true'), '');
   const nested = `https://a.example/x?fallback=${encodeURIComponent(`https://b.example/y?fallback=${encodeURIComponent('https://image.tmdb.org/t/p/w342/a.jpg')}`)}`;
   assert.equal(covers.tmdbPathFromImageUrl(nested), '', 'only one level of fallback');
   const art = covers.artFromRows([
-    { poster: pictorium, background: 'https://image.tmdb.org/t/p/w1280/bg.jpg' },
+    { poster: proxied, background: 'https://image.tmdb.org/t/p/w1280/bg.jpg' },
     { poster: 'https://image.tmdb.org/t/p/w342/two.jpg' },
     { poster: 'https://image.tmdb.org/t/p/w342/two.jpg' },
     { poster: 'https://other.example/three.jpg' },
@@ -234,7 +234,7 @@ test('collecting art reads own catalogue rows only and never leaks a token', asy
   const token = 'SECRET-INSTALL-TOKEN';
   const loaded = [];
   const rows = (prefix) => Array.from({ length: 6 }, (_, i) => ({
-    poster: `https://lelibrary.uk/${token}/pictorium/movie/${i}.jpg?fallback=${encodeURIComponent(`https://image.tmdb.org/t/p/w342/${prefix}${i}.jpg`)}`,
+    poster: `https://lelibrary.uk/${token}/erdb/poster/movie/${i}.jpg?fallback=${encodeURIComponent(`https://image.tmdb.org/t/p/w342/${prefix}${i}.jpg`)}`,
     background: `https://image.tmdb.org/t/p/w1280/${prefix}bg.jpg`,
   }));
   const collections = [{

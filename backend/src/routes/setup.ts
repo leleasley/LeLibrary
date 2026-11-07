@@ -537,7 +537,7 @@ function mountSetupRoutes(app: Express, { basePath = '/api/setup', editSessions,
   });
 
   // Reveal one saved key value to an unlocked editor so the UI can prefill
-  // it (and key-dependent previews, like Pictorium, can render from the saved
+  // it (and key-dependent previews can render from the saved
   // value). Explicit per-service action only: bearer edit token required,
   // tight per-IP rate limit, password-protected setups only, allowlisted
   // services only, and the value itself is never logged.

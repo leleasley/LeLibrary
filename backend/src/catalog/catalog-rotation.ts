@@ -2,7 +2,7 @@
 // ── Daily catalog rotation ────────────────────────────────────────────────
 // Broad TMDB discover rows can use a different, deterministic release window
 // each UTC day. This changes the upstream result pool while retaining the
-// catalogue's defining provider/genre/studio/theme filters.
+// catalogue's defining genre/studio/theme filters.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -33,11 +33,16 @@ function isReleaseOrRatingRow(definition = {}) {
 // editorial/result pools.
 function isRotationEligible(definition = {}) {
   if (!definition || isReleaseOrRatingRow(definition)) return false;
+  // A streaming-service row represents the provider's current catalogue, not
+  // a release-year slice. Narrow windows can empty smaller providers entirely
+  // and hide newly added titles for days. The upstream listings update and
+  // paginate naturally without rotation.
+  if (definition.handler === 'tmdb_provider') return false;
   // Small regional services (5.8 Streaming by Region) would come back empty
   // on an old release window; their rows opt out with params.stable.
   if (definition.params?.stable === true) return false;
   if (definition.group === '📚 Film Collections') return false;
-  return ['tmdb_provider', 'tmdb_genre', 'tmdb_company', 'tmdb_network', 'tmdb_keyword'].includes(definition.handler);
+  return ['tmdb_genre', 'tmdb_company', 'tmdb_network', 'tmdb_keyword'].includes(definition.handler);
 }
 
 function releaseWindow(sourceId, day, now = new Date()) {

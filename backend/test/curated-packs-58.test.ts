@@ -175,8 +175,8 @@ test('regional provider rows opt out of the daily rotation', () => {
     assert.equal(def.params.stable, true, id);
     assert.equal(isRotationEligible({ id, ...catalogs[id] }), false, id);
   }
-  // Older provider rows still rotate.
-  assert.equal(isRotationEligible({ id: 'streaming_netflix_movies', ...catalogs.streaming_netflix_movies }), true);
+  // Older streaming-service rows also show the current provider catalogue.
+  assert.equal(isRotationEligible({ id: 'streaming_netflix_movies', ...catalogs.streaming_netflix_movies }), false);
 });
 
 test('needsMdblistKey marks key-backed lists and the Charts pack, nothing else', () => {

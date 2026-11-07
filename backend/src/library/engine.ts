@@ -31,7 +31,6 @@ const axios = require('axios');
 const { resolveEntity } = require('./identity/resolve.ts');
 const identityProviders = require('./identity/providers.ts');
 const { normalizeTitle } = require('./diff.ts');
-const pictoriumWarm = require('../runtime/pictorium-warm.ts');
 const { libraryCatalogTtl } = require('./cache-policy.ts');
 
 const registry = new Map();
@@ -179,7 +178,7 @@ function noteConfig(token, config) {
 // Fetch the first page of the owned catalogues through the normal route so the
 // real pipeline runs: this builds and caches the franchise collections (which
 // the legacy 2-minute loop used to warm and is disabled while indexed) and
-// enqueues Pictorium poster renders. Loopback only; failures are ignored.
+// primes the owned catalogues. Loopback only; failures are ignored.
 // After each sync, refresh the projections Nuvio will ask for first: the owned
 // catalogue pages, the franchise collection, the Trending/Popular rows when
 // enabled, the first-page metas, and (throttled) the discovery stream menus.
@@ -191,7 +190,7 @@ const WARM_META_INTERVAL = Math.max(60, parseInt(process.env.LIBRARY_WARM_META_I
 const WARM_STREAM_INTERVAL = Math.max(60, parseInt(process.env.LIBRARY_WARM_STREAM_INTERVAL, 10) || 900);
 
 function warmOrigin() {
-  return process.env.PICTORIUM_WARM_ORIGIN || `http://127.0.0.1:${process.env.PORT || 7860}`;
+  return `http://127.0.0.1:${process.env.PORT || 7860}`;
 }
 
 async function loopbackJson(rec, path, timeout = 60000) {
@@ -210,8 +209,7 @@ function warmEnabled(cfg, kind) {
 }
 
 // After each sync, prime the first page of the owned catalogues in-process so
-// Nuvio's first open is instant and Pictorium poster rendering is enqueued
-// asynchronously without loopback socket overhead or server freezing.
+// Nuvio's first open is instant.
 async function warmCatalogs(rec) {
   if (!rec || !rec.config || rec.warming) return;
   rec.warming = true;
@@ -252,7 +250,7 @@ function runSync(rec) {
         noteProjectionChange(rec.scopeId);
       }
       // After each sync, warm the first page of the owned catalogues so the
-      // next Nuvio open already has rendered Pictorium posters on disk/Redis.
+      // next Nuvio open already has the warmed posters on disk/Redis.
       warmCatalogs(rec).catch(() => {});
       return result;
     } finally {
@@ -557,19 +555,9 @@ function catalogTtl() {
   return libraryCatalogTtl();
 }
 
-// Kick off background Pictorium rendering for a page's posters so the grid
-// does not make the client wait seconds per image. Paths only: the warmer calls
-// back through the proxy, which owns caching and the provider key.
-function warmCatalogPosters(config, metas) {
-  if (!config || config.posterProvider !== 'pictorium' || !pictoriumWarm.enabled()) return;
-  const paths = [];
-  for (const m of metas || []) {
-    if (!m || typeof m.poster !== 'string') continue;
-    if (m.poster.startsWith('/')) { paths.push(m.poster); continue; }
-    try { const u = new URL(m.poster); paths.push(u.pathname + u.search); } catch { /* ignore */ }
-  }
-  if (paths.length) pictoriumWarm.enqueue(paths);
-}
+// No background poster rendering remains: poster providers resolve to
+// direct URLs (custom/erdb/rpdb/betterposter/fanart).
+function warmCatalogPosters() {}
 
 // Coalesce identical concurrent catalog reads (a Nuvio burst on one page).
 const catalogInFlight = new Map();
@@ -774,7 +762,6 @@ async function status() {
       scopes: registry.size,
     },
     identityProviders: identityProviders.status(),
-    pictoriumWarm: pictoriumWarm.stats(),
     metrics: metrics.snapshot(),
   };
 }

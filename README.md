@@ -10,15 +10,28 @@
 </p>
 
 <p align="center">
-  <a href="https://buymeacoffee.com/lelew" target="_blank">
-    <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=&slug=lelew&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" alt="Buy me a coffee" width="200">
-  </a>
+  <a href="https://github.com/leleasley/LeLibrary/releases"><img src="https://img.shields.io/github/v/release/leleasley/LeLibrary?style=for-the-badge&amp;label=release&amp;color=E8A12C" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-E8A12C?style=for-the-badge" alt="License: AGPL-3.0"></a>
+  <a href="https://discord.gg/E3XbsmuQ9E"><img src="https://img.shields.io/badge/Discord-join%20the%20community-5865F2?style=for-the-badge&amp;logo=discord&amp;logoColor=white" alt="Join the LeLibrary Discord"></a>
+  <a href="https://www.reddit.com/r/LeLibrary/"><img src="https://img.shields.io/badge/Reddit-r%2FLeLibrary-FF4500?style=for-the-badge&amp;logo=reddit&amp;logoColor=white" alt="Visit r/LeLibrary on Reddit"></a>
 </p>
 
 <p align="center">
-  <a href="https://lelibrary.uk/configure">Configure LeLibrary</a> ·
-  <a href="SETUP.md">Setup guide</a> ·
-  <a href="https://github.com/leleasley/LeLibrary/releases">Releases</a>
+  <a href="https://lelibrary.uk/configure"><img src="assets/readme/configure.webp" alt="LeLibrary setup page showing the Quick Look, Settle In and Move In options" width="100%"></a>
+</p>
+
+<p align="center">
+  <a href="https://lelibrary.uk/configure"><strong>Configure</strong></a> ·
+  <a href="https://lelibrary.uk/guide"><strong>Guide</strong></a> ·
+  <a href="https://lelibrary.uk/releases"><strong>Releases</strong></a> ·
+  <a href="https://lelibrary.uk/privacy"><strong>Privacy Policy</strong></a> ·
+  <a href="SETUP.md"><strong>Self-hosting &amp; setup</strong></a>
+</p>
+
+<p align="center">
+  <a href="https://buymeacoffee.com/lelew">
+    <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&amp;emoji=&amp;slug=lelew&amp;button_colour=FFDD00&amp;font_colour=000000&amp;font_family=Cookie&amp;outline_colour=000000&amp;coffee_colour=ffffff" alt="Buy me a coffee" width="200">
+  </a>
 </p>
 
 ## Start here
@@ -304,7 +317,7 @@ with LeLibrary:
 
 **Posters and metadata**: [TMDB](https://www.themoviedb.org/),
 [Fanart.tv](https://fanart.tv/), [RPDB](https://ratingposterdb.com/),
-[BetterPosters](https://btttr.cc/), ERDB, Pictorium and
+[BetterPosters](https://btttr.cc/), ERDB and
 [Posters+](https://github.com/UmbraProjects/PostersPlus). This product uses the
 TMDB API but is not endorsed or certified by TMDB.
 

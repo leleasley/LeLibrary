@@ -223,14 +223,10 @@ function enhancedPosterUrl(tmdbId, imdbId, enhance, fallback = '') {
   if (posterProvider === 'custom') {
     return require('../media/poster-template.ts').resolve(customPosterTemplate, { tmdbId, imdbId, type: 'movie' });
   }
-  if (enhance?.pictorium?.enabled && enhance.pictorium.token) {
-    const url = require('./builder.ts').buildPictoriumPosterUrl(enhance, { type: 'movie', id: tmdbId || imdbId, imdbId, fallback: '' });
-    if (url) return url;
-  }
   // Same ERDB link and poster cache as every other row: the old direct
   // "/poster/tmdb:movie:<id>" form answered an HTML page, so these posters
   // stayed blank in Nuvio.
-  if (erdbToken && tmdbId) return require('./builder.ts').erdbProxyUrl(enhance, 'poster', `tmdb:movie:${tmdbId}`, fallback) || null;
+  if (erdbToken && tmdbId) return require('./builder.ts').erdbProxyUrl(enhance, 'poster', `tmdb:movie:${tmdbId}`) || null;
   if (rpdbKey && tmdbId) return `https://api.ratingposterdb.com/${rpdbKey}/tmdb/poster-default/movie-${tmdbId}.jpg?fallback=true`;
   if (posterProvider === 'betterposter' && imdbId) return require('./builder.ts').buildBetterPosterUrl(imdbId, 'movie');
   return null;

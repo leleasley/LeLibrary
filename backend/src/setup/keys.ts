@@ -26,7 +26,7 @@ function keyFromString(value: unknown): Buffer | null {
 }
 
 function keyFilePath(): string {
-  const dir = process.env.DATA_DIR || process.env.PICTORIUM_DATA_DIR || '/data';
+  const dir = process.env.DATA_DIR || '/data';
   return path.join(dir, 'setup.key');
 }
 

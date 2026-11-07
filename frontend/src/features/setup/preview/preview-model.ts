@@ -120,7 +120,7 @@ const SECRET_FIELDS = new Set([
   'torboxApiKey', 'rdApiKey', 'adApiKey', 'pmApiKey', 'tmdbApiKey', 'tvdbApiKey', 'omdbKey', 'mdblistKey',
   'erdbToken', 'rpdbKey', 'fanartKey', 'postersPlusUrl', 'customAddon1', 'customAddon2', 'customAddon3',
   'webdavUrl', 'webdavUser', 'webdavPassword', 'keys', 'push', 'watchlist', 'connection', 'pushConn', 'password',
-  'installToken', 'editToken', 'pictoriumUrl', 'customPosterTemplate', 'nuvioBadgeUrl', 'customStreams',
+  'installToken', 'editToken', 'customPosterTemplate', 'nuvioBadgeUrl', 'customStreams',
   'externalSources', 'addonUrl', 'manifestUrl', 'transportUrl',
 ]);
 const SECRET_NAME = /api_?key|token|secret|passw|auth|session|cookie|credential|refresh/i;

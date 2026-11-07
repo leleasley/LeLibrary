@@ -42,8 +42,8 @@ test('posterFp uses the shared format and separates poster settings', () => {
   assert.notEqual(a, b);
   assert.equal(posterFp({ posterProvider: 'rpdb', rpdbKey: 'synthetic-a' }), a, 'stable');
   assert.notEqual(
-    posterFp({ posterProvider: 'pictorium', pictoriumUrl: 'https://p.example', pictoriumOptions: { badge: 1 } }),
-    posterFp({ posterProvider: 'pictorium', pictoriumUrl: 'https://p.example', pictoriumOptions: { badge: 2 } }),
+    posterFp({ posterProvider: 'custom', customPosterTemplate: 'https://img.example.com/{tmdbId}.jpg' }),
+    posterFp({ posterProvider: 'custom', customPosterTemplate: 'https://img.example.com/{imdbId}.jpg' }),
   );
 });
 

@@ -34,10 +34,21 @@ test('daily rotation is deterministic, source-specific, and preserves its core f
   assert.equal(rotation.slot, '2026-09-01');
 });
 
-test('TV rotation uses first-air-date filters', () => {
-  const result = rotationFor(definition({ id: 'streaming_netflix_series', type: 'series', handler: 'tmdb_provider', group: '🎬 Streaming', params: { providerId: 8 } }), { date: DAY_ONE, now: DAY_ONE });
+test('TV rotation uses first-air-date filters for eligible genre rows', () => {
+  const result = rotationFor(definition({ id: 'genre_horror_series', type: 'series', handler: 'tmdb_genre', params: { genreId: 27 } }), { date: DAY_ONE, now: DAY_ONE });
   assert.ok(result.filters['first_air_date.gte']);
   assert.equal(result.filters['primary_release_date.gte'], undefined);
+});
+
+test('streaming provider rows stay current instead of rotating through release-year windows', () => {
+  const { catalogs } = require('../src/catalog/catalogdefs.ts');
+  for (const id of ['streaming_shudder_series', 'streaming_shudder_movies', 'streaming_netflix_series', 'streaming_prime_series', 'streaming_peacock_series', 'streaming_crunchyroll_series', 'streaming_discovery_series']) {
+    assert.equal(rotationFor({ id, ...catalogs[id] }, { date: DAY_ONE, now: DAY_ONE }), null, id);
+    assert.equal(rotationFor({ id, ...catalogs[id] }, { date: DAY_TWO, now: DAY_TWO }), null, id);
+  }
+  for (const [id, def] of Object.entries(catalogs)) {
+    if (def.handler === 'tmdb_provider') assert.equal(isRotationEligible({ id, ...def }), false, id);
+  }
 });
 
 export interface CatalogRotationTestTestModule {};

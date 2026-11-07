@@ -39,7 +39,7 @@ const TOPICS: GuideTopic[] = [
     id: 'keys',
     title: 'Connect your services',
     summary: 'Debrid keys, the TMDB key, and the optional artwork and list services.',
-    keywords: ['keys', 'api', 'torbox', 'real-debrid', 'alldebrid', 'premiumize', 'tmdb', 'tvdb', 'mdblist', 'verify', 'erdb', 'rpdb', 'omdb', 'fanart', 'pictorium'],
+    keywords: ['keys', 'api', 'torbox', 'real-debrid', 'alldebrid', 'premiumize', 'tmdb', 'tvdb', 'mdblist', 'verify', 'erdb', 'rpdb', 'omdb', 'fanart'],
   },
   {
     id: 'install',

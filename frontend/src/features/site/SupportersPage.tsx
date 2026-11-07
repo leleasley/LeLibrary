@@ -44,7 +44,6 @@ const CREDIT_GROUPS: { key: string; icon: string; items: Credit[] }[] = [
       { name: 'Fanart.tv', href: 'https://fanart.tv/' },
       { name: 'BetterPosters', href: 'https://btttr.cc/' },
       { name: 'ERDB' },
-      { name: 'Pictorium' },
       { name: 'Posters+', href: 'https://github.com/UmbraProjects/PostersPlus' },
     ],
   },

@@ -19,13 +19,13 @@ const { getUserKey } = require('../providers/index.ts');
 const { validateCustomStreamsConfig } = require('../media/custom-streams.ts');
 const crypto = require('crypto');
 
-const STREAM_FIELDS = ['streamAddons', 'streamPreset', 'streamNameTemplate', 'streamDescTemplate', 'nuvioBadgePack', 'nuvioBadgeUrl', 'customStreams', 'streamNotices', 'streamNoticeTypes', 'filterResolutions', 'filterResOrder', 'filterQualities', 'filterSources', 'filterCodecs', 'filterHdr', 'filterAudio', 'filterMinSize', 'filterMaxSize', 'filterCachedOnly', 'nuvioCollectionPacks', 'nuvioCollectionOverrides', 'importedRows', 'libraryCatalogs', 'libHomeHidden', 'posterProvider', 'pictoriumUrl', 'pictoriumOptions'];
+const STREAM_FIELDS = ['streamAddons', 'streamPreset', 'streamNameTemplate', 'streamDescTemplate', 'nuvioBadgePack', 'nuvioBadgeUrl', 'customStreams', 'streamNotices', 'streamNoticeTypes', 'filterResolutions', 'filterResOrder', 'filterQualities', 'filterSources', 'filterCodecs', 'filterHdr', 'filterAudio', 'filterMinSize', 'filterMaxSize', 'filterCachedOnly', 'nuvioCollectionPacks', 'nuvioCollectionOverrides', 'importedRows', 'libraryCatalogs', 'libHomeHidden', 'posterProvider'];
 // Object-valued fields are stored as JSON strings so the store stays a flat
 // key/value shape; they are parsed back on load.
-const OBJECT_FIELDS = new Set(['pictoriumOptions']);
+const OBJECT_FIELDS = new Set([]);
 // Fields where an empty string is a meaningful value (clears a previous
 // setting) and must therefore survive the "skip empty" rule.
-const CLEARABLE_FIELDS = new Set(['posterProvider', 'pictoriumUrl']);
+const CLEARABLE_FIELDS = new Set(['posterProvider']);
 const TOGGLE_FIELDS = ['libraryIdMode'];
 const CONFIG_TTL = 60 * 60 * 24 * 90; // 90 days, refreshed on every save
 
@@ -122,14 +122,6 @@ async function mergeStoredConfig(config = {}) {
   if (config.__configScope) {
     Object.defineProperty(merged, '__configScope', {
       value: config.__configScope, enumerable: false, configurable: true,
-    });
-  }
-  // The manifest token is what lets the poster proxy build its URL. It is a
-  // non-enumerable internal, so the spread above would drop it and Pictorium
-  // posters would silently fall back to TMDB on every merged request path.
-  if (config.__pictoriumToken) {
-    Object.defineProperty(merged, '__pictoriumToken', {
-      value: config.__pictoriumToken, enumerable: false, configurable: true,
     });
   }
   for (const f of STREAM_FIELDS) {

@@ -16,16 +16,15 @@ const { timeSpan } = require('../middleware/perf-timing.ts') as {
 // V5 token ids (random ids pointing at a saved account token) are looked up in
 // Postgres, where the user's saved provider keys are folded back in. This keeps
 // every install link working across the migration.
-function tagConfig(config: Record<string, unknown>, scope: Record<string, unknown>, token: string) {
+function tagConfig(config: Record<string, unknown>, scope: Record<string, unknown>) {
   Object.defineProperty(config, '__configScope', { value: scope, enumerable: false, configurable: true });
-  Object.defineProperty(config, '__pictoriumToken', { value: token, enumerable: false, configurable: true });
   return config;
 }
 
 // The engine config of one opened v5.5 setup, tagged the way every addon
 // route sees it (the tier gates Home-managed manifest rules).
-function setupEngineConfig(engine: Record<string, unknown>, opened: { uuid: string; tier: string }, token: string): Record<string, unknown> {
-  return tagConfig(engine, { type: 'config', uuid: opened.uuid, tier: opened.tier }, token);
+function setupEngineConfig(engine: Record<string, unknown>, opened: { uuid: string; tier: string }): Record<string, unknown> {
+  return tagConfig(engine, { type: 'config', uuid: opened.uuid, tier: opened.tier });
 }
 
 async function resolveConfig(token: unknown, trace?: unknown): Promise<Record<string, unknown> | null> {
@@ -39,7 +38,7 @@ async function resolveConfig(token: unknown, trace?: unknown): Promise<Record<st
         // tell secret resolution apart from database latency.
         const opened = await timeSpan(trace, 'pg:setup-resolve', () =>
           store.resolveByToken(typeof token === 'string' ? token : ''));
-        if (opened) return setupEngineConfig(store.toEngineConfig(opened), opened, typeof token === 'string' ? token : '');
+        if (opened) return setupEngineConfig(store.toEngineConfig(opened), opened);
       }
     } catch (err: any) {
       console.error('[token] setup resolve failed:', err.message);
@@ -52,9 +51,6 @@ async function resolveConfig(token: unknown, trace?: unknown): Promise<Record<st
     Object.defineProperty(legacy, '__configScope', {
       value: { type: 'legacy' }, enumerable: false, configurable: true,
     });
-    Object.defineProperty(legacy, '__pictoriumToken', {
-      value: token, enumerable: false, configurable: true,
-    });
     return legacy;
   }
   // Account-backed opaque tokens no longer exist: an install URL is either a
@@ -65,6 +61,6 @@ async function resolveConfig(token: unknown, trace?: unknown): Promise<Record<st
 
 export interface ResolveConfigApi {
   resolveConfig: (token: unknown, trace?: unknown) => Promise<Record<string, unknown> | null>;
-  setupEngineConfig: (engine: Record<string, unknown>, opened: { uuid: string; tier: string }, token: string) => Record<string, unknown>;
+  setupEngineConfig: (engine: Record<string, unknown>, opened: { uuid: string; tier: string }) => Record<string, unknown>;
 }
 module.exports = { resolveConfig, setupEngineConfig } satisfies ResolveConfigApi;
